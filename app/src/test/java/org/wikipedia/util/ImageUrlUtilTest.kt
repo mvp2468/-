@@ -82,5 +82,6 @@ class ImageUrlUtilTest {
         val original = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Test.jpg/page1-200px-Test.jpg"
         val result = ImageUrlUtil.insertLangIntoThumbUrl(original, "fr")
         assertTrue(result.contains("langfr-200px"))
+
     }
 }

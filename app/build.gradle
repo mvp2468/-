@@ -7,6 +7,7 @@ plugins {
     id 'kotlin-parcelize'
     id 'kotlinx-serialization'
     id 'jacoco'
+
     alias(libs.plugins.compose.compiler)
 }
 
@@ -161,6 +162,7 @@ android {
     buildTypes {
         debug {
             testCoverageEnabled = true
+
         }
     }
 
@@ -175,6 +177,7 @@ android {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
+
 
 apply plugin: 'jacoco'
 
@@ -277,6 +280,8 @@ task jacocoTestReport(type: JacocoReport) {
         ]))
     }
 }
+
+apply from: '../gradle/src/ktlint.gradle'
 
 dependencies {
 

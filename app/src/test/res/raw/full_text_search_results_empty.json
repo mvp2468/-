@@ -2,5 +2,10 @@
   "batchcomplete": true,
   "query": {
     "pages": []
+  },
+  "warnings": {
+    "search": {
+      "warnings": "No valid titles provided to 'morelike'."
+    }
   }
 }

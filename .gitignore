@@ -28,7 +28,10 @@ scripts/apps
 scripts/backup.ab
 
 # Should never check in apk files
-*.apk
+
+
+# *.apk  # 此处进行修改，为了上传.apk安装包
+
 # Older releases
 /releases
 

@@ -1,6 +1,10 @@
 package org.wikipedia.page
 
 import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -15,6 +19,7 @@ class NamespaceTest {
     }
 
     @Test
+
     fun testOfVariousCodes() {
         assertEquals(Namespace.MAIN, Namespace.of(0))
         assertEquals(Namespace.TALK, Namespace.of(1))
@@ -31,6 +36,7 @@ class NamespaceTest {
     }
 
     @Test
+
     fun testFromLegacyStringMain() {
         assertEquals(Namespace.MAIN, Namespace.fromLegacyString(WikiSite.forLanguageCode("test"), null))
     }
@@ -41,11 +47,13 @@ class NamespaceTest {
     }
 
     @Test
+
     fun testFromLegacyStringFile() {
         assertEquals(Namespace.FILE, Namespace.fromLegacyString(WikiSite.forLanguageCode("he"), "קובץ"))
     }
 
     @Test
+
     fun testFromLegacyStringFileWithFallback() {
         // "File" should work for languages that don't have a specific file alias
         assertEquals(Namespace.FILE, Namespace.fromLegacyString(WikiSite.forLanguageCode("en"), "File"))
@@ -63,6 +71,7 @@ class NamespaceTest {
     }
 
     @Test
+
     fun testFromLegacyStringSpecial() {
         assertEquals(Namespace.SPECIAL, Namespace.fromLegacyString(WikiSite.forLanguageCode("lez"), "Служебная"))
     }
@@ -146,7 +155,6 @@ class NamespaceTest {
     fun testTalkOdd() {
         assertTrue(Namespace.TALK.talk())
     }
-
     @Test
     fun testTalkVariousNamespaces() {
         val talkNamespaces = listOf(
