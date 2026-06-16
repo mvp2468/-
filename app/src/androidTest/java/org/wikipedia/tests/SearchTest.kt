@@ -36,6 +36,8 @@ class SearchTest : BaseTest<MainActivity>(
         systemRobot
             .disableDarkMode(context)
             .clickOnSystemDialogWithText("Allow")
+        dialogRobot
+            .dismissLoggedOutDialog()
         homeScreenRobot
             .clickSearchContainer()
         searchRobot

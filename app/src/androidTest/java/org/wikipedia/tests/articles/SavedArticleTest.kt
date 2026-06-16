@@ -27,6 +27,7 @@ class SavedArticleTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         setDeviceOrientation(isLandscape = false)
         systemRobot
             .clickOnSystemDialogWithText("Allow")

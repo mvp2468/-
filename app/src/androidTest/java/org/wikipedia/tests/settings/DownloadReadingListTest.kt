@@ -27,8 +27,14 @@ class DownloadReadingListTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        // Wait for the app to fully initialize (splash, database, network, Compose rendering)
+        // before attempting to interact with any UI elements.
+        waitForMainActivityReady()
+
         systemRobot
             .clickOnSystemDialogWithText("Allow")
+        dialogRobot
+            .dismissBigEnglishDialog()
         bottomNavRobot
             .navigateToSavedPage()
         savedScreenRobot
@@ -39,6 +45,9 @@ class DownloadReadingListTest : BaseTest<MainActivity>(
             .tapSearchView()
             .typeTextInView("pokemon")
             .clickOnItemFromSearchList(0)
+        dialogRobot
+            .dismissBigEnglishDialog()
+            .dismissContributionDialog()
         readingListRobot
             .saveArticleToReadingList()
             .addToReadingList(context)

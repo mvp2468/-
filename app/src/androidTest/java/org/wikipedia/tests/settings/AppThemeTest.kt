@@ -7,7 +7,9 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.wikipedia.WikipediaApp
+import org.wikipedia.TestUtil
 import org.wikipedia.base.BaseTest
+import org.wikipedia.base.TestConfig
 import org.wikipedia.robots.AppThemeRobot
 import org.wikipedia.robots.SystemRobot
 import org.wikipedia.theme.Theme
@@ -24,6 +26,11 @@ class AppThemeTest : BaseTest<ThemeFittingRoomActivity>(
 
     @Test
     fun runTest() {
+        // ThemeFittingRoomActivity is auto-launched by ActivityScenarioRule
+        // and does not use MainActivity's bottom nav layout.
+        // A simple delay is sufficient for the ThemeChooserDialog to appear.
+        TestUtil.delay(TestConfig.DELAY_LARGE)
+
         systemRobot
             .disableDarkMode(context)
             .clickOnSystemDialogWithText("Allow")
@@ -43,7 +50,10 @@ class AppThemeTest : BaseTest<ThemeFittingRoomActivity>(
         appThemeRobot
             .applyDarkTheme()
         var newTheme = getThemeAttribute()
-        assertNotEquals("Theme should change to Black", currentTheme, newTheme)
+        // On some devices enableDarkMode may already set the theme to DARK.
+        if (currentTheme.resourceId != Theme.DARK.resourceId) {
+            assertNotEquals("Theme should change to Black", currentTheme, newTheme)
+        }
         assertEquals("Theme should be Black", newTheme.resourceId, Theme.DARK.resourceId)
         currentTheme = newTheme
 

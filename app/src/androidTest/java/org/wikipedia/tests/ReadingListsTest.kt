@@ -27,6 +27,7 @@ class ReadingListsTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         systemRobot
             .clickOnSystemDialogWithText("Allow")
         // 1. saved article should be in the "Saved" reading list
@@ -34,8 +35,7 @@ class ReadingListsTest : BaseTest<MainActivity>(
         readingListRobot
             .saveArticleToReadingList()
             .pressBack()
-            .pressBack()
-            .pressBack()
+            .returnToHome()
         bottomNavRobot
             .navigateToSavedPage()
         readingListRobot
@@ -52,8 +52,7 @@ class ReadingListsTest : BaseTest<MainActivity>(
             .typeNameOfTheList(LIST_NAME_NEW, context)
             .saveTheList(context)
             .pressBack()
-            .pressBack()
-            .pressBack()
+            .returnToHome()
         dialogRobot
             .dismissPromptLogInToSyncDialog(context)
         bottomNavRobot
@@ -68,6 +67,7 @@ class ReadingListsTest : BaseTest<MainActivity>(
         readingListRobot
             .clickOnReadingLists(LIST_NAME_SAVED)
             .clickOnReadingListItem(1)
+            .dismissTocIfVisible()
             .saveArticleToReadingList()
             .removeArticleList(LIST_NAME_SAVED)
             .pressBack()
@@ -75,6 +75,7 @@ class ReadingListsTest : BaseTest<MainActivity>(
             .pressBack()
             .clickOnReadingLists(LIST_NAME_NEW)
             .clickOnReadingListItem(1)
+            .dismissTocIfVisible()
             .saveArticleToReadingList()
             .removeArticleList(LIST_NAME_NEW)
             .pressBack()

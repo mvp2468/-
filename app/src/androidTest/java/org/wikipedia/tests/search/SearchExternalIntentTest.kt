@@ -1,6 +1,8 @@
 package org.wikipedia.tests.search
 
 import android.content.Intent
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso
@@ -27,9 +29,11 @@ import org.wikipedia.search.SearchActivity
 @RunWith(AndroidJUnit4::class)
 class SearchExternalIntentTest {
 
-    @Rule
-    @JvmField
-    var mActivityTestRule = ActivityScenarioRule<SearchActivity>(
+    @get:Rule(order = 0)
+    val composeTestRule = createComposeRule()
+
+    @get:Rule(order = 1)
+    var activityRule = ActivityScenarioRule<SearchActivity>(
         Intent(ApplicationProvider.getApplicationContext(), SearchActivity::class.java)
             .setAction(Intent.ACTION_SEND)
             .setType(Constants.PLAIN_TEXT_MIME_TYPE)
@@ -42,8 +46,7 @@ class SearchExternalIntentTest {
 
         TestUtil.delay(5)
 
-        onView(allOf(withId(R.id.page_list_item_title), withText("Boletus edulis"), isDisplayed()))
-            .check(matches(withText("Boletus edulis")))
+        composeTestRule.onNodeWithText("Boletus edulis").assertExists()
 
         TestUtil.delay(2)
 
@@ -53,8 +56,7 @@ class SearchExternalIntentTest {
         Espresso.pressBack()
         TestUtil.delay(1)
 
-        onView(allOf(withId(R.id.page_list_item_title), withText("Boletus edulis"), isDisplayed()))
-            .check(matches(withText("Boletus edulis")))
+        composeTestRule.onNodeWithText("Boletus edulis").assertExists()
 
         device.setOrientationNatural()
         device.unfreezeRotation()
@@ -97,8 +99,7 @@ class SearchExternalIntentTest {
 
         TestUtil.delay(5)
 
-        onView(allOf(withId(R.id.page_list_item_title), withText("Белый гриб"), isDisplayed()))
-            .check(matches(withText("Белый гриб")))
+        composeTestRule.onNodeWithText("Белый гриб").assertExists()
 
         TestUtil.delay(2)
     }

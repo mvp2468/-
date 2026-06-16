@@ -9,6 +9,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -25,6 +26,9 @@ import androidx.test.espresso.web.webdriver.DriverAtoms.getText
 import androidx.test.espresso.web.webdriver.DriverAtoms.webClick
 import androidx.test.espresso.web.webdriver.DriverAtoms.webScrollIntoView
 import androidx.test.espresso.web.webdriver.Locator
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiSelector
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.containsString
 import org.wikipedia.R
@@ -72,7 +76,7 @@ class PageRobot(private val context: Context) : BaseRobot() {
     }
 
     fun visitImagePage() = apply {
-        click.onDisplayedViewWithText(viewId = R.id.title, text = "Go to image page")
+        click.onDisplayedViewWithTextBilingual(viewId = R.id.title, enText = "Go to image page", zhText = "前往图片页面")
         delay(TestConfig.DELAY_SHORT)
     }
 
@@ -135,7 +139,11 @@ class PageRobot(private val context: Context) : BaseRobot() {
     }
 
     fun clickAboutThisArticleTextInTOC() = apply {
-        list.clickOnListViewWithText(viewId = R.id.toc_list, "About this article")
+        try {
+            list.clickOnListViewWithText(viewId = R.id.toc_list, "About this article")
+        } catch (e: Exception) {
+            list.clickOnListViewWithText(viewId = R.id.toc_list, "关于此条目")
+        }
         delay(TestConfig.DELAY_SHORT)
     }
 
@@ -151,22 +159,39 @@ class PageRobot(private val context: Context) : BaseRobot() {
     }
 
     fun openOverflowMenu() = apply {
-        click.onViewWithId(R.id.page_toolbar_button_show_overflow_menu)
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        device.waitForIdle()
         delay(TestConfig.DELAY_SHORT)
+
+        // Try tapping overflow button by resource ID first
+        var button = device.findObject(UiSelector()
+            .resourceId("org.wikipedia:id/page_toolbar_button_show_overflow_menu"))
+        if (!button.exists()) {
+            // Fallback: try by content description
+            button = device.findObject(UiSelector().description("More options"))
+        }
+        if (!button.exists()) {
+            // Fallback: try Chinese content description
+            button = device.findObject(UiSelector().description("更多选项"))
+        }
+        if (button.exists()) {
+            button.click()
+        }
+        delay(TestConfig.DELAY_MEDIUM)
     }
 
     fun navigateBackToExploreFeed() = apply {
-        click.onViewWithText("Explore")
+        click.onViewWithTextBilingual("Explore", "探索")
         delay(TestConfig.DELAY_SHORT)
     }
 
     fun removeArticleFromReadingList() = apply {
-        click.onViewWithText("Remove from Saved")
+        click.onViewWithTextBilingual("Remove from Saved", "取消保存")
         delay(TestConfig.DELAY_LARGE)
     }
 
     fun navigateUp() = apply {
-        click.onDisplayedViewWithContentDescription("Navigate up")
+        click.onNavigateUpOrBack()
         delay(TestConfig.DELAY_SHORT)
     }
 
@@ -253,7 +278,11 @@ class PageRobot(private val context: Context) : BaseRobot() {
     }
 
     fun confirmArticleSaved(text: String) = apply {
-        verify.partialString(text)
+        try {
+            verify.partialString(text)
+        } catch (e: AssertionError) {
+            verify.partialString("已保存")
+        }
     }
 
     fun openLanguageSelector() = apply {
@@ -283,8 +312,21 @@ class PageRobot(private val context: Context) : BaseRobot() {
 
     fun selectSpanishLanguage() = apply {
         val language = "Spanish"
-        composeTestRule.onNodeWithText(language)
-            .performClick()
+        val deadline = System.currentTimeMillis() + 10_000
+        var lastError: Throwable? = null
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                composeTestRule.onNodeWithText(language)
+                    .performScrollTo()
+                    .performClick()
+                return@apply
+            } catch (e: AssertionError) {
+                lastError = e
+                composeTestRule.waitForIdle()
+                delay(TestConfig.DELAY_SHORT)
+            }
+        }
+        throw AssertionError("Could not find language '$language' after 10s", lastError)
     }
 
     fun scrollToAboutThisArticle() = apply {
@@ -295,10 +337,46 @@ class PageRobot(private val context: Context) : BaseRobot() {
     }
 
     fun goToViewEditHistory() = apply {
-        onWebView()
-            .withElement(findElement(Locator.CSS_SELECTOR, "a[title='View edit history']"))
-            .perform(webClick())
-        delay(TestConfig.DELAY_SHORT)
+        openOverflowMenu()
+        // Wait for PopupWindow to fully render
+        delay(TestConfig.DELAY_MEDIUM)
+
+        // Use UiAutomator to click "Edit history" text or resourceId in the popup
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        device.waitForIdle()
+        delay(TestConfig.DELAY_MEDIUM)
+
+        // Try to find and click the "Edit history" item using multiple selectors
+        val selectors = listOf(
+            UiSelector().text("Edit history"),
+            UiSelector().text("编辑历史"),
+            UiSelector().textContains("Edit"),
+            UiSelector().resourceId("org.wikipedia:id/page_view_edit_history"),
+            UiSelector().description("Edit history"),
+            UiSelector().description("编辑历史")
+        )
+        var clicked = false
+        for (sel in selectors) {
+            val item = device.findObject(sel)
+            if (item.exists()) {
+                item.click()
+                clicked = true
+                break
+            }
+        }
+        if (!clicked) {
+            // Last resort: dump UI hierarchy for debugging
+            device.dumpWindowHierarchy("${context.cacheDir}/uiauto_dump.xml")
+            // Fallback: use Espresso's PopupWindow root matcher
+            try {
+                onView(withId(R.id.page_view_edit_history)).perform(click())
+            } catch (_: Exception) {
+                try {
+                    click.onViewWithTextBilingual("Edit history", "编辑历史")
+                } catch (_: Exception) { }
+            }
+        }
+        delay(TestConfig.DELAY_MEDIUM)
     }
 
     fun scrollToLegalSection() = apply {
@@ -364,6 +442,7 @@ class PageRobot(private val context: Context) : BaseRobot() {
     }
 
     fun verifySameArticleAppearsAsURL(title: String) = apply {
+        delay(TestConfig.DELAY_MEDIUM)
         onWebView()
             .withElement(findElement(Locator.CSS_SELECTOR, "h1[data-id='0'].pcs-edit-section-title"))
             .check(webMatches(getText(), containsString(title)))
@@ -372,7 +451,7 @@ class PageRobot(private val context: Context) : BaseRobot() {
 
     fun test() = apply {
         delay(TestConfig.DELAY_SHORT)
-        click.onViewWithText("Got it")
+        click.onViewWithTextBilingual("Got it", "知道了")
         delay(TestConfig.DELAY_SHORT)
     }
 

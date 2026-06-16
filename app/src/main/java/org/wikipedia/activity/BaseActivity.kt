@@ -121,7 +121,10 @@ abstract class BaseActivity : AppCompatActivity(), ConnectionStateMonitor.Callba
             }
         }
 
-        val invokeSource = intent.getSerializableExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE) as InvokeSource?
+        val invokeSource = when (val extra = intent.getSerializableExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE)) {
+            is InvokeSource -> extra
+            else -> null
+        }
         invokeSource?.let {
             when (it) {
                 InvokeSource.WIDGET -> {

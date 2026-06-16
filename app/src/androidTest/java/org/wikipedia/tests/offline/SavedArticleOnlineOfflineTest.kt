@@ -26,6 +26,7 @@ class SavedArticleOnlineOfflineTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         if (!isOnline()) {
             systemRobot
                 .turnOffAirplaneMode()

@@ -1,5 +1,7 @@
 package org.wikipedia.tests.search
 
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso
@@ -26,9 +28,11 @@ import org.wikipedia.search.SearchActivity
 @RunWith(AndroidJUnit4::class)
 class SearchIntentTest {
 
-    @Rule
-    @JvmField
-    var mActivityTestRule = ActivityScenarioRule<SearchActivity>(
+    @get:Rule(order = 0)
+    val composeTestRule = createComposeRule()
+
+    @get:Rule(order = 1)
+    var activityRule = ActivityScenarioRule<SearchActivity>(
         SearchActivity.newIntent(
             ApplicationProvider.getApplicationContext(),
             Constants.InvokeSource.INTENT_SHARE, "barack obama"
@@ -41,8 +45,7 @@ class SearchIntentTest {
 
         TestUtil.delay(5)
 
-        onView(allOf(withId(R.id.page_list_item_title), withText("Barack Obama"), isDisplayed()))
-            .check(matches(withText("Barack Obama")))
+        composeTestRule.onNodeWithText("Barack Obama").assertExists()
 
         TestUtil.delay(2)
 
@@ -52,8 +55,7 @@ class SearchIntentTest {
         Espresso.pressBack()
         TestUtil.delay(1)
 
-        onView(allOf(withId(R.id.page_list_item_title), withText("Barack Obama"), isDisplayed()))
-            .check(matches(withText("Barack Obama")))
+        composeTestRule.onNodeWithText("Barack Obama").assertExists()
 
         device.setOrientationNatural()
         TestUtil.delay(2)
@@ -109,8 +111,7 @@ class SearchIntentTest {
 
         TestUtil.delay(5)
 
-        onView(allOf(withId(R.id.page_list_item_title), withText("Обама, Барак"), isDisplayed()))
-            .check(matches(withText("Обама, Барак")))
+        composeTestRule.onNodeWithText("Обама, Барак").assertExists()
 
         TestUtil.delay(2)
     }

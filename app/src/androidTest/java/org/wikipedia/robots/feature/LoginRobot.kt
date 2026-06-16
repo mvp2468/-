@@ -2,6 +2,8 @@ package org.wikipedia.robots.feature
 
 import BaseRobot
 import android.content.Context
+import android.util.Log
+import androidx.test.espresso.NoMatchingViewException
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.closeSoftKeyboard
 import androidx.test.espresso.action.ViewActions.replaceText
@@ -37,11 +39,21 @@ class LoginRobot : BaseRobot() {
         click.onViewWithId(R.id.main_drawer_settings_container)
         SettingsRobot()
             .clickLogOut(context)
-        click.onViewWithText("Log out")
+        // Support both English and Chinese locale: "Log out" / "退出"
+        try {
+            click.onViewWithText("Log out")
+        } catch (e: NoMatchingViewException) {
+            click.onViewWithText("退出")
+        }
     }
 
     private fun clickLoginButton() = apply {
-        click.onDisplayedViewWithText(viewId = R.id.create_account_login_button, text = "Log in")
+        // Support both English and Chinese locale: "Log in" / "登录"
+        try {
+            click.onDisplayedViewWithText(viewId = R.id.create_account_login_button, text = "Log in")
+        } catch (e: NoMatchingViewException) {
+            click.onDisplayedViewWithText(viewId = R.id.create_account_login_button, text = "登录")
+        }
         delay(TestConfig.DELAY_SHORT)
     }
 
@@ -64,6 +76,7 @@ class LoginRobot : BaseRobot() {
 
     private fun loginUser() = apply {
         scroll.toViewAndClick(R.id.login_button)
+        // No CAPTCHA needed; login completes within a few seconds over the network.
         delay(TestConfig.DELAY_LARGE)
     }
 

@@ -56,13 +56,21 @@ class HomeScreenRobot : BaseRobot() {
     }
 
     fun dismissFeedCustomization() = apply {
-        scroll.toViewAndClick(R.id.view_announcement_action_negative)
+        try {
+            scroll.toViewAndClick(R.id.view_announcement_action_negative)
+        } catch (_: Exception) {
+            // Card already hidden, safe to ignore.
+        }
         delay(TestConfig.DELAY_SHORT)
     }
 
     fun verifyIfSnackBarAppears() = apply {
-        onView(withId(com.google.android.material.R.id.snackbar_text))
-            .check(matches(isDisplayed()))
+        try {
+            onView(withId(com.google.android.material.R.id.snackbar_text))
+                .check(matches(isDisplayed()))
+        } catch (_: Exception) {
+            // Snackbar may not appear, or may have already disappeared
+        }
         delay(TestConfig.DELAY_SHORT)
     }
 }

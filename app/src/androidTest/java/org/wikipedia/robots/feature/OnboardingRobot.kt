@@ -34,6 +34,7 @@ class OnboardingRobot : BaseRobot() {
     }
 
     fun checkWelcomeScreenViewsForVisibility() = apply {
+        delay(TestConfig.DELAY_MEDIUM)
         verify.viewExists(R.id.imageViewCentered)
         verify.viewExists(R.id.primaryTextView)
         verify.viewExists(R.id.secondaryTextView)

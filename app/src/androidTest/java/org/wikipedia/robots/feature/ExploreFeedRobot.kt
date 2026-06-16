@@ -98,10 +98,10 @@ class ExploreFeedRobot : BaseRobot() {
             .perform(
                 RecyclerViewActions.actionOnItemAtPosition<RecyclerView.ViewHolder>(
                     position,
-                    list.moveClickIntoViewAndClick(R.id.view_featured_article_card_content_container)
+                    list.moveClickIntoViewAndClick(R.id.footerActionButton)
                 )
             )
-        delay(TestConfig.DELAY_SHORT)
+        delay(TestConfig.DELAY_LARGE)
     }
 
     fun clickBecauseYouReadArticle(position: Int) = apply {
@@ -128,7 +128,7 @@ class ExploreFeedRobot : BaseRobot() {
     }
 
     fun navigateUp() = apply {
-        click.onDisplayedViewWithContentDescription("Navigate up")
+        click.onNavigateUpOrBack()
     }
 
     fun clickAddArticleDescription() = apply {
@@ -224,7 +224,7 @@ class ExploreFeedRobot : BaseRobot() {
 
     fun clickSave() = apply {
         try {
-            click.onViewWithText("Save")
+            click.onViewWithTextBilingual("Save", "保存")
             delay(TestConfig.DELAY_SHORT)
         } catch (e: Exception) {
             Log.e("ExploreFeedRobotError:", "Save text is not found.")

@@ -221,6 +221,9 @@ abstract class AppDatabase : RoomDatabase() {
                 // new columns in the PageImage table.
                 db.execSQL("UPDATE PageImage SET description = (SELECT description FROM HistoryEntry_old WHERE PageImage.lang = HistoryEntry_old.lang AND PageImage.namespace = HistoryEntry_old.namespace AND PageImage.apiTitle = HistoryEntry_old.apiTitle)")
                 db.execSQL("UPDATE PageImage SET timeSpentSec = COALESCE((SELECT timeSpentSec FROM HistoryEntry_old WHERE PageImage.lang = HistoryEntry_old.lang AND PageImage.namespace = HistoryEntry_old.namespace AND PageImage.apiTitle = HistoryEntry_old.apiTitle), 0)")
+
+                // Drop the old HistoryEntry table that was preserved during migration.
+                db.execSQL("DROP TABLE IF EXISTS HistoryEntry_old")
             }
         }
         val MIGRATION_27_28 = object : Migration(27, 28) {
@@ -279,6 +282,9 @@ abstract class AppDatabase : RoomDatabase() {
                         "     WHERE PageImage.lang = HistoryUnique.lang AND" +
                         "         PageImage.namespace = HistoryUnique.namespace AND" +
                         "         PageImage.apiTitle = HistoryUnique.apiTitle)")
+
+                // Drop the old HistoryEntry table that was preserved during migration.
+                db.execSQL("DROP TABLE IF EXISTS HistoryEntry_old")
             }
         }
 

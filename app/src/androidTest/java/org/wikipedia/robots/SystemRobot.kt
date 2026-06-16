@@ -37,7 +37,11 @@ class SystemRobot : BaseRobot() {
     fun clickOnSystemDialogWithText(text: String) = apply {
         try {
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-            val allowButton = device.findObject(UiSelector().text(text))
+            var allowButton = device.findObject(UiSelector().text(text))
+            if (!allowButton.exists()) {
+                // Try Chinese text variants for devices with Chinese locale
+                allowButton = device.findObject(UiSelector().textMatches("(?i)${text}|允许|始終允許|始终允许|允许访问"))
+            }
             if (allowButton.exists()) {
                 allowButton.click()
             }
@@ -45,7 +49,7 @@ class SystemRobot : BaseRobot() {
         } catch (e: Exception) {
             Log.d("dialog", "Dialog did not appear or couldn't be clicked.")
         }
-        delay(TestConfig.DELAY_SHORT)
+        delay(TestConfig.DELAY_LARGE)
     }
 
     fun enableDarkMode(context: Context) = apply {

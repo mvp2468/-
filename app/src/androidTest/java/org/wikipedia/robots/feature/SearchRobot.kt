@@ -22,6 +22,9 @@ import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiSelector
 import junit.framework.AssertionFailedError
 import org.hamcrest.Matchers.allOf
 import org.wikipedia.R
@@ -34,8 +37,19 @@ import org.wikipedia.theme.Theme
 
 class SearchRobot : BaseRobot() {
     fun tapSearchView() = apply {
-        // Click the Search box
-        click.onViewWithText("Search Wikipedia")
+        delay(TestConfig.DELAY_LARGE)
+        // Click the Search box - try multiple approaches to handle different locales and A/B test states
+        try {
+            click.onViewWithTextBilingual("Search Wikipedia", "搜索维基百科")
+        } catch (_: Exception) {
+            try {
+                // Handle hybrid search hint text (Chinese: "搜索或提问任何内容")
+                click.onViewWithTextBilingual("Search or ask anything", "搜索或提问任何内容")
+            } catch (_: Exception) {
+                // Fall back to clicking the search container by ID
+                click.onDisplayedView(R.id.search_container)
+            }
+        }
         delay(TestConfig.DELAY_SHORT)
     }
 
@@ -101,6 +115,27 @@ class SearchRobot : BaseRobot() {
         delay(TestConfig.DELAY_LARGE)
     }
 
+    /**
+     * Click the first search result by matching a substring of its displayed text.
+     * Uses UiDevice to bypass the ComposeTestRule Activity-binding issue:
+     * when [clickSearchFromPageView] launches [org.wikipedia.search.SearchActivity],
+     * [composeTestRule] is still bound to [org.wikipedia.main.MainActivity] and
+     * cannot see the search result Compose nodes in the new Activity.
+     */
+    fun clickFirstSearchResultContaining(text: String) = apply {
+        Log.d("SearchRobot", "UiDevice textContains('$text') - searching for first result")
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        device.findObject(
+            UiSelector()
+                .textContains(text)
+                .clickable(true)
+        ).apply {
+            waitForExists(TestConfig.DELAY_LARGE * 1000)
+            click()
+        }
+        delay(TestConfig.DELAY_LARGE)
+    }
+
     fun longClickOnItemFromSearchList(position: Int) = apply {
         composeTestRule.onNodeWithTag("search_list$position")
             .performTouchInput { longClick() }
@@ -112,7 +147,7 @@ class SearchRobot : BaseRobot() {
     }
 
     fun navigateUp() = apply {
-        click.onDisplayedViewWithContentDescription("Navigate up")
+        click.onNavigateUpOrBack()
     }
 
     fun checkLanguageAvailability(languageCode: String) = apply {
@@ -137,7 +172,7 @@ class SearchRobot : BaseRobot() {
 
     fun clickSave(action: ((isSaved: Boolean) -> Unit)? = null) = apply {
         try {
-            click.onViewWithText("Save")
+            click.onViewWithTextBilingual("Save", "保存")
             delay(TestConfig.DELAY_SHORT)
             action?.invoke(true)
         } catch (e: Exception) {

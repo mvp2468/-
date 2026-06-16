@@ -46,6 +46,17 @@ class ClickActions {
         onView(allOf(withId(viewId), withText(text), isDisplayed())).perform(click())
     }
 
+    /**
+     * Click a view by ID + English text, fall back to Chinese text.
+     */
+    fun onDisplayedViewWithTextBilingual(@IdRes viewId: Int, enText: String, zhText: String) {
+        try {
+            onView(allOf(withId(viewId), withText(enText), isDisplayed())).perform(click())
+        } catch (e: NoMatchingViewException) {
+            onView(allOf(withId(viewId), withText(zhText), isDisplayed())).perform(click())
+        }
+    }
+
     fun onDisplayedViewWithContentDescription(description: String) {
         onView(allOf(withContentDescription(description), isDisplayed())).perform(click())
     }
@@ -61,6 +72,39 @@ class ClickActions {
 
     fun onViewWithText(text: String) {
         onView(withText(text)).perform(click())
+    }
+
+    /**
+     * Try clicking view by English text first, fall back to Chinese text.
+     * Required for devices with Chinese locale where UI strings are localized.
+     */
+    fun onViewWithTextBilingual(enText: String, zhText: String) {
+        try {
+            onView(withText(enText)).perform(click())
+        } catch (e: NoMatchingViewException) {
+            onView(withText(zhText)).perform(click())
+        }
+    }
+
+    /**
+     * Click "Navigate up" button safely: try English first, then Chinese,
+     * or fall back to system back press if neither is found.
+     */
+    fun onNavigateUpOrBack() {
+        try {
+            onView(allOf(withContentDescription("Navigate up"), isDisplayed())).perform(click())
+        } catch (e: NoMatchingViewException) {
+            try {
+                onView(allOf(withContentDescription("转到上一层级"), isDisplayed())).perform(click())
+            } catch (e2: NoMatchingViewException) {
+                Log.e("ClickActions", "Navigate up not found, using back instead.")
+                pressBack()
+            }
+        }
+    }
+
+    private fun pressBack() {
+        androidx.test.espresso.Espresso.pressBack()
     }
 
     fun onParentViewWithChildIdAndText(@IdRes childId: Int, text: String) {

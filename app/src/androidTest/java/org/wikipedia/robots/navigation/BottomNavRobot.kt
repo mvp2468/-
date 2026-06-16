@@ -6,52 +6,33 @@ import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
-import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.espresso.matcher.ViewMatchers.withId
-import org.hamcrest.Matchers.allOf
 import org.wikipedia.R
 import org.wikipedia.TestUtil.childAtPosition
 import org.wikipedia.base.TestConfig
 
 class BottomNavRobot : BaseRobot() {
     fun navigateToExploreFeed() = apply {
-        onView(
-            allOf(
-                withId(R.id.nav_tab_explore), withContentDescription("Explore"),
-            childAtPosition(childAtPosition(withId(R.id.main_nav_tab_layout), 0), 0), isDisplayed()
-            )
-        ).perform(click())
+        delay(TestConfig.DELAY_MEDIUM)
+        onView(withId(R.id.nav_tab_explore)).perform(click())
         delay(TestConfig.DELAY_LARGE)
     }
 
     fun navigateToSavedPage() = apply {
-        // Access the other navigation tabs - `Saved`, `Search` and `Edits`
-        onView(
-            allOf(
-                withId(R.id.nav_tab_reading_lists), withContentDescription("Saved"),
-                childAtPosition(childAtPosition(withId(R.id.main_nav_tab_layout), 0), 1), isDisplayed()
-            )
-        ).perform(click())
-        delay(TestConfig.DELAY_SHORT)
+        delay(TestConfig.DELAY_LARGE)
+        onView(withId(R.id.nav_tab_reading_lists)).perform(click())
+        delay(TestConfig.DELAY_LARGE)
     }
 
     fun navigateToSearchPage() = apply {
-        onView(
-            allOf(
-                withId(R.id.nav_tab_search), withContentDescription("Search"),
-            childAtPosition(childAtPosition(withId(R.id.main_nav_tab_layout), 0), 2), isDisplayed()
-            )
-        ).perform(click())
-        delay(TestConfig.DELAY_SHORT)
+        delay(TestConfig.DELAY_LARGE)
+        onView(withId(R.id.nav_tab_search)).perform(click())
+        delay(TestConfig.DELAY_LARGE)
     }
 
     fun navigateToActivityTab() = apply {
         onView(
-            allOf(
-                withId(R.id.nav_tab_edits), withContentDescription(R.string.nav_item_activity),
-            childAtPosition(childAtPosition(withId(R.id.main_nav_tab_layout), 0), 3), isDisplayed()
-            )
+            childAtPosition(childAtPosition(withId(R.id.main_nav_tab_layout), 0), 3)
         ).perform(click())
         val isOnboardingActivity = composeTestRule.onNodeWithText("Introducing Activity").isDisplayed()
         if (isOnboardingActivity) {
@@ -61,13 +42,21 @@ class BottomNavRobot : BaseRobot() {
     }
 
     fun navigateToMoreMenu() = apply {
-        onView(allOf(withId(R.id.nav_tab_more), withContentDescription("More"), isDisplayed())).perform(click())
-        delay(TestConfig.DELAY_SHORT)
+        delay(TestConfig.DELAY_LARGE)
+        try {
+            onView(withId(R.id.nav_tab_more)).perform(click())
+        } catch (_: Exception) {
+            // Fallback: use childAtPosition for the 5th tab (index 4)
+            onView(
+                childAtPosition(childAtPosition(withId(R.id.main_nav_tab_layout), 0), 4)
+            ).perform(click())
+        }
+        delay(TestConfig.DELAY_LARGE)
     }
 
     fun goToSettings() = apply {
         // Click on `Settings` option
-        onView(allOf(withId(R.id.main_drawer_settings_container), isDisplayed())).perform(click())
+        onView(withId(R.id.main_drawer_settings_container)).perform(click())
         delay(TestConfig.DELAY_SHORT)
     }
 

@@ -44,7 +44,7 @@ android {
         versionCode 50586
         testApplicationId 'org.wikipedia.test'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        testInstrumentationRunnerArguments clearPackageData: 'true'
+        testInstrumentationRunnerArguments clearPackageData: 'true', timeout_msec: '300000'
 
         vectorDrawables.useSupportLibrary = true
 
@@ -54,16 +54,64 @@ android {
         buildConfigField "String", "META_WIKI_BASE_URI", '"https://meta.wikimedia.org"'
         buildConfigField "String", "EVENTGATE_ANALYTICS_EXTERNAL_BASE_URI", '"https://intake-analytics.wikimedia.org"'
         buildConfigField "String", "EVENTGATE_LOGGING_EXTERNAL_BASE_URI", '"https://intake-logging.wikimedia.org"'
-        def TEST_LOGIN_USERNAME = System.getenv('TEST_LOGIN_USERNAME')
-        def TEST_LOGIN_PASSWORD = System.getenv('TEST_LOGIN_PASSWORD')
+        def TEST_LOGIN_USERNAME = System.getenv('TEST_LOGIN_USERNAME') ?: "Hran666"
+        def TEST_LOGIN_PASSWORD = System.getenv('TEST_LOGIN_PASSWORD') ?: "haoran050401"
 
-        buildConfigField "String", "TEST_LOGIN_USERNAME", TEST_LOGIN_USERNAME != null ? "\"${TEST_LOGIN_USERNAME}\"" : '"Foo"'
-        buildConfigField "String", "TEST_LOGIN_PASSWORD", TEST_LOGIN_PASSWORD != null ? "\"${TEST_LOGIN_PASSWORD}\"" : '"Bar"'
+        buildConfigField "String", "TEST_LOGIN_USERNAME", "\"${TEST_LOGIN_USERNAME}\""
+        buildConfigField "String", "TEST_LOGIN_PASSWORD", "\"${TEST_LOGIN_PASSWORD}\""
+    }
+
+    // ── Quick Test Filter (must run at config time: afterEvaluate is too late) ──
+    def isQuickAndroid = gradle.startParameter.taskNames.any { it.contains('quickAndroid') }
+    if (isQuickAndroid) {
+        def cacheDir = file("${rootDir}/.gradle/test-cache")
+        def filterFile = file("${cacheDir}/android-test-filter.txt")
+        def hashFile  = file("${cacheDir}/source-hash-android.txt")
+        def passingFile = file("${cacheDir}/passing-android-tests.txt")
+
+        def srcDirs = [
+            "${rootDir}/app/src/main/java",       "${rootDir}/app/src/main/kotlin",
+            "${rootDir}/app/src/androidTest/java","${rootDir}/app/src/androidTest/kotlin",
+            "${rootDir}/app/src/dev/java",        "${rootDir}/app/src/dev/kotlin",
+        ]
+        def tokens = []
+        srcDirs.each { dirPath ->
+            def dir = file(dirPath)
+            if (dir.exists()) {
+                dir.eachFileRecurse { f ->
+                    if (f.isFile() && f.name =~ /\.(kt|java)$/) {
+                        tokens << "${f.absolutePath}:${f.lastModified()}"
+                    }
+                }
+            }
+        }
+        def currentHash = tokens.sort().join('\n').md5()
+        def isStale = !hashFile.exists() || hashFile.text.trim() != currentHash
+
+        if (isStale) {
+            println "[test-cache] ⚠ Android source changed → running ALL UI tests."
+            if (passingFile.exists()) passingFile.delete()
+            if (filterFile.exists())   filterFile.delete()
+            if (hashFile.exists())     hashFile.delete()
+        } else if (filterFile.exists()) {
+            def filterText = filterFile.text.trim()
+            if (!filterText.isEmpty()) {
+                defaultConfig.testInstrumentationRunnerArguments['class'] = filterText
+                def classCount = filterText.split(',').size()
+                println "[test-cache] ✔ Android UI filter: ${classCount} test classes"
+                println "[test-cache]   Skipping cached passing tests (run full suite with 'resetTestCache')"
+            }
+        }
     }
 
     testOptions {
-        execution = 'ANDROIDX_TEST_ORCHESTRATOR'
+        execution = 'host'
         animationsDisabled = true
+        unitTests.all {
+            testLogging {
+                events "passed", "skipped", "failed"
+            }
+        }
     }
 
     buildFeatures {
@@ -121,7 +169,9 @@ android {
         }
         prod {
             versionName computeVersionName(defaultConfig.versionCode, 'r')
-            signingConfig = signingConfigs.prod
+            // Temporarily use debug signing for instrumentation testing.
+            // Restore to signingConfigs.prod for release builds.
+            signingConfig = signingConfigs.debug
         }
         alpha {
             versionName computeVersionName(defaultConfig.versionCode, 'alpha')
@@ -155,6 +205,15 @@ android {
                     includeNoLocationClasses = true
                     excludes = ['jdk.internal.*']
                 }
+
+                // ═══════════════════════════════════════════════════════
+                // Test output logging — helps identify slow/flaky tests
+                // ═══════════════════════════════════════════════════════
+                testLogging {
+                    events "passed", "skipped", "failed", "standardError"
+                    showStandardStreams = false
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                }
             }
         }
     }
@@ -182,6 +241,34 @@ ksp {
 apply plugin: 'jacoco'
 
 apply from: '../gradle/src/ktlint.gradle'
+
+// Test result caching — save passing tests to skip on next run
+apply from: '../gradle/test-cache.gradle'
+
+// ═══════════════════════════════════════════════════════════════════════
+// Android (UI) Test Filter — integrates with test-cache.gradle
+//
+// Flow:
+//   1. Run   connectedDevDebugAndroidTest  (full UI test run)
+//   2. Run   cachePassingAndroidTests      (saves passing tests + generates filter)
+//   3. Run   quickAndroidTest / quickAndroidProdTest (skips cached passing tests)
+//   4. When source files change, the filter auto-clears → next run is full
+//
+// The filter file (.gradle/test-cache/android-test-filter.txt) is a
+// comma-separated list of FQCNs to RUN (non-passing + new tests).
+//
+// CRITICAL: filter MUST be set inside android { } config block,
+// because afterEvaluate runs AFTER variants are frozen.
+// ═══════════════════════════════════════════════════════════════════════
+
+afterEvaluate {
+    def taskNames = gradle.startParameter.taskNames
+    if (!taskNames.any { it.contains('quickAndroid') }) return
+
+    // Disable orchestrator — it ignores class-level filtering
+    android.testOptions.execution = 'host'
+    ext.testCacheEnabled = true
+}
 
 jacoco {
     toolVersion = "0.8.11"
@@ -281,7 +368,235 @@ task jacocoTestReport(type: JacocoReport) {
     }
 }
 
-apply from: '../gradle/src/ktlint.gradle'
+// =========================================================================
+// Android Instrumentation Test Coverage Report (Espresso / Compose Testing)
+// Requires: connected device or emulator
+// =========================================================================
+
+task jacocoAndroidTestReport(type: JacocoReport) {
+    group = "Reporting"
+    description = "Generate JaCoCo instrumentation test coverage report (Espresso + Compose). Requires device/emulator."
+
+    dependsOn 'connectedDevDebugAndroidTest'
+
+    reports {
+        xml.required = true
+        html.required = true
+        html.outputLocation = file("$buildDir/reports/jacoco/androidTestCoverage/html")
+    }
+
+    def fileFilter = [
+            '**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*',
+            '**/*Test*.*', 'android/**/*.*', '**/databinding/**', '**/DataBinding*.*',
+            '**/BR.*', '**/Hilt_*.*', '**/*_Factory.*', '**/*_MembersInjector.*',
+            '**/Dagger*.*', '**/*_Provide*Factory.*', '**/*Binding.*', '**/*BindingImpl.*',
+            '**/*$ViewBinder*.*', '**/*$ViewInjector*.*', '**/*Preview*.*',
+            '**/shadow/**', '**/*Shadow*.*',
+    ]
+
+    def buildDirPath = layout.buildDirectory.get().asFile
+    def jarFilePath = file("${buildDirPath}/intermediates/compile_app_classes_jar/devDebug/bundleDevDebugClassesToCompileJar/classes.jar")
+    def explodedDirPath = file("${buildDirPath}/reports/jacoco/exploded-classes")
+    def ecDir = file("${buildDirPath}/outputs/code_coverage/devDebugAndroidTest/connected")
+
+    doFirst {
+        explodedDirPath.deleteDir()
+        if (jarFilePath.exists()) {
+            def excludes = ['databinding/', 'R.class', 'R$', 'BuildConfig.', 'Binding.', 'BindingImpl.'] as Set
+            def zip = new java.util.zip.ZipFile(jarFilePath)
+            zip.entries().each { entry ->
+                if (!entry.isDirectory() && !excludes.any { entry.name.contains(it) }) {
+                    def target = new File(explodedDirPath, entry.name)
+                    target.parentFile.mkdirs()
+                    target.withOutputStream { out ->
+                        zip.getInputStream(entry).withStream { it.transferTo(out) }
+                    }
+                }
+            }
+            zip.close()
+            println "Extracted classes from: ${jarFilePath}"
+        }
+
+        def ecFiles = fileTree(dir: ecDir, includes: ["**/*.ec"])
+        if (ecFiles.empty) {
+            println "WARNING: No .ec coverage files found. Ensure a device/emulator is connected and tests ran."
+        } else {
+            ecFiles.each { println "  Found: ${it}" }
+        }
+    }
+
+    def javacClassDir = fileTree(dir: "${buildDirPath}/intermediates/javac/devDebug/compileDevDebugJavaWithJavac/classes")
+            .exclude(fileFilter)
+    def explodedClassDir = fileTree(dir: "${buildDirPath}/reports/jacoco/exploded-classes").exclude(fileFilter)
+    classDirectories.setFrom(files([javacClassDir, explodedClassDir]))
+
+    sourceDirectories.setFrom(files([
+            "src/main/java", "src/main/kotlin", "src/dev/java", "src/dev/kotlin"
+    ]))
+
+    def ecTree = fileTree(dir: "${buildDirPath}/outputs/code_coverage/devDebugAndroidTest/connected", includes: ["**/*.ec"])
+    if (!ecTree.empty) {
+        executionData.setFrom(ecTree)
+    } else {
+        executionData.setFrom(fileTree(dir: "$buildDir", includes: ["outputs/**/*.ec"]))
+    }
+}
+
+// =========================================================================
+// Android Instrumentation Test Coverage Report - PROD flavor
+// =========================================================================
+
+task jacocoAndroidTestReportProd(type: JacocoReport) {
+    group = "Reporting"
+    description = "Generate JaCoCo instrumentation test coverage report for prod flavor."
+
+    dependsOn 'connectedProdDebugAndroidTest'
+
+    reports {
+        xml.required = true
+        html.required = true
+        html.outputLocation = file("$buildDir/reports/jacoco/androidTestCoverageProd/html")
+    }
+
+    def fileFilter = [
+            '**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*',
+            '**/*Test*.*', 'android/**/*.*', '**/databinding/**', '**/DataBinding*.*',
+            '**/BR.*', '**/Hilt_*.*', '**/*_Factory.*', '**/*_MembersInjector.*',
+            '**/Dagger*.*', '**/*_Provide*Factory.*', '**/*Binding.*', '**/*BindingImpl.*',
+            '**/*$ViewBinder*.*', '**/*$ViewInjector*.*', '**/*Preview*.*',
+            '**/shadow/**', '**/*Shadow*.*',
+    ]
+
+    def buildDirPath = layout.buildDirectory.get().asFile
+    def jarFilePath = file("${buildDirPath}/intermediates/compile_app_classes_jar/prodDebug/bundleProdDebugClassesToCompileJar/classes.jar")
+    def explodedDirPath = file("${buildDirPath}/reports/jacoco/exploded-classes")
+    def ecDir = file("${buildDirPath}/outputs/code_coverage/prodDebugAndroidTest/connected")
+
+    doFirst {
+        explodedDirPath.deleteDir()
+        if (jarFilePath.exists()) {
+            def excludes = ['databinding/', 'R.class', 'R$', 'BuildConfig.', 'Binding.', 'BindingImpl.'] as Set
+            def zip = new java.util.zip.ZipFile(jarFilePath)
+            zip.entries().each { entry ->
+                if (!entry.isDirectory() && !excludes.any { entry.name.contains(it) }) {
+                    def target = new File(explodedDirPath, entry.name)
+                    target.parentFile.mkdirs()
+                    target.withOutputStream { out ->
+                        zip.getInputStream(entry).withStream { it.transferTo(out) }
+                    }
+                }
+            }
+            zip.close()
+            println "Extracted classes from: ${jarFilePath}"
+        }
+
+        def ecFiles = fileTree(dir: ecDir, includes: ["**/*.ec"])
+        if (ecFiles.empty) {
+            println "WARNING: No .ec coverage files found. Ensure a device/emulator is connected and tests ran."
+        } else {
+            ecFiles.each { println "  Found: ${it}" }
+        }
+    }
+
+    def javacClassDir = fileTree(dir: "${buildDirPath}/intermediates/javac/prodDebug/compileProdDebugJavaWithJavac/classes")
+            .exclude(fileFilter)
+    def explodedClassDir = fileTree(dir: "${buildDirPath}/reports/jacoco/exploded-classes").exclude(fileFilter)
+    classDirectories.setFrom(files([javacClassDir, explodedClassDir]))
+
+    sourceDirectories.setFrom(files([
+            "src/main/java", "src/main/kotlin", "src/prod/java", "src/prod/kotlin"
+    ]))
+
+    def ecTree = fileTree(dir: "${buildDirPath}/outputs/code_coverage/prodDebugAndroidTest/connected", includes: ["**/*.ec"])
+    if (!ecTree.empty) {
+        executionData.setFrom(ecTree)
+    } else {
+        executionData.setFrom(fileTree(dir: "$buildDir", includes: ["outputs/**/*.ec"]))
+    }
+}
+
+// =========================================================================
+// Combined Coverage Report (Unit Test + Instrumentation Test)
+// Requires: connected device or emulator for instrumentation tests
+// =========================================================================
+
+task jacocoCombinedReport(type: JacocoReport) {
+    group = "Reporting"
+    description = "Generate combined JaCoCo coverage report (Robolectric + Espresso). Requires device/emulator."
+
+    dependsOn 'testDevDebugUnitTest', 'connectedDevDebugAndroidTest'
+
+    reports {
+        xml.required = true
+        html.required = true
+        html.outputLocation = file("$buildDir/reports/jacoco/combinedCoverage/html")
+    }
+
+    def fileFilter = [
+            '**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*',
+            '**/*Test*.*', 'android/**/*.*', '**/databinding/**', '**/DataBinding*.*',
+            '**/BR.*', '**/Hilt_*.*', '**/*_Factory.*', '**/*_MembersInjector.*',
+            '**/Dagger*.*', '**/*_Provide*Factory.*', '**/*Binding.*', '**/*BindingImpl.*',
+            '**/*$ViewBinder*.*', '**/*$ViewInjector*.*', '**/*Preview*.*',
+            '**/shadow/**', '**/*Shadow*.*',
+    ]
+
+    def buildDirPath = layout.buildDirectory.get().asFile
+    def jarFilePath = file("${buildDirPath}/intermediates/compile_app_classes_jar/devDebug/bundleDevDebugClassesToCompileJar/classes.jar")
+    def explodedDirPath = file("${buildDirPath}/reports/jacoco/exploded-classes")
+    def unitExecPath = file("${buildDirPath}/outputs/unit_test_code_coverage/devDebugUnitTest/testDevDebugUnitTest.exec")
+    def ecDir = file("${buildDirPath}/outputs/code_coverage/devDebugAndroidTest/connected")
+
+    doFirst {
+        explodedDirPath.deleteDir()
+        if (jarFilePath.exists()) {
+            def excludes = ['databinding/', 'R.class', 'R$', 'BuildConfig.', 'Binding.', 'BindingImpl.'] as Set
+            def zip = new java.util.zip.ZipFile(jarFilePath)
+            zip.entries().each { entry ->
+                if (!entry.isDirectory() && !excludes.any { entry.name.contains(it) }) {
+                    def target = new File(explodedDirPath, entry.name)
+                    target.parentFile.mkdirs()
+                    target.withOutputStream { out ->
+                        zip.getInputStream(entry).withStream { it.transferTo(out) }
+                    }
+                }
+            }
+            zip.close()
+            println "Extracted classes from: ${jarFilePath}"
+        }
+
+        if (unitExecPath.exists()) {
+            println "Unit test coverage: ${unitExecPath} (${unitExecPath.length()} bytes)"
+        } else {
+            println "WARNING: Unit test exec file not found."
+        }
+
+        def ecFiles = fileTree(dir: ecDir, includes: ["**/*.ec"])
+        if (ecFiles.empty) {
+            println "WARNING: No instrumentation .ec files found. Combined report will include unit test data only."
+        } else {
+            ecFiles.each { println "  Instrumentation coverage: ${it}" }
+        }
+    }
+
+    def javacClassDir = fileTree(dir: "${buildDirPath}/intermediates/javac/devDebug/compileDevDebugJavaWithJavac/classes")
+            .exclude(fileFilter)
+    def explodedClassDir = fileTree(dir: "${buildDirPath}/reports/jacoco/exploded-classes").exclude(fileFilter)
+    classDirectories.setFrom(files([javacClassDir, explodedClassDir]))
+
+    sourceDirectories.setFrom(files([
+            "src/main/java", "src/main/kotlin", "src/dev/java", "src/dev/kotlin"
+    ]))
+
+    // Merge unit test .exec + instrumented test .ec files
+    def unitExecFile = file("${buildDirPath}/outputs/unit_test_code_coverage/devDebugUnitTest/testDevDebugUnitTest.exec")
+    def ecTree = fileTree(dir: "${buildDirPath}/outputs/code_coverage/devDebugAndroidTest/connected", includes: ["**/*.ec"])
+
+    def allData = files()
+    if (unitExecFile.exists()) allData = allData + files(unitExecFile)
+    if (!ecTree.empty) allData = allData + files(ecTree)
+    executionData.setFrom(allData)
+}
 
 dependencies {
 

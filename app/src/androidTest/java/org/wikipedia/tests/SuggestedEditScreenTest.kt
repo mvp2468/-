@@ -29,6 +29,7 @@ class SuggestedEditScreenTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         systemRobot
             .clickOnSystemDialogWithText("Allow")
         loginRobot

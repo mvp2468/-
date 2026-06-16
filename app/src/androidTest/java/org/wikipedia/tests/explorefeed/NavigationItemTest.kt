@@ -19,6 +19,7 @@ class NavigationItemTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         systemRobot
             .clickOnSystemDialogWithText("Allow")
         // Checking the navigation menu items

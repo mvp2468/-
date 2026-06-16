@@ -27,6 +27,7 @@ class ReadingFocusModeTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         systemRobot
             .clickOnSystemDialogWithText("Allow")
         bottomNavRobot

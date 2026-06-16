@@ -64,7 +64,7 @@ class MediaRobot : BaseRobot() {
     }
 
     fun navigateUp() = apply {
-        click.onDisplayedViewWithContentDescription("Navigate up")
+        click.onNavigateUpOrBack()
     }
 
     fun clickCC() = apply {

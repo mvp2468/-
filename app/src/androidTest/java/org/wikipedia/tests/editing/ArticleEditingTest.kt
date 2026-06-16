@@ -16,6 +16,7 @@ import org.wikipedia.robots.feature.SearchRobot
 import org.wikipedia.robots.feature.SettingsRobot
 import org.wikipedia.robots.navigation.BottomNavRobot
 import org.wikipedia.robots.screen.LanguageListRobot
+import org.wikipedia.settings.Prefs
 
 // MARK: requires login
 @LargeTest
@@ -63,6 +64,7 @@ class ArticleEditingTest : BaseTest<MainActivity>(
             "$h5\n\n"
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         proceedToTestArticle()
         when (EditingType.entries.random()) {
             EditingType.TEXT_FORMAT -> startTextFormatEditing()
@@ -71,6 +73,8 @@ class ArticleEditingTest : BaseTest<MainActivity>(
     }
 
     private fun proceedToTestArticle() {
+        // The "Test" language is only visible when developer settings are enabled
+        Prefs.isShowDeveloperSettingsEnabled = true
         loginRobot
             .loginState(
                 loggedIn = {},

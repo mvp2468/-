@@ -20,7 +20,11 @@ class DialogRobot : BaseRobot() {
         try {
             click.onDisplayedViewWithIdAndContentDescription(R.id.closeButton, "Close")
         } catch (e: NoMatchingViewException) {
-            Log.e("DialogRobot", "No Big English Dialog shown.")
+            try {
+                click.onDisplayedViewWithIdAndContentDescription(R.id.closeButton, "关闭")
+            } catch (e2: NoMatchingViewException) {
+                Log.e("DialogRobot", "No Big English Dialog shown.")
+            }
         } catch (e: Exception) {
             Log.e("DialogRobot", "Unexpected Error: ${e.message}")
         }
@@ -34,6 +38,15 @@ class DialogRobot : BaseRobot() {
         click.ifDialogShown(
             context.getString(R.string.reading_list_prompt_turned_sync_on_dialog_no_thanks),
             errorString = "Cannot click")
+    }
+
+    /**
+     * Dismiss the "Logged out in background" dialog that appears when the app detects
+     * the user was logged out while the app was not in the foreground.
+     * Clicks "Cancel" to dismiss without logging in again.
+     */
+    fun dismissLoggedOutDialog() = apply {
+        click.ifDialogShown("Cancel", errorString = "No Logged out dialog shown.")
     }
 
     fun click(string: String) = apply {

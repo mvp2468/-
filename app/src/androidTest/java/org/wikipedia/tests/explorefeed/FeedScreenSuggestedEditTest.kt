@@ -26,6 +26,7 @@ class FeedScreenSuggestedEditTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         // Following test requires login
         // 1. Notification click
         // 2. Suggested Edit Visibility

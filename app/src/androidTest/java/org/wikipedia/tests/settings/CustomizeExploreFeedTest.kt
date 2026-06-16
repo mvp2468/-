@@ -25,6 +25,7 @@ class CustomizeExploreFeedTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         systemRobot
             .clickOnSystemDialogWithText("Allow")
         systemRobot

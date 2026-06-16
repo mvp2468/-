@@ -1,0 +1,387 @@
+import javax.xml.parsers.DocumentBuilderFactory
+
+/**
+ * Test Result Cache Utility
+ * ==========================
+ * Caches passing test class names for both unit tests (Robolectric) and
+ * UI/instrumented tests (Espresso / AndroidTest), so they can be skipped
+ * on the next run.
+ *
+ * Usage (from project root):
+ *
+ *   Unit tests (Robolectric):
+ *     ./gradlew testDevDebugUnitTest        # Run all unit tests
+ *     ./gradlew cachePassingUnitTests       # Save passing unit test list
+ *     ./gradlew quickUnitTest               # Skip cached passing unit tests
+ *
+ *   UI / Instrumented tests (Espresso / AndroidTest) — requires device:
+ *     ./gradlew connectedDevDebugAndroidTest    # Run all UI tests
+ *     ./gradlew cachePassingAndroidTests        # Save passing UI test list
+ *     ./gradlew quickAndroidTest                # Skip cached passing UI tests
+ *
+ *   Common:
+ *     ./gradlew resetTestCache                  # Clear all caches
+ *     ./gradlew showTestCache                   # Show cached tests (both types)
+ *
+ * Cache files (in .gradle/test-cache/):
+ *   passing-unit-tests.txt     —  cached passing unit test classes
+ *   passing-android-tests.txt  —  cached passing UI test classes
+ *   source-hash-unit.txt       —  unit test source hash for invalidation
+ *   source-hash-android.txt    —  UI test source hash for invalidation
+ */
+
+ext {
+    testCacheDir = file("${rootDir}/.gradle/test-cache")
+    passingUnitTestsFile    = file("${testCacheDir}/passing-unit-tests.txt")
+    passingAndroidTestsFile = file("${testCacheDir}/passing-android-tests.txt")
+    testCacheEnabled = project.findProperty('test.cache.enabled')?.toString()?.toBoolean() ?: true
+
+    // Source directories for cache invalidation
+    unitSrcDirs = [
+        "${rootDir}/app/src/main/java",       "${rootDir}/app/src/main/kotlin",
+        "${rootDir}/app/src/test/java",       "${rootDir}/app/src/test/kotlin",
+        "${rootDir}/app/src/dev/java",        "${rootDir}/app/src/dev/kotlin",
+    ]
+    androidSrcDirs = [
+        "${rootDir}/app/src/main/java",       "${rootDir}/app/src/main/kotlin",
+        "${rootDir}/app/src/androidTest/java","${rootDir}/app/src/androidTest/kotlin",
+        "${rootDir}/app/src/dev/java",        "${rootDir}/app/src/dev/kotlin",
+    ]
+    unitHashFile    = file("${testCacheDir}/source-hash-unit.txt")
+    androidHashFile = file("${testCacheDir}/source-hash-android.txt")
+    androidFilterFile = file("${testCacheDir}/android-test-filter.txt")
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Shared helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+def readCachedTests(File file) {
+    if (!testCacheEnabled || !file.exists()) return [] as Set
+    return file.readLines()
+        .findAll { !it.isBlank() && !it.startsWith('#') }
+        .collect { it.trim() }
+        .toSet()
+}
+
+def writeCachedTests(File file, Set<String> names, String label) {
+    testCacheDir.mkdirs()
+    file.text = [
+        "# Test Cache — ${label}",
+        "# ${names.size()} passing test classes as of ${new Date()}",
+        "",
+        names.sort().join('\n')
+    ].join('\n')
+}
+
+def parsePassingFromXmlReports(File resultsDir) {
+    def passing = [] as Set
+    if (!resultsDir.exists()) return passing
+    def factory = DocumentBuilderFactory.newInstance()
+    resultsDir.eachFileRecurse { file ->
+        if (file.name.endsWith('.xml')) {
+            try {
+                def builder = factory.newDocumentBuilder()
+                def doc = builder.parse(file)
+                def testcases = doc.getElementsByTagName('testcase')
+                for (int i = 0; i < testcases.length; i++) {
+                    def tc = testcases.item(i)
+                    def hasFailure = tc.getElementsByTagName('failure').length > 0
+                    def hasError   = tc.getElementsByTagName('error').length > 0
+                    if (!hasFailure && !hasError) {
+                        passing.add(tc.getAttribute('classname'))
+                    }
+                }
+            } catch (Exception ignored) { /* skip malformed XML */ }
+        }
+    }
+    return passing
+}
+
+def sourceHashForDirs(List<String> dirPaths) {
+    def tokens = []
+    dirPaths.each { dirPath ->
+        def dir = file(dirPath)
+        if (dir.exists()) {
+            dir.eachFileRecurse { f ->
+                if (f.isFile() && f.name =~ /\.(kt|java)$/) {
+                    tokens << "${f.absolutePath}:${f.lastModified()}"
+                }
+            }
+        }
+    }
+    return tokens.sort().join('\n').md5()
+}
+
+def enumerateTestClasses(String compiledClassesSubPath) {
+    def names = [] as Set
+    def dir = file("${buildDir}/intermediates/classes/${compiledClassesSubPath}")
+    if (!dir.exists()) return names
+    dir.eachFileRecurse { f ->
+        if (f.name.endsWith('.class') && !f.name.contains('\$')) {
+            def relPath = dir.toPath().relativize(f.toPath()).toString()
+            names << relPath.replace(File.separator, '.').replace('.class', '')
+        }
+    }
+    return names
+}
+
+def isStale(File hashFile, List<String> srcDirPaths) {
+    if (!hashFile.exists()) return true
+    return hashFile.text.trim() != sourceHashForDirs(srcDirPaths)
+}
+
+def updateHash(File hashFile, List<String> srcDirPaths) {
+    hashFile.text = sourceHashForDirs(srcDirPaths)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Unit test sections
+// ═══════════════════════════════════════════════════════════════════════
+
+def readPassingUnitTests()            { readCachedTests(passingUnitTestsFile) }
+def isUnitCacheStale()                { isStale(unitHashFile, unitSrcDirs) }
+def updateUnitSourceHash()            { updateHash(unitHashFile, unitSrcDirs) }
+
+def computeUnitTestFilters() {
+    def passing = readPassingUnitTests()
+    if (passing.isEmpty()) return ['*']
+    def all = enumerateTestClasses('devDebugUnitTest')
+    if (all.isEmpty()) return ['*']
+    def remaining = all - passing
+    return remaining.isEmpty() ? [] : remaining.toList()
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Android (UI / Instrumented) test sections
+// ═══════════════════════════════════════════════════════════════════════
+
+def readPassingAndroidTests()          { readCachedTests(passingAndroidTestsFile) }
+def isAndroidCacheStale()              { isStale(androidHashFile, androidSrcDirs) }
+def updateAndroidSourceHash()          { updateHash(androidHashFile, androidSrcDirs) }
+
+def computeAndroidTestFilters() {
+    def passing = readPassingAndroidTests()
+    if (passing.isEmpty()) return null  // null → run all
+    def all = enumerateTestClasses('devDebugAndroidTest')
+    if (all.isEmpty()) return null
+    def remaining = all - passing
+    return remaining.isEmpty() ? [] : remaining.toList()
+}
+
+def writeAndroidFilter(List<String> classes) {
+    testCacheDir.mkdirs()
+    if (classes == null || classes.isEmpty()) {
+        androidFilterFile.text = ''       // empty → run all
+    } else {
+        androidFilterFile.text = classes.join(',')
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tasks: Unit Tests
+// ═══════════════════════════════════════════════════════════════════════
+
+// Alias: cachePassingTests → cachePassingUnitTests (backward compat)
+task cachePassingTests(dependsOn: 'cachePassingUnitTests') {
+    description = '[alias] → cachePassingUnitTests'
+    group = 'test cache'
+}
+
+task cachePassingUnitTests {
+    description = 'Cache passing unit test class names from the last run'
+    group = 'test cache'
+
+    doLast {
+        def resultsDir = file("${buildDir}/test-results/testDevDebugUnitTest")
+        if (!resultsDir.exists()) {
+            logger.warn("[test-cache] No unit test results at ${resultsDir}. Run tests first.")
+            return
+        }
+        def passing = parsePassingFromXmlReports(resultsDir)
+        if (passing.isEmpty()) {
+            logger.warn("[test-cache] No passing unit tests found in XML reports.")
+            return
+        }
+        writeCachedTests(passingUnitTestsFile, passing, 'Unit Tests')
+        updateUnitSourceHash()
+        println "[test-cache] ✔ Cached ${passing.size()} passing unit test classes."
+        println "[test-cache]   Next run: use 'quickUnitTest' to skip them."
+    }
+}
+
+task quickUnitTest(type: Test) {
+    description = 'Run unit tests excluding cached passing tests'
+    group = 'test cache'
+
+    def mainTask = tasks.findByName('testDevDebugUnitTest')
+    if (mainTask) {
+        testClassesDirs = mainTask.testClassesDirs
+        classpath = mainTask.classpath
+    }
+
+    doFirst {
+        if (isUnitCacheStale()) {
+            println "[test-cache] ⚠ Source changed → cache stale → running ALL unit tests."
+            filter { includeTestsMatching '*' }
+        } else {
+            def filters = computeUnitTestFilters()
+            if (filters == ['*'] || filters.isEmpty()) {
+                println "[test-cache] No cache or all tests passed → running all."
+                filter { includeTestsMatching '*' }
+            } else {
+                println "[test-cache] Skipping ${readPassingUnitTests().size()} cached unit tests."
+                println "[test-cache] Running ${filters.size()} non-passing / new tests."
+                filters.each { fqcn -> filter { includeTestsMatching fqcn } }
+            }
+        }
+    }
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+
+    filter { setFailOnNoMatchingTests(false) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tasks: Android / UI (Instrumented) Tests
+// ═══════════════════════════════════════════════════════════════════════
+
+task cachePassingAndroidTests {
+    description = 'Cache passing Android instrumented (UI) test class names'
+    group = 'test cache'
+
+    doLast {
+        def resultsDir = file("${buildDir}/outputs/androidTest-results/connected")
+        if (!resultsDir.exists()) {
+            logger.warn("[test-cache] No Android test results at ${resultsDir}. Run tests first.")
+            return
+        }
+        def passing = parsePassingFromXmlReports(resultsDir)
+        if (passing.isEmpty()) {
+            logger.warn("[test-cache] No passing Android tests found in XML reports.")
+            return
+        }
+
+        // 1. Save passing test class names
+        writeCachedTests(passingAndroidTestsFile, passing, 'Android Instrumented Tests')
+
+        // 2. Compute which tests to run NEXT time (all - passing = non-passing + new)
+        def allClasses = enumerateTestClasses('devDebugAndroidTest')
+        def filters
+        if (allClasses.isEmpty()) {
+            filters = null  // can't enumerate → run all next time
+        } else {
+            def remaining = allClasses - passing
+            filters = remaining.isEmpty() ? [] : remaining.toList()
+        }
+
+        // 3. Write filter file for the NEXT quickAndroidTest run
+        writeAndroidFilter(filters)
+
+        // 4. Update source hash
+        updateAndroidSourceHash()
+
+        println "[test-cache] ✔ Cached ${passing.size()} passing Android UI test classes."
+        if (filters != null && !filters.isEmpty()) {
+            println "[test-cache]   Next quickAndroidTest will run ${filters.size()} classes."
+        } else if (filters != null && filters.isEmpty()) {
+            println "[test-cache]   All tests pass → next quickAndroidTest will run nothing."
+        } else {
+            println "[test-cache]   Could not enumerate test classes → filter disabled."
+        }
+    }
+}
+
+task quickAndroidTest {
+    description = 'Run Android UI tests skipping cached passing tests (requires device) — DEV flavor'
+    group = 'test cache'
+
+    // The actual filter is applied in app/build.gradle afterEvaluate
+    // by reading the pre-computed android-test-filter.txt file.
+    dependsOn 'connectedDevDebugAndroidTest'
+
+    doLast {
+        // Provide a summary after the run
+        def passing = readPassingAndroidTests()
+        if (!passing.isEmpty() && !isAndroidCacheStale()) {
+            println "[test-cache] ✔ quickAndroidTest finished."
+            println "[test-cache]   To update cache with new results, run: cachePassingAndroidTests"
+        }
+    }
+}
+
+task quickAndroidProdTest {
+    description = 'Run Android UI tests skipping cached passing tests (requires device) — PROD flavor'
+    group = 'test cache'
+    dependsOn 'connectedProdDebugAndroidTest'
+
+    doLast {
+        println "[test-cache] ✔ quickAndroidProdTest finished."
+        println "[test-cache]   To update cache with new results, run: ./gradlew cachePassingAndroidTests"
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tasks: Common (affect both caches)
+// ═══════════════════════════════════════════════════════════════════════
+
+task resetTestCache {
+    description = 'Clear ALL cached passing tests → next run executes everything'
+    group = 'test cache'
+    doLast {
+        def cleared = 0
+        [passingUnitTestsFile, passingAndroidTestsFile, unitHashFile, androidHashFile, androidFilterFile].each { f ->
+            if (f.exists()) { cleared += f.readLines().size(); f.delete() }
+        }
+        println "[test-cache] ✔ Cleared ${cleared} cached entries. Next run = full test suite."
+    }
+}
+
+task showTestCache {
+    description = 'Display all cached passing test classes (unit + android)'
+    group = 'test cache'
+    doLast {
+        def unitPassing = readPassingUnitTests()
+        def androidPassing = readPassingAndroidTests()
+
+        println "\n[test-cache] ═══════════════════════════════════════════════"
+        println "[test-cache] Unit tests cached: ${unitPassing.size()}" +
+                (unitPassing.isEmpty() ? "" : (isUnitCacheStale() ? " (⚠ stale)" : " (✓ fresh)"))
+        if (!unitPassing.isEmpty()) {
+            unitPassing.sort().each { println "[test-cache]   Unit  → ${it}" }
+        }
+
+        println "[test-cache] ───────────────────────────────────────────────"
+        println "[test-cache] Android/UI tests cached: ${androidPassing.size()}" +
+                (androidPassing.isEmpty() ? "" : (isAndroidCacheStale() ? " (⚠ stale)" : " (✓ fresh)"))
+        if (!androidPassing.isEmpty()) {
+            androidPassing.sort().each { println "[test-cache]   UI    → ${it}" }
+        }
+
+        if (unitPassing.isEmpty() && androidPassing.isEmpty()) {
+            println "[test-cache] No cached tests. Run tests then cachePassingUnitTests / cachePassingAndroidTests."
+        }
+        println "[test-cache] ═══════════════════════════════════════════════\n"
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Status banner at configuration time
+// ═══════════════════════════════════════════════════════════════════════
+gradle.projectsEvaluated {
+    if (testCacheEnabled) {
+        def u = readPassingUnitTests()
+        def a = readPassingAndroidTests()
+        if (!u.isEmpty() || !a.isEmpty()) {
+            println "[test-cache] Unit:${u.size()} cached" +
+                    (u.isEmpty() ? "" : (isUnitCacheStale() ? "(stale)" : "(fresh)")) +
+                    " | Android:${a.size()} cached" +
+                    (a.isEmpty() ? "" : (isAndroidCacheStale() ? "(stale)" : "(fresh)"))
+            if (!u.isEmpty() && !isUnitCacheStale())   println "[test-cache] → quickUnitTest"
+            if (!a.isEmpty() && !isAndroidCacheStale()) println "[test-cache] → quickAndroidTest"
+        }
+    }
+}

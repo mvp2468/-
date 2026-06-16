@@ -37,7 +37,7 @@ class SpecialArticleTest : BaseTest<MainActivity>(
         searchRobot
             .clickSearchFromPageView()
             .typeTextInView(TestConstants.SPECIAL_ARTICLE_AVATAR_2009)
-            .clickOnItemFromSearchList(0)
+            .clickFirstSearchResultContaining("Avatar")
         pageRobot
             .clickLeadImage()
         licenseRobot
@@ -59,7 +59,7 @@ class SpecialArticleTest : BaseTest<MainActivity>(
         searchRobot
             .clickSearchFromPageView()
             .typeTextInView(TestConstants.SPECIAL_ARTICLE_BILL_CLINTON)
-            .clickOnItemFromSearchList(0)
+            .clickFirstSearchResultContaining("Bill Clinton")
         pageRobot
             .clickLeadImage()
         licenseRobot
@@ -81,7 +81,7 @@ class SpecialArticleTest : BaseTest<MainActivity>(
         searchRobot
             .clickSearchFromPageView()
             .typeTextInView(TestConstants.SPECIAL_ARTICLE_INDIA)
-            .clickOnItemFromSearchList(0)
+            .clickFirstSearchResultContaining("India")
         pageRobot
             .scrollToAdministrativeDivisionOfIndiaArticle()
             .scrollToAndhraPradeshOnIndiaArticle()
@@ -91,7 +91,7 @@ class SpecialArticleTest : BaseTest<MainActivity>(
         searchRobot
             .clickSearchFromPageView()
             .typeTextInView(TestConstants.SPECIAL_ARTICLE_USA)
-            .clickOnItemFromSearchList(0)
+            .clickFirstSearchResultContaining("United States")
         pageRobot
             .scrollToCollapsingTables()
             .clickToExpandQuickFactsTable()

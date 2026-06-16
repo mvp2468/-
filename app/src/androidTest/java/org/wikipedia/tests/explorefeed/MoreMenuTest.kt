@@ -26,6 +26,7 @@ class MoreMenuTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         // sometimes notification dialog may appear
         systemRobot
             .clickOnSystemDialogWithText("Allow")

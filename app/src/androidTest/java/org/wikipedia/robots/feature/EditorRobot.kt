@@ -52,7 +52,7 @@ class EditorRobot : BaseRobot() {
     }
 
     fun navigateUp() = apply {
-        click.onDisplayedViewWithContentDescription("Navigate up")
+        click.onNavigateUpOrBack()
         delay(TestConfig.DELAY_SHORT)
     }
 

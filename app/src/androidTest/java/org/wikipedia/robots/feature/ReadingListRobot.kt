@@ -12,12 +12,15 @@ import androidx.test.espresso.contrib.RecyclerViewActions
 import androidx.test.espresso.matcher.BoundedMatcher
 import androidx.test.espresso.matcher.ViewMatchers
 import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import org.hamcrest.Description
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf
 import org.wikipedia.R
+import org.wikipedia.TestUtil
 import org.wikipedia.base.TestConfig
 
 class ReadingListRobot : BaseRobot() {
@@ -31,18 +34,28 @@ class ReadingListRobot : BaseRobot() {
     }
 
     fun clickOnReadingLists(title: String) = apply {
-        list.scrollToRecyclerView(
-            recyclerViewId = R.id.recycler_view,
-            title = title,
-            textViewId = R.id.item_title,
-            action = {
-                click.onDisplayedViewWithText(
-                    viewId = R.id.item_title,
-                    text = title
-                )
-            }
-        )
-        delay(TestConfig.DELAY_SHORT)
+        // Pre-created "Saved" list may have a localized name in the database
+        // (e.g. "已保存的条目" on Chinese devices), so use position-based click.
+        if (title == READING_LIST_SAVED_EN) {
+            clickOnReadingLists(0)
+        } else {
+            list.scrollToRecyclerView(
+                recyclerViewId = R.id.recycler_view,
+                title = title,
+                textViewId = R.id.item_title,
+                action = {
+                    click.onDisplayedViewWithText(
+                        viewId = R.id.item_title,
+                        text = title
+                    )
+                }
+            )
+            delay(TestConfig.DELAY_SHORT)
+        }
+    }
+
+    companion object {
+        private const val READING_LIST_SAVED_EN = "Saved"
     }
 
     fun clickOnReadingListItem(position: Int) = apply {
@@ -50,6 +63,32 @@ class ReadingListRobot : BaseRobot() {
             listId = R.id.reading_list_recycler_view,
             position = position
         )
+        // Wait for the article page to fully load (consistent with SearchRobot.clickOnItemFromSearchList).
+        delay(TestConfig.DELAY_LARGE)
+    }
+
+    /**
+     * Dismiss the article [Table of Contents](app:id/toc_list) overlay if visible,
+     * then reveal the toolbar. When Orchestrator is disabled, the TOC can persist
+     * from a previous test, and the article page may load scrolled to a saved
+     * position with a collapsed AppBar — both of which hide [R.id.page_save].
+     */
+    fun dismissTocIfVisible() = apply {
+        try {
+            onView(withId(R.id.toc_list)).check(matches(isDisplayed()))
+            goBack()
+        } catch (_: Exception) { }
+        delay(TestConfig.DELAY_LARGE)
+        // Expanding a collapsed AppBar requires scrolling the WebView content
+        // downward to trigger the AppBarLayout behavior. Swipe on root to ensure
+        // the gesture reaches the WebView regardless of its container ID.
+        try {
+            repeat(3) {
+                onView(isRoot()).perform(TestUtil.swipeDownWebView())
+                delay(TestConfig.DELAY_MEDIUM)
+            }
+        } catch (_: Exception) { }
+        delay(TestConfig.DELAY_SHORT)
     }
 
     fun longClickReadingLists(position: Int) = apply {
@@ -69,7 +108,23 @@ class ReadingListRobot : BaseRobot() {
     }
 
     fun saveArticleToReadingList() = apply {
-        click.onViewWithId(R.id.page_save)
+        delay(TestConfig.DELAY_SHORT)
+        for (attempt in 1..2) {
+            try {
+                click.onViewWithId(R.id.page_save)
+                break
+            } catch (_: Exception) {
+                // The toolbar may still be collapsed (AppBar hidden) despite
+                // dismissTocIfVisible(). Swipe again and retry once.
+                try {
+                    onView(isRoot()).perform(TestUtil.swipeDownWebView())
+                    delay(TestConfig.DELAY_LARGE)
+                } catch (_: Exception) { }
+                if (attempt >= 2) {
+                    click.onViewWithId(R.id.page_save)
+                }
+            }
+        }
         delay(TestConfig.DELAY_SHORT)
     }
 
@@ -102,7 +157,7 @@ class ReadingListRobot : BaseRobot() {
 
     fun clickOnGotIt() = apply {
         try {
-            click.onViewWithText("Got it")
+            click.onViewWithTextBilingual("Got it", "知道了")
             delay(TestConfig.DELAY_SHORT)
         } catch (e: Exception) {
             Log.e("ReadingListRobot:", "Text does not exist.")
@@ -174,7 +229,7 @@ class ReadingListRobot : BaseRobot() {
     }
 
     fun navigateUp() = apply {
-        click.onDisplayedViewWithContentDescription("Navigate up")
+        click.onNavigateUpOrBack()
         delay(TestConfig.DELAY_SHORT)
     }
 

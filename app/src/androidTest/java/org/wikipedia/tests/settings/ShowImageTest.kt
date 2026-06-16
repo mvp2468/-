@@ -26,6 +26,7 @@ class ShowImageTest : BaseTest<MainActivity>(
 
     @Test
     fun runTest() {
+        waitForMainActivityReady()
         systemRobot
             .disableDarkMode(context)
             .clickOnSystemDialogWithText("Allow")
