@@ -1,0 +1,536 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingHistoryModule.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab</a> &gt; <span class="el_source">ReadingHistoryModule.kt</span></div><h1>ReadingHistoryModule.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab
+
+import android.text.format.DateFormat
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.BrushPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import org.wikipedia.R
+import org.wikipedia.categories.db.Category
+import org.wikipedia.compose.ComposeColors
+import org.wikipedia.compose.components.TinyBarChart
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.page.PageTitle
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UiState
+import org.wikipedia.views.imageservice.ImageService
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+@Composable
+fun ReadingHistoryModule(
+    modifier: Modifier,
+    userName: String,
+    showTimeSpent: Boolean,
+    showInsights: Boolean,
+    readingHistoryState: UiState&lt;ActivityTabViewModel.ReadingHistory&gt;,
+<span class="nc bnc" id="L72" title="All 2 branches missed.">    onArticlesReadClick: () -&gt; Unit = {},</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">    onArticlesSavedClick: () -&gt; Unit = {},</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">    onExploreClick: () -&gt; Unit = {},</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">    onCategoryItemClick: (Category) -&gt; Unit = {},</span>
+<span class="nc" id="L76">    wikiErrorClickEvents: WikiErrorClickEvents? = null</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L78">    Text(</span>
+<span class="nc" id="L79">        text = stringResource(R.string.activity_tab_user_reading, userName),</span>
+<span class="nc" id="L80">        modifier = modifier</span>
+<span class="nc" id="L81">            .padding(top = 16.dp),</span>
+<span class="nc" id="L82">        style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L83">        fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L84">        textAlign = TextAlign.Center,</span>
+<span class="nc" id="L85">        color = WikipediaTheme.colors.primaryColor</span>
+    )
+<span class="nc" id="L87">    Box(</span>
+<span class="nc" id="L88">        modifier = modifier</span>
+<span class="nc" id="L89">            .padding(horizontal = 8.dp, vertical = 4.dp)</span>
+<span class="nc" id="L90">            .background(</span>
+<span class="nc" id="L91">                color = WikipediaTheme.colors.additionColor,</span>
+<span class="nc" id="L92">                shape = RoundedCornerShape(8.dp)</span>
+            )
+    ) {
+<span class="nc" id="L95">        Text(</span>
+<span class="nc" id="L96">            text = stringResource(R.string.activity_tab_on_wikipedia_android).uppercase(),</span>
+<span class="nc" id="L97">            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),</span>
+<span class="nc" id="L98">            fontSize = 11.sp,</span>
+<span class="nc" id="L99">            fontFamily = FontFamily.Monospace,</span>
+<span class="nc" id="L100">            letterSpacing = TextUnit(0.8f, TextUnitType.Sp),</span>
+<span class="nc" id="L101">            textAlign = TextAlign.Center,</span>
+<span class="nc" id="L102">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L104">    }</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">    if (readingHistoryState is UiState.Loading) {</span>
+<span class="nc" id="L106">        Column {</span>
+<span class="nc" id="L107">            ActivityTabShimmerView()</span>
+<span class="nc" id="L108">            ActivityTabShimmerView()</span>
+<span class="nc" id="L109">            ActivityTabShimmerView(size = 240.dp)</span>
+<span class="nc" id="L110">        }</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">    } else if (readingHistoryState is UiState.Success) {</span>
+<span class="nc" id="L112">        val readingHistory = readingHistoryState.data</span>
+<span class="nc" id="L113">        val todayDate = LocalDate.now()</span>
+
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        if (showTimeSpent) {</span>
+<span class="nc" id="L116">            Text(</span>
+<span class="nc" id="L117">                text = stringResource(</span>
+<span class="nc" id="L118">                    R.string.activity_tab_weekly_time_spent_hm,</span>
+<span class="nc" id="L119">                    (readingHistory.timeSpentThisWeek / 3600),</span>
+<span class="nc" id="L120">                    ((readingHistory.timeSpentThisWeek / 60) % 60)</span>
+                ),
+<span class="nc" id="L122">                modifier = modifier.padding(top = 12.dp),</span>
+<span class="nc" id="L123">                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L124">                textAlign = TextAlign.Center,</span>
+<span class="nc" id="L125">                style = MaterialTheme.typography.headlineLarge.copy(</span>
+<span class="nc" id="L126">                    brush = Brush.linearGradient(</span>
+<span class="nc" id="L127">                        colors = listOf(</span>
+<span class="nc" id="L128">                            ComposeColors.Red700,</span>
+<span class="nc" id="L129">                            ComposeColors.Orange500,</span>
+<span class="nc" id="L130">                            ComposeColors.Yellow500,</span>
+<span class="nc" id="L131">                            ComposeColors.Blue300</span>
+                        )
+                    )
+                ),
+<span class="nc" id="L135">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L137">            Text(</span>
+<span class="nc" id="L138">                text = stringResource(R.string.activity_tab_weekly_time_spent),</span>
+<span class="nc" id="L139">                modifier = modifier</span>
+<span class="nc" id="L140">                    .padding(top = 8.dp),</span>
+<span class="nc" id="L141">                style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L142">                textAlign = TextAlign.Center,</span>
+<span class="nc" id="L143">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L145">        }</span>
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (!showInsights) {</span>
+<span class="nc" id="L148">            Spacer(modifier = Modifier.height(16.dp))</span>
+<span class="nc" id="L149">            return</span>
+<span class="nc" id="L150">        }</span>
+
+<span class="nc" id="L152">        ArticleReadThisMonthCard(</span>
+<span class="nc" id="L153">            modifier = modifier</span>
+<span class="nc" id="L154">                .fillMaxWidth()</span>
+<span class="nc" id="L155">                .padding(horizontal = 16.dp, vertical = 16.dp),</span>
+<span class="nc" id="L156">            readingHistory = readingHistory,</span>
+<span class="nc" id="L157">            todayDate = todayDate,</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            onClick = {</span>
+<span class="nc" id="L159">                onArticlesReadClick()</span>
+<span class="nc" id="L160">            }</span>
+        )
+
+<span class="nc" id="L163">        ArticleSavedThisMonthCard(</span>
+<span class="nc" id="L164">            modifier = modifier</span>
+<span class="nc" id="L165">                .fillMaxWidth()</span>
+<span class="nc" id="L166">                .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L167">                .padding(bottom = 16.dp),</span>
+<span class="nc" id="L168">            readingHistory = readingHistory,</span>
+<span class="nc" id="L169">            todayDate = todayDate,</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">            onClick = {</span>
+<span class="nc" id="L171">                onArticlesSavedClick()</span>
+<span class="nc" id="L172">            }</span>
+        )
+
+<span class="nc bnc" id="L175" title="All 4 branches missed.">        if (readingHistory.topCategories.isNotEmpty()) {</span>
+<span class="nc" id="L176">            TopCategoriesCard(</span>
+<span class="nc" id="L177">                modifier = Modifier</span>
+<span class="nc" id="L178">                    .fillMaxWidth()</span>
+<span class="nc" id="L179">                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),</span>
+<span class="nc" id="L180">                categories = readingHistory.topCategories,</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">                onClick = {</span>
+<span class="nc" id="L182">                    onCategoryItemClick(it)</span>
+<span class="nc" id="L183">                }</span>
+            )
+<span class="nc" id="L185">        }</span>
+
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        if (readingHistory.articlesReadThisMonth == 0) {</span>
+<span class="nc" id="L188">            Text(</span>
+<span class="nc" id="L189">                text = stringResource(R.string.activity_tab_discover_encourage),</span>
+<span class="nc" id="L190">                modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),</span>
+<span class="nc" id="L191">                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L192">                fontSize = 14.sp,</span>
+<span class="nc" id="L193">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L195">            Button(</span>
+<span class="nc" id="L196">                modifier = modifier.padding(top = 8.dp, bottom = 16.dp),</span>
+<span class="nc" id="L197">                contentPadding = PaddingValues(horizontal = 18.dp),</span>
+<span class="nc" id="L198">                colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L199">                    containerColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L200">                    contentColor = Color.White,</span>
+                ),
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                onClick = {</span>
+<span class="nc" id="L203">                    onExploreClick()</span>
+<span class="nc" id="L204">                },</span>
+<span class="nc" id="L205">            ) {</span>
+<span class="nc" id="L206">                Text(</span>
+<span class="nc" id="L207">                    text = stringResource(R.string.activity_tab_explore_wikipedia),</span>
+<span class="nc" id="L208">                    style = MaterialTheme.typography.labelLarge</span>
+                )
+<span class="nc" id="L210">            }</span>
+<span class="nc" id="L211">        }</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">    } else if (readingHistoryState is UiState.Error) {</span>
+<span class="nc" id="L213">        Box(</span>
+<span class="nc" id="L214">            modifier = modifier</span>
+<span class="nc" id="L215">                .fillMaxSize()</span>
+<span class="nc" id="L216">                .padding(horizontal = 16.dp, vertical = 16.dp),</span>
+<span class="nc" id="L217">            contentAlignment = Alignment.Center</span>
+        ) {
+<span class="nc" id="L219">            WikiErrorView(</span>
+<span class="nc" id="L220">                modifier = Modifier</span>
+<span class="nc" id="L221">                    .fillMaxWidth(),</span>
+<span class="nc" id="L222">                caught = readingHistoryState.error,</span>
+<span class="nc" id="L223">                errorClickEvents = wikiErrorClickEvents,</span>
+<span class="nc" id="L224">                retryForGenericError = true</span>
+            )
+<span class="nc" id="L226">        }</span>
+<span class="nc" id="L227">    }</span>
+<span class="nc bnc" id="L228" title="All 4 branches missed.">}</span>
+
+@Composable
+private fun ArticleReadThisMonthCard(
+    modifier: Modifier,
+    readingHistory: ActivityTabViewModel.ReadingHistory,
+    todayDate: LocalDate,
+    onClick: () -&gt; Unit
+<span class="nc" id="L236">) {</span>
+<span class="nc" id="L237">    WikiCard(</span>
+<span class="nc" id="L238">        modifier = modifier,</span>
+<span class="nc" id="L239">        elevation = 0.dp,</span>
+<span class="nc" id="L240">        border = BorderStroke(</span>
+<span class="nc" id="L241">            width = 1.dp,</span>
+<span class="nc" id="L242">            color = WikipediaTheme.colors.borderColor</span>
+        ),
+<span class="nc" id="L244">        onClick = onClick</span>
+<span class="nc" id="L245">    ) {</span>
+<span class="nc" id="L246">        val locale = LocalLocale.current.platformLocale</span>
+<span class="nc" id="L247">        Column(</span>
+<span class="nc" id="L248">            modifier = Modifier.padding(16.dp)</span>
+        ) {
+<span class="nc" id="L250">            CommonCardHeader(</span>
+<span class="nc" id="L251">                icon = painterResource(R.drawable.ic_newsstand_24),</span>
+<span class="nc" id="L252">                title = stringResource(R.string.activity_tab_monthly_articles_read),</span>
+<span class="nc" id="L253">                showChevron = true,</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                subtitle = if (readingHistory.lastArticleReadTime != null) {</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">                    if (todayDate == readingHistory.lastArticleReadTime.toLocalDate())</span>
+<span class="nc" id="L256">                        readingHistory.lastArticleReadTime</span>
+<span class="nc" id="L257">                            .format(</span>
+<span class="nc" id="L258">                                DateTimeFormatter.ofPattern(</span>
+<span class="nc" id="L259">                                    DateFormat.getBestDateTimePattern(locale, &quot;hhmm a&quot;)</span>
+                                )
+                            )
+                    else
+<span class="nc" id="L263">                        readingHistory.lastArticleReadTime</span>
+<span class="nc" id="L264">                            .format(</span>
+<span class="nc" id="L265">                                DateTimeFormatter.ofPattern(</span>
+<span class="nc" id="L266">                                    DateFormat.getBestDateTimePattern(locale, &quot;MMMM d&quot;)</span>
+                                )
+                            )
+<span class="nc" id="L269">                } else null</span>
+            )
+
+<span class="nc" id="L272">            Row(</span>
+<span class="nc" id="L273">                modifier = Modifier.fillMaxWidth().padding(top = 6.dp)</span>
+            ) {
+<span class="nc" id="L275">                Text(</span>
+<span class="nc" id="L276">                    text = readingHistory.articlesReadThisMonth.toString(),</span>
+<span class="nc" id="L277">                    modifier = Modifier.align(Alignment.Bottom),</span>
+<span class="nc" id="L278">                    style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L279">                    fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L280">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L282">                Spacer(modifier = Modifier.weight(1f))</span>
+
+<span class="nc" id="L284">                TinyBarChart(</span>
+<span class="nc" id="L285">                    values = readingHistory.articlesReadByWeek,</span>
+<span class="nc" id="L286">                    modifier = Modifier.size(</span>
+<span class="nc" id="L287">                        72.dp,</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">                        if (readingHistory.articlesReadThisMonth == 0) 32.dp else 48.dp</span>
+                    ),
+<span class="nc" id="L290">                    minColor = ComposeColors.Gray300,</span>
+<span class="nc" id="L291">                    maxColor = ComposeColors.Green600</span>
+                )
+<span class="nc" id="L293">            }</span>
+<span class="nc" id="L294">        }</span>
+<span class="nc" id="L295">    }</span>
+<span class="nc" id="L296">}</span>
+
+@Composable
+private fun ArticleSavedThisMonthCard(
+    modifier: Modifier,
+    readingHistory: ActivityTabViewModel.ReadingHistory,
+    todayDate: LocalDate,
+    onClick: () -&gt; Unit
+<span class="nc" id="L304">) {</span>
+<span class="nc" id="L305">    WikiCard(</span>
+<span class="nc" id="L306">        modifier = modifier,</span>
+<span class="nc" id="L307">        elevation = 0.dp,</span>
+<span class="nc" id="L308">        border = BorderStroke(</span>
+<span class="nc" id="L309">            width = 1.dp,</span>
+<span class="nc" id="L310">            color = WikipediaTheme.colors.borderColor</span>
+        ),
+<span class="nc" id="L312">        onClick = onClick</span>
+<span class="nc" id="L313">    ) {</span>
+<span class="nc" id="L314">        val locale = LocalLocale.current.platformLocale</span>
+<span class="nc" id="L315">        Column(</span>
+<span class="nc" id="L316">            modifier = Modifier.padding(16.dp)</span>
+        ) {
+<span class="nc" id="L318">            CommonCardHeader(</span>
+<span class="nc" id="L319">                icon = painterResource(R.drawable.ic_bookmark_border_white_24dp),</span>
+<span class="nc" id="L320">                title = stringResource(R.string.activity_tab_monthly_articles_saved),</span>
+<span class="nc" id="L321">                showChevron = true,</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">                subtitle = if (readingHistory.lastArticleSavedTime != null) {</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">                    if (todayDate == readingHistory.lastArticleSavedTime.toLocalDate())</span>
+<span class="nc" id="L324">                        readingHistory.lastArticleSavedTime</span>
+<span class="nc" id="L325">                            .format(</span>
+<span class="nc" id="L326">                                DateTimeFormatter.ofPattern(</span>
+<span class="nc" id="L327">                                    DateFormat.getBestDateTimePattern(locale, &quot;hhmm a&quot;)</span>
+                                )
+                            )
+                    else
+<span class="nc" id="L331">                        readingHistory.lastArticleSavedTime</span>
+<span class="nc" id="L332">                            .format(</span>
+<span class="nc" id="L333">                                DateTimeFormatter.ofPattern(</span>
+<span class="nc" id="L334">                                    DateFormat.getBestDateTimePattern(locale, &quot;MMMM d&quot;)</span>
+                                )
+                            )
+<span class="nc" id="L337">                } else null</span>
+            )
+
+<span class="nc" id="L340">            Row(</span>
+<span class="nc" id="L341">                modifier = Modifier.fillMaxWidth().padding(top = 6.dp)</span>
+            ) {
+<span class="nc" id="L343">                Text(</span>
+<span class="nc" id="L344">                    text = readingHistory.articlesSavedThisMonth.toString(),</span>
+<span class="nc" id="L345">                    modifier = Modifier.align(Alignment.Bottom),</span>
+<span class="nc" id="L346">                    style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L347">                    fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L348">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L350">                Spacer(modifier = Modifier.weight(1f))</span>
+<span class="nc" id="L351">                Row {</span>
+<span class="nc" id="L352">                    val itemsToShow =</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">                        if (readingHistory.articlesSaved.size &lt;= 4) readingHistory.articlesSaved.size else 3</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">                    val showOverflowItem = readingHistory.articlesSaved.size &gt; 4</span>
+
+<span class="nc bnc" id="L356" title="All 2 branches missed.">                    for (i in 0 until itemsToShow) {</span>
+<span class="nc" id="L357">                        val url = readingHistory.articlesSaved[i].thumbUrl</span>
+<span class="nc bnc" id="L358" title="All 6 branches missed.">                        if (url.isNullOrEmpty()) {</span>
+<span class="nc" id="L359">                            Box(</span>
+<span class="nc" id="L360">                                modifier = Modifier.padding(start = 4.dp).size(38.dp)</span>
+<span class="nc" id="L361">                                    .background(</span>
+<span class="nc" id="L362">                                        color = Color.White,</span>
+<span class="nc" id="L363">                                        shape = RoundedCornerShape(19.dp)</span>
+<span class="nc" id="L364">                                    ).border(</span>
+<span class="nc" id="L365">                                        0.5.dp,</span>
+<span class="nc" id="L366">                                        WikipediaTheme.colors.borderColor,</span>
+<span class="nc" id="L367">                                        RoundedCornerShape(19.dp)</span>
+                                    )
+                            ) {
+<span class="nc" id="L370">                                Icon(</span>
+<span class="nc" id="L371">                                    modifier = Modifier.size(24.dp).align(Alignment.Center),</span>
+<span class="nc" id="L372">                                    painter = painterResource(R.drawable.ic_wikipedia_b),</span>
+<span class="nc" id="L373">                                    tint = Color.Black,</span>
+<span class="nc" id="L374">                                    contentDescription = null</span>
+                                )
+<span class="nc" id="L376">                            }</span>
+<span class="nc" id="L377">                        } else {</span>
+<span class="nc" id="L378">                            val request =</span>
+<span class="nc" id="L379">                                ImageService.getRequest(LocalContext.current, url = url)</span>
+<span class="nc" id="L380">                            AsyncImage(</span>
+<span class="nc" id="L381">                                model = request,</span>
+<span class="nc" id="L382">                                placeholder = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L383">                                error = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L384">                                contentScale = ContentScale.Crop,</span>
+<span class="nc" id="L385">                                contentDescription = null,</span>
+<span class="nc" id="L386">                                modifier = Modifier.padding(start = 4.dp).size(38.dp)</span>
+<span class="nc" id="L387">                                    .clip(RoundedCornerShape(19.dp))</span>
+                            )
+                        }
+<span class="nc" id="L390">                    }</span>
+
+<span class="nc bnc" id="L392" title="All 2 branches missed.">                    if (showOverflowItem) {</span>
+<span class="nc" id="L393">                        Box(</span>
+<span class="nc" id="L394">                            modifier = Modifier.padding(start = 4.dp).size(38.dp)</span>
+<span class="nc" id="L395">                                .background(</span>
+<span class="nc" id="L396">                                    color = WikipediaTheme.colors.placeholderColor,</span>
+<span class="nc" id="L397">                                    shape = RoundedCornerShape(19.dp)</span>
+                                )
+                        ) {
+<span class="nc" id="L400">                            Text(</span>
+<span class="nc" id="L401">                                text = String.format(</span>
+                                    locale,
+<span class="nc" id="L403">                                    &quot;+%d&quot;,</span>
+<span class="nc" id="L404">                                    readingHistory.articlesSavedThisMonth - 3</span>
+                                ),
+<span class="nc" id="L406">                                modifier = Modifier.align(Alignment.Center),</span>
+<span class="nc" id="L407">                                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L408">                                fontSize = 11.sp,</span>
+<span class="nc" id="L409">                                color = Color.White</span>
+                            )
+<span class="nc" id="L411">                        }</span>
+<span class="nc" id="L412">                    }</span>
+<span class="nc" id="L413">                }</span>
+<span class="nc" id="L414">            }</span>
+<span class="nc" id="L415">        }</span>
+<span class="nc" id="L416">    }</span>
+<span class="nc" id="L417">}</span>
+
+@Composable
+fun TopCategoriesCard(
+<span class="nc" id="L421">    modifier: Modifier = Modifier,</span>
+    categories: List&lt;Category&gt;,
+    onClick: (Category) -&gt; Unit
+<span class="nc bnc" id="L424" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L425">    WikiCard(</span>
+<span class="nc" id="L426">        modifier = modifier,</span>
+<span class="nc" id="L427">        elevation = 0.dp,</span>
+<span class="nc" id="L428">        border = BorderStroke(</span>
+<span class="nc" id="L429">            width = 1.dp,</span>
+<span class="nc" id="L430">            color = WikipediaTheme.colors.borderColor</span>
+        )
+<span class="nc" id="L432">    ) {</span>
+<span class="nc" id="L433">        Column {</span>
+<span class="nc" id="L434">            CommonCardHeader(</span>
+<span class="nc" id="L435">                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),</span>
+<span class="nc" id="L436">                icon = painterResource(R.drawable.ic_category_black_24dp),</span>
+<span class="nc" id="L437">                title = stringResource(R.string.activity_tab_monthly_top_categories)</span>
+            )
+
+<span class="nc" id="L440">            categories.forEachIndexed { index, value -&gt;</span>
+<span class="nc" id="L441">                Box(</span>
+<span class="nc" id="L442">                    modifier = Modifier</span>
+<span class="nc" id="L443">                        .fillMaxWidth()</span>
+<span class="nc" id="L444">                        .clickable(onClick = { onClick(value) })</span>
+                ) {
+<span class="nc" id="L446">                    Text(</span>
+<span class="nc" id="L447">                        modifier = Modifier</span>
+<span class="nc" id="L448">                            .padding(horizontal = 32.dp, vertical = 16.dp),</span>
+<span class="nc" id="L449">                        text = StringUtil.removeNamespace(value.title),</span>
+<span class="nc" id="L450">                        style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L451">                        color = WikipediaTheme.colors.primaryColor</span>
+                    )
+<span class="nc" id="L453">                }</span>
+
+<span class="nc bnc" id="L455" title="All 2 branches missed.">                if (index &lt; categories.size - 1) {</span>
+<span class="nc" id="L456">                    HorizontalDivider(</span>
+<span class="nc" id="L457">                        modifier = Modifier.padding(horizontal = 16.dp),</span>
+<span class="nc" id="L458">                        color = WikipediaTheme.colors.borderColor</span>
+                    )
+<span class="nc" id="L460">                }</span>
+<span class="nc" id="L461">            }</span>
+<span class="nc" id="L462">        }</span>
+<span class="nc" id="L463">    }</span>
+<span class="nc" id="L464">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L468">private fun ArticleReadThisMonthCardPreview() {</span>
+<span class="nc" id="L469">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L470">        ArticleReadThisMonthCard(</span>
+<span class="nc" id="L471">            modifier = Modifier</span>
+<span class="nc" id="L472">                .padding(20.dp),</span>
+<span class="nc" id="L473">            readingHistory = ActivityTabViewModel.ReadingHistory(</span>
+<span class="nc" id="L474">                articlesReadThisMonth = 42,</span>
+<span class="nc" id="L475">                articlesSavedThisMonth = 8,</span>
+<span class="nc" id="L476">                timeSpentThisWeek = 3661,</span>
+<span class="nc" id="L477">                lastArticleReadTime = LocalDate.now().atStartOfDay(),</span>
+<span class="nc" id="L478">                lastArticleSavedTime = LocalDate.now().atStartOfDay(),</span>
+<span class="nc" id="L479">                articlesReadByWeek = listOf(5, 10, 8, 12),</span>
+<span class="nc" id="L480">                articlesSaved = listOf(),</span>
+<span class="nc" id="L481">                topCategories = listOf()</span>
+            ),
+<span class="nc" id="L483">            todayDate = LocalDate.now(),</span>
+<span class="nc" id="L484">            onClick = {}</span>
+        )
+<span class="nc" id="L486">    }</span>
+<span class="nc" id="L487">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L491">private fun ArticleSavedThisMonthCardPreview() {</span>
+<span class="nc" id="L492">    val wikiSite = WikiSite.preview()</span>
+<span class="nc" id="L493">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L494">        ArticleSavedThisMonthCard(</span>
+<span class="nc" id="L495">            modifier = Modifier</span>
+<span class="nc" id="L496">                .padding(20.dp),</span>
+<span class="nc" id="L497">            readingHistory = ActivityTabViewModel.ReadingHistory(</span>
+<span class="nc" id="L498">                articlesReadThisMonth = 42,</span>
+<span class="nc" id="L499">                articlesSavedThisMonth = 8,</span>
+<span class="nc" id="L500">                timeSpentThisWeek = 3661,</span>
+<span class="nc" id="L501">                lastArticleReadTime = LocalDate.now().atStartOfDay(),</span>
+<span class="nc" id="L502">                lastArticleSavedTime = LocalDate.now().atStartOfDay(),</span>
+<span class="nc" id="L503">                articlesReadByWeek = listOf(5, 10, 8, 12),</span>
+<span class="nc" id="L504">                articlesSaved = listOf(</span>
+<span class="nc" id="L505">                    PageTitle(&quot;Title1&quot;, wikiSite),</span>
+<span class="nc" id="L506">                    PageTitle(&quot;Title2&quot;, wikiSite),</span>
+<span class="nc" id="L507">                    PageTitle(&quot;Title3&quot;, wikiSite),</span>
+                ),
+<span class="nc" id="L509">                topCategories = listOf()</span>
+            ),
+<span class="nc" id="L511">            todayDate = LocalDate.now(),</span>
+<span class="nc" id="L512">            onClick = {}</span>
+        )
+<span class="nc" id="L514">    }</span>
+<span class="nc" id="L515">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L519">private fun TopCategoriesViewPreview() {</span>
+<span class="nc" id="L520">    BaseTheme(</span>
+<span class="nc" id="L521">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L522">    ) {</span>
+<span class="nc" id="L523">        TopCategoriesCard(</span>
+<span class="nc" id="L524">            modifier = Modifier</span>
+<span class="nc" id="L525">                .fillMaxWidth()</span>
+<span class="nc" id="L526">                .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L527">            categories = listOf(</span>
+<span class="nc" id="L528">                Category(2025, 1, &quot;Category:Ancient history&quot;, &quot;en&quot;, 1),</span>
+<span class="nc" id="L529">                Category(2025, 1, &quot;Category:World literature&quot;, &quot;en&quot;, 1),</span>
+<span class="nc" id="L530">                Category(2025, 1, &quot;Category:Cat breeds originating in the United States&quot;, &quot;en&quot;, 1),</span>
+            ),
+<span class="nc" id="L532">            onClick = {}</span>
+        )
+<span class="nc" id="L534">    }</span>
+<span class="nc" id="L535">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

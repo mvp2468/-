@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LinearLayoutOverWebView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">LinearLayoutOverWebView.kt</span></div><h1>LinearLayoutOverWebView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.MotionEvent
+import android.view.ViewConfiguration
+import android.widget.LinearLayout
+import org.wikipedia.util.DimenUtil.densityScalar
+import kotlin.math.abs
+
+<span class="nc" id="L11">open class LinearLayoutOverWebView(context: Context?, attrs: AttributeSet? = null) : LinearLayout(context, attrs) {</span>
+    private lateinit var webView: ObservableWebView
+    private var touchSlop = 0
+    private var viewPressed = false
+    private var amountScrolled = 0
+    private var startY = 0f
+    private var slopReached = false
+
+    fun setWebView(webView: ObservableWebView) {
+<span class="nc" id="L20">        this.webView = webView</span>
+<span class="nc" id="L21">        touchSlop = ViewConfiguration.get(context).scaledTouchSlop</span>
+<span class="nc" id="L22">    }</span>
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+<span class="nc bnc" id="L25" title="All 4 branches missed.">        when (event.actionMasked and MotionEvent.ACTION_MASK) {</span>
+            MotionEvent.ACTION_DOWN -&gt; {
+<span class="nc" id="L27">                viewPressed = true</span>
+<span class="nc" id="L28">                slopReached = false</span>
+<span class="nc" id="L29">                startY = event.y</span>
+<span class="nc" id="L30">                amountScrolled = 0</span>
+            }
+<span class="nc bnc" id="L32" title="All 2 branches missed.">            MotionEvent.ACTION_MOVE -&gt; if (viewPressed) {</span>
+<span class="nc" id="L33">                val contentHeight = (webView.contentHeight * densityScalar).toInt()</span>
+<span class="nc" id="L34">                val minScroll = -webView.scrollY</span>
+<span class="nc" id="L35">                val maxScroll = contentHeight - webView.scrollY - webView.height</span>
+<span class="nc" id="L36">                var scrollAmount = (startY - event.y).toInt().coerceAtMost(maxScroll)</span>
+<span class="nc" id="L37">                scrollAmount = minScroll.coerceAtLeast(scrollAmount)</span>
+<span class="nc" id="L38">                amountScrolled += scrollAmount</span>
+<span class="nc bnc" id="L39" title="All 4 branches missed.">                if (abs(amountScrolled) &gt; touchSlop &amp;&amp; !slopReached) {</span>
+                    // if we go outside the slop radius, then dispatch a Cancel event to
+                    // our children, and no longer dispatch any other events until we're
+                    // finished with the current gesture.
+<span class="nc" id="L43">                    slopReached = true</span>
+<span class="nc" id="L44">                    val moveEvent = MotionEvent.obtain(event)</span>
+<span class="nc" id="L45">                    moveEvent.action = MotionEvent.ACTION_CANCEL</span>
+<span class="nc" id="L46">                    super.dispatchTouchEvent(moveEvent)</span>
+<span class="nc" id="L47">                    return true</span>
+                }
+<span class="nc bnc" id="L49" title="All 2 branches missed.">                if (slopReached) {</span>
+                    // manually scroll the WebView that's underneath us...
+<span class="nc" id="L51">                    webView.scrollBy(0, scrollAmount)</span>
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -&gt; {
+<span class="nc" id="L55">                viewPressed = false</span>
+<span class="nc" id="L56">                slopReached = false</span>
+            }
+            else -&gt; { }
+        }
+<span class="nc bnc" id="L60" title="All 4 branches missed.">        return slopReached || super.dispatchTouchEvent(event)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

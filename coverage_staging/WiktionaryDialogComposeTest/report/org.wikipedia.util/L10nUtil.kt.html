@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>L10nUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">L10nUtil.kt</span></div><h1>L10nUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.content.Context
+import android.content.res.Configuration
+import android.text.TextUtils
+import android.view.View
+import androidx.annotation.StringRes
+import androidx.core.os.ConfigurationCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.page.PageSummary
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.CHINESE_CN_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.CHINESE_HK_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.CHINESE_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.CHINESE_MO_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.CHINESE_MY_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.CHINESE_SG_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.CHINESE_TW_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.SIMPLIFIED_CHINESE_LANGUAGE_CODE
+import org.wikipedia.language.AppLanguageLookUpTable.Companion.TRADITIONAL_CHINESE_LANGUAGE_CODE
+import org.wikipedia.page.PageTitle
+import java.util.Locale
+
+object L10nUtil {
+    val isDeviceRTL: Boolean
+<span class="nc bnc" id="L32" title="All 2 branches missed.">        get() = TextUtils.getLayoutDirectionFromLocale(Locale.getDefault()) == View.LAYOUT_DIRECTION_RTL</span>
+
+    fun isLangRTL(lang: String): Boolean {
+<span class="nc bnc" id="L35" title="All 2 branches missed.">        return TextUtils.getLayoutDirectionFromLocale(Locale(lang)) == View.LAYOUT_DIRECTION_RTL</span>
+    }
+
+    @Deprecated(&quot;Use getString from current Activity's context instead.&quot;)
+    fun getString(@StringRes resId: Int): String {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        val context = WikipediaApp.instance.currentResumedActivity ?: WikipediaApp.instance</span>
+<span class="nc" id="L41">        return context.getString(resId)</span>
+    }
+
+    @Deprecated(&quot;Use Context extension instead.&quot;)
+    fun getString(languageCode: String, @StringRes resId: Int): String {
+<span class="nc bnc" id="L46" title="All 2 branches missed.">        val context = WikipediaApp.instance.currentResumedActivity ?: WikipediaApp.instance</span>
+<span class="nc" id="L47">        return getStringForLocale(context, Locale(languageCode), resId)</span>
+    }
+
+    @Deprecated(&quot;Use Context extension instead.&quot;)
+    fun getString(title: PageTitle, @StringRes resId: Int): String {
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        val context = WikipediaApp.instance.currentResumedActivity ?: WikipediaApp.instance</span>
+<span class="nc" id="L53">        return getStringForLocale(context, Locale(title.wikiSite.languageCode), resId)</span>
+    }
+
+    fun getStringForLocale(context: Context, targetLocale: Locale, @StringRes resId: Int): String {
+<span class="nc" id="L57">        val config = Configuration(context.resources.configuration)</span>
+<span class="nc" id="L58">        val systemLocale = ConfigurationCompat.getLocales(config)[0]</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">        if (systemLocale?.language == targetLocale.language) {</span>
+<span class="nc" id="L60">            return context.getString(resId)</span>
+        }
+<span class="nc" id="L62">        setDesiredLocale(config, targetLocale)</span>
+<span class="nc" id="L63">        val str = context.createConfigurationContext(config).resources.getString(resId)</span>
+<span class="nc" id="L64">        config.setLocale(systemLocale)</span>
+<span class="nc" id="L65">        context.createConfigurationContext(config)</span>
+<span class="nc" id="L66">        return str</span>
+    }
+
+    private fun getDesiredLocale(desiredLocale: Locale): Locale {
+        // TODO: maybe other language variants also have this issue, we need to add manually. e.g. kk?
+<span class="nc bnc" id="L71" title="All 3 branches missed.">        return when (desiredLocale.language) {</span>
+            TRADITIONAL_CHINESE_LANGUAGE_CODE, CHINESE_TW_LANGUAGE_CODE, CHINESE_HK_LANGUAGE_CODE,
+<span class="nc" id="L73">            CHINESE_MO_LANGUAGE_CODE -&gt; Locale.TRADITIONAL_CHINESE</span>
+            SIMPLIFIED_CHINESE_LANGUAGE_CODE, CHINESE_CN_LANGUAGE_CODE, CHINESE_SG_LANGUAGE_CODE,
+<span class="nc" id="L75">            CHINESE_MY_LANGUAGE_CODE -&gt; Locale.SIMPLIFIED_CHINESE</span>
+<span class="nc" id="L76">            else -&gt; desiredLocale</span>
+        }
+    }
+
+    fun getDesiredLanguageCode(langCode: String): String {
+<span class="nc bnc" id="L81" title="All 3 branches missed.">        return when (langCode) {</span>
+            TRADITIONAL_CHINESE_LANGUAGE_CODE, CHINESE_TW_LANGUAGE_CODE, CHINESE_HK_LANGUAGE_CODE,
+<span class="nc" id="L83">            CHINESE_MO_LANGUAGE_CODE -&gt; TRADITIONAL_CHINESE_LANGUAGE_CODE</span>
+            SIMPLIFIED_CHINESE_LANGUAGE_CODE, CHINESE_CN_LANGUAGE_CODE, CHINESE_SG_LANGUAGE_CODE,
+<span class="nc" id="L85">            CHINESE_MY_LANGUAGE_CODE -&gt; SIMPLIFIED_CHINESE_LANGUAGE_CODE</span>
+<span class="nc" id="L86">            else -&gt; langCode</span>
+        }
+    }
+
+    fun setDesiredLocale(config: Configuration, desiredLocale: Locale) {
+        // when loads API in chinese variant, we can get zh-hant, zh-hans and zh
+        // but if we want to display chinese correctly based on the article itself, we have to
+        // detect the variant from the API responses; otherwise, we will only get english texts.
+        // And this might only happen in Chinese variant
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (desiredLocale.language == CHINESE_LANGUAGE_CODE) {</span>
+            // create a new Locale object to manage only &quot;zh&quot; language code based on its app language
+            // code. e.g.: search &quot;HK&quot; article in &quot;zh-hant&quot; or &quot;zh-hans&quot; will get &quot;zh&quot; language code
+<span class="nc" id="L98">            config.setLocale(getDesiredLocale(Locale(WikipediaApp.instance.languageState.appLanguageCode)))</span>
+        } else {
+<span class="nc" id="L100">            config.setLocale(getDesiredLocale(desiredLocale))</span>
+        }
+<span class="nc" id="L102">    }</span>
+
+<span class="nc" id="L104">    suspend fun getPagesForLanguageVariant(list: List&lt;PageSummary&gt;, wikiSite: WikiSite, shouldUpdateExtracts: Boolean = false): List&lt;PageSummary&gt; {</span>
+<span class="nc" id="L105">        return withContext(Dispatchers.IO) {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (list.isEmpty()) {</span>
+<span class="nc" id="L107">                return@withContext emptyList()</span>
+            }
+<span class="nc" id="L109">            val newList = mutableListOf&lt;PageSummary&gt;()</span>
+<span class="nc" id="L110">            val titles = list.joinToString(separator = &quot;|&quot;) { it.apiTitle }</span>
+            // First, get the correct description from Wikidata directly.
+<span class="nc" id="L112">            val wikiDataResponse = async {</span>
+<span class="nc" id="L113">                ServiceFactory.get(Constants.wikidataWikiSite)</span>
+<span class="nc" id="L114">                    .getWikidataDescription(titles = titles, sites = wikiSite.dbName(), langCode = wikiSite.languageCode)</span>
+            }
+            // Second, fetch varianttitles from prop=info endpoint.
+<span class="nc" id="L117">            val mwQueryResponse = async {</span>
+<span class="nc" id="L118">                ServiceFactory.get(wikiSite).getVariantTitlesByTitles(titles)</span>
+            }
+
+            // Third, update the extracts from the page/summary endpoint if needed.
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            if (shouldUpdateExtracts) {</span>
+<span class="nc" id="L123">                list.map { pageSummary -&gt;</span>
+<span class="nc" id="L124">                    async {</span>
+<span class="nc" id="L125">                        ServiceFactory.getRest(wikiSite).getPageSummary(pageSummary.apiTitle)</span>
+<span class="nc" id="L126">                    }</span>
+<span class="nc" id="L127">                }.awaitAll().forEachIndexed { index, pageSummary -&gt;</span>
+<span class="nc" id="L128">                    list[index].extract = pageSummary.extract</span>
+<span class="nc" id="L129">                    list[index].extractHtml = pageSummary.extractHtml</span>
+<span class="nc" id="L130">                }</span>
+            }
+
+<span class="nc" id="L133">            val mwQueryResult = mwQueryResponse.await()</span>
+<span class="nc" id="L134">            val wikiDataResult = wikiDataResponse.await()</span>
+
+<span class="nc" id="L136">            list.forEach { pageSummary -&gt;</span>
+                // Find the correct display title from the varianttitles map, and insert the new page summary to the list.
+<span class="nc bnc" id="L138" title="All 12 branches missed.">                val displayTitle = mwQueryResult.query?.pages?.find { StringUtil.addUnderscores(it.title) == pageSummary.apiTitle }?.varianttitles?.get(wikiSite.languageCode)</span>
+<span class="nc" id="L139">                val newPageSummary = pageSummary.apply {</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                    val newDisplayTitle = displayTitle ?: pageSummary.displayTitle</span>
+<span class="nc" id="L141">                    this.titles = PageSummary.Titles(</span>
+<span class="nc" id="L142">                        canonical = pageSummary.apiTitle,</span>
+<span class="nc" id="L143">                        display = newDisplayTitle</span>
+                    )
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                    this.description = wikiDataResult.entities.values.firstOrNull {</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                        it.getLabels()[wikiSite.languageCode]?.value == newDisplayTitle</span>
+<span class="nc bnc" id="L147" title="All 6 branches missed.">                    }?.getDescriptions()?.get(wikiSite.languageCode)?.value ?: pageSummary.description</span>
+<span class="nc" id="L148">                }</span>
+<span class="nc" id="L149">                newList.add(newPageSummary)</span>
+<span class="nc" id="L150">            }</span>
+<span class="nc" id="L151">            newList</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

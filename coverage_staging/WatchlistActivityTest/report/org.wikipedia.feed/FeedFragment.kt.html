@@ -1,0 +1,475 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeedFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed</a> &gt; <span class="el_source">FeedFragment.kt</span></div><h1>FeedFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed
+
+import android.net.Uri
+import android.os.Bundle
+import android.util.Pair
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil.getCallback
+import org.wikipedia.databinding.FragmentFeedBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.feed.FeedCoordinatorBase.FeedUpdateListener
+import org.wikipedia.feed.configure.ConfigureActivity
+import org.wikipedia.feed.configure.ConfigureItemLanguageDialogView
+import org.wikipedia.feed.configure.LanguageItemAdapter
+import org.wikipedia.feed.image.FeaturedImage
+import org.wikipedia.feed.image.FeaturedImageCard
+import org.wikipedia.feed.model.Card
+import org.wikipedia.feed.model.WikiSiteCard
+import org.wikipedia.feed.news.NewsCard
+import org.wikipedia.feed.news.NewsItemView
+import org.wikipedia.feed.random.RandomCardView
+import org.wikipedia.feed.topread.TopReadArticlesActivity
+import org.wikipedia.feed.topread.TopReadListCard
+import org.wikipedia.feed.view.FeedAdapter
+import org.wikipedia.feed.view.RegionalLanguageVariantSelectionDialog
+import org.wikipedia.feed.wikigames.OnThisDayCardGameState
+import org.wikipedia.feed.wikigames.WikiGame
+import org.wikipedia.feed.wikigames.WikiGamesCard
+import org.wikipedia.games.db.DailyGameHistory
+import org.wikipedia.games.onthisday.OnThisDayGameActivity
+import org.wikipedia.games.onthisday.OnThisDayGameArchiveCalendarHelper
+import org.wikipedia.games.onthisday.OnThisDayGameMainMenuFragment
+import org.wikipedia.games.onthisday.OnThisDayGameProvider
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.language.AppLanguageLookUpTable
+import org.wikipedia.random.RandomActivity
+import org.wikipedia.readinglist.sync.ReadingListSyncAdapter
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.SettingsActivity
+import org.wikipedia.settings.languages.WikipediaLanguagesActivity
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import java.time.LocalDate
+
+<span class="nc" id="L57">class FeedFragment : Fragment() {</span>
+    private var _binding: FragmentFeedBinding? = null
+<span class="nc" id="L59">    private val binding get() = _binding!!</span>
+
+    private lateinit var feedAdapter: FeedAdapter&lt;View&gt;
+<span class="nc" id="L62">    private val feedCallback = FeedCallback()</span>
+<span class="nc" id="L63">    private val feedScrollListener = FeedScrollListener()</span>
+<span class="nc" id="L64">    private val callback get() = getCallback(this, Callback::class.java)</span>
+<span class="nc" id="L65">    private var app: WikipediaApp = WikipediaApp.instance</span>
+<span class="nc" id="L66">    private var coordinator: FeedCoordinator = FeedCoordinator(lifecycleScope, app)</span>
+    private var shouldElevateToolbar = false
+    private var onThisDayGameArchiveCalendarHelper: OnThisDayGameArchiveCalendarHelper? = null
+
+    interface Callback {
+        fun onFeedSearchRequested(view: View)
+        fun onFeedVoiceSearchRequested()
+        fun onFeedSelectPage(entry: HistoryEntry, openInNewBackgroundTab: Boolean)
+        fun onFeedSelectPageWithAnimation(entry: HistoryEntry, sharedElements: Array&lt;Pair&lt;View, String&gt;&gt;)
+        fun onFeedAddPageToList(entry: HistoryEntry, addToDefault: Boolean)
+        fun onFeedMovePageToList(sourceReadingListId: Long, entry: HistoryEntry)
+        fun onFeedNewsItemSelected(card: NewsCard, view: NewsItemView)
+        fun onFeedSeCardFooterClicked()
+        fun onFeedShareImage(card: FeaturedImageCard)
+        fun onFeedDownloadImage(image: FeaturedImage)
+        fun onFeaturedImageSelected(card: FeaturedImageCard)
+        fun onLoginRequested()
+        fun updateToolbarElevation(elevate: Boolean)
+        fun onWikiGamesCardFooterClicked()
+    }
+
+<span class="nc" id="L87">    private val requestFeedConfigurationLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (it.resultCode == SettingsActivity.ACTIVITY_RESULT_FEED_CONFIGURATION_CHANGED) {</span>
+<span class="nc" id="L89">            coordinator.updateHiddenCards()</span>
+<span class="nc" id="L90">            refresh()</span>
+        }
+<span class="nc" id="L92">    }</span>
+
+<span class="nc" id="L94">    private val requestLanguageChangeLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (it.resultCode == SettingsActivity.ACTIVITY_RESULT_LANGUAGE_CHANGED) {</span>
+<span class="nc" id="L96">            refresh()</span>
+        }
+<span class="nc" id="L98">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L101">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L102">        coordinator.more(app.wikiSite)</span>
+<span class="nc" id="L103">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L106">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L107">        _binding = FragmentFeedBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L108">        feedAdapter = FeedAdapter(coordinator, feedCallback)</span>
+<span class="nc" id="L109">        binding.feedView.adapter = feedAdapter</span>
+<span class="nc" id="L110">        binding.feedView.addOnScrollListener(feedScrollListener)</span>
+<span class="nc" id="L111">        binding.swipeRefreshLayout.setOnRefreshListener { refresh() }</span>
+<span class="nc" id="L112">        binding.customizeButton.setOnClickListener { showConfigureActivity(-1) }</span>
+<span class="nc" id="L113">        coordinator.setFeedUpdateListener(object : FeedUpdateListener {</span>
+            override fun insert(card: Card, pos: Int) {
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                if (isAdded) {</span>
+<span class="nc" id="L116">                    binding.swipeRefreshLayout.isRefreshing = false</span>
+<span class="nc" id="L117">                    feedAdapter.notifyItemInserted(pos)</span>
+                }
+<span class="nc" id="L119">            }</span>
+
+            override fun remove(card: Card, pos: Int) {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                if (isAdded) {</span>
+<span class="nc" id="L123">                    binding.swipeRefreshLayout.isRefreshing = false</span>
+<span class="nc" id="L124">                    feedAdapter.notifyItemRemoved(pos)</span>
+                }
+<span class="nc" id="L126">            }</span>
+
+            override fun finished(shouldUpdatePreviousCard: Boolean) {
+<span class="nc bnc" id="L129" title="All 2 branches missed.">                if (!isAdded) {</span>
+<span class="nc" id="L130">                    return</span>
+                }
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                if (feedAdapter.itemCount &lt; 2) {</span>
+<span class="nc" id="L133">                    binding.emptyContainer.visibility = View.VISIBLE</span>
+                } else {
+<span class="nc" id="L135">                    binding.emptyContainer.visibility = View.GONE</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                    if (shouldUpdatePreviousCard) {</span>
+<span class="nc" id="L137">                        feedAdapter.notifyItemChanged(feedAdapter.itemCount - 1)</span>
+                    }
+                }
+<span class="nc" id="L140">            }</span>
+        })
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        callback?.updateToolbarElevation(shouldElevateToolbar())</span>
+<span class="nc" id="L143">        ReadingListSyncAdapter.manualSync()</span>
+<span class="nc" id="L144">        Prefs.incrementExploreFeedVisitCount()</span>
+<span class="nc" id="L145">        return binding.root</span>
+    }
+
+    override fun onResume() {
+<span class="nc" id="L149">        super.onResume()</span>
+<span class="nc" id="L150">        maybeShowRegionalLanguageVariantDialog()</span>
+<span class="nc" id="L151">        OnThisDayGameMainMenuFragment.maybeShowOnThisDayGameDialog(requireActivity(), InvokeSource.FEED)</span>
+<span class="nc" id="L152">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L153">            refreshWikiGameCards()</span>
+            // Explicitly invalidate the feed adapter, since it occasionally crashes the StaggeredGridLayout
+            // on certain devices.
+            // https://issuetracker.google.com/issues/188096921
+<span class="nc" id="L157">            feedAdapter.notifyDataSetChanged()</span>
+<span class="nc" id="L158">        }</span>
+<span class="nc" id="L159">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L162">        coordinator.setFeedUpdateListener(null)</span>
+<span class="nc" id="L163">        binding.swipeRefreshLayout.setOnRefreshListener(null)</span>
+<span class="nc" id="L164">        binding.feedView.removeOnScrollListener(feedScrollListener)</span>
+<span class="nc" id="L165">        binding.feedView.adapter = null</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">        onThisDayGameArchiveCalendarHelper?.unRegister()</span>
+<span class="nc" id="L167">        onThisDayGameArchiveCalendarHelper = null</span>
+<span class="nc" id="L168">        _binding = null</span>
+<span class="nc" id="L169">        super.onDestroyView()</span>
+<span class="nc" id="L170">    }</span>
+
+    override fun onDestroy() {
+<span class="nc" id="L173">        super.onDestroy()</span>
+<span class="nc" id="L174">        coordinator.reset()</span>
+<span class="nc" id="L175">    }</span>
+
+    fun shouldElevateToolbar(): Boolean {
+<span class="nc" id="L178">        return shouldElevateToolbar</span>
+    }
+
+    fun scrollToTop() {
+<span class="nc" id="L182">        binding.feedView.smoothScrollToPosition(0)</span>
+<span class="nc" id="L183">    }</span>
+
+    fun onGoOffline() {
+<span class="nc" id="L186">        feedAdapter.notifyDataSetChanged()</span>
+<span class="nc" id="L187">        coordinator.requestOfflineCard()</span>
+<span class="nc" id="L188">    }</span>
+
+    fun onGoOnline() {
+<span class="nc" id="L191">        feedAdapter.notifyDataSetChanged()</span>
+<span class="nc" id="L192">        coordinator.removeOfflineCard()</span>
+<span class="nc" id="L193">        coordinator.incrementAge()</span>
+<span class="nc" id="L194">        coordinator.more(app.wikiSite)</span>
+<span class="nc" id="L195">    }</span>
+
+    fun refresh() {
+<span class="nc" id="L198">        binding.emptyContainer.visibility = View.GONE</span>
+<span class="nc" id="L199">        coordinator.reset()</span>
+<span class="nc" id="L200">        feedAdapter.notifyDataSetChanged()</span>
+<span class="nc" id="L201">        WikipediaApp.instance.resetWikiSite()</span>
+<span class="nc" id="L202">        coordinator.more(WikipediaApp.instance.wikiSite)</span>
+<span class="nc" id="L203">    }</span>
+
+    fun updateHiddenCards() {
+<span class="nc" id="L206">        coordinator.updateHiddenCards()</span>
+<span class="nc" id="L207">    }</span>
+
+<span class="nc" id="L209">    private inner class FeedCallback : FeedAdapter.Callback {</span>
+        override fun onRequestMore() {
+<span class="nc" id="L211">            binding.feedView.post {</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                if (isAdded) {</span>
+<span class="nc" id="L213">                    coordinator.incrementAge()</span>
+<span class="nc" id="L214">                    coordinator.more(app.wikiSite)</span>
+                }
+<span class="nc" id="L216">            }</span>
+<span class="nc" id="L217">        }</span>
+
+        override fun onRetryFromOffline() {
+<span class="nc" id="L220">            refresh()</span>
+<span class="nc" id="L221">        }</span>
+
+        override fun onError(t: Throwable) {
+<span class="nc" id="L224">            FeedbackUtil.showError(requireActivity(), t)</span>
+<span class="nc" id="L225">        }</span>
+
+        override fun onSelectPage(card: Card, entry: HistoryEntry, openInNewBackgroundTab: Boolean) {
+<span class="nc bnc" id="L228" title="All 2 branches missed.">            callback?.onFeedSelectPage(entry, openInNewBackgroundTab)</span>
+<span class="nc" id="L229">        }</span>
+
+        override fun onSelectPage(card: Card, entry: HistoryEntry, sharedElements: Array&lt;Pair&lt;View, String&gt;&gt;) {
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            callback?.onFeedSelectPageWithAnimation(entry, sharedElements)</span>
+<span class="nc" id="L233">        }</span>
+
+        override fun onAddPageToList(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc bnc" id="L236" title="All 2 branches missed.">            callback?.onFeedAddPageToList(entry, addToDefault)</span>
+<span class="nc" id="L237">        }</span>
+
+        override fun onMovePageToList(sourceReadingListId: Long, entry: HistoryEntry) {
+<span class="nc bnc" id="L240" title="All 2 branches missed.">            callback?.onFeedMovePageToList(sourceReadingListId, entry)</span>
+<span class="nc" id="L241">        }</span>
+
+        override fun onSearchRequested(view: View) {
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            callback?.onFeedSearchRequested(view)</span>
+<span class="nc" id="L245">        }</span>
+
+        override fun onVoiceSearchRequested() {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">            callback?.onFeedVoiceSearchRequested()</span>
+<span class="nc" id="L249">        }</span>
+
+        override fun onRequestDismissCard(card: Card): Boolean {
+<span class="nc" id="L252">            val position = coordinator.dismissCard(card)</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">            if (position &lt; 0) {</span>
+<span class="nc" id="L254">                return false</span>
+            }
+<span class="nc" id="L256">            showDismissCardUndoSnackbar(card, position)</span>
+<span class="nc" id="L257">            return true</span>
+        }
+
+        override fun onRequestEditCardLanguages(card: Card) {
+<span class="nc" id="L261">            showCardLangSelectDialog(card)</span>
+<span class="nc" id="L262">        }</span>
+
+        override fun onRequestCustomize(card: Card) {
+<span class="nc" id="L265">            showConfigureActivity(card.type().code())</span>
+<span class="nc" id="L266">        }</span>
+
+        override fun onNewsItemSelected(card: NewsCard, view: NewsItemView) {
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            callback?.onFeedNewsItemSelected(card, view)</span>
+<span class="nc" id="L270">        }</span>
+
+        override fun onShareImage(card: FeaturedImageCard) {
+<span class="nc bnc" id="L273" title="All 2 branches missed.">            callback?.onFeedShareImage(card)</span>
+<span class="nc" id="L274">        }</span>
+
+        override fun onDownloadImage(image: FeaturedImage) {
+<span class="nc bnc" id="L277" title="All 2 branches missed.">            callback?.onFeedDownloadImage(image)</span>
+<span class="nc" id="L278">        }</span>
+
+        override fun onFeaturedImageSelected(card: FeaturedImageCard) {
+<span class="nc bnc" id="L281" title="All 2 branches missed.">            callback?.onFeaturedImageSelected(card)</span>
+<span class="nc" id="L282">        }</span>
+
+        override fun onAnnouncementPositiveAction(card: Card, uri: Uri) {
+<span class="nc" id="L285">            when {</span>
+<span class="nc bnc" id="L286" title="All 4 branches missed.">                uri.toString() == UriUtil.LOCAL_URL_LOGIN -&gt; callback?.onLoginRequested()</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">                uri.toString() == UriUtil.LOCAL_URL_SETTINGS -&gt; requestLanguageChangeLauncher.launch(SettingsActivity.newIntent(requireContext()))</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">                uri.toString() == UriUtil.LOCAL_URL_CUSTOMIZE_FEED -&gt; {</span>
+<span class="nc" id="L289">                    showConfigureActivity(card.type().code())</span>
+<span class="nc" id="L290">                    onRequestDismissCard(card)</span>
+                }
+<span class="nc bnc" id="L292" title="All 2 branches missed.">                uri.toString() == UriUtil.LOCAL_URL_LANGUAGES -&gt; showLanguagesActivity(InvokeSource.ANNOUNCEMENT)</span>
+<span class="nc" id="L293">                else -&gt; UriUtil.handleExternalLink(requireContext(), uri)</span>
+            }
+<span class="nc" id="L295">        }</span>
+
+        override fun onAnnouncementNegativeAction(card: Card) {
+<span class="nc" id="L298">            onRequestDismissCard(card)</span>
+<span class="nc" id="L299">        }</span>
+
+        override fun onRandomClick(view: RandomCardView) {
+<span class="nc bnc" id="L302" title="All 2 branches missed.">            view.card?.let {</span>
+<span class="nc" id="L303">                startActivity(RandomActivity.newIntent(requireActivity(), it.wikiSite(), InvokeSource.FEED))</span>
+<span class="nc" id="L304">            }</span>
+<span class="nc" id="L305">        }</span>
+
+        override fun onFooterClick(card: Card) {
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            if (card is TopReadListCard) {</span>
+<span class="nc" id="L309">                startActivity(TopReadArticlesActivity.newIntent(requireContext(), card))</span>
+            }
+<span class="nc" id="L311">        }</span>
+
+        override fun onSeCardFooterClicked() {
+<span class="nc bnc" id="L314" title="All 2 branches missed.">            callback?.onFeedSeCardFooterClicked()</span>
+<span class="nc" id="L315">        }</span>
+
+        override fun onWikiGamesCardFooterClicked() {
+<span class="nc bnc" id="L318" title="All 2 branches missed.">            callback?.onWikiGamesCardFooterClicked()</span>
+<span class="nc" id="L319">        }</span>
+
+        override fun onThisDayGameCountDownFinished() {
+<span class="nc" id="L322">            viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L323">                refreshWikiGameCards()</span>
+<span class="nc" id="L324">            }</span>
+<span class="nc" id="L325">        }</span>
+
+        override fun onThisDayGameArchiveButtonClicked(wikiSite: WikiSite) {
+<span class="nc bnc" id="L328" title="All 2 branches missed.">            onThisDayGameArchiveCalendarHelper?.unRegister()</span>
+<span class="nc" id="L329">            onThisDayGameArchiveCalendarHelper = OnThisDayGameArchiveCalendarHelper(</span>
+<span class="nc" id="L330">                fragment = this@FeedFragment,</span>
+<span class="nc" id="L331">                languageCode = wikiSite.languageCode,</span>
+                onDateSelected = { date -&gt;
+<span class="nc" id="L333">                    startActivity(OnThisDayGameActivity.newIntent(requireActivity(), Constants.InvokeSource.FEED, wikiSite, date))</span>
+<span class="nc" id="L334">                }</span>
+<span class="nc" id="L335">            ).also {</span>
+<span class="nc" id="L336">                it.register()</span>
+<span class="nc" id="L337">                it.show()</span>
+<span class="nc" id="L338">            }</span>
+<span class="nc" id="L339">        }</span>
+
+        override fun onThisDayGamePlayButonClicked(wikiSite: WikiSite) {
+<span class="nc" id="L342">            startActivity(OnThisDayGameActivity.newIntent(requireActivity(), Constants.InvokeSource.FEED, wikiSite))</span>
+<span class="nc" id="L343">        }</span>
+
+        override fun onThisDayGameReviewResultsButtonClicked(wikiSite: WikiSite) {
+<span class="nc" id="L346">            startActivity(</span>
+<span class="nc" id="L347">                OnThisDayGameActivity.newIntent(</span>
+<span class="nc" id="L348">                    context = requireActivity(),</span>
+<span class="nc" id="L349">                    invokeSource = InvokeSource.FEED,</span>
+<span class="nc" id="L350">                    wikiSite = wikiSite,</span>
+<span class="nc" id="L351">                    date = LocalDate.now(),</span>
+<span class="nc" id="L352">                    gameStatus = DailyGameHistory.GAME_COMPLETED</span>
+                )
+            )
+<span class="nc" id="L355">        }</span>
+    }
+
+<span class="nc" id="L358">    private inner class FeedScrollListener : RecyclerView.OnScrollListener() {</span>
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+<span class="nc" id="L360">            super.onScrolled(recyclerView, dx, dy)</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">            val shouldElevate = binding.feedView.firstVisibleItemPosition != 0</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">            if (shouldElevate != shouldElevateToolbar) {</span>
+<span class="nc" id="L363">                shouldElevateToolbar = shouldElevate</span>
+<span class="nc" id="L364">                requireActivity().invalidateOptionsMenu()</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">                callback?.updateToolbarElevation(shouldElevateToolbar())</span>
+            }
+<span class="nc" id="L367">        }</span>
+    }
+
+    private fun showDismissCardUndoSnackbar(card: Card, position: Int) {
+<span class="nc" id="L371">        val snackbar = FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.menu_feed_card_dismissed))</span>
+<span class="nc" id="L372">        snackbar.setAction(R.string.reading_list_item_delete_undo) { coordinator.undoDismissCard(card, position) }</span>
+<span class="nc" id="L373">        snackbar.show()</span>
+<span class="nc" id="L374">    }</span>
+
+    private fun showCardLangSelectDialog(card: Card) {
+<span class="nc" id="L377">        val contentType = card.type().contentType()</span>
+<span class="nc bnc" id="L378" title="All 4 branches missed.">        if (contentType != null &amp;&amp; contentType.isPerLanguage) {</span>
+<span class="nc" id="L379">            val adapter = LanguageItemAdapter(requireContext(), contentType)</span>
+<span class="nc" id="L380">            val view = ConfigureItemLanguageDialogView(requireContext())</span>
+<span class="nc" id="L381">            val tempDisabledList = ArrayList(contentType.langCodesDisabled)</span>
+<span class="nc" id="L382">            view.setContentType(adapter.langList, tempDisabledList)</span>
+<span class="nc" id="L383">            MaterialAlertDialogBuilder(requireContext())</span>
+<span class="nc" id="L384">                .setView(view)</span>
+<span class="nc" id="L385">                .setTitle(contentType.titleId)</span>
+<span class="nc" id="L386">                .setPositiveButton(R.string.feed_lang_selection_dialog_ok_button_text) { _, _ -&gt;</span>
+<span class="nc" id="L387">                    contentType.langCodesDisabled.clear()</span>
+<span class="nc" id="L388">                    contentType.langCodesDisabled.addAll(tempDisabledList)</span>
+<span class="nc" id="L389">                    refresh()</span>
+<span class="nc" id="L390">                }</span>
+<span class="nc" id="L391">                .setNegativeButton(R.string.feed_lang_selection_dialog_cancel_button_text, null)</span>
+<span class="nc" id="L392">                .show()</span>
+        }
+<span class="nc" id="L394">    }</span>
+
+    private fun maybeShowRegionalLanguageVariantDialog() {
+<span class="nc" id="L397">        val deprecatedLanguageCodes = listOf(AppLanguageLookUpTable.TRADITIONAL_CHINESE_LANGUAGE_CODE, AppLanguageLookUpTable.SIMPLIFIED_CHINESE_LANGUAGE_CODE)</span>
+<span class="nc" id="L398">        val primaryLanguage = WikipediaApp.instance.languageState.appLanguageCode</span>
+<span class="nc" id="L399">        val remainingLanguages = WikipediaApp.instance.languageState.appLanguageCodes.toMutableList().apply {</span>
+<span class="nc" id="L400">            remove(primaryLanguage)</span>
+<span class="nc" id="L401">        }</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">        if (deprecatedLanguageCodes.contains(primaryLanguage)) {</span>
+<span class="nc" id="L403">             val dialog = RegionalLanguageVariantSelectionDialog(requireContext()).show()</span>
+<span class="nc" id="L404">            dialog.setOnDismissListener {</span>
+<span class="nc" id="L405">                refresh()</span>
+<span class="nc" id="L406">            }</span>
+<span class="nc bnc" id="L407" title="All 2 branches missed.">        } else if (remainingLanguages.any(deprecatedLanguageCodes::contains)) {</span>
+<span class="nc" id="L408">            MaterialAlertDialogBuilder(requireContext())</span>
+<span class="nc" id="L409">                .setCancelable(false)</span>
+<span class="nc" id="L410">                .setTitle(R.string.feed_language_variants_removal_secondary_dialog_title)</span>
+<span class="nc" id="L411">                .setMessage(R.string.feed_language_variants_removal_secondary_dialog_message)</span>
+<span class="nc" id="L412">                .setPositiveButton(R.string.feed_language_variants_removal_secondary_dialog_settings) { _, _ -&gt;</span>
+<span class="nc" id="L413">                    val list = RegionalLanguageVariantSelectionDialog.removeNonRegionalLanguageVariants()</span>
+<span class="nc" id="L414">                    WikipediaApp.instance.languageState.setAppLanguageCodes(list)</span>
+<span class="nc" id="L415">                    refresh()</span>
+<span class="nc" id="L416">                    showLanguagesActivity(InvokeSource.FEED)</span>
+<span class="nc" id="L417">                }</span>
+<span class="nc" id="L418">                .show()</span>
+        }
+<span class="nc" id="L420">    }</span>
+
+    private fun showConfigureActivity(invokeSource: Int) {
+<span class="nc" id="L423">        requestFeedConfigurationLauncher.launch(ConfigureActivity.newIntent(requireActivity(), invokeSource))</span>
+<span class="nc" id="L424">    }</span>
+
+    private fun showLanguagesActivity(invokeSource: InvokeSource) {
+<span class="nc" id="L427">        requestLanguageChangeLauncher.launch(WikipediaLanguagesActivity.newIntent(requireActivity(), invokeSource))</span>
+<span class="nc" id="L428">    }</span>
+
+    private fun getCardLanguageCode(card: Card?): String? {
+<span class="nc bnc" id="L431" title="All 2 branches missed.">        return if (card is WikiSiteCard) card.wikiSite().languageCode else null</span>
+    }
+
+<span class="nc" id="L434">    private suspend fun refreshWikiGameCards() {</span>
+<span class="nc" id="L435">        val wikiGamesCards = coordinator.cards.filterIsInstance&lt;WikiGamesCard&gt;()</span>
+<span class="nc" id="L436">        wikiGamesCards.forEach { card -&gt;</span>
+<span class="nc" id="L437">            try {</span>
+<span class="nc" id="L438">                val gameState = OnThisDayGameProvider.getGameState(card.wikiSite, LocalDate.now())</span>
+<span class="nc" id="L439">                val updatedGames = card.games.toMutableList()</span>
+<span class="nc" id="L440">                val gameIndex = updatedGames.indexOfFirst { it is WikiGame.OnThisDayGame }</span>
+
+<span class="nc bnc" id="L442" title="All 2 branches missed.">                val oldGame = updatedGames.getOrNull(gameIndex) as? WikiGame.OnThisDayGame</span>
+<span class="nc" id="L443">                val newGame = WikiGame.OnThisDayGame(state = gameState)</span>
+
+<span class="nc" id="L445">                val isSame = when {</span>
+<span class="nc bnc" id="L446" title="All 6 branches missed.">                    oldGame?.state is OnThisDayCardGameState.Preview &amp;&amp; newGame.state is OnThisDayCardGameState.Preview -&gt; {</span>
+<span class="nc" id="L447">                        val old = oldGame.state</span>
+<span class="nc" id="L448">                        val new = newGame.state</span>
+<span class="nc bnc" id="L449" title="All 4 branches missed.">                        old.event1.text == new.event1.text &amp;&amp; old.event2.text == new.event2.text</span>
+                    }
+<span class="nc" id="L451">                    else -&gt; oldGame == newGame</span>
+                }
+<span class="nc bnc" id="L453" title="All 4 branches missed.">                if (!isSame &amp;&amp; gameIndex &gt;= 0) {</span>
+<span class="nc" id="L454">                    updatedGames[gameIndex] = WikiGame.OnThisDayGame(state = gameState)</span>
+<span class="nc" id="L455">                    val finalIndex = coordinator.cards.indexOf(card)</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">                    if (finalIndex &gt;= 0) {</span>
+<span class="nc" id="L457">                        coordinator.cards[finalIndex] = WikiGamesCard(card.wikiSite, updatedGames)</span>
+<span class="nc" id="L458">                        feedAdapter.notifyItemChanged(finalIndex)</span>
+                    }
+                }
+<span class="nc" id="L461">            } catch (e: Exception) {</span>
+<span class="nc" id="L462">                L.e(e)</span>
+            }
+<span class="nc" id="L464">        }</span>
+<span class="nc" id="L465">    }</span>
+
+    companion object {
+        fun newInstance(): FeedFragment {
+<span class="nc" id="L469">            return FeedFragment().apply {</span>
+<span class="nc" id="L470">                retainInstance = true</span>
+<span class="nc" id="L471">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

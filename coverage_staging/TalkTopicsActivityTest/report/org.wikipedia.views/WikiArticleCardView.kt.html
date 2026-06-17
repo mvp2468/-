@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiArticleCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">WikiArticleCardView.kt</span></div><h1>WikiArticleCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.net.Uri
+import android.util.AttributeSet
+import android.util.Pair
+import android.view.LayoutInflater
+import android.view.View
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.net.toUri
+import org.wikipedia.databinding.ViewWikiArticleCardBinding
+import org.wikipedia.donate.donationreminder.DonationReminderHelper
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.TransitionUtil
+
+<span class="nc" id="L20">class WikiArticleCardView(context: Context, attrs: AttributeSet? = null) : ConstraintLayout(context, attrs) {</span>
+
+<span class="nc" id="L22">    val binding = ViewWikiArticleCardBinding.inflate(LayoutInflater.from(context), this)</span>
+
+    fun setTitle(title: String) {
+<span class="nc" id="L25">        binding.articleTitle.text = StringUtil.fromHtml(title)</span>
+<span class="nc" id="L26">    }</span>
+
+    fun setDescription(description: String?) {
+<span class="nc" id="L29">        binding.articleDescription.text = description</span>
+<span class="nc" id="L30">    }</span>
+
+    fun getImageView(): FaceAndColorDetectImageView {
+<span class="nc" id="L33">        return binding.articleImage</span>
+    }
+
+    fun setExtract(extract: String?, maxLines: Int) {
+<span class="nc" id="L37">        binding.articleExtract.text = StringUtil.fromHtml(extract)</span>
+<span class="nc" id="L38">        binding.articleExtract.maxLines = maxLines</span>
+<span class="nc" id="L39">    }</span>
+
+    fun getSharedElements(): Array&lt;Pair&lt;View, String&gt;&gt; {
+<span class="nc" id="L42">        return TransitionUtil.getSharedElements(context, binding.articleTitle, binding.articleDescription, binding.articleImage)</span>
+    }
+
+<span class="nc" id="L45">    fun setImageUri(uri: Uri?, hideInLandscape: Boolean = true) {</span>
+<span class="nc bnc" id="L46" title="All 8 branches missed.">        if (uri == null || (DimenUtil.isLandscape(context) &amp;&amp; hideInLandscape) || !Prefs.isImageDownloadEnabled) {</span>
+<span class="nc" id="L47">            binding.articleImageContainer.visibility = GONE</span>
+        } else {
+<span class="nc" id="L49">            binding.articleImageContainer.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT,</span>
+<span class="nc" id="L50">                    DimenUtil.leadImageHeightForDevice(context) - DimenUtil.getToolbarHeightPx(context))</span>
+<span class="nc" id="L51">            binding.articleImageContainer.visibility = VISIBLE</span>
+<span class="nc" id="L52">            binding.articleImage.loadImage(uri)</span>
+        }
+<span class="nc" id="L54">    }</span>
+
+    fun prepareForTransition(title: PageTitle) {
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        setImageUri(title.thumbUrl?.toUri())</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (!DonationReminderHelper.hasActiveReminder) {</span>
+<span class="nc" id="L59">            setTitle(title.displayText)</span>
+<span class="nc" id="L60">            setDescription(title.description)</span>
+        }
+<span class="nc" id="L62">        binding.articleDivider.visibility = GONE</span>
+<span class="nc" id="L63">        setLayoutDirectionByLang(title.wikiSite.languageCode)</span>
+<span class="nc" id="L64">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

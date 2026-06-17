@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FrameLayoutNavMenuTriggerer.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">FrameLayoutNavMenuTriggerer.kt</span></div><h1>FrameLayoutNavMenuTriggerer.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.Gravity
+import android.view.MotionEvent
+import android.widget.FrameLayout
+import org.wikipedia.util.DimenUtil.roundedDpToPx
+import org.wikipedia.util.L10nUtil
+import kotlin.math.abs
+
+<span class="nc" id="L12">class FrameLayoutNavMenuTriggerer(context: Context, attrs: AttributeSet? = null) : FrameLayout(context, attrs) {</span>
+
+    interface Callback {
+        fun onNavMenuSwipeRequest(gravity: Int)
+    }
+
+    private var initialX = 0f
+    private var initialY = 0f
+    private var maybeSwiping = false
+<span class="nc" id="L21">    var callback: Callback? = null</span>
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+<span class="nc" id="L24">        val action = ev.actionMasked</span>
+<span class="nc bnc" id="L25" title="All 2 branches missed.">        if (CHILD_VIEW_SCROLLED) {</span>
+<span class="nc" id="L26">            CHILD_VIEW_SCROLLED = false</span>
+<span class="nc" id="L27">            initialX = ev.x</span>
+<span class="nc" id="L28">            initialY = ev.y</span>
+        }
+<span class="nc bnc" id="L30" title="All 2 branches missed.">        if (action == MotionEvent.ACTION_DOWN) {</span>
+<span class="nc" id="L31">            initialX = ev.x</span>
+<span class="nc" id="L32">            initialY = ev.y</span>
+<span class="nc" id="L33">            maybeSwiping = true</span>
+<span class="nc bnc" id="L34" title="All 4 branches missed.">        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {</span>
+<span class="nc" id="L35">            maybeSwiping = false</span>
+<span class="nc bnc" id="L36" title="All 4 branches missed.">        } else if (action == MotionEvent.ACTION_MOVE &amp;&amp; maybeSwiping) {</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">            if (abs((ev.y - initialY).toInt()) &gt; SWIPE_SLOP_Y) {</span>
+<span class="nc" id="L38">                maybeSwiping = false</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">            } else if (abs(ev.x - initialX) &gt; SWIPE_SLOP_X) {</span>
+<span class="nc" id="L40">                maybeSwiping = false</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                callback?.let {</span>
+                    // send an explicit event to children to cancel the current gesture that
+                    // they thought was occurring.
+<span class="nc" id="L44">                    val moveEvent = MotionEvent.obtain(ev)</span>
+<span class="nc" id="L45">                    moveEvent.action = MotionEvent.ACTION_CANCEL</span>
+<span class="nc" id="L46">                    post { super.dispatchTouchEvent(moveEvent) }</span>
+
+                    // and trigger our custom swipe request!
+<span class="nc bnc" id="L49" title="All 2 branches missed.">                    it.onNavMenuSwipeRequest(if (L10nUtil.isDeviceRTL)</span>
+<span class="nc bnc" id="L50" title="All 4 branches missed.">                        if (ev.x &gt; initialX) Gravity.END else Gravity.START else if (ev.x &gt; initialX) Gravity.START else Gravity.END)</span>
+<span class="nc" id="L51">                }</span>
+            }
+        }
+<span class="nc" id="L54">        return false</span>
+    }
+
+    companion object {
+<span class="nc" id="L58">        private val SWIPE_SLOP_Y = roundedDpToPx(32f)</span>
+<span class="nc" id="L59">        private val SWIPE_SLOP_X = roundedDpToPx(100f)</span>
+        private var CHILD_VIEW_SCROLLED = false
+
+        fun setChildViewScrolled() {
+<span class="nc" id="L63">            CHILD_VIEW_SCROLLED = true</span>
+<span class="nc" id="L64">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

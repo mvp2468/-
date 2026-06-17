@@ -1,0 +1,439 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsTasksFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsTasksFragment.kt</span></div><h1>SuggestedEditsTasksFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.app.Activity
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
+import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.LinearLayoutManager
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.ActivityTabEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.databinding.FragmentSuggestedEditsTasksBinding
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_CAPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_DESCRIPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_IMAGE_TAGS
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.IMAGE_RECOMMENDATIONS
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_CAPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION
+import org.wikipedia.descriptions.DescriptionEditUtil
+import org.wikipedia.events.LoggedOutEvent
+import org.wikipedia.language.AppLanguageLookUpTable
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.notifications.NotificationActivity
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.languages.WikipediaLanguagesActivity
+import org.wikipedia.usercontrib.UserContribStats
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ReleaseUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.views.DefaultRecyclerAdapter
+import org.wikipedia.views.DefaultViewHolder
+import org.wikipedia.views.NotificationButtonView
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+<span class="nc" id="L56">class SuggestedEditsTasksFragment : Fragment(), MenuProvider {</span>
+    private var _binding: FragmentSuggestedEditsTasksBinding? = null
+<span class="nc" id="L58">    private val binding get() = _binding!!</span>
+
+<span class="nc" id="L60">    private val viewModel: SuggestedEditsTasksFragmentViewModel by viewModels()</span>
+
+    private lateinit var addDescriptionsTask: SuggestedEditsTask
+    private lateinit var addImageCaptionsTask: SuggestedEditsTask
+    private lateinit var addImageTagsTask: SuggestedEditsTask
+    private lateinit var imageRecommendationsTask: SuggestedEditsTask
+    private lateinit var vandalismPatrolTask: SuggestedEditsTask
+
+    private var notificationButtonView: NotificationButtonView? = null
+
+<span class="nc" id="L70">    private val displayedTasks = ArrayList&lt;SuggestedEditsTask&gt;()</span>
+<span class="nc" id="L71">    private val callback = TaskViewCallback()</span>
+
+<span class="nc" id="L73">    private val requestAddLanguage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        binding.layoutTasksContainer.tasksRecyclerView.adapter?.notifyDataSetChanged()</span>
+<span class="nc" id="L75">    }</span>
+
+<span class="nc" id="L77">    private val requestAddImageTags = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (it.resultCode == Activity.RESULT_OK) {</span>
+<span class="nc" id="L79">            Prefs.showImageTagsOnboarding = false</span>
+<span class="nc" id="L80">            startActivity(SuggestionsActivity.newIntent(requireActivity(), ADD_IMAGE_TAGS))</span>
+        }
+<span class="nc" id="L82">    }</span>
+
+<span class="nc" id="L84">    private val requestLogin = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (it.resultCode == LoginActivity.RESULT_LOGIN_SUCCESS) {</span>
+<span class="nc" id="L86">            clearContents()</span>
+        }
+<span class="nc" id="L88">    }</span>
+
+<span class="nc" id="L90">    private val learnMoreClickListener = View.OnClickListener {</span>
+<span class="nc" id="L91">        ActivityTabEvent.submit(activeInterface = &quot;edit_home&quot;, action = &quot;learn_more_click&quot;, editCount = viewModel.totalContributions)</span>
+<span class="nc" id="L92">        UriUtil.visitInExternalBrowser(requireContext(), getString(R.string.edit_screen_learn_more_url).toUri())</span>
+<span class="nc" id="L93">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L96">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L97">        _binding = FragmentSuggestedEditsTasksBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L98">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L102">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L103">        setupTestingButtons()</span>
+<span class="nc" id="L104">        notificationButtonView = NotificationButtonView(requireContext())</span>
+<span class="nc" id="L105">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+<span class="nc" id="L106">        binding.layoutTasksContainer.whatIsTitleText.text = getString(R.string.edits_screen_what_is_title)</span>
+<span class="nc" id="L107">        binding.layoutTasksContainer.whatIsBodyText.text = getString(R.string.edits_screen_what_is_body)</span>
+
+<span class="nc" id="L109">        val tasksContainer = binding.layoutTasksContainer</span>
+<span class="nc" id="L110">        tasksContainer.learnMoreCard.setOnClickListener(learnMoreClickListener)</span>
+<span class="nc" id="L111">        tasksContainer.learnMoreButton.setOnClickListener(learnMoreClickListener)</span>
+
+<span class="nc" id="L113">        binding.swipeRefreshLayout.setOnRefreshListener { refreshContents() }</span>
+
+<span class="nc" id="L115">        binding.errorView.retryClickListener = View.OnClickListener { refreshContents() }</span>
+<span class="nc" id="L116">        binding.errorView.loginClickListener = View.OnClickListener {</span>
+<span class="nc" id="L117">            requestLogin.launch(LoginActivity.newIntent(requireContext(), LoginActivity.SOURCE_SUGGESTED_EDITS))</span>
+<span class="nc" id="L118">        }</span>
+
+<span class="nc" id="L120">        tasksContainer.tasksRecyclerView.layoutManager = LinearLayoutManager(context)</span>
+<span class="nc" id="L121">        tasksContainer.tasksRecyclerView.adapter = RecyclerAdapter(displayedTasks)</span>
+<span class="nc" id="L122">        tasksContainer.tasksContainer.isVisible = false</span>
+
+<span class="nc" id="L124">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L125">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L126">                launch {</span>
+<span class="nc" id="L127">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L128">                        when (it) {</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                            is Resource.Success -&gt; setFinalUIState()</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">                            is SuggestedEditsTasksFragmentViewModel.RequireLogin -&gt; onRequireLogin()</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                            is Resource.Error -&gt; showError(it.throwable)</span>
+                        }
+<span class="nc" id="L134">                    }</span>
+                }
+
+<span class="nc" id="L137">                launch {</span>
+<span class="nc" id="L138">                    FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                        if (event is LoggedOutEvent) {</span>
+<span class="nc" id="L140">                            refreshContents()</span>
+                        }
+<span class="nc" id="L142">                    }</span>
+<span class="nc" id="L143">                }</span>
+<span class="nc" id="L144">            }</span>
+<span class="nc" id="L145">        }</span>
+<span class="nc" id="L146">    }</span>
+
+    fun refreshContents() {
+<span class="nc" id="L149">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L150">        viewModel.fetchData()</span>
+<span class="nc" id="L151">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L154">        super.onResume()</span>
+<span class="nc" id="L155">        refreshContents()</span>
+<span class="nc" id="L156">    }</span>
+
+    override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
+<span class="nc" id="L159">        inflater.inflate(R.menu.menu_suggested_edits_tasks, menu)</span>
+<span class="nc" id="L160">    }</span>
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+<span class="nc" id="L163">        return false</span>
+    }
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        notificationButtonView?.let {</span>
+<span class="nc" id="L168">            val notificationMenuItem = menu.findItem(R.id.menu_notifications)</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L170">                notificationMenuItem.isVisible = true</span>
+<span class="nc" id="L171">                it.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc" id="L172">                it.setOnClickListener {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                    if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L174">                        startActivity(NotificationActivity.newIntent(requireActivity()))</span>
+                    }
+<span class="nc" id="L176">                }</span>
+<span class="nc" id="L177">                it.contentDescription =</span>
+<span class="nc" id="L178">                    getString(R.string.notifications_activity_title)</span>
+<span class="nc" id="L179">                notificationMenuItem.actionView = it</span>
+<span class="nc" id="L180">                notificationMenuItem.expandActionView()</span>
+<span class="nc" id="L181">                FeedbackUtil.setButtonTooltip(it)</span>
+            } else {
+<span class="nc" id="L183">                notificationMenuItem.isVisible = false</span>
+            }
+<span class="nc" id="L185">            updateNotificationDot(false)</span>
+<span class="nc" id="L186">        }</span>
+<span class="nc" id="L187">    }</span>
+
+    fun updateNotificationDot(animate: Boolean) {
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        notificationButtonView?.let {</span>
+<span class="nc bnc" id="L191" title="All 4 branches missed.">            if (AccountUtil.isLoggedIn &amp;&amp; Prefs.notificationUnreadCount &gt; 0) {</span>
+<span class="nc" id="L192">                it.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">                if (animate) {</span>
+<span class="nc" id="L194">                    it.runAnimation()</span>
+                }
+            } else {
+<span class="nc" id="L197">                it.setUnreadCount(0)</span>
+            }
+<span class="nc" id="L199">        }</span>
+<span class="nc" id="L200">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L203">        binding.layoutTasksContainer.tasksRecyclerView.adapter = null</span>
+<span class="nc" id="L204">        _binding = null</span>
+<span class="nc" id="L205">        super.onDestroyView()</span>
+<span class="nc" id="L206">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L209">        binding.progressBar.isVisible = true</span>
+<span class="nc" id="L210">        binding.suggestedEditsScrollView.isVisible = false</span>
+<span class="nc" id="L211">    }</span>
+
+    private fun onRequireLogin() {
+<span class="nc" id="L214">        clearContents()</span>
+<span class="nc" id="L215">        binding.messageCard.setRequiredLogin {</span>
+<span class="nc" id="L216">            requestLogin.launch(LoginActivity.newIntent(requireContext(), LoginActivity.SOURCE_SUGGESTED_EDITS))</span>
+<span class="nc" id="L217">        }</span>
+<span class="nc" id="L218">        binding.messageCard.isVisible = true</span>
+<span class="nc" id="L219">    }</span>
+
+<span class="nc" id="L221">    private fun clearContents(shouldScrollToTop: Boolean = true) {</span>
+<span class="nc" id="L222">        binding.suggestedEditsScrollView.isVisible = true</span>
+<span class="nc" id="L223">        binding.swipeRefreshLayout.isRefreshing = false</span>
+<span class="nc" id="L224">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L225">        binding.layoutTasksContainer.tasksContainer.isVisible = false</span>
+<span class="nc" id="L226">        binding.errorView.isVisible = false</span>
+<span class="nc" id="L227">        binding.messageCard.isVisible = false</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        if (shouldScrollToTop) {</span>
+<span class="nc" id="L229">            binding.suggestedEditsScrollView.scrollTo(0, 0)</span>
+        }
+<span class="nc" id="L231">        binding.swipeRefreshLayout.setBackgroundColor(ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color))</span>
+<span class="nc" id="L232">    }</span>
+
+    private fun showError(t: Throwable) {
+<span class="nc" id="L235">        clearContents()</span>
+<span class="nc" id="L236">        binding.errorView.setError(t)</span>
+<span class="nc" id="L237">        binding.errorView.isVisible = true</span>
+<span class="nc" id="L238">    }</span>
+
+    private fun setFinalUIState() {
+<span class="nc" id="L241">        ActivityTabEvent.submit(activeInterface = &quot;edit_home&quot;, action = &quot;impression&quot;, editCount = viewModel.totalContributions)</span>
+<span class="nc" id="L242">        clearContents(false)</span>
+
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        if (maybeSetPausedOrDisabled()) {</span>
+<span class="nc" id="L245">            return</span>
+        }
+
+<span class="nc" id="L248">        setUpTasks()</span>
+
+<span class="nc bnc" id="L250" title="All 8 branches missed.">        if (displayedTasks.isEmpty() &amp;&amp; !viewModel.blockMessageWikipedia.isNullOrEmpty()) {</span>
+<span class="nc" id="L251">            clearContents()</span>
+<span class="nc" id="L252">            setIPBlockedStatus()</span>
+<span class="nc" id="L253">            return</span>
+        }
+
+<span class="nc" id="L256">        binding.layoutTasksContainer.tasksRecyclerView.adapter!!.notifyDataSetChanged()</span>
+
+<span class="nc bnc" id="L258" title="All 2 branches missed.">        if (viewModel.totalContributions == 0) {</span>
+<span class="nc" id="L259">            binding.messageCard.isVisible = true</span>
+<span class="nc" id="L260">            binding.messageCard.setOnboarding(getString(R.string.suggested_edits_onboarding_message, AccountUtil.userName))</span>
+        }
+<span class="nc" id="L262">        binding.swipeRefreshLayout.setBackgroundColor(ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color))</span>
+<span class="nc" id="L263">        binding.layoutTasksContainer.tasksContainer.isVisible = true</span>
+<span class="nc" id="L264">    }</span>
+
+    private fun setIPBlockedStatus() {
+<span class="nc" id="L267">        clearContents()</span>
+<span class="nc" id="L268">        binding.messageCard.setIPBlocked(viewModel.blockMessageWikipedia)</span>
+<span class="nc" id="L269">        binding.messageCard.isVisible = true</span>
+<span class="nc" id="L270">    }</span>
+
+    private fun maybeSetPausedOrDisabled(): Boolean {
+<span class="nc bnc" id="L273" title="All 2 branches missed.">        if (WikipediaApp.instance.appOrSystemLanguageCode.startsWith(AppLanguageLookUpTable.TEST_LANGUAGE_CODE)) {</span>
+<span class="nc" id="L274">            return false</span>
+        }
+
+<span class="nc" id="L277">        val pauseEndDate = UserContribStats.maybePauseAndGetEndDate()</span>
+
+<span class="nc bnc" id="L279" title="All 4 branches missed.">        if (viewModel.totalContributions &lt; MIN_CONTRIBUTIONS_FOR_SUGGESTED_EDITS &amp;&amp; WikipediaApp.instance.appOrSystemLanguageCode == &quot;en&quot;) {</span>
+<span class="nc" id="L280">            clearContents()</span>
+<span class="nc" id="L281">            binding.messageCard.setDisabled(getString(R.string.suggested_edits_gate_message, AccountUtil.userName))</span>
+<span class="nc" id="L282">            binding.messageCard.setPositiveButton(R.string.suggested_edits_learn_more, {</span>
+<span class="nc" id="L283">                UriUtil.visitInExternalBrowser(requireContext(), MIN_CONTRIBUTIONS_GATE_URL.toUri())</span>
+<span class="nc" id="L284">            }, true)</span>
+<span class="nc" id="L285">            binding.messageCard.isVisible = true</span>
+<span class="nc" id="L286">            return true</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">        } else if (UserContribStats.isDisabled()) {</span>
+            // Disable the whole feature.
+<span class="nc" id="L289">            clearContents()</span>
+<span class="nc" id="L290">            binding.messageCard.setDisabled(getString(R.string.suggested_edits_disabled_message, AccountUtil.userName))</span>
+<span class="nc" id="L291">            binding.messageCard.isVisible = true</span>
+<span class="nc" id="L292">            return true</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        } else if (pauseEndDate != null) {</span>
+<span class="nc" id="L294">            clearContents()</span>
+<span class="nc" id="L295">            val localDateTime = LocalDateTime.ofInstant(pauseEndDate.toInstant(), ZoneId.systemDefault()).toLocalDate()</span>
+<span class="nc" id="L296">            binding.messageCard.setPaused(getString(R.string.suggested_edits_paused_message, DateUtil.getShortDateString(localDateTime), AccountUtil.userName))</span>
+<span class="nc" id="L297">            binding.messageCard.isVisible = true</span>
+<span class="nc" id="L298">            return true</span>
+        }
+
+<span class="nc" id="L301">        binding.messageCard.isVisible = false</span>
+<span class="nc" id="L302">        return false</span>
+    }
+
+    private fun setupTestingButtons() {
+<span class="nc" id="L306">        val tasksContainer = binding.layoutTasksContainer</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">        if (!ReleaseUtil.isPreBetaRelease) {</span>
+<span class="nc" id="L308">            tasksContainer.showIPBlockedMessage.isVisible = false</span>
+<span class="nc" id="L309">            tasksContainer.showOnboardingMessage.isVisible = false</span>
+        }
+<span class="nc" id="L311">        tasksContainer.showIPBlockedMessage.setOnClickListener { setIPBlockedStatus() }</span>
+<span class="nc" id="L312">        tasksContainer.showOnboardingMessage.setOnClickListener { viewModel.totalContributions = 0; setFinalUIState() }</span>
+<span class="nc" id="L313">    }</span>
+
+    private fun setUpTasks() {
+<span class="nc" id="L316">        displayedTasks.clear()</span>
+
+<span class="nc" id="L318">        addImageTagsTask = SuggestedEditsTask()</span>
+<span class="nc" id="L319">        addImageTagsTask.title = getString(R.string.suggested_edits_image_tags)</span>
+<span class="nc" id="L320">        addImageTagsTask.description = getString(R.string.suggested_edits_image_tags_task_detail)</span>
+<span class="nc" id="L321">        addImageTagsTask.imageDrawable = R.drawable.ic_image_tag</span>
+<span class="nc" id="L322">        addImageTagsTask.primaryAction = getString(R.string.suggested_edits_task_action_text_add)</span>
+
+<span class="nc" id="L324">        addImageCaptionsTask = SuggestedEditsTask()</span>
+<span class="nc" id="L325">        addImageCaptionsTask.title = getString(R.string.suggested_edits_image_captions)</span>
+<span class="nc" id="L326">        addImageCaptionsTask.description = getString(R.string.suggested_edits_image_captions_task_detail)</span>
+<span class="nc" id="L327">        addImageCaptionsTask.imageDrawable = R.drawable.ic_image_caption</span>
+<span class="nc" id="L328">        addImageCaptionsTask.primaryAction = getString(R.string.suggested_edits_task_action_text_add)</span>
+<span class="nc" id="L329">        addImageCaptionsTask.secondaryAction = getString(R.string.suggested_edits_task_action_text_translate)</span>
+
+<span class="nc" id="L331">        addDescriptionsTask = SuggestedEditsTask()</span>
+<span class="nc" id="L332">        addDescriptionsTask.title = getString(R.string.description_edit_tutorial_title_descriptions)</span>
+<span class="nc" id="L333">        addDescriptionsTask.description = getString(R.string.suggested_edits_add_descriptions_task_detail)</span>
+<span class="nc" id="L334">        addDescriptionsTask.imageDrawable = R.drawable.ic_article_ltr_ooui</span>
+<span class="nc" id="L335">        addDescriptionsTask.primaryAction = getString(R.string.suggested_edits_task_action_text_add)</span>
+<span class="nc" id="L336">        addDescriptionsTask.secondaryAction = getString(R.string.suggested_edits_task_action_text_translate)</span>
+
+<span class="nc" id="L338">        imageRecommendationsTask = SuggestedEditsTask()</span>
+<span class="nc" id="L339">        imageRecommendationsTask.title = getString(R.string.suggested_edits_image_recommendations_task_title)</span>
+<span class="nc" id="L340">        imageRecommendationsTask.description = getString(R.string.suggested_edits_image_recommendations_task_detail)</span>
+<span class="nc" id="L341">        imageRecommendationsTask.imageDrawable = R.drawable.ic_add_image</span>
+<span class="nc" id="L342">        imageRecommendationsTask.primaryAction = getString(R.string.suggested_edits_task_action_text_add)</span>
+
+<span class="nc" id="L344">        vandalismPatrolTask = SuggestedEditsTask()</span>
+<span class="nc" id="L345">        vandalismPatrolTask.title = getString(R.string.suggested_edits_edit_patrol)</span>
+<span class="nc" id="L346">        vandalismPatrolTask.description = getString(R.string.suggested_edits_edit_patrol_hint)</span>
+<span class="nc" id="L347">        vandalismPatrolTask.primaryAction = getString(R.string.suggested_edits_edit_patrol_review)</span>
+<span class="nc" id="L348">        vandalismPatrolTask.imageDrawable = R.drawable.ic_patrol_24</span>
+<span class="nc" id="L349">        vandalismPatrolTask.primaryActionIcon = R.drawable.ic_check_black_24dp</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">        vandalismPatrolTask.new = !Prefs.recentEditsOnboardingShown</span>
+
+<span class="nc bnc" id="L352" title="All 8 branches missed.">        if (viewModel.allowToPatrolEdits &amp;&amp; viewModel.blockMessageWikipedia.isNullOrEmpty()) {</span>
+<span class="nc" id="L353">            Prefs.recentEditsWikiCode = WikipediaApp.instance.appOrSystemLanguageCode</span>
+<span class="nc" id="L354">            displayedTasks.add(vandalismPatrolTask)</span>
+        }
+
+<span class="nc" id="L357">        val usesLocalDescriptions = DescriptionEditUtil.wikiUsesLocalDescriptions(WikipediaApp.instance.wikiSite.languageCode)</span>
+<span class="nc bnc" id="L358" title="All 4 branches missed.">        val sufficientContributionsForArticleDescription = viewModel.totalContributions &gt; (if (usesLocalDescriptions) 50 else 3)</span>
+<span class="nc bnc" id="L359" title="All 8 branches missed.">        if (usesLocalDescriptions &amp;&amp; viewModel.blockMessageWikipedia.isNullOrEmpty() ||</span>
+<span class="nc bnc" id="L360" title="All 8 branches missed.">            !usesLocalDescriptions &amp;&amp; viewModel.blockMessageWikidata.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">            if (sufficientContributionsForArticleDescription) {</span>
+<span class="nc" id="L362">                displayedTasks.add(addDescriptionsTask)</span>
+
+                // Disable translating descriptions if the user has &lt;50 edits, and they have English as a secondary language.
+<span class="nc bnc" id="L365" title="All 4 branches missed.">                if (viewModel.totalContributions &lt; 50 &amp;&amp; WikipediaApp.instance.languageState.appLanguageCodes.contains(&quot;en&quot;)) {</span>
+<span class="nc" id="L366">                    addDescriptionsTask.secondaryAction = null</span>
+                }
+            }
+        }
+
+        // If app language is `de`, the local edits need to be &gt; 50 edits. See https://phabricator.wikimedia.org/T351275
+<span class="nc bnc" id="L372" title="All 4 branches missed.">        if (((WikipediaApp.instance.wikiSite.languageCode == &quot;de&quot; &amp;&amp; viewModel.homeContributions &gt; 50) ||</span>
+<span class="nc bnc" id="L373" title="All 4 branches missed.">            (WikipediaApp.instance.wikiSite.languageCode != &quot;de&quot; &amp;&amp; viewModel.totalContributions &gt; 50)) &amp;&amp;</span>
+<span class="nc bnc" id="L374" title="All 8 branches missed.">            viewModel.wikiSupportsImageRecommendations &amp;&amp; viewModel.blockMessageWikipedia.isNullOrEmpty()) {</span>
+<span class="nc" id="L375">            displayedTasks.add(imageRecommendationsTask)</span>
+        }
+
+<span class="nc bnc" id="L378" title="All 6 branches missed.">        if (viewModel.blockMessageCommons.isNullOrEmpty()) {</span>
+<span class="nc" id="L379">            displayedTasks.add(addImageCaptionsTask)</span>
+<span class="nc" id="L380">            displayedTasks.add(addImageTagsTask)</span>
+        }
+<span class="nc" id="L382">    }</span>
+
+<span class="nc" id="L384">    private inner class TaskViewCallback : SuggestedEditsTaskView.Callback {</span>
+        override fun onViewClick(task: SuggestedEditsTask, secondary: Boolean) {
+<span class="nc bnc" id="L386" title="All 4 branches missed.">            if (WikipediaApp.instance.languageState.appLanguageCodes.size &lt; Constants.MIN_LANGUAGES_TO_UNLOCK_TRANSLATION &amp;&amp; secondary) {</span>
+<span class="nc" id="L387">                requestAddLanguage.launch(WikipediaLanguagesActivity.newIntent(requireActivity(), Constants.InvokeSource.SUGGESTED_EDITS))</span>
+<span class="nc" id="L388">                return</span>
+            }
+
+<span class="nc" id="L391">            when (task) {</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">                addDescriptionsTask -&gt; {</span>
+<span class="nc bnc" id="L393" title="All 2 branches missed.">                    ActivityTabEvent.submit(activeInterface = &quot;edit_home&quot;, action = if (secondary) &quot;desc_translate_click&quot; else &quot;desc_add_click&quot;, editCount = viewModel.totalContributions)</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">                    startActivity(SuggestionsActivity.newIntent(requireActivity(), if (secondary) TRANSLATE_DESCRIPTION else ADD_DESCRIPTION))</span>
+                }
+<span class="nc bnc" id="L396" title="All 2 branches missed.">                addImageCaptionsTask -&gt; {</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">                    ActivityTabEvent.submit(activeInterface = &quot;edit_home&quot;, action = if (secondary) &quot;caption_translate_click&quot; else &quot;caption_add_click&quot;, editCount = viewModel.totalContributions)</span>
+<span class="nc bnc" id="L398" title="All 2 branches missed.">                    startActivity(SuggestionsActivity.newIntent(requireActivity(), if (secondary) TRANSLATE_CAPTION else ADD_CAPTION))</span>
+                }
+<span class="nc bnc" id="L400" title="All 2 branches missed.">                addImageTagsTask -&gt; {</span>
+<span class="nc" id="L401">                    ActivityTabEvent.submit(activeInterface = &quot;edit_home&quot;, action = &quot;image_tag_add_click&quot;, editCount = viewModel.totalContributions)</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">                    if (Prefs.showImageTagsOnboarding) {</span>
+<span class="nc" id="L403">                        requestAddImageTags.launch(SuggestedEditsImageTagsOnboardingActivity.newIntent(requireContext()))</span>
+                    } else {
+<span class="nc" id="L405">                        startActivity(SuggestionsActivity.newIntent(requireActivity(), ADD_IMAGE_TAGS))</span>
+                    }
+                }
+<span class="nc bnc" id="L408" title="All 2 branches missed.">                imageRecommendationsTask -&gt; {</span>
+<span class="nc" id="L409">                    ActivityTabEvent.submit(activeInterface = &quot;edit_home&quot;, action = &quot;image_add_click&quot;, editCount = viewModel.totalContributions)</span>
+<span class="nc" id="L410">                    startActivity(SuggestionsActivity.newIntent(requireActivity(), IMAGE_RECOMMENDATIONS))</span>
+                }
+<span class="nc bnc" id="L412" title="All 2 branches missed.">                vandalismPatrolTask -&gt; {</span>
+<span class="nc" id="L413">                    ActivityTabEvent.submit(activeInterface = &quot;edit_home&quot;, action = &quot;edit_patrol_click&quot;, editCount = viewModel.totalContributions)</span>
+<span class="nc" id="L414">                    startActivity(SuggestedEditsRecentEditsActivity.newIntent(requireContext()))</span>
+                }
+            }
+<span class="nc" id="L417">        }</span>
+    }
+
+<span class="nc" id="L420">    internal inner class RecyclerAdapter(tasks: List&lt;SuggestedEditsTask&gt;) : DefaultRecyclerAdapter&lt;SuggestedEditsTask, SuggestedEditsTaskView&gt;(tasks) {</span>
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DefaultViewHolder&lt;SuggestedEditsTaskView&gt; {
+<span class="nc" id="L422">            return DefaultViewHolder(SuggestedEditsTaskView(parent.context))</span>
+        }
+
+        override fun onBindViewHolder(holder: DefaultViewHolder&lt;SuggestedEditsTaskView&gt;, i: Int) {
+<span class="nc" id="L426">            holder.view.setUpViews(items[i], callback)</span>
+<span class="nc" id="L427">        }</span>
+    }
+
+    companion object {
+        private const val MIN_CONTRIBUTIONS_FOR_SUGGESTED_EDITS = 3
+        private const val MIN_CONTRIBUTIONS_GATE_URL = &quot;https://en.wikipedia.org/wiki/Help:Introduction_to_editing_with_Wiki_Markup/1&quot;
+
+        fun newInstance(): SuggestedEditsTasksFragment {
+<span class="nc" id="L435">            return SuggestedEditsTasksFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

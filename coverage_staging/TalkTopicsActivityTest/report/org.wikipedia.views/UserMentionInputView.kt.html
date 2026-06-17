@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserMentionInputView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">UserMentionInputView.kt</span></div><h1>UserMentionInputView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.databinding.ViewUserMentionInputBinding
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.edit.richtext.SyntaxHighlighter
+import org.wikipedia.extensions.coroutineScope
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L27">class UserMentionInputView(context: Context, attrs: AttributeSet? = null) :</span>
+<span class="nc" id="L28">    LinearLayout(context, attrs), UserMentionEditText.Listener {</span>
+
+    interface Listener {
+        fun onUserMentionListUpdate()
+        fun onUserMentionComplete()
+    }
+
+<span class="nc" id="L35">    val editText get() = binding.inputEditText</span>
+<span class="nc" id="L36">    val textInputLayout get() = binding.inputTextLayout</span>
+<span class="nc" id="L37">    var wikiSite = WikipediaApp.instance.wikiSite</span>
+<span class="nc" id="L38">    var listener: Listener? = null</span>
+<span class="nc" id="L39">    var userNameHints: Set&lt;String&gt; = emptySet()</span>
+
+<span class="nc" id="L41">    private val binding = ViewUserMentionInputBinding.inflate(LayoutInflater.from(context), this)</span>
+<span class="nc" id="L42">    private val userNameList = mutableListOf&lt;String&gt;()</span>
+    private val syntaxHighlighter: SyntaxHighlighter
+    private var clientJob: Job? = null
+
+<span class="nc" id="L46">    init {</span>
+<span class="nc" id="L47">        orientation = VERTICAL</span>
+<span class="nc" id="L48">        binding.inputEditText.listener = this</span>
+<span class="nc" id="L49">        binding.userListRecycler.layoutManager = LinearLayoutManager(context)</span>
+<span class="nc" id="L50">        binding.userListRecycler.adapter = UserNameAdapter()</span>
+<span class="nc" id="L51">        syntaxHighlighter = SyntaxHighlighter(context as ComponentActivity, binding.inputEditText,</span>
+<span class="nc" id="L52">            null, 200)</span>
+<span class="nc" id="L53">    }</span>
+
+    override fun onDetachedFromWindow() {
+<span class="nc" id="L56">        super.onDetachedFromWindow()</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        clientJob?.cancel()</span>
+<span class="nc" id="L58">    }</span>
+
+    override fun onStartUserNameEntry() {
+<span class="nc" id="L61">        userNameList.clear()</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        binding.userListRecycler.adapter?.notifyDataSetChanged()</span>
+<span class="nc" id="L63">    }</span>
+
+    override fun onCancelUserNameEntry() {
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        clientJob?.cancel()</span>
+<span class="nc" id="L67">        binding.userListRecycler.isVisible = false</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        listener?.onUserMentionComplete()</span>
+<span class="nc" id="L69">    }</span>
+
+    override fun onUserNameChanged(userName: String) {
+<span class="nc" id="L72">        var userNamePrefix = userName</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (userNamePrefix.startsWith(&quot;@&quot;)) {</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            if (userNamePrefix.length &gt; 1) {</span>
+<span class="nc" id="L75">                userNamePrefix = userNamePrefix.substring(1)</span>
+<span class="nc" id="L76">                searchForUserName(userNamePrefix)</span>
+            } else {
+<span class="nc" id="L78">                userNameList.clear()</span>
+<span class="nc" id="L79">                userNameList.addAll(userNameHints)</span>
+<span class="nc" id="L80">                onSearchResults()</span>
+            }
+        }
+<span class="nc" id="L83">    }</span>
+
+    fun maybePrepopulateUserName(currentUserName: String, currentPageTitle: PageTitle) {
+<span class="nc bnc" id="L86" title="All 8 branches missed.">        if (binding.inputEditText.text.isEmpty() &amp;&amp; userNameHints.isNotEmpty()) {</span>
+<span class="nc" id="L87">            val candidateName = userNameHints.first()</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if (candidateName != currentUserName &amp;&amp;</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                    !StringUtil.addUnderscores(candidateName).equals(StringUtil.addUnderscores(currentPageTitle.text), true)) {</span>
+<span class="nc" id="L90">                binding.inputEditText.prepopulateUserName(candidateName, wikiSite)</span>
+            }
+        }
+<span class="nc" id="L93">    }</span>
+
+    private fun searchForUserName(prefix: String) {
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        clientJob?.cancel()</span>
+<span class="nc" id="L97">        clientJob = coroutineScope().launch(CoroutineExceptionHandler { _, exception -&gt;</span>
+<span class="nc" id="L98">            onSearchError(exception)</span>
+<span class="nc" id="L99">        }) {</span>
+<span class="nc" id="L100">            delay(200)</span>
+<span class="nc" id="L101">            val response = ServiceFactory.get(wikiSite).prefixSearchUsers(prefix, 10)</span>
+<span class="nc" id="L102">            userNameList.clear()</span>
+<span class="nc" id="L103">            userNameList.addAll(userNameHints.filter { it.startsWith(prefix, ignoreCase = true) })</span>
+<span class="nc bnc" id="L104" title="All 4 branches missed.">            response.query?.allUsers?.forEach {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                if (!userNameList.contains(it.name)) {</span>
+<span class="nc" id="L106">                    userNameList.add(it.name)</span>
+                }
+<span class="nc" id="L108">            }</span>
+<span class="nc" id="L109">            onSearchResults()</span>
+<span class="nc" id="L110">        }</span>
+<span class="nc" id="L111">    }</span>
+
+    private fun onSearchResults() {
+<span class="nc" id="L114">        binding.userListRecycler.isVisible = true</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        binding.userListRecycler.adapter?.notifyDataSetChanged()</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        listener?.onUserMentionListUpdate()</span>
+<span class="nc" id="L117">    }</span>
+
+    private fun onSearchError(t: Throwable) {
+<span class="nc" id="L120">        t.printStackTrace()</span>
+<span class="nc" id="L121">        binding.userListRecycler.isVisible = false</span>
+<span class="nc" id="L122">    }</span>
+
+<span class="nc" id="L124">    private inner class UserNameViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView), OnClickListener {</span>
+        private lateinit var userName: String
+
+        fun bindItem(position: Int) {
+<span class="nc" id="L128">            userName = userNameList[position]</span>
+<span class="nc" id="L129">            itemView.setOnClickListener(this)</span>
+<span class="nc" id="L130">            (itemView as TextView).text = userName</span>
+<span class="nc" id="L131">        }</span>
+
+        override fun onClick(v: View) {
+<span class="nc" id="L134">            binding.inputEditText.onCommitUserName(userName, wikiSite)</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            listener?.onUserMentionComplete()</span>
+<span class="nc" id="L136">        }</span>
+    }
+
+<span class="nc" id="L139">    private inner class UserNameAdapter : RecyclerView.Adapter&lt;UserNameViewHolder&gt;() {</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L141">            return userNameList.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserNameViewHolder {
+<span class="nc" id="L145">            return UserNameViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_search_recent, parent, false))</span>
+        }
+
+        override fun onBindViewHolder(holder: UserNameViewHolder, pos: Int) {
+<span class="nc" id="L149">            holder.bindItem(pos)</span>
+<span class="nc" id="L150">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

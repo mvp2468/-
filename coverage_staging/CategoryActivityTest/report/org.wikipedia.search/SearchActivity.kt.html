@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">SearchActivity.kt</span></div><h1>SearchActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.OnBackPressedCallback
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.SingleFragmentActivity
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.extensions.instrument
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L17">class SearchActivity : SingleFragmentActivity&lt;SearchFragment&gt;() {</span>
+
+<span class="nc" id="L19">    private val onBackPressedCallback = object : OnBackPressedCallback(true) {</span>
+        override fun handleOnBackPressed() {
+
+<span class="nc bnc" id="L22" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;search_back&quot;)</span>
+
+<span class="nc" id="L24">            isEnabled = false</span>
+<span class="nc" id="L25">            onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L26">        }</span>
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L30">        super.onCreate(savedInstanceState)</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">        if (intent.hasExtra(EXTRA_SHOW_SNACKBAR_MESSAGE)) {</span>
+<span class="nc" id="L32">            val messageResId = intent.getIntExtra(EXTRA_SHOW_SNACKBAR_MESSAGE, 0)</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">            if (messageResId != 0) {</span>
+<span class="nc" id="L34">                FeedbackUtil.showMessage(this, messageResId)</span>
+<span class="nc" id="L35">                intent.removeExtra(EXTRA_SHOW_SNACKBAR_MESSAGE)</span>
+            }
+        }
+<span class="nc" id="L38">        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)</span>
+
+<span class="nc" id="L40">        _instrument = TestKitchenAdapter.client.getInstrument(&quot;apps-search&quot;)</span>
+<span class="nc" id="L41">            .setDefaultActionSource(&quot;search&quot;)</span>
+<span class="nc" id="L42">            .startFunnel(&quot;search&quot;)</span>
+<span class="nc" id="L43">            .setExperiment(TestKitchenAdapter.getExperiment(HybridSearchAbCTest()))</span>
+<span class="nc" id="L44">    }</span>
+
+    public override fun createFragment(): SearchFragment {
+<span class="nc" id="L47">        var source = intent.getSerializableExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE) as InvokeSource?</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (source == null) {</span>
+<span class="nc" id="L49">            when {</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">                Intent.ACTION_SEND == intent.action -&gt; { source = InvokeSource.INTENT_SHARE }</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">                Intent.ACTION_PROCESS_TEXT == intent.action -&gt; { source = InvokeSource.INTENT_PROCESS_TEXT }</span>
+                else -&gt; {
+<span class="nc" id="L53">                    source = InvokeSource.INTENT_UNKNOWN</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                    L.logRemoteErrorIfProd(RuntimeException(&quot;Unknown intent when launching SearchActivity: &quot; + intent.action.orEmpty()))</span>
+                }
+            }
+        }
+<span class="nc" id="L58">        return SearchFragment.newInstance(</span>
+<span class="nc" id="L59">            source = source,</span>
+<span class="nc" id="L60">            query = intent.getStringExtra(QUERY_EXTRA),</span>
+<span class="nc" id="L61">            returnLink = intent.getBooleanExtra(EXTRA_RETURN_LINK, false),</span>
+<span class="nc" id="L62">            title = intent.getStringExtra(EXTRA_TITLE),</span>
+<span class="nc" id="L63">            initiateHybridSearch = intent.getBooleanExtra(EXTRA_SHOW_HYBRID_SEARCH, false)</span>
+        )
+    }
+
+    companion object {
+        const val QUERY_EXTRA = &quot;query&quot;
+        const val EXTRA_TITLE = &quot;articleTitle&quot;
+        const val EXTRA_RETURN_LINK = &quot;returnLink&quot;
+        const val EXTRA_RETURN_LINK_TITLE = &quot;returnLinkTitle&quot;
+        const val RESULT_LINK_SUCCESS = 97
+        const val EXTRA_SHOW_SNACKBAR_MESSAGE = &quot;showSnackbarMessage&quot;
+        const val EXTRA_SHOW_HYBRID_SEARCH = &quot;showHybridSearch&quot;
+
+<span class="nc" id="L76">        fun newIntent(context: Context, source: InvokeSource, query: String?, returnLink: Boolean = false, title: String? = null, initiateHybridSearch: Boolean = false): Intent {</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (HybridSearchAbCTest().shouldShowOnboarding(WikipediaApp.instance.languageState.appLanguageCode)) {</span>
+<span class="nc" id="L78">                Prefs.isHybridSearchOnboardingShown = true</span>
+<span class="nc" id="L79">                return HybridSearchOnboardingActivity.newIntent(context, source)</span>
+            }
+
+<span class="nc" id="L82">            return Intent(context, SearchActivity::class.java)</span>
+<span class="nc" id="L83">                    .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, source)</span>
+<span class="nc" id="L84">                    .putExtra(QUERY_EXTRA, query)</span>
+<span class="nc" id="L85">                    .putExtra(EXTRA_RETURN_LINK, returnLink)</span>
+<span class="nc" id="L86">                    .putExtra(EXTRA_TITLE, title)</span>
+<span class="nc" id="L87">                    .putExtra(EXTRA_SHOW_HYBRID_SEARCH, initiateHybridSearch)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

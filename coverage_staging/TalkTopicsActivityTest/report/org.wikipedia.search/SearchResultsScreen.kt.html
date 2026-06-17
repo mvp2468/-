@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchResultsScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">SearchResultsScreen.kt</span></div><h1>SearchResultsScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import android.location.Location
+import android.view.View
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.BrushPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import coil3.compose.AsyncImage
+import org.wikipedia.R
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.extensions.toAnnotatedStringWithBoldQuery
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.L10nUtil
+import org.wikipedia.views.imageservice.ImageService
+
+const val SEARCH_LIST_TAG = &quot;search_list&quot;
+
+@Composable
+fun SearchResultsScreen(
+<span class="nc" id="L63">    modifier: Modifier = Modifier,</span>
+    viewModel: SearchResultsViewModel,
+    onNavigateToTitle: (SearchResult, Boolean, Int, Location?) -&gt; Unit,
+    onItemLongClick: (View, SearchResult, Int) -&gt; Unit,
+    onSemanticSearchClick: (SearchResult?, String, Boolean) -&gt; Unit,
+    onLanguageClick: (Int) -&gt; Unit,
+    onCloseSearch: () -&gt; Unit,
+    onRetrySearch: () -&gt; Unit,
+    onLoading: (Boolean) -&gt; Unit,
+    onNoResults: () -&gt; Unit
+<span class="nc bnc" id="L73" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L74">    val searchResults = viewModel.searchResultsFlow.collectAsLazyPagingItems()</span>
+<span class="nc" id="L75">    val searchTerm = viewModel.searchTerm.collectAsState()</span>
+<span class="nc" id="L76">    val loadState = searchResults.loadState</span>
+<span class="nc" id="L77">    val countsPerLanguageCode = viewModel.countsPerLanguageCode</span>
+
+<span class="nc" id="L79">    val languageCode = viewModel.languageCode.collectAsState()</span>
+<span class="nc" id="L80">    val layoutDirection =</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (L10nUtil.isLangRTL(languageCode.value)) LayoutDirection.Rtl else LayoutDirection.Ltr</span>
+
+    // this is a callback to show loading indicator in the SearchFragment.
+    // It is placed outside the UI logic to prevent flickering. We need to show the loader both initial load (refresh) and pagination (append) without hiding the list or conflicting with other UI states.
+
+<span class="nc bnc" id="L86" title="All 4 branches missed.">    val isLoading = loadState.refresh is LoadState.Loading || loadState.append is LoadState.Loading</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">    LaunchedEffect(isLoading) {</span>
+<span class="nc" id="L88">        onLoading(isLoading)</span>
+<span class="nc" id="L89">    }</span>
+
+<span class="nc" id="L91">    CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {</span>
+<span class="nc" id="L92">        Box(</span>
+<span class="nc" id="L93">            modifier = modifier</span>
+        ) {
+<span class="nc" id="L95">            when {</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                loadState.refresh is LoadState.Loading -&gt; {} // when offline prevents UI from loading old list</span>
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                loadState.refresh is LoadState.Error -&gt; {</span>
+<span class="nc" id="L99">                    val error = (loadState.refresh as LoadState.Error).error</span>
+<span class="nc" id="L100">                    WikiErrorView(</span>
+<span class="nc" id="L101">                        modifier = Modifier</span>
+<span class="nc" id="L102">                            .fillMaxWidth()</span>
+<span class="nc" id="L103">                            .align(Alignment.Center),</span>
+<span class="nc" id="L104">                        caught = error,</span>
+<span class="nc" id="L105">                        errorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L106">                            backClickListener = { onCloseSearch() },</span>
+<span class="nc" id="L107">                            retryClickListener = { onRetrySearch() }</span>
+                        )
+                    )
+                }
+
+<span class="nc bnc" id="L112" title="All 6 branches missed.">                loadState.append is LoadState.NotLoading &amp;&amp; loadState.append.endOfPaginationReached &amp;&amp; searchResults.itemCount == 0 -&gt; {</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">                    if (viewModel.isHybridSearchExperimentOn) {</span>
+<span class="nc" id="L114">                        SearchResultTitleOnlyBottomContent(</span>
+<span class="nc" id="L115">                            modifier = Modifier</span>
+<span class="nc" id="L116">                                .fillMaxWidth()</span>
+<span class="nc" id="L117">                                .align(Alignment.BottomStart)</span>
+<span class="nc" id="L118">                                .background(WikipediaTheme.colors.paperColor)</span>
+<span class="nc" id="L119">                                .clickable(</span>
+<span class="nc" id="L120">                                    onClick = {</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                                        searchTerm.value?.let {</span>
+<span class="nc" id="L122">                                            onSemanticSearchClick(null, it, true)</span>
+<span class="nc" id="L123">                                        }</span>
+<span class="nc" id="L124">                                    }</span>
+                                ),
+<span class="nc" id="L126">                            searchTerm = searchTerm.value</span>
+                        )
+<span class="nc" id="L128">                        onNoResults()</span>
+                    } else {
+<span class="nc" id="L130">                        NoSearchResults(</span>
+<span class="nc" id="L131">                            countsPerLanguageCode = countsPerLanguageCode,</span>
+<span class="nc" id="L132">                            invokeSource = viewModel.invokeSource,</span>
+<span class="nc" id="L133">                            onLanguageClick = onLanguageClick</span>
+                        )
+                    }
+                }
+
+<span class="nc" id="L138">                else -&gt; {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                    if (viewModel.isHybridSearchExperimentOn) {</span>
+<span class="nc" id="L140">                        HybridSearchSuggestionListView(</span>
+<span class="nc" id="L141">                            modifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L142">                            searchResultsPage = searchResults,</span>
+<span class="nc" id="L143">                            searchTerm = searchTerm.value,</span>
+<span class="nc" id="L144">                            onTitleClick = { searchResult -&gt;</span>
+<span class="nc" id="L145">                                onSemanticSearchClick(searchResult, searchResult.pageTitle.displayText, false)</span>
+<span class="nc" id="L146">                            },</span>
+<span class="nc" id="L147">                            onSuggestionTitleClick = { searchTerm -&gt;</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                                searchTerm?.let {</span>
+<span class="nc" id="L149">                                    onSemanticSearchClick(null, it, true)</span>
+<span class="nc" id="L150">                                }</span>
+<span class="nc" id="L151">                            }</span>
+                        )
+<span class="nc" id="L153">                    } else {</span>
+<span class="nc" id="L154">                        SearchResultsList(</span>
+<span class="nc" id="L155">                            searchResultsPage = searchResults,</span>
+<span class="nc" id="L156">                            searchTerm = searchTerm.value,</span>
+<span class="nc" id="L157">                            onItemClick = onNavigateToTitle,</span>
+<span class="nc" id="L158">                            onItemLongClick = onItemLongClick</span>
+                        )
+                    }
+                }
+            }
+<span class="nc" id="L163">        }</span>
+<span class="nc" id="L164">    }</span>
+<span class="nc" id="L165">}</span>
+
+@Composable
+fun SearchResultsList(
+    searchResultsPage: LazyPagingItems&lt;SearchResult&gt;,
+    searchTerm: String?,
+    onItemClick: (SearchResult, Boolean, Int, Location?) -&gt; Unit,
+    onItemLongClick: (View, SearchResult, Int) -&gt; Unit,
+<span class="nc" id="L173">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L175">    LazyColumn(</span>
+<span class="nc" id="L176">        modifier = modifier</span>
+<span class="nc" id="L177">            .testTag(SEARCH_LIST_TAG)</span>
+<span class="nc bnc" id="L178" title="All 12 branches missed.">    ) {</span>
+<span class="nc" id="L179">        items(</span>
+<span class="nc" id="L180">            count = searchResultsPage.itemCount</span>
+<span class="nc" id="L181">        ) { index -&gt;</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            searchResultsPage[index]?.let { result -&gt;</span>
+<span class="nc" id="L183">                SearchResultPageItem(</span>
+<span class="nc" id="L184">                    modifier = Modifier</span>
+<span class="nc" id="L185">                        .testTag(&quot;$SEARCH_LIST_TAG$index&quot;),</span>
+<span class="nc" id="L186">                    searchResultPage = result,</span>
+<span class="nc" id="L187">                    searchTerm = searchTerm,</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                    onItemClick = {</span>
+<span class="nc" id="L189">                        onItemClick(result, false, index, result.location)</span>
+<span class="nc" id="L190">                    },</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                    onItemLongClick = { view -&gt;</span>
+<span class="nc" id="L192">                        onItemLongClick(view, result, index)</span>
+<span class="nc" id="L193">                    }</span>
+                )
+<span class="nc" id="L195">            }</span>
+<span class="nc" id="L196">        }</span>
+<span class="nc" id="L197">    }</span>
+<span class="nc" id="L198">}</span>
+
+@Composable
+fun SearchResultPageItem(
+<span class="nc" id="L202">    modifier: Modifier = Modifier,</span>
+    searchResultPage: SearchResult,
+    searchTerm: String?,
+    onItemClick: () -&gt; Unit,
+    onItemLongClick: (View) -&gt; Unit,
+<span class="nc bnc" id="L207" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L208">    val (pageTitle, redirectFrom, type) = searchResultPage</span>
+<span class="nc" id="L209">    var anchorView by remember { mutableStateOf&lt;View?&gt;(null) }</span>
+
+<span class="nc bnc" id="L211" title="All 6 branches missed.">    val isRedirect = !redirectFrom.isNullOrEmpty()</span>
+
+<span class="nc bnc" id="L213" title="All 3 branches missed.">    val iconResId = when (type) {</span>
+<span class="nc" id="L214">        SearchResult.SearchResultType.HISTORY -&gt; R.drawable.ic_history_24</span>
+<span class="nc" id="L215">        SearchResult.SearchResultType.TAB_LIST -&gt; R.drawable.ic_tab_one_24px</span>
+<span class="nc" id="L216">        else -&gt; R.drawable.ic_bookmark_border_white_24dp</span>
+    }
+
+<span class="nc" id="L219">    val showImage =</span>
+<span class="nc bnc" id="L220" title="All 6 branches missed.">        !pageTitle.thumbUrl.isNullOrEmpty()</span>
+
+<span class="nc bnc" id="L222" title="All 2 branches missed.">    val boldenTitle = remember(pageTitle.displayText, searchTerm) {</span>
+<span class="nc" id="L223">        pageTitle.displayText.toAnnotatedStringWithBoldQuery(searchTerm)</span>
+    }
+
+<span class="nc" id="L226">    Box {</span>
+<span class="nc" id="L227">        Row(</span>
+<span class="nc" id="L228">            modifier = modifier</span>
+<span class="nc" id="L229">                .fillMaxWidth()</span>
+<span class="nc" id="L230">                .combinedClickable(</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">                    onLongClick = {</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                        anchorView?.let {</span>
+<span class="nc" id="L233">                            DeviceUtil.hideSoftKeyboard(it)</span>
+<span class="nc" id="L234">                            onItemLongClick(it)</span>
+<span class="nc" id="L235">                        }</span>
+<span class="nc" id="L236">                    },</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                    onClick = {</span>
+<span class="nc" id="L238">                        onItemClick()</span>
+<span class="nc" id="L239">                    }</span>
+                )
+<span class="nc" id="L241">                .padding(16.dp),</span>
+<span class="nc" id="L242">            verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L243">            horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+        ) {
+<span class="nc" id="L245">            Column(</span>
+<span class="nc" id="L246">                modifier = Modifier</span>
+<span class="nc" id="L247">                    .weight(1f)</span>
+            ) {
+                // Title with bold style
+<span class="nc" id="L250">                Text(</span>
+<span class="nc" id="L251">                    text = boldenTitle,</span>
+<span class="nc" id="L252">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L253">                    style = MaterialTheme.typography.bodyLarge</span>
+                )
+
+<span class="nc bnc" id="L256" title="All 2 branches missed.">                if (isRedirect) {</span>
+<span class="nc" id="L257">                    Row(</span>
+<span class="nc" id="L258">                        modifier = Modifier.padding(top = 2.dp)</span>
+                    ) {
+<span class="nc" id="L260">                        Image(</span>
+<span class="nc" id="L261">                            modifier = Modifier</span>
+<span class="nc" id="L262">                                .size(16.dp),</span>
+<span class="nc" id="L263">                            painter = painterResource(R.drawable.ic_subdirectory_arrow_right_black_24dp),</span>
+<span class="nc" id="L264">                            colorFilter = ColorFilter.tint(color = WikipediaTheme.colors.placeholderColor),</span>
+<span class="nc" id="L265">                            contentDescription = null</span>
+                        )
+<span class="nc" id="L267">                        Text(</span>
+<span class="nc" id="L268">                            text = stringResource(R.string.search_redirect_from, redirectFrom),</span>
+<span class="nc" id="L269">                            color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L270">                            style = MaterialTheme.typography.bodyLarge.copy(</span>
+<span class="nc" id="L271">                                fontSize = 14.sp</span>
+                            ),
+<span class="nc" id="L273">                            maxLines = 2,</span>
+<span class="nc" id="L274">                            overflow = TextOverflow.Ellipsis</span>
+                        )
+<span class="nc" id="L276">                    }</span>
+<span class="nc" id="L277">                } else {</span>
+<span class="nc" id="L278">                    val description = pageTitle.description</span>
+<span class="nc bnc" id="L279" title="All 6 branches missed.">                    if (!description.isNullOrEmpty()) {</span>
+<span class="nc" id="L280">                        Text(</span>
+<span class="nc" id="L281">                            modifier = Modifier</span>
+<span class="nc" id="L282">                                .padding(top = 2.dp),</span>
+<span class="nc" id="L283">                            text = description,</span>
+<span class="nc" id="L284">                            color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L285">                            style = MaterialTheme.typography.bodyLarge.copy(</span>
+<span class="nc" id="L286">                                fontSize = 14.sp</span>
+                            ),
+<span class="nc" id="L288">                            maxLines = 2,</span>
+<span class="nc" id="L289">                            overflow = TextOverflow.Ellipsis</span>
+                        )
+<span class="nc" id="L291">                    }</span>
+                }
+<span class="nc" id="L293">            }</span>
+
+<span class="nc" id="L295">            Row(</span>
+<span class="nc" id="L296">                verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L297">                horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+            ) {
+<span class="nc bnc" id="L299" title="All 4 branches missed.">                if (type != SearchResult.SearchResultType.PREFIX &amp;&amp; type != SearchResult.SearchResultType.FULL_TEXT) {</span>
+<span class="nc" id="L300">                    Image(</span>
+<span class="nc" id="L301">                        modifier = Modifier</span>
+<span class="nc" id="L302">                            .size(20.dp),</span>
+<span class="nc" id="L303">                        painter = painterResource(iconResId),</span>
+<span class="nc" id="L304">                        colorFilter = ColorFilter.tint(color = WikipediaTheme.colors.placeholderColor),</span>
+<span class="nc" id="L305">                        contentDescription = null</span>
+                    )
+<span class="nc" id="L307">                }</span>
+
+<span class="nc bnc" id="L309" title="All 2 branches missed.">                if (showImage) {</span>
+<span class="nc" id="L310">                    val request =</span>
+<span class="nc" id="L311">                        ImageService.getRequest(</span>
+<span class="nc" id="L312">                            LocalContext.current,</span>
+<span class="nc" id="L313">                            url = pageTitle.thumbUrl</span>
+                        )
+<span class="nc" id="L315">                    AsyncImage(</span>
+<span class="nc" id="L316">                        model = request,</span>
+<span class="nc" id="L317">                        placeholder = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L318">                        error = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L319">                        contentScale = ContentScale.Crop,</span>
+<span class="nc" id="L320">                        contentDescription = null,</span>
+<span class="nc" id="L321">                        modifier = Modifier</span>
+<span class="nc" id="L322">                            .size(56.dp)</span>
+<span class="nc" id="L323">                            .clip(RoundedCornerShape(8.dp))</span>
+                    )
+<span class="nc" id="L325">                }</span>
+<span class="nc" id="L326">            }</span>
+<span class="nc" id="L327">        }</span>
+
+        // invisible anchor view for LongPressMenu
+        // using view based PopupMenu (vs pure Compose): Compose DropdownMenu does not have reliable
+        // positioning with LazyColumn items and does not anchor properly with the parent layout.
+<span class="nc" id="L332">        AndroidView(</span>
+<span class="nc" id="L333">            factory = { ctx -&gt;</span>
+<span class="nc" id="L334">                View(ctx).apply {</span>
+<span class="nc" id="L335">                    anchorView = this</span>
+<span class="nc" id="L336">                }</span>
+            },
+<span class="nc" id="L338">            modifier = Modifier</span>
+<span class="nc" id="L339">                .fillMaxWidth()</span>
+<span class="nc" id="L340">                .size(0.dp)</span>
+        )
+<span class="nc" id="L342">    }</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

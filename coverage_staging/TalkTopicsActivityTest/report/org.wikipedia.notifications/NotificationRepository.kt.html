@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NotificationRepository.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.notifications</a> &gt; <span class="el_source">NotificationRepository.kt</span></div><h1>NotificationRepository.kt</h1><pre class="source lang-java linenums">package org.wikipedia.notifications
+
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.notifications.db.Notification
+import org.wikipedia.notifications.db.NotificationDao
+
+<span class="nc" id="L9">class NotificationRepository(private val notificationDao: NotificationDao) {</span>
+
+<span class="nc" id="L11">    suspend fun getAllNotifications() = notificationDao.getAllNotifications()</span>
+
+    suspend fun updateNotification(notification: Notification) {
+<span class="nc" id="L14">        notificationDao.updateNotification(notification)</span>
+<span class="nc" id="L15">    }</span>
+
+<span class="nc" id="L17">    suspend fun fetchUnreadWikiDbNames(): Map&lt;String, WikiSite&gt; {</span>
+<span class="nc" id="L18">        val response = ServiceFactory.get(WikipediaApp.instance.wikiSite).unreadNotificationWikis()</span>
+<span class="nc bnc" id="L19" title="All 2 branches missed.">        return response.query?.unreadNotificationWikis!!</span>
+<span class="nc bnc" id="L20" title="All 2 branches missed.">            .mapNotNull { (key, wiki) -&gt; wiki.source?.let { key to WikiSite(it.base) } }.toMap()</span>
+    }
+
+<span class="nc" id="L23">    suspend fun fetchAndSave(filter: String?, continueStr: String? = null): String? {</span>
+<span class="nc" id="L24">        var newContinueStr: String? = null</span>
+<span class="nc" id="L25">        val response = ServiceFactory.get(WikipediaApp.instance.wikiSite).getAllNotifications(filter, continueStr)</span>
+<span class="nc bnc" id="L26" title="All 4 branches missed.">        response.query?.notifications?.let {</span>
+<span class="nc bnc" id="L27" title="All 2 branches missed.">            notificationDao.insertNotifications(it.list.orEmpty())</span>
+<span class="nc" id="L28">            newContinueStr = it.continueStr</span>
+<span class="nc" id="L29">        }</span>
+<span class="nc" id="L30">        return newContinueStr</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

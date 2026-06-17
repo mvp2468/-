@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiSite.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient</a> &gt; <span class="el_source">WikiSite.kt</span></div><h1>WikiSite.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient
+
+import android.net.Uri
+import android.os.Parcelable
+import androidx.core.net.toUri
+import kotlinx.parcelize.Parcelize
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.json.UriSerializer
+import org.wikipedia.language.AppLanguageLookUpTable
+import org.wikipedia.util.UriUtil
+
+/**
+ * The base URL and Wikipedia language code for a MediaWiki site. Examples:
+ *
+ *
+ * &lt;lh&gt;Name: scheme / authority / language code&lt;/lh&gt;
+ *  * English Wikipedia: HTTPS / en.wikipedia.org / en
+ *  * Chinese Wikipedia: HTTPS / zh.wikipedia.org / zh-hans or zh-hant
+ *  * Meta-Wiki: HTTPS / meta.wikimedia.org / (none)
+ *  * Test Wikipedia: HTTPS / test.wikipedia.org / test
+ *  * Võro Wikipedia: HTTPS / fiu-vro.wikipedia.org / fiu-vro
+ *  * Simple English Wikipedia: HTTPS / simple.wikipedia.org / simple
+ *  * Simple English Wikipedia (beta cluster mirror): HTTP / simple.wikipedia.beta.wmflabs.org / simple
+ *  * Development: HTTP / 192.168.1.11:8080 / (none)
+ *
+ *
+ * **As shown above, the language code or mapping is part of the authority:**
+ *
+ * &lt;lh&gt;Validity: authority / language code&lt;/lh&gt;
+ *  * Correct: &quot;test.wikipedia.org&quot; / &quot;test&quot;
+ *  * Correct: &quot;wikipedia.org&quot;, &quot;&quot;
+ *  * Correct: &quot;no.wikipedia.org&quot;, &quot;nb&quot;
+ *  * Incorrect: &quot;wikipedia.org&quot;, &quot;test&quot;
+ *
+ */
+<span class="pc" id="L39">@Serializable</span>
+@Parcelize
+<span class="pc" id="L41">data class WikiSite(</span>
+<span class="pc" id="L42">    @SerialName(&quot;domain&quot;) @Serializable(with = UriSerializer::class) var uri: Uri,</span>
+<span class="pc" id="L43">    var languageCode: String = &quot;&quot;</span>
+<span class="nc" id="L44">) : Parcelable {</span>
+
+<span class="fc" id="L46">    constructor(uri: Uri) : this(uri, &quot;&quot;) {</span>
+<span class="fc" id="L47">        val tempUri = ensureScheme(uri)</span>
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">        var authority = tempUri.authority.orEmpty()</span>
+<span class="pc bpc" id="L49" title="2 of 4 branches missed.">        if ((BASE_DOMAIN == authority || (&quot;www.$BASE_DOMAIN&quot;) == authority) &amp;&amp;</span>
+<span class="nc bnc" id="L50" title="All 6 branches missed.">            tempUri.path?.startsWith(&quot;/wiki&quot;) == true</span>
+        ) {
+            // Special case for Wikipedia only: assume English subdomain when none given.
+<span class="nc" id="L53">            authority = &quot;en.$BASE_DOMAIN&quot;</span>
+        }
+
+        // Unconditionally transform any mobile authority to canonical.
+<span class="fc" id="L57">        authority = authority.replace(&quot;.m.&quot;, &quot;.&quot;)</span>
+<span class="pc bpc" id="L58" title="2 of 4 branches missed.">        languageCode = UriUtil.getLanguageVariantFromUri(tempUri).ifEmpty { authorityToLanguageCode(authority) }</span>
+
+        // For language variant wikis, automatically switch to the preferred variant if possible.
+<span class="fc" id="L61">        val parentLanguageCode = WikipediaApp.instance.languageState.getDefaultLanguageCode(languageCode)</span>
+        // For the default language code like &quot;zh&quot;, we need to check if it has variants.
+<span class="fc" id="L63">        var languageVariants = WikipediaApp.instance.languageState.getLanguageVariants(languageCode)</span>
+<span class="pc bpc" id="L64" title="2 of 4 branches missed.">        if (parentLanguageCode != null || languageVariants != null) {</span>
+            // Get language variants from the parent language code
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (languageVariants == null) {</span>
+<span class="nc" id="L67">                languageVariants = WikipediaApp.instance.languageState.getLanguageVariants(parentLanguageCode)</span>
+            }
+            // Try to find the first selected variant that matches the URL's parent language code
+            // This prevents showing mixed language variants article when the URL contains parent language codes such as &quot;zh&quot; or &quot;wiki&quot;
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            languageCode = WikipediaApp.instance.languageState.appLanguageCodes.firstOrNull {</span>
+<span class="nc bnc" id="L72" title="All 4 branches missed.">                languageVariants?.contains(it) == true</span>
+<span class="nc" id="L73">            } ?: languageCode</span>
+        }
+
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if (languageCode == Constants.WIKI_CODE_COMMONS) {</span>
+            // Special case for Commons: if the WikiSite was constructed from &quot;commons.wikimedia.org&quot;,
+            // then the languageCode will be &quot;commons&quot; which is incorrect, so set it to the default language.
+<span class="nc" id="L79">            languageCode = WikipediaApp.instance.appOrSystemLanguageCode</span>
+        }
+
+        // Use default subdomain in authority to prevent error when requesting endpoints. e.g. zh-tw.wikipedia.org
+<span class="pc bpc" id="L83" title="2 of 6 branches missed.">        if (authority.contains(BASE_DOMAIN) &amp;&amp; subdomain().isNotEmpty()) {</span>
+<span class="fc" id="L84">            authority = subdomain() + &quot;.&quot; + BASE_DOMAIN</span>
+        }
+<span class="fc" id="L86">        this.uri = Uri.Builder().scheme(tempUri.scheme).encodedAuthority(authority).build()</span>
+<span class="fc" id="L87">    }</span>
+
+<span class="fc" id="L89">    constructor(url: String) : this(</span>
+<span class="fc" id="L90">        when {</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">            url.startsWith(&quot;http&quot;) -&gt; Uri.parse(url)</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            url.startsWith(&quot;//&quot;) -&gt; Uri.parse(&quot;$DEFAULT_SCHEME:$url&quot;)</span>
+<span class="fc" id="L93">            else -&gt; Uri.parse(&quot;$DEFAULT_SCHEME://$url&quot;)</span>
+        }
+<span class="fc" id="L95">    )</span>
+
+<span class="fc" id="L97">    constructor(authority: String, languageCode: String) : this(authority) {</span>
+<span class="fc" id="L98">        this.languageCode = languageCode</span>
+<span class="fc" id="L99">    }</span>
+
+    fun scheme(): String {
+<span class="nc bnc" id="L102" title="All 6 branches missed.">        return uri.scheme.orEmpty().ifEmpty { DEFAULT_SCHEME }</span>
+    }
+
+    fun authority(): String {
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        return uri.authority.orEmpty()</span>
+    }
+
+    fun subdomain(): String {
+<span class="fc" id="L110">        return languageCodeToSubdomain(languageCode)</span>
+    }
+
+    fun path(segment: String): String {
+<span class="nc" id="L114">        return &quot;/w/$segment&quot;</span>
+    }
+
+    fun url(): String {
+<span class="fc" id="L118">        return uri.toString()</span>
+    }
+
+    fun url(segment: String): String {
+<span class="nc" id="L122">        return url() + path(segment)</span>
+    }
+
+    fun dbName(): String {
+<span class="pc bpc" id="L126" title="2 of 4 branches missed.">        return (if (uri.authority.orEmpty().contains(&quot;wikidata&quot;)) {</span>
+<span class="nc" id="L127">            &quot;wikidata&quot;</span>
+<span class="pc bpc" id="L128" title="2 of 4 branches missed.">        } else if (uri.authority.orEmpty().contains(&quot;commons&quot;)) {</span>
+<span class="nc" id="L129">            &quot;commons&quot;</span>
+        } else {
+<span class="fc" id="L131">            subdomain().replace(&quot;-&quot;.toRegex(), &quot;_&quot;)</span>
+        }) + &quot;wiki&quot;
+    }
+
+    companion object {
+        const val DEFAULT_SCHEME = &quot;https&quot;
+        const val BASE_DOMAIN = &quot;wikipedia.org&quot;
+        private var DEFAULT_BASE_URL: String? = null
+
+        fun supportedAuthority(authority: String): Boolean {
+<span class="nc" id="L141">            return authority.endsWith(DEFAULT_BASE_URL!!.toUri().authority!!)</span>
+        }
+
+        fun setDefaultBaseUrl(url: String) {
+<span class="pc bpc" id="L145" title="2 of 4 branches missed.">            DEFAULT_BASE_URL = url.ifEmpty { Service.WIKIPEDIA_URL }</span>
+<span class="fc" id="L146">        }</span>
+
+        fun forLanguageCode(languageCode: String): WikiSite {
+<span class="fc" id="L149">            val uri = ensureScheme(DEFAULT_BASE_URL!!.toUri())</span>
+<span class="fc" id="L150">            return WikiSite(</span>
+<span class="pc bpc" id="L151" title="2 of 4 branches missed.">                (if (languageCode.isEmpty()) &quot;&quot; else languageCodeToSubdomain(languageCode) + &quot;.&quot;) + uri.authority,</span>
+<span class="fc" id="L152">                languageCode</span>
+            )
+        }
+
+        fun normalizeLanguageCode(languageCode: String): String {
+<span class="pc bpc" id="L157" title="4 of 5 branches missed.">            return when (languageCode) {</span>
+<span class="nc" id="L158">                AppLanguageLookUpTable.NORWEGIAN_BOKMAL_LANGUAGE_CODE -&gt; AppLanguageLookUpTable.NORWEGIAN_LEGACY_LANGUAGE_CODE // T114042</span>
+<span class="nc" id="L159">                AppLanguageLookUpTable.BELARUSIAN_LEGACY_LANGUAGE_CODE -&gt; AppLanguageLookUpTable.BELARUSIAN_TARASK_LANGUAGE_CODE // T111853</span>
+<span class="nc" id="L160">                AppLanguageLookUpTable.CHINESE_LEGACY_YUE_LANGUAGE_CODE -&gt; AppLanguageLookUpTable.CHINESE_YUE_LANGUAGE_CODE</span>
+<span class="nc" id="L161">                AppLanguageLookUpTable.CHINESE_CLASSICAL_LANGUAGE_CODE -&gt; AppLanguageLookUpTable.CHINESE_CLASSICAL_LEGACY_LANGUAGE_CODE</span>
+<span class="fc" id="L162">                else -&gt; languageCode</span>
+            }
+        }
+
+        /**
+         * For use only in Composable Previews, since this bypasses much of the internal constructor
+         * logic that depends on a WikipediaApp instance.
+         */
+<span class="nc" id="L170">        fun preview(languageCode: String = &quot;en&quot;): WikiSite {</span>
+<span class="nc" id="L171">            return WikiSite(&quot;https://$languageCode.wikipedia.org/&quot;.toUri(), languageCode)</span>
+        }
+
+        private fun languageCodeToSubdomain(languageCode: String): String {
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">            return WikipediaApp.instance.languageState.getDefaultLanguageCode(languageCode) ?: normalizeLanguageCode(languageCode)</span>
+        }
+
+        fun authorityToLanguageCode(authority: String): String {
+<span class="fc" id="L179">            val parts = authority.split(&quot;\\.&quot;.toRegex()).toTypedArray()</span>
+<span class="fc" id="L180">            val minLengthForSubdomain = 3</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">            return if (parts.size &lt; minLengthForSubdomain ||</span>
+<span class="pc bpc" id="L182" title="1 of 4 branches missed.">                parts.size == minLengthForSubdomain &amp;&amp; parts[0] == &quot;m&quot;</span>
+            ) {
+                // &quot;&quot;
+                // wikipedia.org
+                // m.wikipedia.org
+<span class="nc" id="L187">                &quot;&quot;</span>
+<span class="fc" id="L188">            } else parts[0]</span>
+        }
+
+        private fun ensureScheme(uri: Uri): Uri {
+<span class="pc bpc" id="L192" title="3 of 6 branches missed.">            return if (uri.scheme.isNullOrEmpty()) {</span>
+<span class="nc" id="L193">                uri.buildUpon().scheme(DEFAULT_SCHEME).build()</span>
+<span class="fc" id="L194">            } else uri</span>
+        }
+    }
+<span class="pc" id="L197">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

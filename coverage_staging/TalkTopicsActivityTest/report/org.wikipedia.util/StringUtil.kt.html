@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">StringUtil.kt</span></div><h1>StringUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.Typeface
+import android.icu.text.CompactDecimalFormat
+import android.location.Location
+import android.os.Build
+import android.text.Spanned
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
+import android.widget.EditText
+import android.widget.TextView
+import androidx.annotation.IntRange
+import androidx.core.text.buildSpannedString
+import androidx.core.text.set
+import okio.ByteString.Companion.encodeUtf8
+import org.wikipedia.R
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.page.PageTitle
+import org.wikipedia.richtext.CustomHtmlParser
+import org.wikipedia.staticdata.UserAliasData
+import java.nio.charset.StandardCharsets
+import java.text.Collator
+import java.text.Normalizer
+import java.util.EnumSet
+import java.util.Locale
+import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
+
+object StringUtil {
+    private const val CSV_DELIMITER = &quot;,&quot;
+<span class="pc" id="L34">    val SEARCH_REGEX_OPTIONS: Set&lt;RegexOption&gt; = EnumSet.of(RegexOption.LITERAL, RegexOption.IGNORE_CASE)</span>
+
+    fun listToCsv(list: List&lt;String?&gt;): String {
+<span class="fc" id="L37">        return list.joinToString(CSV_DELIMITER)</span>
+    }
+
+    fun csvToList(csv: String): List&lt;String&gt; {
+<span class="fc" id="L41">        return delimiterStringToList(csv, CSV_DELIMITER)</span>
+    }
+
+    fun delimiterStringToList(delimitedString: String,
+                              delimiter: String): List&lt;String&gt; {
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">        return delimitedString.split(delimiter).filter { it.isNotBlank() }</span>
+    }
+
+    fun md5string(s: String): String {
+<span class="fc" id="L50">        return s.encodeUtf8().md5().hex()</span>
+    }
+
+    fun intToHexStr(i: Int): String {
+<span class="nc" id="L54">        return String.format(&quot;x%08x&quot;, i)</span>
+    }
+
+    fun addUnderscores(text: String?): String {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        return text.orEmpty().replace(&quot; &quot;, &quot;_&quot;)</span>
+    }
+
+    fun removeUnderscores(text: String?): String {
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        return text.orEmpty().replace(&quot;_&quot;, &quot; &quot;)</span>
+    }
+
+    fun dbNameToLangCode(wikiDbName: String): String {
+<span class="nc" id="L66">        return wikiDbName.substringBefore(&quot;wiki&quot;).replace(&quot;_&quot;, &quot;-&quot;)</span>
+    }
+
+    fun removeSectionAnchor(text: String?): String {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        return text.orEmpty().substringBefore('#')</span>
+    }
+
+    fun removeNamespace(text: String): String {
+<span class="fc" id="L74">        return text.substringAfter(':')</span>
+    }
+
+    fun removeHTMLTags(text: String?): String {
+<span class="fc" id="L78">        return fromHtml(text).toString()</span>
+    }
+
+    fun removeStyleTags(text: String): String {
+<span class="fc" id="L82">        return text.replace(&quot;&lt;style.*?&lt;/style&gt;&quot;.toRegex(), &quot;&quot;)</span>
+    }
+
+    fun removeCiteMarkup(text: String): String {
+<span class="nc" id="L86">        return text.replace(&quot;&lt;cite.*?&gt;&quot;.toRegex(), &quot;&quot;).replace(&quot;&lt;/cite&gt;&quot;.toRegex(), &quot;&quot;)</span>
+    }
+
+    fun sanitizeAbuseFilterCode(code: String): String {
+<span class="nc" id="L90">        return code.replace(&quot;[⧼⧽]&quot;.toRegex(), &quot;&quot;)</span>
+    }
+
+    /**
+     * Convenience function for parsing wikitext that might contain external links (and ONLY
+     * external links), to save a round-trip call to the parse API.
+     */
+    fun parseWikitextExternalLinks(wikitext: String): String {
+<span class="nc" id="L98">        val pattern = &quot;&quot;&quot;\[(\S+)(?:\s+([^]]+))?]&quot;&quot;&quot;.toRegex()</span>
+
+<span class="nc" id="L100">        return pattern.replace(wikitext) { match -&gt;</span>
+<span class="nc" id="L101">            val url = match.groupValues[1]</span>
+<span class="nc bnc" id="L102" title="All 4 branches missed.">            val displayText = match.groupValues[2].ifEmpty { url }</span>
+<span class="nc" id="L103">            &quot;&quot;&quot;&lt;a href=&quot;$url&quot;&gt;$displayText&lt;/a&gt;&quot;&quot;&quot;</span>
+        }
+    }
+
+    fun normalizedEquals(str1: String?, str2: String?): Boolean {
+<span class="nc bnc" id="L108" title="All 4 branches missed.">        return if (str1 == null || str2 == null) {</span>
+<span class="nc bnc" id="L109" title="All 4 branches missed.">            str1 == null &amp;&amp; str2 == null</span>
+<span class="nc" id="L110">        } else (Normalizer.normalize(str1, Normalizer.Form.NFC)</span>
+<span class="nc" id="L111">                == Normalizer.normalize(str2, Normalizer.Form.NFC))</span>
+    }
+
+    fun fromHtml(source: String?): Spanned {
+<span class="fc" id="L115">        return CustomHtmlParser.fromHtml(source)</span>
+    }
+
+    fun highlightEditText(editText: EditText, parentText: String, highlightText: String) {
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        val words = highlightText.split(&quot;\\s&quot;.toRegex()).filter { it.isNotBlank() }</span>
+<span class="nc" id="L120">        var pos = 0</span>
+<span class="nc" id="L121">        var firstPos = 0</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        for (word in words) {</span>
+<span class="nc" id="L123">            pos = parentText.indexOf(word, pos)</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            if (pos == -1) {</span>
+<span class="nc" id="L125">                break</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">            } else if (firstPos == 0) {</span>
+<span class="nc" id="L127">                firstPos = pos</span>
+            }
+        }
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if (pos == -1) {</span>
+<span class="nc" id="L131">            pos = parentText.indexOf(words.last())</span>
+<span class="nc" id="L132">            firstPos = pos</span>
+        }
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (pos &gt;= 0) {</span>
+<span class="nc" id="L135">            editText.setSelection(firstPos, pos + words.last().length)</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    fun boldenKeywordText(textView: TextView, parentText: String, searchQuery: String?) {
+<span class="nc" id="L140">        var parentTextStr = parentText</span>
+<span class="nc" id="L141">        val startIndex = indexOf(parentTextStr, searchQuery)</span>
+<span class="nc bnc" id="L142" title="All 4 branches missed.">        if (startIndex &gt;= 0 &amp;&amp; !isIndexInsideHtmlTag(parentTextStr, startIndex)) {</span>
+<span class="nc" id="L143">            parentTextStr = (parentTextStr.substring(0, startIndex) + &quot;&lt;strong&gt;&quot; +</span>
+<span class="nc" id="L144">                    parentTextStr.substring(startIndex, startIndex + searchQuery!!.length) + &quot;&lt;/strong&gt;&quot; +</span>
+<span class="nc" id="L145">                    parentTextStr.substring(startIndex + searchQuery.length))</span>
+        }
+<span class="nc" id="L147">        textView.text = fromHtml(parentTextStr)</span>
+<span class="nc" id="L148">    }</span>
+
+    fun setHighlightedAndBoldenedText(textView: TextView, parentText: CharSequence, query: String?) {
+<span class="pc bpc" id="L151" title="4 of 6 branches missed.">        textView.text = if (query.isNullOrEmpty()) parentText else buildSpannedString {</span>
+<span class="nc" id="L152">            append(parentText)</span>
+
+<span class="nc" id="L154">            query.toRegex(SEARCH_REGEX_OPTIONS).findAll(parentText)</span>
+<span class="nc" id="L155">                .forEach {</span>
+<span class="nc" id="L156">                    val range = it.range</span>
+<span class="nc" id="L157">                    val (start, end) = range.first to range.last + 1</span>
+<span class="nc" id="L158">                    this[start, end] = BackgroundColorSpan(Color.YELLOW)</span>
+<span class="nc" id="L159">                    this[start, end] = ForegroundColorSpan(Color.BLACK)</span>
+<span class="nc" id="L160">                    this[start, end] = StyleSpan(Typeface.BOLD)</span>
+<span class="nc" id="L161">                }</span>
+<span class="nc" id="L162">        }</span>
+<span class="fc" id="L163">    }</span>
+
+    fun isIndexInsideHtmlTag(text: String, index: Int): Boolean {
+<span class="nc" id="L166">        var tagStack = 0</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        for (i in text.indices) {</span>
+<span class="nc bnc" id="L168" title="All 4 branches missed.">            if (text[i] == '&lt;') { tagStack++ } else if (text[i] == '&gt;') { tagStack-- }</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (i == index) { break }</span>
+        }
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        return tagStack &gt; 0</span>
+    }
+
+    // case insensitive indexOf, also more lenient with similar chars, like chars with accents
+    private fun indexOf(original: String, search: String?): Int {
+<span class="nc bnc" id="L176" title="All 6 branches missed.">        if (!search.isNullOrEmpty()) {</span>
+<span class="nc" id="L177">            val collator = Collator.getInstance()</span>
+<span class="nc" id="L178">            collator.strength = Collator.PRIMARY</span>
+<span class="nc bnc" id="L179" title="All 4 branches missed.">            for (i in 0..original.length - search.length) {</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (collator.equals(search, original.substring(i, i + search.length))) {</span>
+<span class="nc" id="L181">                    return i</span>
+                }
+            }
+        }
+<span class="nc" id="L185">        return -1</span>
+    }
+
+    fun getBase26String(@IntRange(from = 1) number: Int): String {
+<span class="nc" id="L189">        var num = number</span>
+<span class="nc" id="L190">        val base = 26</span>
+<span class="nc" id="L191">        var str = &quot;&quot;</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        while (--num &gt;= 0) {</span>
+<span class="nc" id="L193">            str = ('A' + num % base) + str</span>
+<span class="nc" id="L194">            num /= base</span>
+        }
+<span class="nc" id="L196">        return str</span>
+    }
+
+    fun utf8Indices(s: String): IntArray {
+<span class="nc" id="L200">        val indices = IntArray(s.toByteArray(StandardCharsets.UTF_8).size)</span>
+<span class="nc" id="L201">        var ptr = 0</span>
+<span class="nc" id="L202">        var count = 0</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        for (i in s.indices) {</span>
+<span class="nc" id="L204">            val c = s.codePointAt(i)</span>
+<span class="nc" id="L205">            when {</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                c &lt;= 0x7F -&gt; count = 1</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                c &lt;= 0x7FF -&gt; count = 2</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">                c &lt;= 0xFFFF -&gt; count = 3</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                c &lt;= 0x1FFFFF -&gt; count = 4</span>
+            }
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            for (j in 0 until count) {</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                if (ptr &lt; indices.size) {</span>
+<span class="nc" id="L213">                    indices[ptr++] = i</span>
+                }
+            }
+        }
+<span class="nc" id="L217">        return indices</span>
+    }
+
+    fun userPageTitleFromName(userName: String, wiki: WikiSite): PageTitle {
+<span class="nc" id="L221">        return PageTitle(UserAliasData.valueFor(wiki.languageCode), userName, wiki)</span>
+    }
+
+    fun getPageViewText(context: Context, pageViews: Long): String {
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.N) {</span>
+<span class="nc" id="L226">            val primaryLocale = context.resources.configuration.locales[0]</span>
+<span class="nc" id="L227">            val decimalFormat = CompactDecimalFormat.getInstance(primaryLocale, CompactDecimalFormat.CompactStyle.SHORT)</span>
+<span class="nc" id="L228">            return decimalFormat.format(pageViews)</span>
+        }
+<span class="nc" id="L230">        return when {</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            pageViews &lt; 1000 -&gt; pageViews.toString()</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            pageViews &lt; 1000000 -&gt; {</span>
+<span class="nc" id="L233">                context.getString(</span>
+<span class="nc" id="L234">                    R.string.view_top_read_card_pageviews_k_suffix,</span>
+<span class="nc" id="L235">                    (pageViews / 1000f).roundToInt()</span>
+                )
+            }
+<span class="nc" id="L238">            else -&gt; {</span>
+<span class="nc" id="L239">                context.getString(</span>
+<span class="nc" id="L240">                    R.string.view_top_read_card_pageviews_m_suffix,</span>
+<span class="nc" id="L241">                    (pageViews / 1000000f).roundToInt()</span>
+                )
+            }
+        }
+    }
+
+    fun getDiffBytesText(context: Context, diffSize: Int): String {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        return context.resources.getQuantityString(R.plurals.edit_diff_bytes, diffSize.absoluteValue, if (diffSize &gt; 0) &quot;+$diffSize&quot; else diffSize.toString())</span>
+    }
+
+    fun capitalize(str: String?): String? {
+<span class="nc bnc" id="L252" title="All 8 branches missed.">        return str?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }</span>
+    }
+
+    fun geoHackToLocation(params: String?): Location? {
+<span class="nc bnc" id="L256" title="All 6 branches missed.">        if (!params.isNullOrBlank()) {</span>
+<span class="nc" id="L257">            val regex = &quot;&quot;&quot;(([\d.]+)_)(([\d.]+)_)?(([\d.]+)_)?(([NS])_)(([\d.]+)_)?(([\d.]+)_)?(([\d.]+)_)?([EW])&quot;&quot;&quot;.toRegex()</span>
+<span class="nc" id="L258">            val match = regex.find(params)</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">            if (match != null) {</span>
+<span class="nc bnc" id="L260" title="All 4 branches missed.">                val latDeg = match.groupValues[2].ifEmpty { &quot;0&quot; }</span>
+<span class="nc bnc" id="L261" title="All 4 branches missed.">                val latMin = match.groupValues[4].ifEmpty { &quot;0&quot; }</span>
+<span class="nc bnc" id="L262" title="All 4 branches missed.">                val latSec = match.groupValues[6].ifEmpty { &quot;0&quot; }</span>
+<span class="nc bnc" id="L263" title="All 4 branches missed.">                val latDir = match.groupValues[8].ifEmpty { &quot;0&quot; }</span>
+<span class="nc bnc" id="L264" title="All 4 branches missed.">                val lonDeg = match.groupValues[10].ifEmpty { &quot;0&quot; }</span>
+<span class="nc bnc" id="L265" title="All 4 branches missed.">                val lonMin = match.groupValues[12].ifEmpty { &quot;0&quot; }</span>
+<span class="nc bnc" id="L266" title="All 4 branches missed.">                val lonSec = match.groupValues[14].ifEmpty { &quot;0&quot; }</span>
+<span class="nc bnc" id="L267" title="All 4 branches missed.">                val lonDir = match.groupValues[15].ifEmpty { &quot;0&quot; }</span>
+<span class="nc" id="L268">                val lat = latDeg.toDouble() + latMin.toDouble() / 60 + latSec.toDouble() / 3600</span>
+<span class="nc" id="L269">                val lon = lonDeg.toDouble() + lonMin.toDouble() / 60 + lonSec.toDouble() / 3600</span>
+
+<span class="nc" id="L271">                return Location(&quot;&quot;).apply {</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                    latitude = if (latDir == &quot;S&quot;) -lat else lat</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                    longitude = if (lonDir == &quot;W&quot;) -lon else lon</span>
+<span class="nc" id="L274">                }</span>
+            }
+        }
+<span class="nc" id="L277">        return null</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

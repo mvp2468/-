@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiGamesCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.wikigames</a> &gt; <span class="el_source">WikiGamesCardView.kt</span></div><h1>WikiGamesCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.wikigames
+
+import android.content.Context
+import android.view.LayoutInflater
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.compose.components.PageIndicator
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.databinding.ViewWikiGamesCardBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.extensions.getString
+import org.wikipedia.feed.view.CardFooterView
+import org.wikipedia.feed.view.DefaultFeedCardView
+import org.wikipedia.feed.view.FeedAdapter
+
+<span class="nc" id="L27">class WikiGamesCardView(context: Context) : DefaultFeedCardView&lt;WikiGamesCard&gt;(context), CardFooterView.Callback {</span>
+    interface Callback {
+        fun onWikiGamesCardFooterClicked()
+        fun onThisDayGameCountDownFinished()
+        fun onThisDayGameArchiveButtonClicked(wikiSite: WikiSite)
+        fun onThisDayGamePlayButonClicked(wikiSite: WikiSite)
+        fun onThisDayGameReviewResultsButtonClicked(wikiSite: WikiSite)
+    }
+
+<span class="nc" id="L36">    private val binding = ViewWikiGamesCardBinding.inflate(LayoutInflater.from(context), this, true)</span>
+
+<span class="nc" id="L38">    override var card: WikiGamesCard? = null</span>
+        set(value) {
+<span class="nc" id="L40">            field = value</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">            value?.let {</span>
+<span class="nc" id="L42">                val langCode = it.wikiSite.languageCode</span>
+<span class="nc" id="L43">                setHeader(langCode, it)</span>
+<span class="nc" id="L44">                setContent(it)</span>
+<span class="nc" id="L45">                setFooterText(langCode)</span>
+<span class="nc" id="L46">            }</span>
+<span class="nc" id="L47">        }</span>
+
+<span class="nc" id="L49">    override var callback: FeedAdapter.Callback? = null</span>
+        set(value) {
+<span class="nc" id="L51">            field = value</span>
+<span class="nc" id="L52">            binding.viewWikiGamesCardHeader.setCallback(value)</span>
+<span class="nc" id="L53">        }</span>
+
+    override fun onFooterClicked() {
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        callback?.onWikiGamesCardFooterClicked()</span>
+<span class="nc" id="L57">    }</span>
+
+    private fun setContent(card: WikiGamesCard) {
+<span class="nc" id="L60">        binding.gamesComposeView.setContent {</span>
+<span class="nc" id="L61">            WikiGamesEvent.submit(action = &quot;impression&quot;, activeInterface = &quot;game_feed&quot;, langCode = card.wikiSite.languageCode)</span>
+<span class="nc" id="L62">            BaseTheme {</span>
+<span class="nc" id="L63">                WikiGamesCardContent(</span>
+<span class="nc" id="L64">                    modifier = Modifier</span>
+<span class="nc" id="L65">                        .fillMaxWidth(),</span>
+<span class="nc" id="L66">                    card = card,</span>
+<span class="nc" id="L67">                    onThisDayGameAction = { action -&gt;</span>
+<span class="nc" id="L68">                        when (action) {</span>
+<span class="nc bnc" id="L69" title="All 4 branches missed.">                            OnThisDayGameAction.CountdownFinished -&gt; callback?.onThisDayGameCountDownFinished()</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">                            OnThisDayGameAction.Play -&gt; callback?.onThisDayGamePlayButonClicked(card.wikiSite)</span>
+<span class="nc bnc" id="L71" title="All 4 branches missed.">                            OnThisDayGameAction.PlayArchive -&gt; callback?.onThisDayGameArchiveButtonClicked(card.wikiSite)</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                            OnThisDayGameAction.ReviewResults -&gt; callback?.onThisDayGameReviewResultsButtonClicked(card.wikiSite)</span>
+                        }
+<span class="nc" id="L74">                    }</span>
+                )
+<span class="nc" id="L76">            }</span>
+<span class="nc" id="L77">        }</span>
+<span class="nc" id="L78">    }</span>
+
+    private fun setHeader(langCode: String, card: WikiGamesCard) {
+<span class="nc" id="L81">        binding.viewWikiGamesCardHeader</span>
+<span class="nc" id="L82">            .setTitle(</span>
+<span class="nc" id="L83">                context.getString(</span>
+<span class="nc" id="L84">                    langCode,</span>
+<span class="nc" id="L85">                    R.string.games_hub_activity_title</span>
+                )
+            )
+<span class="nc" id="L88">            .setLangCode(langCode)</span>
+<span class="nc" id="L89">            .setCard(card)</span>
+<span class="nc" id="L90">    }</span>
+
+    private fun setFooterText(langCode: String) {
+<span class="nc" id="L93">        binding.gamesCardFooter.setFooterActionText(actionText = context.getString(langCode, R.string.on_this_day_game_more_label), null)</span>
+<span class="nc" id="L94">        binding.gamesCardFooter.callback = this</span>
+<span class="nc" id="L95">    }</span>
+}
+
+@Composable
+fun WikiGamesCardContent(
+    card: WikiGamesCard,
+<span class="nc" id="L101">    modifier: Modifier = Modifier,</span>
+    onThisDayGameAction: (OnThisDayGameAction) -&gt; Unit
+<span class="nc bnc" id="L103" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L104">    val pagerState = rememberPagerState(pageCount = { card.games.size })</span>
+<span class="nc" id="L105">    val context = LocalContext.current</span>
+<span class="nc" id="L106">    Column(modifier = Modifier.fillMaxWidth()) {</span>
+<span class="nc" id="L107">        HorizontalPager(</span>
+<span class="nc" id="L108">            state = pagerState,</span>
+<span class="nc" id="L109">            modifier = modifier</span>
+<span class="nc" id="L110">        ) { page -&gt;</span>
+<span class="nc" id="L111">            when (val game = card.games[page]) {</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                is WikiGame.OnThisDayGame -&gt; {</span>
+<span class="nc" id="L113">                    when (game.state) {</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                        is OnThisDayCardGameState.Preview -&gt; {</span>
+<span class="nc" id="L115">                            OnThisDayGameCardPreview(</span>
+<span class="nc" id="L116">                                modifier = Modifier</span>
+<span class="nc" id="L117">                                    .fillMaxWidth()</span>
+<span class="nc" id="L118">                                    .height(350.dp)</span>
+<span class="nc" id="L119">                                    .padding(horizontal = 8.dp, vertical = 8.dp),</span>
+<span class="nc" id="L120">                                state = game.state,</span>
+<span class="nc" id="L121">                                titleText = context.getString(game.state.langCode, R.string.on_this_day_game_title),</span>
+<span class="nc" id="L122">                                onPlayClick = {</span>
+<span class="nc" id="L123">                                    WikiGamesEvent.submit(&quot;play_click&quot;, &quot;game_feed&quot;)</span>
+<span class="nc" id="L124">                                    onThisDayGameAction(OnThisDayGameAction.Play)</span>
+<span class="nc" id="L125">                                }</span>
+                            )
+                        }
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                        is OnThisDayCardGameState.InProgress -&gt; {</span>
+<span class="nc" id="L129">                            OnThisDayGameCardProgress(</span>
+<span class="nc" id="L130">                                modifier = Modifier</span>
+<span class="nc" id="L131">                                    .fillMaxWidth()</span>
+<span class="nc" id="L132">                                    .height(350.dp)</span>
+<span class="nc" id="L133">                                    .padding(horizontal = 8.dp, vertical = 8.dp),</span>
+<span class="nc" id="L134">                                state = game.state,</span>
+<span class="nc" id="L135">                                titleText = stringResource(R.string.on_this_day_game_title),</span>
+<span class="nc" id="L136">                                onContinueClick = {</span>
+<span class="nc" id="L137">                                    WikiGamesEvent.submit(&quot;continue_click&quot;, &quot;game_feed&quot;)</span>
+<span class="nc" id="L138">                                    onThisDayGameAction(OnThisDayGameAction.Play)</span>
+<span class="nc" id="L139">                                }</span>
+                            )
+                        }
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                        is OnThisDayCardGameState.Completed -&gt; {</span>
+<span class="nc" id="L143">                            OnThisDayGameCardCompleted(</span>
+<span class="nc" id="L144">                                modifier = Modifier</span>
+<span class="nc" id="L145">                                    .fillMaxWidth()</span>
+<span class="nc" id="L146">                                    .height(350.dp)</span>
+<span class="nc" id="L147">                                    .padding(horizontal = 8.dp, vertical = 8.dp),</span>
+<span class="nc" id="L148">                                state = game.state,</span>
+<span class="nc" id="L149">                                titleText = stringResource(R.string.on_this_day_game_title),</span>
+<span class="nc" id="L150">                                onPlayClick = { },</span>
+<span class="nc" id="L151">                                onReviewResult = {</span>
+<span class="nc" id="L152">                                    WikiGamesEvent.submit(&quot;review_click&quot;, &quot;game_feed&quot;)</span>
+<span class="nc" id="L153">                                    onThisDayGameAction(OnThisDayGameAction.ReviewResults) },</span>
+<span class="nc" id="L154">                                onPlayTheArchive = {</span>
+<span class="nc" id="L155">                                    WikiGamesEvent.submit(&quot;archive_click&quot;, &quot;game_feed&quot;)</span>
+<span class="nc" id="L156">                                    onThisDayGameAction(OnThisDayGameAction.PlayArchive) },</span>
+<span class="nc" id="L157">                                onCountDownFinished = { onThisDayGameAction(OnThisDayGameAction.CountdownFinished) }</span>
+                            )
+                        }
+<span class="nc" id="L160">                    }</span>
+                }
+<span class="nc" id="L162">            }</span>
+<span class="nc" id="L163">        }</span>
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (card.games.size &gt; 1) {</span>
+<span class="nc" id="L166">            PageIndicator(</span>
+<span class="nc" id="L167">                modifier = Modifier</span>
+<span class="nc" id="L168">                    .fillMaxWidth()</span>
+<span class="nc" id="L169">                    .padding(top = 12.dp),</span>
+<span class="nc" id="L170">                pagerState = pagerState</span>
+            )
+<span class="nc" id="L172">        }</span>
+<span class="nc" id="L173">    }</span>
+<span class="nc" id="L174">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

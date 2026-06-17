@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LeadImagesHandler.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.page.leadimages</a> &gt; <span class="el_source">LeadImagesHandler.kt</span></div><h1>LeadImagesHandler.kt</h1><pre class="source lang-java linenums">package org.wikipedia.page.leadimages
+
+import android.net.Uri
+import androidx.core.app.ActivityOptionsCompat
+import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.ImageEditType
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.DonorExperienceEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.bridge.JavaScriptActionHandler
+import org.wikipedia.commons.ImageTagsProvider
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.donate.DonateDialog
+import org.wikipedia.donate.donationreminder.DonationReminderActivity
+import org.wikipedia.donate.donationreminder.DonationReminderHelper
+import org.wikipedia.gallery.GalleryActivity
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.PageFragment
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.suggestededits.PageSummaryForEdit
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ObservableWebView
+
+<span class="nc" id="L40">class LeadImagesHandler(private val parentFragment: PageFragment,</span>
+                        webView: ObservableWebView,
+<span class="nc" id="L42">                        private val pageHeaderView: PageHeaderView,</span>
+<span class="nc" id="L43">                        private val callback: PageFragment.Callback?) {</span>
+    private var displayHeightDp = 0
+    private var callToActionSourceSummary: PageSummaryForEdit? = null
+    private var callToActionTargetSummary: PageSummaryForEdit? = null
+    private var callToActionIsTranslation = false
+<span class="nc" id="L48">    private var lastImageTitleForCallToAction = &quot;&quot;</span>
+    private var imageEditType: ImageEditType? = null
+    private var captionSourcePageTitle: PageTitle? = null
+    private var captionTargetPageTitle: PageTitle? = null
+    private var imagePage: MwQueryPage? = null
+<span class="nc bnc" id="L53" title="All 2 branches missed.">    private val isMainPage get() = page?.run { isMainPage } ?: false</span>
+<span class="nc" id="L54">    private val title get() = parentFragment.title</span>
+<span class="nc" id="L55">    private val page get() = parentFragment.page</span>
+<span class="nc" id="L56">    private val activity get() = parentFragment.requireActivity()</span>
+    private var handlerJob: Job? = null
+
+<span class="nc bnc" id="L59" title="All 14 branches missed.">    private val isLeadImageEnabled get() = Prefs.isImageDownloadEnabled &amp;&amp; !DimenUtil.isLandscape(activity) &amp;&amp; displayHeightDp &gt;= MIN_SCREEN_HEIGHT_DP &amp;&amp; !isMainPage &amp;&amp; !leadImageUrl.isNullOrEmpty()</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">    private val leadImageWidth get() = page?.run { pageProperties.leadImageWidth } ?: pageHeaderView.imageView.width</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">    private val leadImageHeight get() = page?.run { pageProperties.leadImageHeight } ?: pageHeaderView.imageView.height</span>
+
+    // Conditionally add the PageTitle's URL scheme and authority if these are missing from the
+    // PageProperties' URL.
+    private val leadImageUrl: String?
+        get() {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            return title?.let {</span>
+                // Conditionally add the PageTitle's URL scheme and authority if these are missing from the
+                // PageProperties' URL.
+<span class="nc bnc" id="L70" title="All 4 branches missed.">                val url = page?.run { pageProperties.leadImageUrl } ?: return@let null</span>
+<span class="nc" id="L71">                val fullUri = url.toUri()</span>
+<span class="nc" id="L72">                var scheme: String? = it.wikiSite.scheme()</span>
+<span class="nc" id="L73">                var authority: String? = it.wikiSite.authority()</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">                if (fullUri.scheme != null) {</span>
+<span class="nc" id="L75">                    scheme = fullUri.scheme</span>
+                }
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                if (fullUri.authority != null) {</span>
+<span class="nc" id="L78">                    authority = fullUri.authority</span>
+                }
+<span class="nc" id="L80">                return Uri.Builder()</span>
+<span class="nc" id="L81">                    .scheme(scheme)</span>
+<span class="nc" id="L82">                    .authority(authority)</span>
+<span class="nc" id="L83">                    .path(fullUri.path)</span>
+<span class="nc" id="L84">                    .toString()</span>
+            }
+        }
+
+<span class="nc" id="L88">    val topMargin get() = DimenUtil.roundedPxToDp(</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        ((if (isLeadImageEnabled) DimenUtil.leadImageHeightForDevice(activity) else parentFragment.toolbarMargin.toFloat()).toFloat()) +</span>
+<span class="nc" id="L90">                getDonationReminderCardViewHeight(true)</span>
+<span class="nc" id="L91">    )</span>
+    val callToActionEditLang get() =
+<span class="nc bnc" id="L93" title="All 14 branches missed.">        if (callToActionIsTranslation) callToActionTargetSummary?.pageTitle?.wikiSite?.languageCode else callToActionSourceSummary?.pageTitle?.wikiSite?.languageCode</span>
+
+<span class="nc" id="L95">    init {</span>
+<span class="nc" id="L96">        pageHeaderView.setWebView(webView)</span>
+<span class="nc" id="L97">        webView.addOnScrollChangeListener(pageHeaderView)</span>
+<span class="nc" id="L98">        initDisplayDimensions()</span>
+<span class="nc" id="L99">        initArticleHeaderView()</span>
+<span class="nc" id="L100">    }</span>
+
+    private fun initDisplayDimensions() {
+<span class="nc" id="L103">        displayHeightDp = (DimenUtil.displayHeightPx / DimenUtil.densityScalar).toInt()</span>
+<span class="nc" id="L104">    }</span>
+
+    private fun updateCallToAction() {
+<span class="nc" id="L107">        dispose()</span>
+<span class="nc" id="L108">        pageHeaderView.callToActionText = null</span>
+<span class="nc bnc" id="L109" title="All 12 branches missed.">        if (!WikipediaApp.instance.isOnline || !AccountUtil.isLoggedIn || leadImageUrl?.contains(Service.URL_FRAGMENT_FROM_COMMONS) != true || page == null) {</span>
+<span class="nc" id="L110">            return</span>
+        }
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        title?.let {</span>
+<span class="nc" id="L113">            val imageTitle = &quot;File:&quot; + page!!.pageProperties.leadImageName</span>
+<span class="nc" id="L114">            pageHeaderView.imageView.contentDescription = StringUtil.fromHtml(parentFragment.getString(R.string.image_content_description, it.displayText))</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            if (imageTitle == lastImageTitleForCallToAction) {</span>
+<span class="nc" id="L116">                finalizeCallToAction()</span>
+<span class="nc" id="L117">                return</span>
+            }
+<span class="nc" id="L119">            handlerJob = parentFragment.viewLifecycleOwner.lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L120">                L.e(throwable)</span>
+<span class="nc" id="L121">            }) {</span>
+<span class="nc" id="L122">                lastImageTitleForCallToAction = imageTitle</span>
+<span class="nc" id="L123">                val isProtected = ServiceFactory.get(Constants.commonsWikiSite)</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">                    .getProtectionWithUserInfo(imageTitle).query?.isEditProtected ?: false</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                if (!isProtected) {</span>
+<span class="nc" id="L126">                    val firstEntity = async {</span>
+<span class="nc" id="L127">                        ServiceFactory.get(Constants.commonsWikiSite).getEntitiesByTitleSuspend(imageTitle, Constants.COMMONS_DB_NAME).first</span>
+                    }
+<span class="nc" id="L129">                    val firstImageInfo = async {</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                        ServiceFactory.get(Constants.commonsWikiSite).getImageInfo(imageTitle, Constants.COMMONS_DB_NAME).query?.firstPage()</span>
+                    }
+<span class="nc bnc" id="L132" title="All 8 branches missed.">                    val labelMap = firstEntity.await()?.getLabels()?.values?.associate { v -&gt; v.language to v.value }.orEmpty()</span>
+<span class="nc bnc" id="L133" title="All 4 branches missed.">                    val depicts = ImageTagsProvider.getDepictsClaims(firstEntity.await()?.getStatements().orEmpty())</span>
+<span class="nc" id="L134">                    imagePage = firstImageInfo.await()</span>
+<span class="nc" id="L135">                    captionSourcePageTitle = PageTitle(imageTitle, WikiSite(Service.COMMONS_URL, it.wikiSite.languageCode))</span>
+<span class="nc" id="L136">                    captionSourcePageTitle!!.description = labelMap[it.wikiSite.languageCode]</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                    if (!labelMap.containsKey(it.wikiSite.languageCode)) {</span>
+<span class="nc" id="L138">                        imageEditType = ImageEditType.ADD_CAPTION</span>
+                    }
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                    if (WikipediaApp.instance.languageState.appLanguageCodes.size &gt;= Constants.MIN_LANGUAGES_TO_UNLOCK_TRANSLATION) {</span>
+<span class="nc bnc" id="L141" title="All 4 branches missed.">                        WikipediaApp.instance.languageState.appLanguageCodes.firstOrNull { lang -&gt; !labelMap.containsKey(lang) }?.run {</span>
+<span class="nc" id="L142">                            imageEditType = ImageEditType.ADD_CAPTION_TRANSLATION</span>
+<span class="nc" id="L143">                            captionTargetPageTitle = PageTitle(imageTitle, WikiSite(Service.COMMONS_URL, this))</span>
+<span class="nc" id="L144">                        }</span>
+                    }
+<span class="nc bnc" id="L146" title="All 4 branches missed.">                    if (imageEditType != ImageEditType.ADD_CAPTION &amp;&amp; depicts.isEmpty()) {</span>
+<span class="nc" id="L147">                        imageEditType = ImageEditType.ADD_TAGS</span>
+                    }
+                }
+<span class="nc" id="L150">                finalizeCallToAction()</span>
+<span class="nc" id="L151">            }</span>
+<span class="nc" id="L152">        }</span>
+<span class="nc" id="L153">    }</span>
+
+    private fun finalizeCallToAction() {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (imageEditType == null) {</span>
+<span class="nc" id="L157">            return</span>
+        }
+<span class="nc bnc" id="L159" title="All 3 branches missed.">        when (imageEditType) {</span>
+<span class="nc" id="L160">            ImageEditType.ADD_TAGS -&gt; pageHeaderView.callToActionText = parentFragment.getString(R.string.suggested_edits_article_cta_image_tags)</span>
+            ImageEditType.ADD_CAPTION_TRANSLATION -&gt; {
+<span class="nc" id="L162">                callToActionIsTranslation = true</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                captionSourcePageTitle?.run {</span>
+<span class="nc" id="L164">                    callToActionSourceSummary = PageSummaryForEdit(prefixedText, wikiSite.languageCode, this, displayText, description, leadImageUrl)</span>
+<span class="nc" id="L165">                }</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                captionTargetPageTitle?.run {</span>
+<span class="nc" id="L167">                    callToActionTargetSummary = PageSummaryForEdit(prefixedText, wikiSite.languageCode, this, displayText, null, leadImageUrl)</span>
+<span class="nc" id="L168">                    pageHeaderView.callToActionText = parentFragment.getString(R.string.suggested_edits_article_cta_image_caption_in_language, WikipediaApp.instance.languageState.getAppLanguageLocalizedName(wikiSite.languageCode))</span>
+<span class="nc" id="L169">                }</span>
+            }
+            else -&gt; {
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                captionSourcePageTitle?.run {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                    title?.let {</span>
+<span class="nc bnc" id="L174" title="All 12 branches missed.">                        callToActionSourceSummary = PageSummaryForEdit(prefixedText, it.wikiSite.languageCode, this, displayText, StringUtil.fromHtml(imagePage?.imageInfo()?.metadata?.imageDescription().orEmpty()).toString(), imagePage?.imageInfo()?.thumbUrl)</span>
+<span class="nc" id="L175">                        pageHeaderView.callToActionText = parentFragment.getString(R.string.suggested_edits_article_cta_image_caption)</span>
+<span class="nc" id="L176">                    }</span>
+                }
+            }
+        }
+<span class="nc" id="L180">    }</span>
+
+    private fun initArticleHeaderView() {
+<span class="nc" id="L183">        pageHeaderView.callback = object : PageHeaderView.Callback {</span>
+            override fun onImageClicked() {
+<span class="nc" id="L185">                openImageInGallery(null)</span>
+<span class="nc" id="L186">            }</span>
+
+            override fun onCallToActionClicked() {
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                if (imageEditType == ImageEditType.ADD_TAGS) {</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">                    imagePage?.let {</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                        callback?.onPageRequestAddImageTags(it, InvokeSource.LEAD_IMAGE)</span>
+                    }
+<span class="nc" id="L193">                    return</span>
+                }
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                if (imageEditType == ImageEditType.ADD_CAPTION ||</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                        imageEditType == ImageEditType.ADD_CAPTION_TRANSLATION) {</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                    callToActionSourceSummary?.let { source -&gt;</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                        if (callToActionIsTranslation) {</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                            callToActionTargetSummary?.let { target -&gt;</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                                callback?.onPageRequestEditDescription(null, target.pageTitle, source, target, DescriptionEditActivity.Action.TRANSLATE_CAPTION, InvokeSource.LEAD_IMAGE)</span>
+                            }
+                        } else {
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                            callback?.onPageRequestEditDescription(null, source.pageTitle, source, null, DescriptionEditActivity.Action.ADD_CAPTION, InvokeSource.LEAD_IMAGE)</span>
+<span class="nc" id="L204">                        }</span>
+                    }
+                }
+<span class="nc" id="L207">            }</span>
+
+            override fun donationReminderCardPositiveClicked() {
+<span class="nc" id="L210">                hideDonationReminderCard()</span>
+<span class="nc" id="L211">                DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L212">                    activeInterface = &quot;reminder_milestone&quot;,</span>
+<span class="nc" id="L213">                    action = &quot;donate_start_click&quot;,</span>
+<span class="nc" id="L214">                    campaignId = DonationReminderHelper.getCampaignId()</span>
+                )
+<span class="nc" id="L216">                ExclusiveBottomSheetPresenter.show(parentFragment.parentFragmentManager, DonateDialog.newInstance(fromDonationReminder = true))</span>
+<span class="nc" id="L217">            }</span>
+
+            override fun donationReminderCardNegativeClicked() {
+<span class="nc" id="L220">                hideDonationReminderCard()</span>
+<span class="nc" id="L221">                DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L222">                    activeInterface = &quot;reminder_milestone&quot;,</span>
+<span class="nc" id="L223">                    action = &quot;notnow_click&quot;</span>
+                )
+<span class="nc" id="L225">                FeedbackUtil.makeSnackbar(activity, activity.getString(R.string.donation_reminders_prompt_dismiss_snackbar))</span>
+<span class="nc" id="L226">                    .setAction(R.string.donation_reminders_snackbar_modify_button_label) {</span>
+<span class="nc" id="L227">                        DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L228">                            activeInterface = &quot;reminder_milestone&quot;,</span>
+<span class="nc" id="L229">                            action = &quot;setting_click&quot;</span>
+                        )
+<span class="nc" id="L231">                        activity.startActivity(DonationReminderActivity.newIntent(activity, isFromSettings = true))</span>
+<span class="nc" id="L232">                    }.show()</span>
+<span class="nc" id="L233">            }</span>
+        }
+<span class="nc" id="L235">    }</span>
+
+    private fun hideDonationReminderCard() {
+<span class="nc" id="L238">        pageHeaderView.hideDonationReminderCard()</span>
+<span class="nc" id="L239">        loadLeadImage()</span>
+<span class="nc" id="L240">        parentFragment.refreshPage()</span>
+<span class="nc" id="L241">    }</span>
+
+    fun hide() {
+<span class="nc" id="L244">        pageHeaderView.hide()</span>
+<span class="nc" id="L245">    }</span>
+
+    fun refreshCallToActionVisibility() {
+<span class="nc" id="L248">        pageHeaderView.refreshCallToActionVisibility()</span>
+<span class="nc" id="L249">    }</span>
+
+<span class="nc" id="L251">    fun getDonationReminderCardViewHeight(adjustBottomMargin: Boolean = false): Int {</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">        if (pageHeaderView.donationReminderCardViewHeight == 0) {</span>
+<span class="nc" id="L253">            return 0</span>
+        }
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        return pageHeaderView.donationReminderCardViewHeight - if (adjustBottomMargin) {</span>
+<span class="nc bnc" id="L256" title="All 4 branches missed.">            if (DimenUtil.isLandscape(activity) || !isLeadImageEnabled) {</span>
+<span class="nc" id="L257">                DimenUtil.roundedDpToPx(64f)</span>
+            } else {
+<span class="nc" id="L259">                DimenUtil.roundedDpToPx(24f)</span>
+            }
+        } else {
+<span class="nc" id="L262">            0</span>
+        }
+    }
+
+    fun loadLeadImage() {
+<span class="nc" id="L267">        val url = leadImageUrl</span>
+<span class="nc" id="L268">        initDisplayDimensions()</span>
+<span class="nc bnc" id="L269" title="All 12 branches missed.">        if (page != null &amp;&amp; !isMainPage &amp;&amp; !url.isNullOrEmpty() &amp;&amp; isLeadImageEnabled) {</span>
+<span class="nc" id="L270">            pageHeaderView.show()</span>
+<span class="nc" id="L271">            pageHeaderView.loadImage(url)</span>
+<span class="nc" id="L272">            updateCallToAction()</span>
+        } else {
+<span class="nc" id="L274">            pageHeaderView.loadImage(null)</span>
+        }
+<span class="nc" id="L276">    }</span>
+
+    fun openImageInGallery(language: String?) {
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        if (isLeadImageEnabled) {</span>
+<span class="nc bnc" id="L280" title="All 6 branches missed.">            page?.pageProperties?.leadImageName?.let { imageName -&gt;</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">                title?.let {</span>
+<span class="nc" id="L282">                    val filename = &quot;File:$imageName&quot;</span>
+<span class="nc bnc" id="L283" title="All 4 branches missed.">                    val wiki = language?.run { WikiSite.forLanguageCode(this) } ?: it.wikiSite</span>
+<span class="nc" id="L284">                    val hitInfo = JavaScriptActionHandler.ImageHitInfo(pageHeaderView.imageView.left.toFloat(),</span>
+<span class="nc" id="L285">                        pageHeaderView.imageView.top.toFloat(), leadImageWidth.toFloat(), leadImageHeight.toFloat(),</span>
+<span class="nc" id="L286">                        leadImageUrl!!)</span>
+<span class="nc" id="L287">                    GalleryActivity.setTransitionInfo(hitInfo)</span>
+<span class="nc" id="L288">                    val options = ActivityOptionsCompat.makeSceneTransitionAnimation(activity, pageHeaderView.imageView, activity.getString(R.string.transition_page_gallery))</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">                    callback?.onPageRequestGallery(it, filename, wiki, parentFragment.revision, true, options)</span>
+<span class="nc" id="L290">                }</span>
+            }
+        }
+<span class="nc" id="L293">    }</span>
+
+    fun dispose() {
+<span class="nc bnc" id="L296" title="All 2 branches missed.">        handlerJob?.cancel()</span>
+<span class="nc" id="L297">        callToActionSourceSummary = null</span>
+<span class="nc" id="L298">        callToActionTargetSummary = null</span>
+<span class="nc" id="L299">        callToActionIsTranslation = false</span>
+<span class="nc" id="L300">    }</span>
+
+    companion object {
+        private const val MIN_SCREEN_HEIGHT_DP = 480
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

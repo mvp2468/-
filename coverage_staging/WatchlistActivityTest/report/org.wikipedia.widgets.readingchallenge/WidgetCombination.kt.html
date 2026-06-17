@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetCombination.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">WidgetCombination.kt</span></div><h1>WidgetCombination.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.ui.graphics.Color
+import org.wikipedia.R
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit.DAYS
+
+<span class="nc" id="L11">data class WidgetCombination(</span>
+<span class="nc" id="L12">    val iconResId: Int,</span>
+<span class="nc" id="L13">    val backgroundColor: Color,</span>
+<span class="nc" id="L14">    val contentColor: Color,</span>
+<span class="nc" id="L15">    val progressColor: Color? = null,</span>
+<span class="nc" id="L16">    val titleResId: Int? = null,</span>
+<span class="nc" id="L17">    val subtitleResId: Int? = null</span>
+<span class="nc" id="L18">)</span>
+
+object WidgetCombinations {
+
+    // TODO: update iconResId when svg's are provided
+<span class="nc" id="L23">    val streakNeedsReading = listOf(</span>
+<span class="nc" id="L24">        needsReadingCombination(textResId = R.string.reading_challenge_widget_reminder_dont_let_today_drift, iconResId = R.drawable.wp25_babyglobe_dreaming),</span>
+<span class="nc" id="L25">        needsReadingCombination(textResId = R.string.reading_challenge_widget_reminder_before_day_snoozes, iconResId = R.drawable.wp25_babyglobe_dreaming),</span>
+<span class="nc" id="L26">        needsReadingCombination(R.string.reading_challenge_widget_reminder_small_bit_counts, iconResId = R.drawable.wp25_babyglobe_dreaming),</span>
+<span class="nc" id="L27">        needsReadingCombination(R.string.reading_challenge_widget_reminder_one_article_away, iconResId = R.drawable.wp25_babyglobe_dreaming),</span>
+<span class="nc" id="L28">        needsReadingCombination(R.string.reading_challenge_widget_reminder_jump_in_anytime, iconResId = R.drawable.wp25_babyglobe_reading),</span>
+<span class="nc" id="L29">        needsReadingCombination(R.string.reading_challenge_widget_reminder_quiet_reading_moment, iconResId = R.drawable.wp25_babyglobe_reading),</span>
+<span class="nc" id="L30">        needsReadingCombination(R.string.reading_challenge_widget_reminder_keep_curiosity_going, iconResId = R.drawable.wp25_babyglobe_reading),</span>
+<span class="nc" id="L31">        needsReadingCombination(R.string.reading_challenge_widget_reminder_one_article_away, iconResId = R.drawable.wp25_babyglobe_reading)</span>
+    )
+
+<span class="nc" id="L34">    val enrolledNotStarted = listOf(</span>
+<span class="nc" id="L35">        needsEnrolledNotStartedCombination(</span>
+<span class="nc" id="L36">            titleResId = R.string.reading_challenge_widget_enrolled_not_started_title,</span>
+<span class="nc" id="L37">            subtitleResId = R.string.reading_challenge_widget_enrolled_not_started_subtitle</span>
+        ),
+<span class="nc" id="L39">        needsEnrolledNotStartedCombination(</span>
+<span class="nc" id="L40">            titleResId = R.string.reading_challenge_widget_start_reading_challenge_title,</span>
+<span class="nc" id="L41">            subtitleResId = R.string.reading_challenge_widget_start_reading_challenge_subtitle</span>
+        ),
+<span class="nc" id="L43">        needsEnrolledNotStartedCombination(</span>
+<span class="nc" id="L44">            titleResId = R.string.reading_challenge_widget_start_spin_up_new_streak_title,</span>
+<span class="nc" id="L45">            subtitleResId = R.string.reading_challenge_widget_start_spin_up_new_streak_subtitle,</span>
+<span class="nc" id="L46">            iconResId = R.drawable.wp25_babyglobe_synth_1</span>
+        ),
+<span class="nc" id="L48">        needsEnrolledNotStartedCombination(</span>
+<span class="nc" id="L49">            titleResId = R.string.reading_challenge_widget_start_fresh_start_title,</span>
+<span class="nc" id="L50">            subtitleResId = R.string.reading_challenge_widget_start_fresh_start_subtitle,</span>
+<span class="nc" id="L51">            iconResId = R.drawable.wp25_babyglobe_synth_2</span>
+        )
+    )
+
+    // Since we are showing progress bar the title from the doc is not required
+<span class="nc" id="L56">    val streakOngoing = listOf(</span>
+<span class="nc" id="L57">        WidgetCombination(</span>
+<span class="nc" id="L58">            iconResId = R.drawable.wp25_babyglobe_phone,</span>
+<span class="nc" id="L59">            backgroundColor = WidgetColors.phoneReadingBackground,</span>
+<span class="nc" id="L60">            contentColor = WidgetColors.phoneReadingContent,</span>
+<span class="nc" id="L61">            progressColor = WidgetColors.phoneReadingProgressColor,</span>
+        ),
+<span class="nc" id="L63">        WidgetCombination(</span>
+<span class="nc" id="L64">            iconResId = R.drawable.wp25_babyglobe_dancing_1,</span>
+<span class="nc" id="L65">            backgroundColor = WidgetColors.musicReadingBackground,</span>
+<span class="nc" id="L66">            contentColor = WidgetColors.musicContent,</span>
+<span class="nc" id="L67">            progressColor = WidgetColors.musicReadingProgressColor</span>
+        ),
+<span class="nc" id="L69">        WidgetCombination(</span>
+<span class="nc" id="L70">            iconResId = R.drawable.wp25_babyglobe_dancing_2,</span>
+<span class="nc" id="L71">            backgroundColor = WidgetColors.musicReadingBackground,</span>
+<span class="nc" id="L72">            contentColor = WidgetColors.musicContent,</span>
+<span class="nc" id="L73">            progressColor = WidgetColors.musicReadingProgressColor</span>
+        ),
+<span class="nc" id="L75">        WidgetCombination(</span>
+<span class="nc" id="L76">            iconResId = R.drawable.wp25_babyglobe_outerspace,</span>
+<span class="nc" id="L77">            backgroundColor = WidgetColors.spaceReadingBackground,</span>
+<span class="nc" id="L78">            contentColor = WidgetColors.spaceContent,</span>
+<span class="nc" id="L79">            progressColor = WidgetColors.spaceReadingProgressColor</span>
+        )
+    )
+
+<span class="nc" id="L83">    fun List&lt;WidgetCombination&gt;.forToday(</span>
+        enrollmentDate: LocalDate,
+<span class="nc" id="L85">        now: LocalDateTime = LocalDateTime.now()</span>
+    ): WidgetCombination {
+<span class="nc" id="L87">        val daysSinceEnrollment = DAYS.between(enrollmentDate, now.toLocalDate()).coerceAtLeast(0)</span>
+<span class="nc" id="L88">        return this[(daysSinceEnrollment % this.size).toInt()]</span>
+    }
+
+    private fun needsReadingCombination(@StringRes textResId: Int, @DrawableRes iconResId: Int) =
+<span class="nc" id="L92">        WidgetCombination(</span>
+<span class="nc" id="L93">            iconResId = iconResId,</span>
+<span class="nc" id="L94">            backgroundColor = WidgetColors.streakOngoingNeedsReadingBackground,</span>
+<span class="nc" id="L95">            contentColor = WidgetColors.streakOngoingNeedsReadingContent,</span>
+<span class="nc" id="L96">            titleResId = textResId</span>
+<span class="nc" id="L97">        )</span>
+
+<span class="nc" id="L99">    private fun needsEnrolledNotStartedCombination(</span>
+        @StringRes titleResId: Int,
+        @StringRes subtitleResId: Int,
+<span class="nc" id="L102">        @DrawableRes iconResId: Int = R.drawable.wp25_babyglobe_reading,</span>
+    ) =
+<span class="nc" id="L104">        WidgetCombination(</span>
+<span class="nc" id="L105">            iconResId = iconResId,</span>
+<span class="nc" id="L106">            backgroundColor = WidgetColors.challengeNotOptInBackground,</span>
+<span class="nc" id="L107">            contentColor = WidgetColors.primary,</span>
+<span class="nc" id="L108">            titleResId = titleResId,</span>
+<span class="nc" id="L109">            subtitleResId = subtitleResId</span>
+<span class="nc" id="L110">        )</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

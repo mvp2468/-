@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HCaptchaHelper.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.captcha</a> &gt; <span class="el_source">HCaptchaHelper.kt</span></div><h1>HCaptchaHelper.kt</h1><pre class="source lang-java linenums">package org.wikipedia.captcha
+
+import androidx.core.net.toUri
+import androidx.fragment.app.FragmentActivity
+import com.hcaptcha.sdk.HCaptcha
+import com.hcaptcha.sdk.HCaptchaConfig
+import com.hcaptcha.sdk.HCaptchaDialogFragment
+import com.hcaptcha.sdk.HCaptchaTheme
+import org.wikipedia.WikipediaApp
+import org.wikipedia.settings.RemoteConfig
+import org.wikipedia.util.log.L
+import kotlin.String
+
+<span class="nc" id="L14">class HCaptchaHelper(</span>
+<span class="nc" id="L15">    private val activity: FragmentActivity,</span>
+<span class="nc" id="L16">    private val callback: Callback</span>
+) {
+    interface Callback {
+        fun onShow()
+        fun onSuccess(token: String)
+        fun onError(e: Exception, code: Int)
+    }
+
+    private var hCaptcha: HCaptcha? = null
+
+<span class="nc" id="L26">    private val configDefault get() = RemoteConfig.RemoteConfigHCaptcha(</span>
+<span class="nc" id="L27">        baseURL = &quot;https://meta.wikimedia.org&quot;,</span>
+<span class="nc" id="L28">        jsSrc = &quot;https://assets-hcaptcha.wikimedia.org/1/api.js&quot;,</span>
+<span class="nc" id="L29">        endpoint = &quot;https://hcaptcha.wikimedia.org&quot;,</span>
+<span class="nc" id="L30">        assetHost = &quot;https://assets-hcaptcha.wikimedia.org&quot;,</span>
+<span class="nc" id="L31">        imgHost = &quot;https://imgs-hcaptcha.wikimedia.org&quot;,</span>
+<span class="nc" id="L32">        reportApi = &quot;https://report-hcaptcha.wikimedia.org&quot;,</span>
+<span class="nc" id="L33">        sentry = false,</span>
+<span class="nc" id="L34">        siteKey = &quot;e11698d6-51ca-4980-875c-72309c6678cc&quot;</span>
+<span class="nc" id="L35">    )</span>
+
+<span class="nc" id="L37">    private val dialogCancelableRunnable = MakeHCaptchaDialogCancelable()</span>
+
+    fun show() {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        if (hCaptcha == null) {</span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">            val config = RemoteConfig.config.androidv1?.hCaptcha ?: configDefault</span>
+<span class="nc" id="L42">            hCaptcha = HCaptcha.getClient(activity)</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">            hCaptcha?.setup(</span>
+<span class="nc" id="L44">                HCaptchaConfig.builder()</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">                    .theme(if (WikipediaApp.instance.currentTheme.isDark) HCaptchaTheme.DARK else HCaptchaTheme.LIGHT)</span>
+<span class="nc" id="L46">                    .siteKey(config.siteKey)</span>
+<span class="nc" id="L47">                    .host(config.baseURL.toUri().host)</span>
+<span class="nc" id="L48">                    .jsSrc(config.jsSrc)</span>
+<span class="nc" id="L49">                    .endpoint(config.endpoint)</span>
+<span class="nc" id="L50">                    .assethost(config.assetHost)</span>
+<span class="nc" id="L51">                    .imghost(config.imgHost)</span>
+<span class="nc" id="L52">                    .reportapi(config.reportApi)</span>
+<span class="nc" id="L53">                    .sentry(config.sentry)</span>
+<span class="nc" id="L54">                    .loading(false)</span>
+<span class="nc" id="L55">                    .build()</span>
+            )
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            hCaptcha?.addOnSuccessListener { response -&gt;</span>
+<span class="nc" id="L59">                callback.onSuccess(response.tokenResult)</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            }?.addOnFailureListener { e -&gt;</span>
+<span class="nc" id="L61">                L.e(&quot;hCaptcha failed: ${e.message} (${e.statusCode})&quot;)</span>
+<span class="nc" id="L62">                callback.onError(e, e.statusCode)</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            }?.addOnOpenListener {</span>
+<span class="nc" id="L64">                L.d(&quot;hCaptcha opened&quot;)</span>
+<span class="nc" id="L65">                callback.onShow()</span>
+<span class="nc" id="L66">            }</span>
+        }
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        hCaptcha?.verifyWithHCaptcha()</span>
+
+        // This works around an issue in the hCaptcha library where the &quot;loading&quot; dialog, even when
+        // it's not visible, still allows itself to be &quot;canceled&quot; by touching anywhere outside its
+        // bounds. We work around this by explicitly finding its DialogFragment and setting it to
+        // be non-cancelable, and then setting it back to cancelable after a short delay, so that
+        // the user doesn't accidentally tap the screen while hCaptcha is loading.
+<span class="nc" id="L75">        activity.window.decorView.post(MakeHCaptchaDialogCancelable(false))</span>
+<span class="nc" id="L76">        activity.window.decorView.postDelayed(dialogCancelableRunnable, 10000)</span>
+<span class="nc" id="L77">    }</span>
+
+    fun cleanup() {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (!activity.isDestroyed) {</span>
+<span class="nc" id="L81">            activity.window.decorView.removeCallbacks(dialogCancelableRunnable)</span>
+        }
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        hCaptcha?.removeAllListeners()</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        hCaptcha?.reset()</span>
+<span class="nc" id="L85">        hCaptcha = null</span>
+<span class="nc" id="L86">    }</span>
+
+<span class="nc" id="L88">    inner class MakeHCaptchaDialogCancelable(val cancelable: Boolean = true) : Runnable {</span>
+        override fun run() {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if (!activity.isDestroyed) {</span>
+<span class="nc" id="L91">                activity.supportFragmentManager.fragments.filterIsInstance&lt;HCaptchaDialogFragment&gt;().forEach {</span>
+<span class="nc" id="L92">                    it.isCancelable = cancelable</span>
+<span class="nc" id="L93">                }</span>
+            }
+<span class="nc" id="L95">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

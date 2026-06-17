@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActivityTabEvent.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">ActivityTabEvent.kt</span></div><h1>ActivityTabEvent.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.wikipedia.WikipediaApp
+import org.wikipedia.json.JsonUtil
+
+object ActivityTabEvent {
+<span class="nc" id="L9">    fun submit(</span>
+        activeInterface: String,
+        action: String,
+<span class="nc" id="L12">        group: String? = null,</span>
+<span class="nc" id="L13">        editCount: Int? = null,</span>
+<span class="nc" id="L14">        state: String? = null,</span>
+<span class="nc" id="L15">        timeSpent: String? = null,</span>
+<span class="nc" id="L16">        readingInsight: String? = null,</span>
+<span class="nc" id="L17">        editingInsight: String? = null,</span>
+<span class="nc" id="L18">        impact: String? = null,</span>
+<span class="nc" id="L19">        games: String? = null,</span>
+<span class="nc" id="L20">        donations: String? = null,</span>
+<span class="nc" id="L21">        timeline: String? = null,</span>
+<span class="nc" id="L22">        all: String? = null,</span>
+<span class="nc" id="L23">        wikiId: String = WikipediaApp.instance.appOrSystemLanguageCode</span>
+    ) {
+<span class="nc" id="L25">        EventPlatformClient.submit(</span>
+<span class="nc" id="L26">            AppInteractionEvent(</span>
+<span class="nc" id="L27">                action = action,</span>
+<span class="nc" id="L28">                active_interface = activeInterface,</span>
+<span class="nc" id="L29">                action_data = JsonUtil.encodeToString(ActionData(</span>
+<span class="nc" id="L30">                    group = group,</span>
+<span class="nc" id="L31">                    editCount = editCount,</span>
+<span class="nc" id="L32">                    state = state,</span>
+<span class="nc" id="L33">                    timeSpent = timeSpent,</span>
+<span class="nc" id="L34">                    readingInsight = readingInsight,</span>
+<span class="nc" id="L35">                    editingInsight = editingInsight,</span>
+<span class="nc" id="L36">                    impact = impact,</span>
+<span class="nc" id="L37">                    games = games,</span>
+<span class="nc" id="L38">                    donations = donations,</span>
+<span class="nc" id="L39">                    timeline = timeline,</span>
+<span class="nc" id="L40">                    all = all</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                )).orEmpty(),</span>
+<span class="nc" id="L42">                WikipediaApp.instance.languageState.appLanguageCode,</span>
+<span class="nc" id="L43">                wikiId,</span>
+<span class="nc" id="L44">                streamName = &quot;app_activity_tab&quot;</span>
+            )
+        )
+<span class="nc" id="L47">    }</span>
+
+<span class="nc" id="L49">    @Serializable</span>
+<span class="nc" id="L50">    class ActionData(</span>
+<span class="nc" id="L51">        val group: String? = null,</span>
+<span class="nc" id="L52">        val state: String? = null,</span>
+<span class="nc" id="L53">        val impact: String? = null,</span>
+<span class="nc" id="L54">        val games: String? = null,</span>
+<span class="nc" id="L55">        val donations: String? = null,</span>
+<span class="nc" id="L56">        val timeline: String? = null,</span>
+<span class="nc" id="L57">        val all: String? = null,</span>
+<span class="nc" id="L58">        @SerialName(&quot;time_spent&quot;) val timeSpent: String? = null,</span>
+<span class="nc" id="L59">        @SerialName(&quot;reading_insight&quot;) val readingInsight: String? = null,</span>
+<span class="nc" id="L60">        @SerialName(&quot;editing_insight&quot;) val editingInsight: String? = null,</span>
+<span class="nc" id="L61">        @SerialName(&quot;edit_count&quot;) val editCount: Int? = null,</span>
+<span class="nc" id="L62">        @SerialName(&quot;feedback_select&quot;) val feedbackSelect: Int? = null,</span>
+<span class="nc" id="L63">        @SerialName(&quot;feedback_text&quot;) val feedbackText: String? = null</span>
+<span class="nc" id="L64">    )</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

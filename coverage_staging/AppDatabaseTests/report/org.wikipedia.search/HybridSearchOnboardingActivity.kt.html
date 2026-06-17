@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HybridSearchOnboardingActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">HybridSearchOnboardingActivity.kt</span></div><h1>HybridSearchOnboardingActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Devices.PIXEL_9
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.compose.components.OnboardingItem
+import org.wikipedia.compose.components.OnboardingListItem
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.extensions.getString
+import org.wikipedia.extensions.instrument
+import org.wikipedia.settings.Prefs
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.UriUtil
+
+<span class="nc" id="L63">private val onboardingItems = listOf(</span>
+<span class="nc" id="L64">    OnboardingItem(</span>
+<span class="nc" id="L65">        icon = R.drawable.ic_chat_bubble_outline,</span>
+<span class="nc" id="L66">        title = R.string.hybrid_search_onboarding_search_title,</span>
+<span class="nc" id="L67">        subTitle = R.string.hybrid_search_onboarding_search_description</span>
+    ),
+<span class="nc" id="L69">    OnboardingItem(</span>
+<span class="nc" id="L70">        icon = R.drawable.ic_timer_black_24dp,</span>
+<span class="nc" id="L71">        title = R.string.hybrid_search_onboarding_opt_in_choice_title,</span>
+<span class="nc" id="L72">        subTitle = R.string.hybrid_search_onboarding_opt_in_choice_description</span>
+    )
+)
+
+<span class="nc" id="L76">private val defaultSuggestedQueries = listOf(</span>
+<span class="nc" id="L77">    R.string.hybrid_search_onboarding_search_example_query_pluto_as_planet,</span>
+<span class="nc" id="L78">    R.string.hybrid_search_onboarding_search_example_query_first_olympics,</span>
+<span class="nc" id="L79">    R.string.hybrid_search_onboarding_search_example_query_rna_vs_dna,</span>
+<span class="nc" id="L80">    R.string.hybrid_search_onboarding_search_example_query_pineapple_pizza,</span>
+<span class="nc" id="L81">    R.string.hybrid_search_onboarding_search_example_query_biggest_cities_europe</span>
+)
+<span class="nc" id="L83">private val suggestedQueriesPerLanguage = mapOf(</span>
+<span class="nc" id="L84">    &quot;el&quot; to listOf(</span>
+<span class="nc" id="L85">        R.string.hybrid_search_onboarding_search_example_query1_el,</span>
+<span class="nc" id="L86">        R.string.hybrid_search_onboarding_search_example_query2_el,</span>
+<span class="nc" id="L87">        R.string.hybrid_search_onboarding_search_example_query3_el,</span>
+<span class="nc" id="L88">        R.string.hybrid_search_onboarding_search_example_query4_el,</span>
+<span class="nc" id="L89">        R.string.hybrid_search_onboarding_search_example_query5_el</span>
+    ),
+<span class="nc" id="L91">    &quot;fr&quot; to listOf(</span>
+<span class="nc" id="L92">        R.string.hybrid_search_onboarding_search_example_query1_fr,</span>
+<span class="nc" id="L93">        R.string.hybrid_search_onboarding_search_example_query2_fr,</span>
+<span class="nc" id="L94">        R.string.hybrid_search_onboarding_search_example_query3_fr,</span>
+<span class="nc" id="L95">        R.string.hybrid_search_onboarding_search_example_query4_fr,</span>
+<span class="nc" id="L96">        R.string.hybrid_search_onboarding_search_example_query5_fr</span>
+    ),
+<span class="nc" id="L98">    &quot;pt&quot; to listOf(</span>
+<span class="nc" id="L99">        R.string.hybrid_search_onboarding_search_example_query1_pt,</span>
+<span class="nc" id="L100">        R.string.hybrid_search_onboarding_search_example_query2_pt,</span>
+<span class="nc" id="L101">        R.string.hybrid_search_onboarding_search_example_query3_pt,</span>
+<span class="nc" id="L102">        R.string.hybrid_search_onboarding_search_example_query4_pt,</span>
+<span class="nc" id="L103">        R.string.hybrid_search_onboarding_search_example_query5_pt</span>
+    )
+)
+
+<span class="nc" id="L107">class HybridSearchOnboardingActivity : BaseActivity() {</span>
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L109">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L110">        DeviceUtil.setEdgeToEdge(this)</span>
+<span class="nc" id="L111">        Prefs.isHybridSearchEnabled = true</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        val source = intent.getSerializableExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE) as? Constants.InvokeSource</span>
+
+<span class="nc" id="L114">        _instrument = TestKitchenAdapter.client.getInstrument(&quot;apps-search&quot;)</span>
+<span class="nc" id="L115">            .setDefaultActionSource(&quot;hybrid_search_onboarding&quot;)</span>
+<span class="nc" id="L116">            .startFunnel(&quot;hybrid_search_onboarding&quot;)</span>
+<span class="nc" id="L117">            .setExperiment(TestKitchenAdapter.getExperiment(HybridSearchAbCTest()))</span>
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        instrument?.submitInteraction(&quot;impression&quot;)</span>
+
+<span class="nc" id="L121">        setContent {</span>
+<span class="nc" id="L122">            BaseTheme {</span>
+<span class="nc" id="L123">                HybridSearchOnboardingScreen(</span>
+<span class="nc" id="L124">                    langCode = WikipediaApp.instance.appOrSystemLanguageCode,</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                    searchExamples = suggestedQueriesPerLanguage[WikipediaApp.instance.appOrSystemLanguageCode] ?: defaultSuggestedQueries,</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                    onGetStarted = {</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                        instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;start_button&quot;)</span>
+
+<span class="nc" id="L129">                        val intent = SearchActivity.newIntent(</span>
+<span class="nc" id="L130">                            context = this,</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">                            source = source ?: Constants.InvokeSource.NAV_MENU,</span>
+<span class="nc" id="L132">                            query = null</span>
+                        )
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                        if (!Prefs.isHybridSearchEnabled) {</span>
+<span class="nc" id="L135">                            intent.putExtra(</span>
+<span class="nc" id="L136">                                SearchActivity.EXTRA_SHOW_SNACKBAR_MESSAGE,</span>
+<span class="nc" id="L137">                                R.string.hybrid_search_onboarding_opt_out_toast_message</span>
+                            )
+                        }
+<span class="nc" id="L140">                        startActivity(intent)</span>
+<span class="nc" id="L141">                        finish()</span>
+<span class="nc" id="L142">                    },</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                    onSearchQueryItemClick = { exampleQuery -&gt;</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                        instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;onboarding_query&quot;,</span>
+<span class="nc" id="L145">                            actionContext = mapOf(&quot;query&quot; to exampleQuery))</span>
+
+<span class="nc" id="L147">                        startActivity(SearchActivity.newIntent(</span>
+<span class="nc" id="L148">                            context = this,</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                            source = source ?: Constants.InvokeSource.NAV_MENU,</span>
+<span class="nc" id="L150">                            query = exampleQuery,</span>
+<span class="nc" id="L151">                            initiateHybridSearch = true</span>
+                        ))
+<span class="nc" id="L153">                        finish()</span>
+<span class="nc" id="L154">                    },</span>
+<span class="nc" id="L155">                    onLearnMoreClick = {</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                        instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;learn_more&quot;)</span>
+
+<span class="nc" id="L158">                        UriUtil.visitInExternalBrowser(this, getString(R.string.hybrid_search_info_link).toUri())</span>
+<span class="nc" id="L159">                    }</span>
+                )
+<span class="nc" id="L161">            }</span>
+<span class="nc" id="L162">        }</span>
+<span class="nc" id="L163">    }</span>
+
+    companion object {
+        fun newIntent(context: Context, source: Constants.InvokeSource): Intent {
+<span class="nc" id="L167">            return Intent(context, HybridSearchOnboardingActivity::class.java)</span>
+<span class="nc" id="L168">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, source)</span>
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HybridSearchOnboardingScreen(
+<span class="nc" id="L176">    modifier: Modifier = Modifier,</span>
+    langCode: String,
+    searchExamples: List&lt;Int&gt;,
+    onGetStarted: () -&gt; Unit,
+    onSearchQueryItemClick: (String) -&gt; Unit,
+    onLearnMoreClick: () -&gt; Unit
+<span class="nc bnc" id="L182" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L183">    Scaffold(</span>
+<span class="nc" id="L184">        modifier = modifier</span>
+<span class="nc" id="L185">            .safeDrawingPadding(),</span>
+<span class="nc" id="L186">        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L187">        topBar = {</span>
+<span class="nc" id="L188">            TopAppBar(</span>
+<span class="nc" id="L189">                title = {</span>
+<span class="nc" id="L190">                    Column(</span>
+<span class="nc" id="L191">                        modifier = Modifier</span>
+<span class="nc" id="L192">                            .padding(top = 58.dp, bottom = 32.dp)</span>
+<span class="nc" id="L193">                            .padding(horizontal = 12.dp),</span>
+                    ) {
+<span class="nc" id="L195">                        Box(</span>
+<span class="nc" id="L196">                            modifier = Modifier</span>
+<span class="nc" id="L197">                                .background(</span>
+<span class="nc" id="L198">                                    color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L199">                                    shape = RoundedCornerShape(size = 16.dp)</span>
+                                )
+<span class="nc" id="L201">                                .padding(horizontal = 10.dp, vertical = 1.dp)</span>
+                        ) {
+<span class="nc" id="L203">                            Text(</span>
+<span class="nc" id="L204">                                text = stringResource(R.string.hybrid_search_beta_tag).uppercase(),</span>
+<span class="nc" id="L205">                                style = MaterialTheme.typography.labelSmall,</span>
+<span class="nc" id="L206">                                fontWeight = FontWeight.Normal,</span>
+<span class="nc" id="L207">                                color = Color.White</span>
+                            )
+<span class="nc" id="L209">                        }</span>
+<span class="nc" id="L210">                        Spacer(modifier = Modifier.height(8.dp))</span>
+<span class="nc" id="L211">                        Text(</span>
+<span class="nc" id="L212">                            text = stringResource(R.string.hybrid_search_onboarding_screen_title),</span>
+<span class="nc" id="L213">                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Medium),</span>
+<span class="nc" id="L214">                            color = WikipediaTheme.colors.primaryColor</span>
+                        )
+<span class="nc" id="L216">                    }</span>
+<span class="nc" id="L217">                },</span>
+<span class="nc" id="L218">                colors = TopAppBarDefaults.topAppBarColors(</span>
+<span class="nc" id="L219">                    containerColor = WikipediaTheme.colors.paperColor</span>
+                )
+            )
+<span class="nc" id="L222">        },</span>
+<span class="nc" id="L223">        bottomBar = {</span>
+<span class="nc" id="L224">            HorizontalDivider(</span>
+<span class="nc" id="L225">                thickness = 0.5.dp,</span>
+<span class="nc" id="L226">                color = WikipediaTheme.colors.borderColor</span>
+            )
+<span class="nc" id="L228">            MainBottomBar(</span>
+<span class="nc" id="L229">                onNextButtonClick = {</span>
+<span class="nc" id="L230">                    onGetStarted()</span>
+<span class="nc" id="L231">                },</span>
+<span class="nc" id="L232">                onLearnMoreClick = onLearnMoreClick</span>
+            )
+<span class="nc" id="L234">        }</span>
+<span class="nc" id="L235">    ) { paddingValues -&gt;</span>
+<span class="nc" id="L236">        Column(</span>
+<span class="nc" id="L237">            Modifier</span>
+<span class="nc" id="L238">                .padding(paddingValues)</span>
+<span class="nc" id="L239">                .padding(horizontal = 24.dp)</span>
+<span class="nc" id="L240">                .fillMaxSize()</span>
+<span class="nc" id="L241">                .verticalScroll(rememberScrollState())</span>
+        ) {
+<span class="nc" id="L243">            onboardingItems.forEachIndexed { _, onboardingItem -&gt;</span>
+<span class="nc" id="L244">                OnboardingListItem(</span>
+<span class="nc" id="L245">                    modifier = Modifier</span>
+<span class="nc" id="L246">                        .fillMaxWidth()</span>
+<span class="nc" id="L247">                        .padding(vertical = 12.dp),</span>
+<span class="nc" id="L248">                    item = onboardingItem</span>
+                )
+<span class="nc" id="L250">            }</span>
+<span class="nc" id="L251">            SearchExamplesView(</span>
+<span class="nc" id="L252">                modifier = Modifier</span>
+<span class="nc" id="L253">                    .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L254">                langCode = langCode,</span>
+<span class="nc" id="L255">                searchExamples = searchExamples,</span>
+<span class="nc" id="L256">                onClick = { exampleQuery -&gt;</span>
+<span class="nc" id="L257">                    onSearchQueryItemClick(exampleQuery)</span>
+<span class="nc" id="L258">                }</span>
+            )
+<span class="nc" id="L260">        }</span>
+<span class="nc" id="L261">    }</span>
+<span class="nc" id="L262">}</span>
+
+@Composable
+fun SearchExamplesView(
+<span class="nc" id="L266">    modifier: Modifier = Modifier,</span>
+    searchExamples: List&lt;Int&gt;,
+    langCode: String,
+    onClick: (String) -&gt; Unit
+<span class="nc bnc" id="L270" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L271">    val context = LocalContext.current</span>
+<span class="nc" id="L272">    Column(</span>
+<span class="nc" id="L273">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L275">        OnboardingListItem(</span>
+<span class="nc" id="L276">            modifier = Modifier</span>
+<span class="nc" id="L277">                .fillMaxWidth()</span>
+<span class="nc" id="L278">                .padding(top = 12.dp, bottom = 4.dp),</span>
+<span class="nc" id="L279">            item = OnboardingItem(</span>
+<span class="nc" id="L280">                icon = R.drawable.ic_light_bulb,</span>
+<span class="nc" id="L281">                title = R.string.hybrid_search_onboarding_search_example_title,</span>
+<span class="nc" id="L282">                subTitle = R.string.hybrid_search_onboarding_search_example_description</span>
+            )
+        )
+
+<span class="nc" id="L286">        FlowRow(</span>
+<span class="nc" id="L287">            modifier = Modifier</span>
+<span class="nc" id="L288">                .padding(start = 36.dp, top = 8.dp),</span>
+<span class="nc" id="L289">            horizontalArrangement = Arrangement.spacedBy(8.dp),</span>
+<span class="nc" id="L290">            verticalArrangement = Arrangement.spacedBy(8.dp)</span>
+<span class="nc" id="L291">        ) {</span>
+<span class="nc" id="L292">            searchExamples.forEachIndexed { _, exampleQuery -&gt;</span>
+<span class="nc" id="L293">                val exampleQueryString = context.getString(langCode, exampleQuery)</span>
+<span class="nc" id="L294">                Box(</span>
+<span class="nc" id="L295">                    modifier = Modifier</span>
+<span class="nc" id="L296">                        .border(width = 1.dp, color = WikipediaTheme.colors.borderColor, shape = RoundedCornerShape(8.dp))</span>
+<span class="nc" id="L297">                        .clip(shape = RoundedCornerShape(8.dp))</span>
+<span class="nc" id="L298">                        .clickable(onClick = { onClick(exampleQueryString) })</span>
+                ) {
+<span class="nc" id="L300">                    Text(</span>
+<span class="nc" id="L301">                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),</span>
+<span class="nc" id="L302">                        text = exampleQueryString,</span>
+<span class="nc" id="L303">                        style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L304">                        color = WikipediaTheme.colors.secondaryColor</span>
+                    )
+<span class="nc" id="L306">                }</span>
+<span class="nc" id="L307">            }</span>
+<span class="nc" id="L308">        }</span>
+<span class="nc" id="L309">    }</span>
+<span class="nc" id="L310">}</span>
+
+@Composable
+fun MainBottomBar(
+    onNextButtonClick: () -&gt; Unit,
+    onLearnMoreClick: () -&gt; Unit
+<span class="nc" id="L316">) {</span>
+<span class="nc" id="L317">    Row(</span>
+<span class="nc" id="L318">        modifier = Modifier</span>
+<span class="nc" id="L319">            .fillMaxWidth()</span>
+<span class="nc" id="L320">            .padding(horizontal = 24.dp, vertical = 12.dp),</span>
+<span class="nc" id="L321">        horizontalArrangement = Arrangement.spacedBy(</span>
+<span class="nc" id="L322">            space = 24.dp,</span>
+        ),
+<span class="nc" id="L324">        verticalAlignment = Alignment.CenterVertically</span>
+    ) {
+<span class="nc" id="L326">        TextButton(</span>
+<span class="nc" id="L327">            modifier = Modifier</span>
+<span class="nc" id="L328">                .weight(1f),</span>
+<span class="nc" id="L329">            colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L330">                containerColor = WikipediaTheme.colors.backgroundColor</span>
+            ),
+<span class="nc" id="L332">            onClick = onLearnMoreClick</span>
+<span class="nc" id="L333">        ) {</span>
+<span class="nc" id="L334">            Text(</span>
+<span class="nc" id="L335">                text = stringResource(R.string.hybrid_search_onboarding_learn_more),</span>
+<span class="nc" id="L336">                style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L337">                color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L338">                textAlign = TextAlign.Center</span>
+            )
+<span class="nc" id="L340">        }</span>
+
+<span class="nc" id="L342">        Button(</span>
+<span class="nc" id="L343">            modifier = Modifier</span>
+<span class="nc" id="L344">                .weight(1f),</span>
+<span class="nc" id="L345">            colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L346">                containerColor = WikipediaTheme.colors.progressiveColor</span>
+            ),
+<span class="nc" id="L348">            onClick = onNextButtonClick</span>
+<span class="nc" id="L349">        ) {</span>
+<span class="nc" id="L350">            Text(</span>
+<span class="nc" id="L351">                text = stringResource(R.string.onboarding_get_started),</span>
+<span class="nc" id="L352">                style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L353">                color = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L354">                textAlign = TextAlign.Center</span>
+            )
+<span class="nc" id="L356">        }</span>
+<span class="nc" id="L357">    }</span>
+<span class="nc" id="L358">}</span>
+
+@Preview(showBackground = true, device = PIXEL_9, showSystemUi = true)
+@Composable
+<span class="nc" id="L362">private fun HybridSearchOnboardingScreenPreview() {</span>
+<span class="nc" id="L363">    BaseTheme(</span>
+<span class="nc" id="L364">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L365">    ) {</span>
+<span class="nc" id="L366">        HybridSearchOnboardingScreen(</span>
+<span class="nc" id="L367">            langCode = &quot;el&quot;,</span>
+<span class="nc" id="L368">            searchExamples = suggestedQueriesPerLanguage[&quot;el&quot;]!!,</span>
+<span class="nc" id="L369">            onGetStarted = {},</span>
+<span class="nc" id="L370">            onSearchQueryItemClick = {},</span>
+<span class="nc" id="L371">            onLearnMoreClick = {}</span>
+        )
+<span class="nc" id="L373">    }</span>
+<span class="nc" id="L374">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L378">private fun SearchExamplesPreview() {</span>
+<span class="nc" id="L379">    BaseTheme(</span>
+<span class="nc" id="L380">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L381">    ) {</span>
+<span class="nc" id="L382">        SearchExamplesView(</span>
+<span class="nc" id="L383">            langCode = &quot;en&quot;,</span>
+<span class="nc" id="L384">            searchExamples = defaultSuggestedQueries,</span>
+<span class="nc" id="L385">            modifier = Modifier</span>
+<span class="nc" id="L386">                .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L387">            onClick = {}</span>
+        )
+<span class="nc" id="L389">    }</span>
+<span class="nc" id="L390">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AppShortcuts.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.appshortcuts</a> &gt; <span class="el_source">AppShortcuts.kt</span></div><h1>AppShortcuts.kt</h1><pre class="source lang-java linenums">package org.wikipedia.appshortcuts
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.main.MainActivity
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L18">class AppShortcuts {</span>
+    companion object {
+        const val ACTION_APP_SHORTCUT = &quot;ACTION_APP_SHORTCUT&quot;
+        const val APP_SHORTCUT_ID = &quot;APP_SHORTCUT_ID&quot;
+        private const val APP_SHORTCUT_ID_CONTINUE_READING = &quot;shortcutContinueReading&quot;
+        private const val APP_SHORTCUT_ID_RANDOM = &quot;shortcutRandom&quot;
+        private const val APP_SHORTCUT_ID_SEARCH = &quot;shortcutSearch&quot;
+        private const val APP_SHORTCUT_ID_PLACES = &quot;shortcutPlaces&quot;
+
+        fun setShortcuts(app: Context) {
+<span class="fc" id="L28">            CoroutineScope(Dispatchers.Default).launch(CoroutineExceptionHandler { _, msg -&gt; run { L.e(msg) } }) {</span>
+<span class="fc" id="L29">                val list = listOf(searchShortcut(app), continueReadingShortcut(app), randomShortcut(app), placesShortcut(app))</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">                if (ShortcutManagerCompat.getDynamicShortcuts(app).map { it.id }.containsAll(list.map { it.id }).not()) {</span>
+<span class="fc" id="L31">                    ShortcutManagerCompat.setDynamicShortcuts(app, list)</span>
+                } else {
+<span class="nc" id="L33">                    L.d(&quot;Create dynamic shortcuts skipped.&quot;)</span>
+                }
+<span class="fc" id="L35">            }</span>
+<span class="fc" id="L36">        }</span>
+
+        private fun searchShortcut(app: Context): ShortcutInfoCompat {
+<span class="fc" id="L39">            return ShortcutInfoCompat.Builder(app, APP_SHORTCUT_ID_SEARCH)</span>
+<span class="fc" id="L40">                    .setShortLabel(app.getString(R.string.app_shortcuts_search))</span>
+<span class="fc" id="L41">                    .setLongLabel(app.getString(R.string.app_shortcuts_search))</span>
+<span class="fc" id="L42">                    .setIcon(IconCompat.createWithResource(app, R.drawable.appshortcut_ic_search))</span>
+<span class="fc" id="L43">                    .setIntent(</span>
+<span class="fc" id="L44">                            Intent(ACTION_APP_SHORTCUT, Uri.EMPTY, app, MainActivity::class.java)</span>
+<span class="fc" id="L45">                                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)</span>
+<span class="fc" id="L46">                                    .putExtra(APP_SHORTCUT_ID, APP_SHORTCUT_ID_SEARCH)</span>
+<span class="fc" id="L47">                                    .putExtra(Constants.INTENT_APP_SHORTCUT_SEARCH, true))</span>
+<span class="fc" id="L48">                    .build()</span>
+        }
+
+        private fun randomShortcut(app: Context): ShortcutInfoCompat {
+<span class="fc" id="L52">            return ShortcutInfoCompat.Builder(app, APP_SHORTCUT_ID_RANDOM)</span>
+<span class="fc" id="L53">                    .setShortLabel(app.getString(R.string.app_shortcuts_random))</span>
+<span class="fc" id="L54">                    .setLongLabel(app.getString(R.string.app_shortcuts_random))</span>
+<span class="fc" id="L55">                    .setIcon(IconCompat.createWithResource(app, R.drawable.appshortcut_ic_random))</span>
+<span class="fc" id="L56">                    .setIntent(</span>
+<span class="fc" id="L57">                            Intent(ACTION_APP_SHORTCUT, Uri.EMPTY, app, MainActivity::class.java)</span>
+<span class="fc" id="L58">                                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)</span>
+<span class="fc" id="L59">                                    .putExtra(APP_SHORTCUT_ID, APP_SHORTCUT_ID_RANDOM)</span>
+<span class="fc" id="L60">                                    .putExtra(Constants.INTENT_APP_SHORTCUT_RANDOMIZER, true))</span>
+<span class="fc" id="L61">                    .build()</span>
+        }
+
+        private fun continueReadingShortcut(app: Context): ShortcutInfoCompat {
+<span class="fc" id="L65">            return ShortcutInfoCompat.Builder(app, APP_SHORTCUT_ID_CONTINUE_READING)</span>
+<span class="fc" id="L66">                    .setShortLabel(app.getString(R.string.app_shortcuts_continue_reading))</span>
+<span class="fc" id="L67">                    .setLongLabel(app.getString(R.string.app_shortcuts_continue_reading))</span>
+<span class="fc" id="L68">                    .setIcon(IconCompat.createWithResource(app, R.drawable.appshortcut_ic_continue_reading))</span>
+<span class="fc" id="L69">                    .setIntent(</span>
+<span class="fc" id="L70">                            Intent(ACTION_APP_SHORTCUT, Uri.EMPTY, app, MainActivity::class.java)</span>
+<span class="fc" id="L71">                                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)</span>
+<span class="fc" id="L72">                                    .putExtra(APP_SHORTCUT_ID, APP_SHORTCUT_ID_CONTINUE_READING)</span>
+<span class="fc" id="L73">                                    .putExtra(Constants.INTENT_APP_SHORTCUT_CONTINUE_READING, true))</span>
+<span class="fc" id="L74">                    .build()</span>
+        }
+
+        private fun placesShortcut(app: Context): ShortcutInfoCompat {
+<span class="fc" id="L78">            return ShortcutInfoCompat.Builder(app, APP_SHORTCUT_ID_PLACES)</span>
+<span class="fc" id="L79">                .setShortLabel(app.getString(R.string.app_shortcuts_places))</span>
+<span class="fc" id="L80">                .setLongLabel(app.getString(R.string.app_shortcuts_places))</span>
+<span class="fc" id="L81">                .setIcon(IconCompat.createWithResource(app, R.drawable.appshortcut_ic_places))</span>
+<span class="fc" id="L82">                .setIntent(</span>
+<span class="fc" id="L83">                    Intent(ACTION_APP_SHORTCUT, Uri.EMPTY, app, MainActivity::class.java)</span>
+<span class="fc" id="L84">                        .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)</span>
+<span class="fc" id="L85">                        .putExtra(APP_SHORTCUT_ID, APP_SHORTCUT_ID_PLACES)</span>
+<span class="fc" id="L86">                        .putExtra(Constants.INTENT_APP_SHORTCUT_PLACES, true))</span>
+<span class="fc" id="L87">                .build()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

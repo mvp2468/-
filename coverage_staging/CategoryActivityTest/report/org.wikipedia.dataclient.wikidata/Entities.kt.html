@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Entities.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.wikidata</a> &gt; <span class="el_source">Entities.kt</span></div><h1>Entities.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.wikidata
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
+import org.wikipedia.dataclient.mwapi.MwResponse
+import org.wikipedia.json.JsonUtil
+
+<span class="nc" id="L11">@Serializable</span>
+class Entities : MwResponse() {
+
+<span class="nc" id="L14">    var entities: Map&lt;String, Entity&gt; = emptyMap()</span>
+        private set
+    val first: Entity?
+<span class="nc" id="L17">        get() = entities.values.firstOrNull()</span>
+
+<span class="nc" id="L19">    init {</span>
+<span class="nc bnc" id="L20" title="All 4 branches missed.">        entities = entities.filter { it.key != &quot;-1&quot; &amp;&amp; it.value.missing == null }</span>
+<span class="nc" id="L21">    }</span>
+
+<span class="nc" id="L23">    @Serializable</span>
+    class Entity {
+<span class="nc" id="L25">        val id: String = &quot;&quot;</span>
+        private val labels: JsonElement? = null
+        private val descriptions: JsonElement? = null
+        private val sitelinks: JsonElement? = null
+        private val statements: JsonElement? = null
+<span class="nc" id="L30">        val missing: JsonElement? = null</span>
+<span class="nc" id="L31">        @SerialName(&quot;lastrevid&quot;) val lastRevId: Long = 0</span>
+
+        fun getStatements(): Map&lt;String, List&lt;Claims.Claim&gt;&gt; {
+<span class="nc bnc" id="L34" title="All 4 branches missed.">            return if (statements != null &amp;&amp; statements !is JsonArray) {</span>
+<span class="nc" id="L35">                JsonUtil.json.decodeFromJsonElement(statements)</span>
+            } else {
+<span class="nc" id="L37">                emptyMap()</span>
+            }
+        }
+
+        fun getLabels(): Map&lt;String, Label&gt; {
+<span class="nc bnc" id="L42" title="All 4 branches missed.">            return if (labels != null &amp;&amp; labels !is JsonArray) {</span>
+<span class="nc" id="L43">                JsonUtil.json.decodeFromJsonElement(labels)</span>
+            } else {
+<span class="nc" id="L45">                emptyMap()</span>
+            }
+        }
+
+        fun getDescriptions(): Map&lt;String, Label&gt; {
+<span class="nc bnc" id="L50" title="All 4 branches missed.">            return if (descriptions != null &amp;&amp; descriptions !is JsonArray) {</span>
+<span class="nc" id="L51">                JsonUtil.json.decodeFromJsonElement(descriptions)</span>
+            } else {
+<span class="nc" id="L53">                emptyMap()</span>
+            }
+        }
+
+        fun getSiteLinks(): Map&lt;String, SiteLink&gt; {
+<span class="nc bnc" id="L58" title="All 4 branches missed.">            return if (sitelinks != null &amp;&amp; sitelinks !is JsonArray) {</span>
+<span class="nc" id="L59">                JsonUtil.json.decodeFromJsonElement(sitelinks)</span>
+            } else {
+<span class="nc" id="L61">                emptyMap()</span>
+            }
+        }
+    }
+
+<span class="nc" id="L66">    @Serializable</span>
+    class Label {
+<span class="nc" id="L68">        val language: String = &quot;&quot;</span>
+<span class="nc" id="L69">        val value: String = &quot;&quot;</span>
+    }
+
+<span class="nc" id="L72">    @Serializable</span>
+    class SiteLink {
+<span class="nc" id="L74">        val site: String = &quot;&quot;</span>
+<span class="nc" id="L75">        val title: String = &quot;&quot;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

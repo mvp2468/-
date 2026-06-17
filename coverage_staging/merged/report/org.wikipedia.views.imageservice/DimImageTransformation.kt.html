@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DimImageTransformation.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views.imageservice</a> &gt; <span class="el_source">DimImageTransformation.kt</span></div><h1>DimImageTransformation.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views.imageservice
+
+import android.graphics.Color
+import android.graphics.Paint
+import androidx.core.graphics.applyCanvas
+import coil3.Bitmap
+import coil3.size.Size
+import coil3.transform.Transformation
+import org.wikipedia.WikipediaApp
+import org.wikipedia.settings.Prefs
+
+<span class="nc" id="L12">class DimImageTransformation : Transformation(), ImageTransformer {</span>
+<span class="nc" id="L13">    override val cacheKey = &quot;DimImageTransformation&quot;</span>
+
+    override suspend fun transform(input: Bitmap, size: Size): Bitmap {
+<span class="nc bnc" id="L16" title="All 4 branches missed.">        val result = if (input.isMutable) input else input.copy(input.config ?: android.graphics.Bitmap.Config.ARGB_8888, true)</span>
+<span class="nc bnc" id="L17" title="All 4 branches missed.">        if (WikipediaApp.instance.currentTheme.isDark &amp;&amp; Prefs.dimDarkModeImages) {</span>
+<span class="nc" id="L18">            result.applyCanvas {</span>
+<span class="nc" id="L19">                drawPaint(Paint().apply { color = Color.argb(51, 0, 0, 0) })</span>
+<span class="nc" id="L20">            }</span>
+        }
+<span class="nc" id="L22">        return result</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

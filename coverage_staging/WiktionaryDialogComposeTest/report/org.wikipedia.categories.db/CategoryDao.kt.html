@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryDao.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.categories.db</a> &gt; <span class="el_source">CategoryDao.kt</span></div><h1>CategoryDao.kt</h1><pre class="source lang-java linenums">package org.wikipedia.categories.db
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+
+@Dao
+interface CategoryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(category: Category): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(categories: List&lt;Category&gt;): List&lt;Long&gt;
+
+    // find categories by primary keys
+    @Query(&quot;SELECT * FROM Category WHERE year = :year AND month = :month AND title = :title AND lang = :lang&quot;)
+    suspend fun findByPrimaryKey(year: Int, month: Int, title: String, lang: String): Category?
+
+    // Update count by primary keys
+    @Query(&quot;UPDATE Category SET count = count + 1 WHERE year = :year AND month = :month AND title = :title AND lang = :lang&quot;)
+    suspend fun updateCountByPrimaryKeys(year: Int, month: Int, title: String, lang: String)
+
+    @Query(&quot;SELECT year, month, title, lang, SUM (count) AS count FROM Category WHERE year BETWEEN :startYear AND :endYear GROUP BY title, lang ORDER BY count DESC&quot;)
+    suspend fun getCategoriesByTimeRange(startYear: Int, endYear: Int): List&lt;Category&gt;
+
+    @Query(&quot;SELECT year, month, title, lang, SUM (count) AS count FROM Category WHERE year = :year AND month = :month GROUP BY title, lang ORDER BY count DESC&quot;)
+    suspend fun getTopCategoriesByMonth(year: Int, month: Int): List&lt;Category&gt;
+
+    // Get top categories by year
+    @Query(&quot;SELECT year, month, title, lang, SUM (count) AS count FROM Category WHERE year = :year GROUP BY title, lang ORDER BY count DESC LIMIT :limit&quot;)
+    suspend fun getTopCategoriesByYear(year: Int, limit: Int): List&lt;Category&gt;
+
+    @Query(&quot;SELECT * FROM Category&quot;)
+    suspend fun getAllCategories(): List&lt;Category&gt;
+
+    @Query(&quot;DELETE FROM Category&quot;)
+    suspend fun deleteAll()
+
+    @Query(&quot;DELETE FROM Category WHERE rowid IN (SELECT rowid FROM Category WHERE year &lt; :year)&quot;)
+    suspend fun deleteOlderThan(year: Int): Int
+
+    @Transaction
+<span class="nc" id="L45">    suspend fun upsertAll(list: List&lt;Category&gt;) {</span>
+<span class="nc" id="L46">        list.forEach { category -&gt;</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">            findByPrimaryKey(category.year, category.month, category.title, category.lang)?.let {</span>
+<span class="nc" id="L48">                updateCountByPrimaryKeys(category.year, category.month, category.title, category.lang)</span>
+<span class="nc" id="L49">            } ?: insert(category)</span>
+<span class="nc" id="L50">        }</span>
+<span class="nc" id="L51">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

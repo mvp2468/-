@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WatchlistExpiryDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.watchlist</a> &gt; <span class="el_source">WatchlistExpiryDialog.kt</span></div><h1>WatchlistExpiryDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.watchlist
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.core.os.bundleOf
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.compose.ComposeColors
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.page.ExtendedBottomSheetDialogFragment
+import org.wikipedia.page.PageTitle
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+
+<span class="nc" id="L53">class WatchlistExpiryDialog : ExtendedBottomSheetDialogFragment() {</span>
+
+    interface Callback {
+        fun onExpiryChanged(expiry: WatchlistExpiry)
+    }
+
+<span class="nc" id="L59">    private val viewModel: WatchlistExpiryDialogViewModel by viewModels()</span>
+<span class="nc" id="L60">    private val expiryList = listOf(WatchlistExpiry.NEVER, WatchlistExpiry.ONE_WEEK, WatchlistExpiry.ONE_MONTH,</span>
+<span class="nc" id="L61">            WatchlistExpiry.THREE_MONTH, WatchlistExpiry.SIX_MONTH)</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L64">        return ComposeView(requireContext()).apply {</span>
+<span class="nc" id="L65">            setContent {</span>
+<span class="nc" id="L66">                BaseTheme {</span>
+<span class="nc" id="L67">                    WatchlistExpiryDialogView(</span>
+<span class="nc" id="L68">                        modifier = Modifier</span>
+<span class="nc" id="L69">                            .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L70">                        expiryList = expiryList,</span>
+<span class="nc" id="L71">                        selectedWatchListTime = WatchlistExpiry.NEVER,</span>
+<span class="nc" id="L72">                        onExpiryItemSelected = {</span>
+<span class="nc" id="L73">                            viewModel.changeExpiry(it)</span>
+<span class="nc" id="L74">                        }</span>
+                    )
+<span class="nc" id="L76">                }</span>
+<span class="nc" id="L77">            }</span>
+<span class="nc" id="L78">        }</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L82">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L83">        lifecycleScope.launch {</span>
+<span class="nc" id="L84">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L85">                viewModel.uiState.collect {</span>
+<span class="nc" id="L86">                    when (it) {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                        is Resource.Success -&gt; {</span>
+<span class="nc" id="L88">                            FeedbackUtil.makeSnackbar(requireActivity(), it.data.message).show()</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                            callback()?.onExpiryChanged(it.data.expiry)</span>
+<span class="nc" id="L90">                            dismiss()</span>
+                        }
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                        is Resource.Error -&gt; {</span>
+<span class="nc" id="L93">                            FeedbackUtil.showError(requireActivity(), it.throwable)</span>
+<span class="nc" id="L94">                            dismiss()</span>
+                        }
+                    }
+<span class="nc" id="L97">                }</span>
+            }
+<span class="nc" id="L99">        }</span>
+<span class="nc" id="L100">    }</span>
+
+    override fun onStart() {
+<span class="nc" id="L103">        super.onStart()</span>
+<span class="nc" id="L104">        BottomSheetBehavior.from(requireView().parent as View).peekHeight = DimenUtil.displayHeightPx</span>
+<span class="nc" id="L105">    }</span>
+
+    private fun callback(): Callback? {
+<span class="nc" id="L108">        return FragmentUtil.getCallback(this, Callback::class.java)</span>
+    }
+
+    companion object {
+        const val ARG_PAGE_TITLE = &quot;pageTitle&quot;
+
+        fun newInstance(pageTitle: PageTitle): WatchlistExpiryDialog {
+<span class="nc" id="L115">            val dialog = WatchlistExpiryDialog()</span>
+<span class="nc" id="L116">            dialog.arguments = bundleOf(</span>
+<span class="nc" id="L117">                ARG_PAGE_TITLE to pageTitle</span>
+            )
+<span class="nc" id="L119">            return dialog</span>
+        }
+    }
+}
+
+@Composable
+fun WatchlistExpiryDialogView(
+<span class="nc" id="L126">    modifier: Modifier = Modifier,</span>
+    expiryList: List&lt;WatchlistExpiry&gt;,
+    selectedWatchListTime: WatchlistExpiry,
+    onExpiryItemSelected: (WatchlistExpiry) -&gt; Unit
+<span class="nc bnc" id="L130" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L131">    var selectedWatchListTime by remember { mutableStateOf(selectedWatchListTime) }</span>
+
+<span class="nc" id="L133">    Column(</span>
+<span class="nc" id="L134">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L136">        Box(</span>
+<span class="nc" id="L137">            modifier = Modifier</span>
+<span class="nc" id="L138">                .fillMaxWidth()</span>
+<span class="nc" id="L139">                .background(WikipediaTheme.colors.borderColor)</span>
+<span class="nc" id="L140">                .height(48.dp)</span>
+<span class="nc" id="L141">                .padding(horizontal = 16.dp)</span>
+        ) {
+<span class="nc" id="L143">            Text(</span>
+<span class="nc" id="L144">                modifier = Modifier</span>
+<span class="nc" id="L145">                    .align(Alignment.CenterStart),</span>
+<span class="nc" id="L146">                text = stringResource(R.string.watchlist_expiry_dialog_title),</span>
+<span class="nc" id="L147">                style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L148">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L150">        }</span>
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        LazyColumn {</span>
+<span class="nc" id="L153">            items(expiryList) { expiryItem -&gt;</span>
+<span class="nc" id="L154">                val expiryTitle = stringResource(if (expiryItem == WatchlistExpiry.NEVER) R.string.watchlist_expiry_dialog_permanent else expiryItem.stringId)</span>
+<span class="nc" id="L155">                Row(</span>
+<span class="nc" id="L156">                    modifier = Modifier</span>
+<span class="nc" id="L157">                        .fillMaxWidth()</span>
+<span class="nc" id="L158">                        .clickable(onClick = {</span>
+<span class="nc" id="L159">                            selectedWatchListTime = expiryItem</span>
+<span class="nc" id="L160">                            onExpiryItemSelected(expiryItem)</span>
+<span class="nc" id="L161">                        })</span>
+<span class="nc" id="L162">                        .height(48.dp)</span>
+<span class="nc" id="L163">                        .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L164">                    verticalAlignment = Alignment.CenterVertically</span>
+                ) {
+<span class="nc" id="L166">                    if (expiryItem.icon != null) {</span>
+<span class="nc" id="L167">                        Icon(</span>
+<span class="nc" id="L168">                            modifier = Modifier</span>
+<span class="nc" id="L169">                                .size(24.dp),</span>
+<span class="nc" id="L170">                            painter = painterResource(expiryItem.icon),</span>
+<span class="nc" id="L171">                            contentDescription = null,</span>
+<span class="nc" id="L172">                            tint = ComposeColors.Yellow500</span>
+                        )
+<span class="nc" id="L174">                    } else {</span>
+<span class="nc" id="L175">                        Box(</span>
+<span class="nc" id="L176">                            modifier = Modifier</span>
+<span class="nc" id="L177">                                .size(24.dp)</span>
+                        )
+                    }
+
+<span class="nc" id="L181">                    Text(</span>
+<span class="nc" id="L182">                        modifier = Modifier</span>
+<span class="nc" id="L183">                            .weight(1f)</span>
+<span class="nc" id="L184">                            .padding(horizontal = 24.dp),</span>
+<span class="nc" id="L185">                        text = expiryTitle,</span>
+<span class="nc" id="L186">                        style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L187">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L188">                        fontWeight = if (expiryItem.expiry == selectedWatchListTime.expiry) FontWeight.Bold else null</span>
+                    )
+
+<span class="nc" id="L191">                    if (expiryItem.expiry == selectedWatchListTime.expiry) {</span>
+<span class="nc" id="L192">                        Icon(</span>
+<span class="nc" id="L193">                            modifier = Modifier</span>
+<span class="nc" id="L194">                                .size(24.dp),</span>
+<span class="nc" id="L195">                            painter = painterResource(R.drawable.ic_check_black_24dp),</span>
+<span class="nc" id="L196">                            tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L197">                            contentDescription = null</span>
+                        )
+<span class="nc" id="L199">                    }</span>
+<span class="nc" id="L200">                }</span>
+<span class="nc" id="L201">            }</span>
+<span class="nc" id="L202">        }</span>
+<span class="nc" id="L203">    }</span>
+<span class="nc" id="L204">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L208">private fun WatchlistExpiryDialogViewPreview() {</span>
+<span class="nc" id="L209">    BaseTheme(</span>
+<span class="nc" id="L210">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L211">    ) {</span>
+<span class="nc" id="L212">        WatchlistExpiryDialogView(</span>
+<span class="nc" id="L213">            modifier = Modifier</span>
+<span class="nc" id="L214">                .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L215">            expiryList = listOf(WatchlistExpiry.NEVER, WatchlistExpiry.ONE_WEEK, WatchlistExpiry.ONE_MONTH,</span>
+<span class="nc" id="L216">                WatchlistExpiry.THREE_MONTH, WatchlistExpiry.SIX_MONTH),</span>
+<span class="nc" id="L217">            selectedWatchListTime = WatchlistExpiry.NEVER,</span>
+<span class="nc" id="L218">            onExpiryItemSelected = {}</span>
+        )
+<span class="nc" id="L220">    }</span>
+<span class="nc" id="L221">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

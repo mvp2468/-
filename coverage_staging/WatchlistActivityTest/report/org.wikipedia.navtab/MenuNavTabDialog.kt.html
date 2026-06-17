@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MenuNavTabDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.navtab</a> &gt; <span class="el_source">MenuNavTabDialog.kt</span></div><h1>MenuNavTabDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.navtab
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.isVisible
+import androidx.core.widget.ImageViewCompat
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.analytics.eventplatform.ActivityTabEvent
+import org.wikipedia.analytics.eventplatform.BreadCrumbLogEvent
+import org.wikipedia.analytics.eventplatform.DonorExperienceEvent
+import org.wikipedia.analytics.eventplatform.PlacesEvent
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.analytics.eventplatform.YearInReviewEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.databinding.ViewMainDrawerBinding
+import org.wikipedia.games.GamesHubActivity
+import org.wikipedia.games.WikiGames
+import org.wikipedia.page.ExtendedBottomSheetDialogFragment
+import org.wikipedia.places.PlacesActivity
+import org.wikipedia.settings.Prefs
+import org.wikipedia.suggestededits.SuggestedEditsTasksActivity
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil.getThemedColorStateList
+import org.wikipedia.yearinreview.YearInReviewViewModel
+
+<span class="nc" id="L31">class MenuNavTabDialog : ExtendedBottomSheetDialogFragment() {</span>
+    interface Callback {
+        fun usernameClick()
+        fun loginClick()
+        fun talkClick()
+        fun settingsClick()
+        fun watchlistClick()
+        fun contribsClick()
+<span class="nc" id="L39">        fun donateClick(campaignId: String? = null)</span>
+        fun yearInReviewClick()
+    }
+
+    private var _binding: ViewMainDrawerBinding? = null
+<span class="nc" id="L44">    private val binding get() = _binding!!</span>
+
+<span class="nc bnc" id="L46" title="All 2 branches missed.">    private val yirEntrySlide get() = if (AccountUtil.isLoggedIn) &quot;li_profile&quot; else &quot;lo_profile&quot;</span>
+<span class="nc bnc" id="L47" title="All 4 branches missed.">    private val yirEnabled get() = YearInReviewViewModel.isAccessible &amp;&amp; Prefs.isYearInReviewEnabled</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L50">        _binding = ViewMainDrawerBinding.inflate(inflater, container, false)</span>
+
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (yirEnabled) {</span>
+<span class="nc" id="L53">            YearInReviewEvent.submit(action = &quot;impression&quot;, slide = yirEntrySlide)</span>
+        }
+<span class="nc" id="L55">        binding.mainDrawerYearInReviewContainer.isVisible = yirEnabled</span>
+
+<span class="nc" id="L57">        binding.mainDrawerAccountContainer.setOnClickListener {</span>
+<span class="nc" id="L58">            BreadCrumbLogEvent.logClick(requireActivity(), binding.mainDrawerAccountContainer)</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">            if (AccountUtil.isLoggedIn &amp;&amp; !AccountUtil.isTemporaryAccount) {</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                callback()?.usernameClick()</span>
+            } else {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">                callback()?.loginClick()</span>
+            }
+<span class="nc" id="L64">            dismiss()</span>
+<span class="nc" id="L65">        }</span>
+
+<span class="nc" id="L67">        binding.mainDrawerTalkContainer.setOnClickListener {</span>
+<span class="nc" id="L68">            BreadCrumbLogEvent.logClick(requireActivity(), binding.mainDrawerTalkContainer)</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            callback()?.talkClick()</span>
+<span class="nc" id="L70">            dismiss()</span>
+<span class="nc" id="L71">        }</span>
+
+<span class="nc" id="L73">        binding.mainDrawerWatchlistContainer.setOnClickListener {</span>
+<span class="nc" id="L74">            BreadCrumbLogEvent.logClick(requireActivity(), binding.mainDrawerWatchlistContainer)</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            callback()?.watchlistClick()</span>
+<span class="nc" id="L76">            dismiss()</span>
+<span class="nc" id="L77">        }</span>
+
+<span class="nc" id="L79">        binding.mainDrawerGamesHubContainer.setOnClickListener {</span>
+<span class="nc" id="L80">            WikiGamesEvent.submit(action = &quot;games_click&quot;, activeInterface = &quot;more_menu&quot;)</span>
+<span class="nc" id="L81">            requireActivity().startActivity(GamesHubActivity.newIntent(requireActivity()))</span>
+<span class="nc" id="L82">            dismiss()</span>
+<span class="nc" id="L83">        }</span>
+
+<span class="nc" id="L85">        binding.mainDrawerPlacesContainer.setOnClickListener {</span>
+<span class="nc" id="L86">            PlacesEvent.logAction(&quot;places_click&quot;, &quot;main_nav_tab&quot;)</span>
+<span class="nc" id="L87">            requireActivity().startActivity(PlacesActivity.newIntent(requireActivity()))</span>
+<span class="nc" id="L88">            dismiss()</span>
+<span class="nc" id="L89">        }</span>
+
+<span class="nc" id="L91">        binding.mainDrawerSettingsContainer.setOnClickListener {</span>
+<span class="nc" id="L92">            BreadCrumbLogEvent.logClick(requireActivity(), binding.mainDrawerSettingsContainer)</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            callback()?.settingsClick()</span>
+<span class="nc" id="L94">            dismiss()</span>
+<span class="nc" id="L95">        }</span>
+
+<span class="nc" id="L97">        binding.mainDrawerContribsContainer.setOnClickListener {</span>
+<span class="nc" id="L98">            BreadCrumbLogEvent.logClick(requireActivity(), binding.mainDrawerContribsContainer)</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            callback()?.contribsClick()</span>
+<span class="nc" id="L100">            dismiss()</span>
+<span class="nc" id="L101">        }</span>
+
+<span class="nc" id="L103">        binding.mainDrawerDonateContainer.setOnClickListener {</span>
+<span class="nc" id="L104">            BreadCrumbLogEvent.logClick(requireActivity(), binding.mainDrawerDonateContainer)</span>
+<span class="nc" id="L105">            DonorExperienceEvent.logAction(&quot;donate_start_click&quot;, &quot;more_menu&quot;)</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            callback()?.donateClick()</span>
+<span class="nc" id="L107">            dismiss()</span>
+<span class="nc" id="L108">        }</span>
+
+<span class="nc" id="L110">        binding.mainDrawerYearInReviewContainer.setOnClickListener {</span>
+<span class="nc" id="L111">            YearInReviewEvent.submit(action = &quot;start_click&quot;, slide = yirEntrySlide)</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            callback()?.yearInReviewClick()</span>
+<span class="nc" id="L113">            dismiss()</span>
+<span class="nc" id="L114">        }</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        binding.yearInReviewRedDot.isVisible = !Prefs.yearInReviewVisited</span>
+
+<span class="nc" id="L117">        binding.mainDrawerEditContainer.setOnClickListener {</span>
+<span class="nc" id="L118">            BreadCrumbLogEvent.logClick(requireActivity(), binding.mainDrawerEditContainer)</span>
+<span class="nc" id="L119">            ActivityTabEvent.submit(activeInterface = &quot;more_menu&quot;, action = &quot;edit_click&quot;)</span>
+<span class="nc" id="L120">            startActivity(SuggestedEditsTasksActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L121">            dismiss()</span>
+<span class="nc" id="L122">        }</span>
+
+<span class="nc" id="L124">        updateState()</span>
+<span class="nc" id="L125">        return binding.root</span>
+    }
+
+    override fun onDestroyView() {
+<span class="nc" id="L129">        super.onDestroyView()</span>
+<span class="nc" id="L130">        _binding = null</span>
+<span class="nc" id="L131">    }</span>
+
+    override fun onStart() {
+<span class="nc" id="L134">        super.onStart()</span>
+<span class="nc" id="L135">        BottomSheetBehavior.from(binding.root.parent as View).peekHeight = DimenUtil.displayHeightPx</span>
+<span class="nc" id="L136">    }</span>
+
+    private fun updateState() {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            if (AccountUtil.isTemporaryAccount) {</span>
+<span class="nc" id="L141">                binding.mainDrawerAccountAvatar.setImageResource(R.drawable.ic_login_24px)</span>
+<span class="nc" id="L142">                ImageViewCompat.setImageTintList(binding.mainDrawerAccountAvatar, getThemedColorStateList(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L143">                binding.tempAccountName.text = AccountUtil.userName</span>
+<span class="nc" id="L144">                binding.mainDrawerAccountName.isVisible = false</span>
+<span class="nc" id="L145">                binding.mainDrawerLoginButton.textAlignment = View.TEXT_ALIGNMENT_TEXT_START</span>
+<span class="nc" id="L146">                binding.mainDrawerLoginButton.text = getString(R.string.main_drawer_login)</span>
+<span class="nc" id="L147">                binding.mainDrawerLoginButton.setTextColor(getThemedColorStateList(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L148">                binding.mainDrawerLoginButton.isVisible = true</span>
+            } else {
+<span class="nc" id="L150">                binding.mainDrawerAccountAvatar.setImageResource(R.drawable.ic_baseline_person_24)</span>
+<span class="nc" id="L151">                ImageViewCompat.setImageTintList(binding.mainDrawerAccountAvatar, getThemedColorStateList(requireContext(), R.attr.secondary_color))</span>
+<span class="nc" id="L152">                binding.mainDrawerAccountName.text = AccountUtil.userName</span>
+<span class="nc" id="L153">                binding.mainDrawerAccountName.isVisible = true</span>
+<span class="nc" id="L154">                binding.mainDrawerLoginButton.isVisible = false</span>
+            }
+<span class="nc" id="L156">            binding.mainDrawerTalkContainer.isVisible = true</span>
+<span class="nc" id="L157">            binding.mainDrawerTempAccountContainer.isVisible = AccountUtil.isTemporaryAccount</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            binding.mainDrawerWatchlistContainer.isVisible = !AccountUtil.isTemporaryAccount</span>
+<span class="nc" id="L159">            binding.mainDrawerContribsContainer.isVisible = true</span>
+<span class="nc" id="L160">            binding.mainDrawerEditContainer.isVisible = true</span>
+        } else {
+<span class="nc" id="L162">            binding.mainDrawerAccountAvatar.setImageResource(R.drawable.ic_login_24px)</span>
+<span class="nc" id="L163">            ImageViewCompat.setImageTintList(binding.mainDrawerAccountAvatar, getThemedColorStateList(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L164">            binding.mainDrawerAccountName.isVisible = false</span>
+<span class="nc" id="L165">            binding.mainDrawerTempAccountContainer.isVisible = false</span>
+<span class="nc" id="L166">            binding.mainDrawerLoginButton.textAlignment = View.TEXT_ALIGNMENT_TEXT_START</span>
+<span class="nc" id="L167">            binding.mainDrawerLoginButton.text = getString(R.string.main_drawer_login)</span>
+<span class="nc" id="L168">            binding.mainDrawerLoginButton.setTextColor(getThemedColorStateList(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L169">            binding.mainDrawerTalkContainer.isVisible = false</span>
+<span class="nc" id="L170">            binding.mainDrawerWatchlistContainer.isVisible = false</span>
+<span class="nc" id="L171">            binding.mainDrawerContribsContainer.isVisible = false</span>
+<span class="nc" id="L172">            binding.mainDrawerEditContainer.isVisible = false</span>
+        }
+<span class="nc" id="L174">        binding.mainDrawerGamesHubContainer.isVisible = WikiGames.WHICH_CAME_FIRST.isLangSupported(*WikipediaApp.instance.languageState.appLanguageCodes.toTypedArray())</span>
+<span class="nc" id="L175">    }</span>
+
+    private fun callback(): Callback? {
+<span class="nc" id="L178">        return FragmentUtil.getCallback(this, Callback::class.java)</span>
+    }
+
+    companion object {
+        fun newInstance(): MenuNavTabDialog {
+<span class="nc" id="L183">            return MenuNavTabDialog()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

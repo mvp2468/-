@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HistoryEntryDao.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.history.db</a> &gt; <span class="el_source">HistoryEntryDao.kt</span></div><h1>HistoryEntryDao.kt</h1><pre class="source lang-java linenums">package org.wikipedia.history.db
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import org.wikipedia.history.HistoryEntry
+
+@Dao
+interface HistoryEntryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEntry(entry: HistoryEntry): Long
+
+    @Query(&quot;SELECT * FROM HistoryEntry WHERE UPPER(displayTitle) LIKE UPPER(:term) ESCAPE '\\'&quot;)
+    suspend fun findEntryBySearchTerm(term: String): HistoryEntry?
+
+    @Query(&quot;SELECT * FROM HistoryEntry WHERE authority = :authority AND lang = :lang AND apiTitle = :apiTitle LIMIT 1&quot;)
+    suspend fun findEntryBy(authority: String, lang: String, apiTitle: String): HistoryEntry?
+
+    @Query(&quot;SELECT * FROM HistoryEntry ORDER BY RANDOM() DESC LIMIT :limit&quot;)
+    suspend fun getHistoryEntriesByRandom(limit: Int): List&lt;HistoryEntry&gt;
+
+    @Query(&quot;SELECT * FROM HistoryEntry WHERE authority = :authority AND lang = :lang AND apiTitle = :apiTitle AND timestamp = :timestamp LIMIT 1&quot;)
+    suspend fun findEntryBy(authority: String, lang: String, apiTitle: String, timestamp: Long): HistoryEntry?
+
+    @Query(&quot;SELECT COUNT(*) FROM (SELECT DISTINCT HistoryEntry.lang, HistoryEntry.apiTitle FROM HistoryEntry WHERE timestamp BETWEEN :startMillis AND :endMillis)&quot;)
+<span class="nc" id="L28">    suspend fun getDistinctEntriesCountBetween(startMillis: Long, endMillis: Long = System.currentTimeMillis()): Int</span>
+
+    @Query(&quot;SELECT COUNT(*) FROM (SELECT DISTINCT HistoryEntry.lang, HistoryEntry.apiTitle FROM HistoryEntry WHERE timestamp &gt; :timestamp)&quot;)
+    suspend fun getDistinctEntriesCountSince(timestamp: Long): Int?
+
+    @Query(&quot;SELECT displayTitle FROM HistoryEntry WHERE timestamp BETWEEN :startMillis AND :endMillis GROUP BY displayTitle HAVING COUNT(displayTitle) &gt; 1 ORDER BY COUNT(displayTitle) DESC LIMIT :limit&quot;)
+<span class="nc" id="L34">    suspend fun getTopVisitedEntriesBetween(limit: Int, startMillis: Long, endMillis: Long = System.currentTimeMillis()): List&lt;String&gt;</span>
+
+    @Query(&quot;SELECT COUNT(*) FROM HistoryEntry&quot;)
+    suspend fun getHistoryCount(): Int
+
+    @Query(&quot;DELETE FROM HistoryEntry&quot;)
+    suspend fun deleteAll()
+
+    @Query(&quot;DELETE FROM HistoryEntry WHERE authority = :authority AND lang = :lang AND namespace = :namespace AND apiTitle = :apiTitle&quot;)
+    suspend fun deleteBy(authority: String, lang: String, namespace: String?, apiTitle: String)
+
+    @Query(&quot;SELECT * FROM HistoryEntry ORDER BY timestamp DESC LIMIT 1&quot;)
+    suspend fun getMostRecentEntry(): HistoryEntry?
+
+    @Query(&quot;SELECT CAST(strftime('%H', timestamp / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hour FROM HistoryEntry WHERE timestamp BETWEEN :startMillis AND :endMillis GROUP BY hour ORDER BY COUNT(id) DESC LIMIT 1&quot;)
+<span class="nc" id="L49">    suspend fun getFavoriteTimeToReadBetween(startMillis: Long, endMillis: Long = System.currentTimeMillis()): Int?</span>
+
+    @Query(&quot;SELECT CAST(strftime('%w', timestamp / 1000, 'unixepoch', 'localtime') AS INTEGER) AS dayOfWeek FROM HistoryEntry WHERE timestamp BETWEEN :startMillis AND :endMillis GROUP BY dayOfWeek ORDER BY COUNT(id) DESC LIMIT 1&quot;)
+<span class="nc" id="L52">    suspend fun getFavoriteDayToReadBetween(startMillis: Long, endMillis: Long = System.currentTimeMillis()): Int?</span>
+
+    @Query(&quot;SELECT CAST(strftime('%m', timestamp / 1000, 'unixepoch', 'localtime') AS INTEGER) AS month FROM HistoryEntry WHERE timestamp BETWEEN :startMillis AND :endMillis GROUP BY month ORDER BY COUNT(id) DESC LIMIT 1&quot;)
+<span class="nc" id="L55">    suspend fun getMostReadingMonthBetween(startMillis: Long, endMillis: Long = System.currentTimeMillis()): Int?</span>
+
+    @Transaction
+<span class="nc" id="L58">    suspend fun insert(entries: List&lt;HistoryEntry&gt;) {</span>
+<span class="nc" id="L59">        entries.forEach {</span>
+<span class="nc" id="L60">            insertEntry(it)</span>
+<span class="nc" id="L61">        }</span>
+<span class="nc" id="L62">    }</span>
+
+<span class="nc" id="L64">    suspend fun delete(entry: HistoryEntry) {</span>
+<span class="nc" id="L65">        deleteBy(entry.authority, entry.lang, entry.namespace, entry.apiTitle)</span>
+<span class="nc" id="L66">    }</span>
+
+    @Transaction
+<span class="nc" id="L69">    suspend fun upsert(entry: HistoryEntry): Long {</span>
+<span class="nc" id="L70">        val curEntry = findEntryBy(entry.authority, entry.lang, entry.apiTitle, entry.timestamp.time)</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        return if (curEntry != null) {</span>
+            // If this entry already exists, it implies that the page was refreshed, so it's OK not to
+            // create a new db entry. But just for good measure, lets update the displayTitle anyway,
+            // since it might have changed.
+<span class="nc" id="L75">            curEntry.displayTitle = entry.displayTitle</span>
+<span class="nc" id="L76">            insertEntry(curEntry)</span>
+        } else {
+            // This is definitely a new visit to this page, so create a new db entry.
+<span class="nc" id="L79">            insertEntry(entry)</span>
+        }
+<span class="nc" id="L81">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

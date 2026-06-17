@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LanguageUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.language</a> &gt; <span class="el_source">LanguageUtil.kt</span></div><h1>LanguageUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.language
+
+import android.content.Context
+import android.os.Build
+import android.view.inputmethod.InputMethodManager
+import androidx.core.os.LocaleListCompat
+import org.apache.commons.lang3.StringUtils
+import org.wikipedia.WikipediaApp
+import org.wikipedia.util.StringUtil
+import java.util.Locale
+
+object LanguageUtil {
+
+    private const val MAX_SUGGESTED_LANGUAGES = 8
+
+    val suggestedLanguagesFromSystem: List&lt;String&gt;
+        get() {
+<span class="fc" id="L18">            val languages = mutableListOf&lt;String&gt;()</span>
+
+            // First, look at languages installed on the system itself.
+<span class="fc" id="L21">            var localeList = LocaleListCompat.getDefault()</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">            for (i in 0 until localeList.size()) {</span>
+<span class="pc bpc" id="L23" title="1 of 2 branches missed.">                localeList[i]?.let {</span>
+<span class="fc" id="L24">                    val languageCode = localeToWikiLanguageCode(it)</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">                    if (!languages.contains(languageCode)) {</span>
+<span class="fc" id="L26">                        languages.add(languageCode)</span>
+                    }
+<span class="fc" id="L28">                }</span>
+            }
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">            if (languages.isEmpty()) {</span>
+                // Always default to at least one system language in the list.
+<span class="nc" id="L32">                languages.add(localeToWikiLanguageCode(Locale.getDefault()))</span>
+            }
+
+            // Query the installed keyboard languages, and add them to the list, if they don't exist.
+<span class="fc" id="L36">            val imm = WikipediaApp.instance.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager</span>
+<span class="fc" id="L37">            val ims = imm.enabledInputMethodList</span>
+<span class="fc" id="L38">            val langTagList = mutableListOf&lt;String&gt;()</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">            for (method in ims) {</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">                val submethods = imm.getEnabledInputMethodSubtypeList(method, true) ?: emptyList()</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">                for (submethod in submethods) {</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">                    if (submethod.mode == &quot;keyboard&quot;) {</span>
+<span class="fc" id="L43">                        var langTag =</span>
+<span class="pc bpc" id="L44" title="3 of 6 branches missed.">                            if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.N &amp;&amp; submethod.languageTag.isNotEmpty()) submethod.languageTag</span>
+<span class="fc" id="L45">                            else submethod.locale</span>
+<span class="pc bpc" id="L46" title="2 of 4 branches missed.">                        if (langTag.isEmpty()) {</span>
+<span class="nc" id="L47">                            continue</span>
+                        }
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">                        if (langTag.contains(&quot;_&quot;)) {</span>
+                            // The keyboard reports locale variants with underscores (&quot;en_US&quot;) whereas
+                            // Locale.forLanguageTag() expects dashes (&quot;en-US&quot;), so convert them.
+<span class="fc" id="L52">                            langTag = langTag.replace('_', '-')</span>
+                        }
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">                        if (!langTagList.contains(langTag)) {</span>
+<span class="fc" id="L55">                            langTagList.add(langTag)</span>
+                        }
+                        // A Pinyin keyboard will report itself as zh-CN (simplified), but we want to add
+                        // both Simplified and Traditional in that case.
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">                        if (langTag.lowercase(Locale.getDefault()) == AppLanguageLookUpTable.CHINESE_CN_LANGUAGE_CODE &amp;&amp;</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">                            !langTagList.contains(&quot;zh-TW&quot;)) {</span>
+<span class="fc" id="L61">                            langTagList.add(&quot;zh-TW&quot;)</span>
+                        }
+                    }
+                }
+            }
+<span class="pc bpc" id="L66" title="2 of 4 branches missed.">            if (langTagList.isNotEmpty()) {</span>
+<span class="fc" id="L67">                localeList = LocaleListCompat.forLanguageTags(StringUtil.listToCsv(langTagList))</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                for (i in 0 until localeList.size()) {</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">                    localeList[i]?.let {</span>
+<span class="fc" id="L70">                        val langCode = localeToWikiLanguageCode(it)</span>
+<span class="pc bpc" id="L71" title="3 of 8 branches missed.">                        if (langCode.isNotEmpty() &amp;&amp; !languages.contains(langCode) &amp;&amp; langCode != &quot;und&quot;) {</span>
+<span class="fc" id="L72">                            languages.add(langCode)</span>
+                        }
+<span class="fc" id="L74">                    }</span>
+                }
+            }
+<span class="fc" id="L77">            return languages.take(MAX_SUGGESTED_LANGUAGES)</span>
+        }
+
+    fun localeToWikiLanguageCode(locale: Locale): String {
+        // Convert deprecated language codes to modern ones.
+        // See https://developer.android.com/reference/java/util/Locale.html
+<span class="pc bpc" id="L83" title="4 of 6 branches missed.">        return when (locale.language) {</span>
+<span class="nc" id="L84">            &quot;iw&quot; -&gt; &quot;he&quot; // Hebrew</span>
+<span class="nc" id="L85">            &quot;in&quot; -&gt; &quot;id&quot; // Indonesian</span>
+<span class="nc" id="L86">            &quot;ji&quot; -&gt; &quot;yi&quot; // Yiddish</span>
+<span class="nc" id="L87">            &quot;yue&quot; -&gt; AppLanguageLookUpTable.CHINESE_YUE_LANGUAGE_CODE</span>
+<span class="fc" id="L88">            &quot;zh&quot; -&gt; AppLanguageLookUpTable.chineseLocaleToWikiLanguageCode(locale)</span>
+<span class="fc" id="L89">            else -&gt; locale.language</span>
+        }
+    }
+
+    fun isChineseVariant(langCode: String): Boolean {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        return langCode.startsWith(AppLanguageLookUpTable.CHINESE_LANGUAGE_CODE) &amp;&amp;</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                langCode != AppLanguageLookUpTable.CHINESE_YUE_LANGUAGE_CODE</span>
+    }
+
+    fun startsWithArticle(text: String, language: String): Boolean {
+<span class="nc" id="L99">        val first = text.split(&quot; &quot;.toRegex()).toTypedArray()[0].lowercase(Locale.getDefault()).trim()</span>
+
+        // When adding new languages:
+        // # Update the documentation of the message description_starts_with_article
+        // # Contact translators to this language to make sure this message is translated.
+<span class="nc bnc" id="L104" title="All 4 branches missed.">        return (language == &quot;en&quot; &amp;&amp; StringUtils.equalsAny(first, &quot;a&quot;, &quot;an&quot;, &quot;the&quot;) ||</span>
+<span class="nc bnc" id="L105" title="All 4 branches missed.">                language == &quot;de&quot; &amp;&amp; StringUtils.equalsAny(first, &quot;der&quot;, &quot;den&quot;, &quot;dem&quot;, &quot;des&quot;, &quot;das&quot;, &quot;die&quot;, &quot;den&quot;, &quot;ein&quot;, &quot;eine&quot;, &quot;einer&quot;, &quot;einen&quot;, &quot;einem&quot;, &quot;eines&quot;, &quot;keine&quot;, &quot;keinen&quot;, &quot;keiner&quot;) ||</span>
+<span class="nc bnc" id="L106" title="All 4 branches missed.">                language == &quot;es&quot; &amp;&amp; StringUtils.equalsAny(first, &quot;el&quot;, &quot;los&quot;, &quot;la&quot;, &quot;las&quot;, &quot;un&quot;, &quot;unos&quot;, &quot;una&quot;, &quot;unas&quot;) ||</span>
+<span class="nc bnc" id="L107" title="All 4 branches missed.">                language == &quot;fr&quot; &amp;&amp; (StringUtils.equalsAny(first, &quot;le&quot;, &quot;la&quot;, &quot;les&quot;, &quot;un&quot;, &quot;une&quot;, &quot;des&quot;) ||</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                first.startsWith(&quot;l'&quot;)))</span>
+    }
+
+    fun convertToUselangIfNeeded(languageCode: String): String {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        return if (languageCode.startsWith(AppLanguageLookUpTable.TEST_LANGUAGE_CODE)) &quot;uselang&quot; else languageCode</span>
+    }
+
+    fun formatLangCodeForButton(languageCode: String): String {
+<span class="nc" id="L116">        return languageCode.replace(&quot;-&quot;, &quot;-\n&quot;)</span>
+    }
+
+    fun getSupportedLanguageCodes(list: List&lt;String&gt;): List&lt;String&gt; {
+<span class="nc" id="L120">        return list.flatMap { langCode -&gt;</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">            WikipediaApp.instance.languageState.getLanguageVariants(langCode) ?: listOf(langCode)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BreadCrumbViewUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">BreadCrumbViewUtil.kt</span></div><h1>BreadCrumbViewUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import android.content.Context
+import android.view.ContextThemeWrapper
+import android.view.View
+import android.widget.EditText
+import android.widget.TextView
+import androidx.core.view.ancestors
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
+import com.google.android.material.button.MaterialButton
+import org.wikipedia.R
+import org.wikipedia.activity.SingleFragmentActivity
+import org.wikipedia.feed.view.ListCardItemView
+import org.wikipedia.feed.view.ListCardView
+import org.wikipedia.main.MainActivity
+import org.wikipedia.main.MainFragment
+import org.wikipedia.navtab.NavTab
+import org.wikipedia.onboarding.InitialOnboardingActivity
+import org.wikipedia.onboarding.InitialOnboardingFragment
+import org.wikipedia.onboarding.InitialOnboardingFragment.OnboardingPage
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+
+object BreadCrumbViewUtil {
+    private const val VIEW_UNNAMED = &quot;unnamed&quot;
+
+    fun getReadableNameForView(view: View): String {
+<span class="nc" id="L30">        val parent = view.parent</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">        if (parent is RecyclerView) {</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">            val position = parent.findContainingViewHolder(view)?.bindingAdapterPosition ?: 0</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">            val parentCardName = if (view is ListCardItemView) {</span>
+                // If null, ListItemView is not in a CardView
+<span class="nc bnc" id="L35" title="All 4 branches missed.">                view.ancestors.firstOrNull { it is ListCardView&lt;*&gt; }?.javaClass?.simpleName</span>
+            } else {
+<span class="nc" id="L37">                null</span>
+            }
+            // If no parent card is available, return only recyclerview name and click position for
+            // non-cardView recyclerViews
+<span class="nc bnc" id="L41" title="All 2 branches missed.">            val parentName = parentCardName ?: getReadableNameForView(parent)</span>
+<span class="nc" id="L42">            return &quot;$parentName.$position&quot;</span>
+        }
+<span class="nc bnc" id="L44" title="All 2 branches missed.">        return if (view.id == View.NO_ID) {</span>
+<span class="nc bnc" id="L45" title="All 4 branches missed.">            if (view is TextView &amp;&amp; view !is EditText) {</span>
+<span class="nc" id="L46">                view.text.toString()</span>
+            } else {
+<span class="nc" id="L48">                VIEW_UNNAMED</span>
+            }
+        } else {
+<span class="nc" id="L51">            getViewResourceName(view)</span>
+        }
+    }
+
+    private fun getViewResourceName(view: View): String {
+<span class="nc" id="L56">        return try {</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            if (view.id == R.id.footerActionButton) {</span>
+<span class="nc" id="L58">                return (view as MaterialButton).text.toString()</span>
+            }
+<span class="nc" id="L60">            view.resources.getResourceEntryName(view.id)</span>
+<span class="nc" id="L61">        } catch (e: Exception) {</span>
+<span class="nc" id="L62">            VIEW_UNNAMED</span>
+        }
+    }
+
+<span class="fc" id="L66">    fun getReadableScreenName(context: Context, fragment: Fragment? = null): String {</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        val fragName = if (fragment == null) getCurrentFragmentName(context) else fragment.javaClass.simpleName</span>
+<span class="pc bpc" id="L68" title="2 of 4 branches missed.">        return context.javaClass.simpleName + (if (fragName.isNotEmpty()) &quot;.$fragName&quot; else &quot;&quot;)</span>
+    }
+
+    private fun getCurrentFragmentName(context: Context): String {
+<span class="fc" id="L72">        val fragment = getVisibleFragment(context)</span>
+
+<span class="pc" id="L74">        return when {</span>
+<span class="pc bpc" id="L75" title="3 of 4 branches missed.">            fragment != null &amp;&amp; context is InitialOnboardingActivity -&gt; {</span>
+<span class="nc" id="L76">                getInitialOnboardingScreenName(fragment)</span>
+            }
+<span class="pc bpc" id="L78" title="3 of 4 branches missed.">            fragment != null &amp;&amp; context is MainActivity -&gt; {</span>
+<span class="nc" id="L79">                getMainFragmentTabName(fragment)</span>
+            }
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            fragment != null -&gt; {</span>
+<span class="nc" id="L82">                return fragment.javaClass.simpleName</span>
+            }
+<span class="fc" id="L84">            else -&gt; return &quot;&quot;</span>
+        }
+    }
+
+    private fun getMainFragmentTabName(fragment: Fragment): String {
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (fragment is MainFragment) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            val mainFragmentPager: ViewPager2? = fragment.view?.findViewById(R.id.main_view_pager)</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            return if (mainFragmentPager == null) {</span>
+<span class="nc" id="L92">                fragment.javaClass.simpleName</span>
+            } else {
+<span class="nc" id="L94">                NavTab.of(mainFragmentPager.currentItem).name</span>
+            }
+        }
+<span class="nc" id="L97">        return &quot;&quot;</span>
+    }
+
+    private fun getInitialOnboardingScreenName(fragment: Fragment): String {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (fragment is InitialOnboardingFragment) {</span>
+<span class="nc" id="L102">            val onboardingFragmentPager: ViewPager2? =</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                fragment.view?.findViewById(R.id.fragment_pager)</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            return if (onboardingFragmentPager == null) {</span>
+<span class="nc" id="L105">                fragment.javaClass.simpleName</span>
+            } else {
+<span class="nc" id="L107">                OnboardingPage.of(onboardingFragmentPager.currentItem).name</span>
+            }
+        }
+<span class="nc" id="L110">        return &quot;&quot;</span>
+    }
+
+    private fun getVisibleFragment(context: Context): Fragment? {
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if (context is SingleFragmentActivity&lt;*&gt;) {</span>
+<span class="nc" id="L115">            return context.supportFragmentManager.findFragmentById(R.id.fragment_container)</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        } else if (context is FragmentActivity) {</span>
+<span class="fc" id="L117">            val fragments: List&lt;Fragment&gt; = context.supportFragmentManager.fragments</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            for (fragment in fragments) {</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                if (fragment.isVisible) return fragment</span>
+            }
+<span class="nc bnc" id="L121" title="All 4 branches missed.">        } else if (context is ContextThemeWrapper &amp;&amp; context.baseContext is FragmentActivity) {</span>
+            // Very likely a bottom sheet, so find it within the Context's fragment structure.
+<span class="nc" id="L123">            var targetFrag = (context.baseContext as FragmentActivity).supportFragmentManager.findFragmentByTag(ExclusiveBottomSheetPresenter.BOTTOM_SHEET_FRAGMENT_TAG)</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            if (targetFrag != null) {</span>
+<span class="nc" id="L125">                return targetFrag</span>
+            }
+<span class="nc" id="L127">            val frags = (context.baseContext as FragmentActivity).supportFragmentManager.fragments</span>
+<span class="nc" id="L128">            frags.forEach {</span>
+<span class="nc" id="L129">                targetFrag = it.childFragmentManager.findFragmentByTag(ExclusiveBottomSheetPresenter.BOTTOM_SHEET_FRAGMENT_TAG)</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                if (targetFrag != null) {</span>
+<span class="nc" id="L131">                    return targetFrag</span>
+                }
+<span class="nc" id="L133">            }</span>
+<span class="nc" id="L134">            frags.lastOrNull()</span>
+        }
+<span class="fc" id="L136">        return null</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

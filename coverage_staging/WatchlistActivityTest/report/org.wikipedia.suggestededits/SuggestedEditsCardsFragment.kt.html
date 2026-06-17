@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsCardsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsCardsFragment.kt</span></div><h1>SuggestedEditsCardsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.app.Activity.RESULT_OK
+import android.content.Intent
+import android.graphics.drawable.Animatable
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.View.GONE
+import android.view.View.VISIBLE
+import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.os.bundleOf
+import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.viewpager2.widget.ViewPager2
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.databinding.FragmentSuggestedEditsCardsBinding
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_CAPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_DESCRIPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_IMAGE_TAGS
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.IMAGE_RECOMMENDATIONS
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_CAPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.VANDALISM_PATROL
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.suggestededits.SuggestionsActivity.Companion.EXTRA_SOURCE_ADDED_CONTRIBUTION
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.views.PositionAwareFragmentStateAdapter
+
+<span class="nc" id="L49">class SuggestedEditsCardsFragment : Fragment(), MenuProvider, SuggestedEditsItemFragment.Callback {</span>
+    private var _binding: FragmentSuggestedEditsCardsBinding? = null
+<span class="nc" id="L51">    private val binding get() = _binding!!</span>
+
+<span class="nc" id="L53">    private val viewModel: SuggestedEditsCardsViewModel by viewModels()</span>
+<span class="nc" id="L54">    private val viewPagerListener = ViewPagerListener()</span>
+<span class="nc" id="L55">    private val app = WikipediaApp.instance</span>
+    private var swappingLanguageSpinners: Boolean = false
+    private var resettingViewPager: Boolean = false
+
+    private val topTitle: PageTitle?
+        get() {
+<span class="nc" id="L61">            val f = topChild()</span>
+<span class="nc bnc" id="L62" title="All 4 branches missed.">            return if (viewModel.action == ADD_DESCRIPTION || viewModel.action == ADD_CAPTION) {</span>
+<span class="nc bnc" id="L63" title="All 6 branches missed.">                f?.sourceSummaryForEdit?.pageTitle?.description = f.addedContribution</span>
+<span class="nc bnc" id="L64" title="All 4 branches missed.">                f?.sourceSummaryForEdit?.pageTitle</span>
+            } else {
+<span class="nc bnc" id="L66" title="All 6 branches missed.">                f?.targetSummaryForEdit?.pageTitle?.description = f.addedContribution</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">                f?.targetSummaryForEdit?.pageTitle</span>
+            }
+        }
+
+    fun topBaseChild(): SuggestedEditsItemFragment? {
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        return (binding.cardsViewPager.adapter as ViewPagerAdapter?)?.getFragmentAt(binding.cardsViewPager.currentItem) as SuggestedEditsItemFragment?</span>
+    }
+
+    fun langFromCode(): String {
+<span class="nc" id="L76">        return viewModel.langFromCode</span>
+    }
+
+    fun langToCode(): String {
+<span class="nc" id="L80">        return viewModel.langToCode</span>
+    }
+
+    fun action(): DescriptionEditActivity.Action {
+<span class="nc" id="L84">        return viewModel.action</span>
+    }
+
+    private fun topChild(): SuggestedEditsCardsItemFragment? {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        return (binding.cardsViewPager.adapter as ViewPagerAdapter?)?.getFragmentAt(binding.cardsViewPager.currentItem) as SuggestedEditsCardsItemFragment?</span>
+    }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L92">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L93">        _binding = FragmentSuggestedEditsCardsBinding.inflate(layoutInflater, container, false)</span>
+
+<span class="nc" id="L95">        (requireActivity() as AppCompatActivity).apply {</span>
+<span class="nc" id="L96">            setSupportActionBar(binding.toolbar)</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            supportActionBar?.title = getActionBarTitle(intent.getSerializableExtra(Constants.INTENT_EXTRA_ACTION) as DescriptionEditActivity.Action)</span>
+<span class="nc" id="L99">        }</span>
+
+<span class="nc" id="L101">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L105">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L106">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+<span class="nc" id="L107">        setInitialUiState()</span>
+<span class="nc" id="L108">        binding.cardsViewPager.offscreenPageLimit = 2</span>
+<span class="nc" id="L109">        binding.cardsViewPager.registerOnPageChangeCallback(viewPagerListener) // addOnPageChangeListener(viewPagerListener)</span>
+<span class="nc" id="L110">        resetViewPagerItemAdapter()</span>
+
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if (viewModel.action == IMAGE_RECOMMENDATIONS) {</span>
+<span class="nc" id="L113">            binding.cardsViewPager.isUserInputEnabled = false</span>
+        }
+
+<span class="nc" id="L116">        binding.backButton.setOnClickListener { previousPage() }</span>
+<span class="nc" id="L117">        binding.nextButton.setOnClickListener {</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            if (binding.nextButton.drawable is Animatable) {</span>
+<span class="nc" id="L119">                (binding.nextButton.drawable as Animatable).start()</span>
+            }
+<span class="nc" id="L121">            nextPage(null)</span>
+<span class="nc" id="L122">        }</span>
+
+<span class="nc" id="L124">        lifecycleScope.launch {</span>
+<span class="nc" id="L125">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L126">                viewModel.uiState.collect {</span>
+<span class="nc" id="L127">                    when (it) {</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                        is Resource.Success -&gt; onSuccess(it.data)</span>
+                    }
+<span class="nc" id="L130">                }</span>
+            }
+<span class="nc" id="L132">        }</span>
+
+<span class="nc" id="L134">        updateBackButton(0)</span>
+<span class="nc" id="L135">        binding.addContributionButton.setOnClickListener { onSelectPage() }</span>
+<span class="nc" id="L136">        updateActionButton()</span>
+<span class="nc" id="L137">        maybeShowOnboarding()</span>
+<span class="nc" id="L138">    }</span>
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+<span class="nc bnc" id="L141" title="All 4 branches missed.">        if (viewModel.action == IMAGE_RECOMMENDATIONS || viewModel.action == VANDALISM_PATROL) {</span>
+            // In these cases, the sub-fragment will have its own menu.
+<span class="nc" id="L143">            return</span>
+        }
+<span class="nc" id="L145">        menuInflater.inflate(R.menu.menu_suggested_edits, menu)</span>
+<span class="nc" id="L146">    }</span>
+
+    override fun onMenuItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L149">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">            R.id.menu_help -&gt; {</span>
+<span class="nc" id="L151">                when (viewModel.action) {</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                    ADD_IMAGE_TAGS -&gt; {</span>
+<span class="nc" id="L153">                        FeedbackUtil.showAndroidAppEditingFAQ(requireContext(),</span>
+<span class="nc" id="L154">                            R.string.suggested_edits_image_tags_help_url)</span>
+                    }
+                    else -&gt; {
+<span class="nc bnc" id="L157" title="All 8 branches missed.">                        if ((viewModel.action == ADD_DESCRIPTION &amp;&amp; viewModel.langFromCode == &quot;en&quot;) || (viewModel.action == TRANSLATE_DESCRIPTION &amp;&amp; viewModel.langToCode == &quot;en&quot;)) {</span>
+<span class="nc" id="L158">                            FeedbackUtil.showAndroidAppEditingFAQ(requireContext(), R.string.short_description_help_url_en)</span>
+                        } else {
+<span class="nc" id="L160">                            FeedbackUtil.showAndroidAppEditingFAQ(requireContext())</span>
+                        }
+                    }
+                }
+<span class="nc" id="L164">                val child = topBaseChild()</span>
+<span class="nc bnc" id="L165" title="All 4 branches missed.">                if (child != null &amp;&amp; child is SuggestedEditsImageRecsFragment) {</span>
+<span class="nc" id="L166">                    child.onInfoClicked()</span>
+                }
+<span class="nc" id="L168">                true</span>
+            }
+<span class="nc" id="L170">            else -&gt; false</span>
+        }
+    }
+
+    private fun onSuccess(list: List&lt;String&gt;) {
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (binding.wikiLanguageDropdownContainer.isVisible) {</span>
+<span class="nc" id="L176">            initLanguageSpinners(list)</span>
+<span class="nc" id="L177">            binding.wikiFromLanguageSpinner.onItemSelectedListener = OnFromSpinnerItemSelectedListener()</span>
+<span class="nc" id="L178">            binding.wikiToLanguageSpinner.onItemSelectedListener = OnToSpinnerItemSelectedListener()</span>
+<span class="nc" id="L179">            binding.arrow.setOnClickListener { binding.wikiFromLanguageSpinner.setSelection(binding.wikiToLanguageSpinner.selectedItemPosition) }</span>
+        }
+<span class="nc" id="L181">    }</span>
+
+    private fun getActionBarTitle(action: DescriptionEditActivity.Action): String {
+<span class="nc bnc" id="L184" title="All 5 branches missed.">        return when (action) {</span>
+<span class="nc" id="L185">            ADD_IMAGE_TAGS -&gt; getString(R.string.suggested_edits_tag_images)</span>
+<span class="nc" id="L186">            ADD_CAPTION, TRANSLATE_CAPTION -&gt; getString(R.string.suggested_edits_caption_images)</span>
+<span class="nc" id="L187">            IMAGE_RECOMMENDATIONS -&gt; &quot;&quot;</span>
+<span class="nc" id="L188">            VANDALISM_PATROL -&gt; getString(R.string.suggested_edits_edit_patrol)</span>
+<span class="nc" id="L189">            else -&gt; getString(R.string.suggested_edits_describe_articles)</span>
+        }
+    }
+
+    private fun maybeShowOnboarding() {
+<span class="nc bnc" id="L194" title="All 4 branches missed.">        if (viewModel.action == ADD_IMAGE_TAGS &amp;&amp; Prefs.showImageTagsOnboarding) {</span>
+<span class="nc" id="L195">            Prefs.showImageTagsOnboarding = false</span>
+<span class="nc" id="L196">            startActivity(SuggestedEditsImageTagsOnboardingActivity.newIntent(requireContext()))</span>
+<span class="nc bnc" id="L197" title="All 4 branches missed.">        } else if (viewModel.action == IMAGE_RECOMMENDATIONS &amp;&amp; !Prefs.suggestedEditsImageRecsOnboardingShown) {</span>
+<span class="nc" id="L198">            startActivity(SuggestedEditsImageRecsOnboardingActivity.newIntent(requireActivity()))</span>
+        }
+<span class="nc" id="L200">    }</span>
+
+    private fun updateBackButton(pagerPosition: Int) {
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        binding.backButton.isClickable = pagerPosition != 0</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        binding.backButton.alpha = if (pagerPosition == 0) 0.31f else 1f</span>
+<span class="nc" id="L205">    }</span>
+
+    override fun getLangCode(): String {
+<span class="nc" id="L208">        return viewModel.langFromCode</span>
+    }
+
+    override fun getSinglePage(): MwQueryPage? {
+<span class="nc" id="L212">        return null</span>
+    }
+
+    override fun updateActionButton() {
+<span class="nc" id="L216">        val child = topBaseChild()</span>
+<span class="nc" id="L217">        var isAddedContributionEmpty = true</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (child != null) {</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            if (child is SuggestedEditsCardsItemFragment) {</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">                isAddedContributionEmpty = child.addedContribution.isEmpty()</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                if (!isAddedContributionEmpty) child.showAddedContributionView(child.addedContribution)</span>
+            }
+<span class="nc bnc" id="L223" title="All 2 branches missed.">            binding.addContributionButton.setIconResource((if (isAddedContributionEmpty) R.drawable.ic_add_gray_white_24dp else R.drawable.ic_mode_edit_white_24dp))</span>
+<span class="nc" id="L224">            binding.addContributionButton.isEnabled = child.publishEnabled()</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            binding.addContributionButton.alpha = if (child.publishEnabled()) 1f else 0.5f</span>
+        }
+
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        binding.bottomButtonContainer.isVisible = viewModel.action != IMAGE_RECOMMENDATIONS</span>
+
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        if (viewModel.action == VANDALISM_PATROL) {</span>
+<span class="nc" id="L231">            binding.bottomButtonContainer.isVisible = false</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        } else if (viewModel.action == ADD_IMAGE_TAGS) {</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if (binding.addContributionButton.tag == &quot;landscape&quot;) {</span>
+                // implying landscape mode, where addContributionText doesn't exist.
+<span class="nc" id="L235">                binding.addContributionButton.text = null</span>
+<span class="nc" id="L236">                binding.addContributionButton.setIconResource(R.drawable.ic_check_black_24dp)</span>
+            } else {
+<span class="nc" id="L238">                binding.addContributionButton.text = getString(R.string.description_edit_save)</span>
+<span class="nc" id="L239">                binding.addContributionButton.icon = null</span>
+            }
+<span class="nc bnc" id="L241" title="All 4 branches missed.">        } else if (viewModel.action == TRANSLATE_DESCRIPTION || viewModel.action == TRANSLATE_CAPTION) {</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">            binding.addContributionButton.text = getString(if (isAddedContributionEmpty) R.string.suggested_edits_add_translation_button else R.string.suggested_edits_edit_translation_button)</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        } else if (binding.addContributionButton.tag == &quot;portrait&quot;) {</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            if (viewModel.action == ADD_CAPTION) {</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                binding.addContributionButton.text = getString(if (isAddedContributionEmpty) R.string.suggested_edits_add_caption_button else R.string.suggested_edits_edit_caption_button)</span>
+            } else {
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                binding.addContributionButton.text = getString(if (isAddedContributionEmpty) R.string.suggested_edits_add_description_button else R.string.suggested_edits_edit_description_button)</span>
+            }
+        }
+<span class="nc" id="L250">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L253">        binding.cardsViewPager.unregisterOnPageChangeCallback(viewPagerListener)</span>
+<span class="nc" id="L254">        binding.cardsViewPager.adapter = null</span>
+<span class="nc" id="L255">        _binding = null</span>
+<span class="nc" id="L256">        super.onDestroyView()</span>
+<span class="nc" id="L257">    }</span>
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+<span class="nc" id="L260">        super.onActivityResult(requestCode, resultCode, data)</span>
+<span class="nc bnc" id="L261" title="All 4 branches missed.">        if (requestCode == Constants.ACTIVITY_REQUEST_DESCRIPTION_EDIT &amp;&amp; resultCode == RESULT_OK) {</span>
+<span class="nc" id="L262">            logSuccess()</span>
+<span class="nc bnc" id="L263" title="All 4 branches missed.">            topChild()?.showAddedContributionView(data?.getStringExtra(EXTRA_SOURCE_ADDED_CONTRIBUTION))</span>
+<span class="nc bnc" id="L264" title="All 4 branches missed.">            val targetLangCode = topChild()?.targetSummaryForEdit?.lang</span>
+<span class="nc" id="L265">            FeedbackUtil.showMessage(this,</span>
+<span class="nc bnc" id="L266" title="All 4 branches missed.">                    when (viewModel.action) {</span>
+<span class="nc" id="L267">                        ADD_CAPTION -&gt; getString(R.string.description_edit_success_saved_image_caption_snackbar)</span>
+<span class="nc" id="L268">                        TRANSLATE_CAPTION -&gt; getString(R.string.description_edit_success_saved_image_caption_in_lang_snackbar, app.languageState.getAppLanguageLocalizedName(targetLangCode))</span>
+<span class="nc" id="L269">                        TRANSLATE_DESCRIPTION -&gt; getString(R.string.description_edit_success_saved_in_lang_snackbar, app.languageState.getAppLanguageLocalizedName(targetLangCode))</span>
+<span class="nc" id="L270">                        else -&gt; getString(R.string.description_edit_success_saved_snackbar)</span>
+                    }
+            )
+<span class="nc" id="L273">            nextPage(null)</span>
+        }
+<span class="nc" id="L275">    }</span>
+
+    private fun previousPage() {
+<span class="nc" id="L278">        viewPagerListener.setNextPageSelectedAutomatic()</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        if (binding.cardsViewPager.currentItem &gt; 0) {</span>
+<span class="nc" id="L280">            binding.cardsViewPager.setCurrentItem(binding.cardsViewPager.currentItem - 1, true)</span>
+        }
+<span class="nc" id="L282">        updateActionButton()</span>
+<span class="nc" id="L283">    }</span>
+
+    override fun nextPage(sourceFragment: Fragment?) {
+<span class="nc bnc" id="L286" title="All 4 branches missed.">        if (sourceFragment == topBaseChild() || sourceFragment == null) {</span>
+<span class="nc" id="L287">            viewPagerListener.setNextPageSelectedAutomatic()</span>
+<span class="nc" id="L288">            binding.cardsViewPager.setCurrentItem(binding.cardsViewPager.currentItem + 1, true)</span>
+<span class="nc" id="L289">            updateActionButton()</span>
+        }
+<span class="nc" id="L291">    }</span>
+
+    override fun logSuccess() {
+<span class="nc" id="L294">    }</span>
+
+    fun onSelectPage() {
+<span class="nc bnc" id="L297" title="All 6 branches missed.">        if ((viewModel.action == ADD_IMAGE_TAGS || viewModel.action == VANDALISM_PATROL) &amp;&amp; topBaseChild() != null) {</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">            topBaseChild()?.publish()</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">        } else if (viewModel.action == IMAGE_RECOMMENDATIONS) {</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">            topBaseChild()?.publish()</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        } else if (topTitle != null) {</span>
+<span class="nc bnc" id="L302" title="All 4 branches missed.">            startActivityForResult(DescriptionEditActivity.newIntent(requireContext(), topTitle!!, null, topChild()?.sourceSummaryForEdit, topChild()?.targetSummaryForEdit,</span>
+<span class="nc" id="L303">                viewModel.action, Constants.InvokeSource.SUGGESTED_EDITS), Constants.ACTIVITY_REQUEST_DESCRIPTION_EDIT)</span>
+        }
+<span class="nc" id="L305">    }</span>
+
+    private fun resetViewPagerItemAdapter() {
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        if (!resettingViewPager) {</span>
+<span class="nc" id="L309">            resettingViewPager = true</span>
+<span class="nc" id="L310">            val postDelay: Long = 250</span>
+<span class="nc" id="L311">            binding.cardsViewPager.postDelayed({</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                if (isAdded) {</span>
+<span class="nc" id="L313">                    binding.cardsViewPager.adapter = ViewPagerAdapter(this)</span>
+<span class="nc" id="L314">                    resettingViewPager = false</span>
+                }
+<span class="nc" id="L316">            }, postDelay)</span>
+        }
+<span class="nc" id="L318">    }</span>
+
+    private fun setInitialUiState() {
+<span class="nc bnc" id="L321" title="All 2 branches missed.">        binding.wikiLanguageDropdownContainer.visibility = if (app.languageState.appLanguageCodes.size &gt; 1 &amp;&amp;</span>
+<span class="nc bnc" id="L322" title="All 4 branches missed.">                (viewModel.action == TRANSLATE_DESCRIPTION || viewModel.action == TRANSLATE_CAPTION)) VISIBLE else GONE</span>
+<span class="nc" id="L323">    }</span>
+
+    private fun swapLanguageSpinnerSelection(isFromLang: Boolean) {
+<span class="nc bnc" id="L326" title="All 2 branches missed.">        if (!swappingLanguageSpinners) {</span>
+<span class="nc" id="L327">            swappingLanguageSpinners = true</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">            val preLangPosition = app.languageState.appLanguageCodes.indexOf(if (isFromLang) viewModel.langFromCode else viewModel.langToCode)</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">            if (isFromLang) {</span>
+<span class="nc" id="L330">                binding.wikiToLanguageSpinner.setSelection(preLangPosition)</span>
+            } else {
+<span class="nc" id="L332">                binding.wikiFromLanguageSpinner.setSelection(preLangPosition)</span>
+            }
+<span class="nc" id="L334">            swappingLanguageSpinners = false</span>
+        }
+<span class="nc" id="L336">    }</span>
+
+    private fun initLanguageSpinners(list: List&lt;String&gt;) {
+<span class="nc" id="L339">        binding.wikiFromLanguageSpinner.adapter = ArrayAdapter(requireContext(), R.layout.item_language_spinner, list)</span>
+<span class="nc" id="L340">        binding.wikiToLanguageSpinner.adapter = ArrayAdapter(requireContext(), R.layout.item_language_spinner, list)</span>
+<span class="nc" id="L341">        binding.wikiToLanguageSpinner.setSelection(app.languageState.appLanguageCodes.indexOf(viewModel.langToCode))</span>
+<span class="nc" id="L342">    }</span>
+
+<span class="nc" id="L344">    private inner class OnFromSpinnerItemSelectedListener : AdapterView.OnItemSelectedListener {</span>
+        override fun onItemSelected(parent: AdapterView&lt;*&gt;, view: View?, position: Int, id: Long) {
+<span class="nc bnc" id="L346" title="All 2 branches missed.">            if (viewModel.langToCode == app.languageState.appLanguageCodes[position]) {</span>
+<span class="nc" id="L347">                swapLanguageSpinnerSelection(true)</span>
+            }
+
+<span class="nc bnc" id="L350" title="All 4 branches missed.">            if (!swappingLanguageSpinners &amp;&amp; viewModel.langFromCode != app.languageState.appLanguageCodes[position]) {</span>
+<span class="nc" id="L351">                viewModel.langFromCode = app.languageState.appLanguageCodes[position]</span>
+<span class="nc" id="L352">                resetViewPagerItemAdapter()</span>
+<span class="nc" id="L353">                updateBackButton(0)</span>
+            }
+<span class="nc" id="L355">        }</span>
+
+        override fun onNothingSelected(parent: AdapterView&lt;*&gt;) {
+<span class="nc" id="L358">        }</span>
+    }
+
+<span class="nc" id="L361">    private inner class OnToSpinnerItemSelectedListener : AdapterView.OnItemSelectedListener {</span>
+        override fun onItemSelected(parent: AdapterView&lt;*&gt;, view: View?, position: Int, id: Long) {
+<span class="nc bnc" id="L363" title="All 2 branches missed.">            if (viewModel.langFromCode == app.languageState.appLanguageCodes[position]) {</span>
+<span class="nc" id="L364">                swapLanguageSpinnerSelection(false)</span>
+            }
+
+<span class="nc bnc" id="L367" title="All 4 branches missed.">            if (!swappingLanguageSpinners &amp;&amp; viewModel.langToCode != app.languageState.appLanguageCodes[position]) {</span>
+<span class="nc" id="L368">                viewModel.langToCode = app.languageState.appLanguageCodes[position]</span>
+<span class="nc" id="L369">                resetViewPagerItemAdapter()</span>
+<span class="nc" id="L370">                updateBackButton(0)</span>
+            }
+<span class="nc" id="L372">        }</span>
+
+        override fun onNothingSelected(parent: AdapterView&lt;*&gt;) {
+<span class="nc" id="L375">        }</span>
+    }
+
+<span class="nc" id="L378">    private inner class ViewPagerAdapter constructor(fragment: Fragment) : PositionAwareFragmentStateAdapter(fragment) {</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L380">            return Integer.MAX_VALUE</span>
+        }
+        override fun createFragment(position: Int): Fragment {
+<span class="nc bnc" id="L383" title="All 4 branches missed.">            return when (viewModel.action) {</span>
+                VANDALISM_PATROL -&gt; {
+<span class="nc" id="L385">                    SuggestedEditsVandalismPatrolFragment.newInstance()</span>
+                }
+                ADD_IMAGE_TAGS -&gt; {
+<span class="nc" id="L388">                    SuggestedEditsImageTagsFragment.newInstance()</span>
+                }
+                IMAGE_RECOMMENDATIONS -&gt; {
+<span class="nc" id="L391">                    SuggestedEditsImageRecsFragment.newInstance()</span>
+                }
+                else -&gt; {
+<span class="nc" id="L394">                    SuggestedEditsCardsItemFragment.newInstance()</span>
+                }
+            }
+        }
+    }
+
+<span class="nc" id="L400">    private inner class ViewPagerListener : ViewPager2.OnPageChangeCallback() {</span>
+        private var prevPosition: Int = 0
+        private var nextPageSelectedAutomatic: Boolean = false
+
+        fun setNextPageSelectedAutomatic() {
+<span class="nc" id="L405">            nextPageSelectedAutomatic = true</span>
+<span class="nc" id="L406">        }</span>
+
+        override fun onPageSelected(position: Int) {
+<span class="nc bnc" id="L409" title="All 2 branches missed.">            if (viewModel.action == IMAGE_RECOMMENDATIONS) {</span>
+<span class="nc bnc" id="L410" title="All 2 branches missed.">                ((binding.cardsViewPager.adapter as ViewPagerAdapter?)?.getFragmentAt(position) as SuggestedEditsImageRecsFragment).logImpression()</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">            } else if (viewModel.action == VANDALISM_PATROL) {</span>
+<span class="nc bnc" id="L412" title="All 2 branches missed.">                PatrollerExperienceEvent.logAction(if (position &lt; prevPosition) &quot;edit_left_swipe&quot; else &quot;edit_right_swipe&quot;, &quot;pt_edit&quot;)</span>
+            }
+<span class="nc" id="L414">            updateBackButton(position)</span>
+<span class="nc" id="L415">            updateActionButton()</span>
+
+<span class="nc" id="L417">            nextPageSelectedAutomatic = false</span>
+<span class="nc" id="L418">            prevPosition = position</span>
+
+<span class="nc" id="L420">            val storedOffScreenPagesCount = binding.cardsViewPager.offscreenPageLimit * 2 + 1</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">            if (position &gt;= storedOffScreenPagesCount) {</span>
+<span class="nc" id="L422">                (binding.cardsViewPager.adapter as ViewPagerAdapter).removeFragmentAt(position - storedOffScreenPagesCount)</span>
+            }
+<span class="nc" id="L424">        }</span>
+    }
+
+    companion object {
+        fun newInstance(action: DescriptionEditActivity.Action): SuggestedEditsCardsFragment {
+<span class="nc" id="L429">            return SuggestedEditsCardsFragment().apply {</span>
+<span class="nc" id="L430">                arguments = bundleOf(</span>
+<span class="nc" id="L431">                    Constants.INTENT_EXTRA_ACTION to action,</span>
+                )
+<span class="nc" id="L433">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

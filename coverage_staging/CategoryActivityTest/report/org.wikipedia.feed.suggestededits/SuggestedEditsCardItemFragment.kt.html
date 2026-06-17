@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsCardItemFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.suggestededits</a> &gt; <span class="el_source">SuggestedEditsCardItemFragment.kt</span></div><h1>SuggestedEditsCardItemFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.suggestededits
+
+import android.app.Activity.RESULT_OK
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.View.GONE
+import android.view.View.VISIBLE
+import android.view.ViewGroup
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.os.bundleOf
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource.FEED
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.databinding.FragmentSuggestedEditsCardItemBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_CAPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_IMAGE_TAGS
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_CAPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION
+import org.wikipedia.descriptions.DescriptionEditReviewView.Companion.ARTICLE_EXTRACT_MAX_LINE_WITHOUT_IMAGE
+import org.wikipedia.descriptions.DescriptionEditReviewView.Companion.ARTICLE_EXTRACT_MAX_LINE_WITH_IMAGE
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.suggestededits.SuggestedEditsImageTagEditActivity
+import org.wikipedia.suggestededits.SuggestedEditsSnackbars
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L45">class SuggestedEditsCardItemFragment : Fragment() {</span>
+    private var _binding: FragmentSuggestedEditsCardItemBinding? = null
+<span class="nc" id="L47">    private val binding get() = _binding!!</span>
+<span class="nc" id="L48">    private val viewModel: SuggestedEditsCardItemViewModel by viewModels()</span>
+
+    private var itemClickable = false
+
+    private var requestSuggestedEditsLauncher: ActivityResultLauncher&lt;Intent&gt;? = null
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L55">        _binding = FragmentSuggestedEditsCardItemBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L56">        initRequestLauncher()</span>
+<span class="nc" id="L57">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L61">        super.onViewCreated(view, savedInstanceState)</span>
+
+<span class="nc" id="L63">        binding.seCardErrorView.backClickListener = View.OnClickListener { viewModel.fetchCardData() }</span>
+<span class="nc" id="L64">        binding.seCardErrorView.retryClickListener = View.OnClickListener { viewModel.fetchCardData() }</span>
+
+<span class="nc" id="L66">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L67">            repeatOnLifecycle(Lifecycle.State.RESUMED) {</span>
+<span class="nc" id="L68">                launch {</span>
+<span class="nc" id="L69">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L70">                        when (it) {</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                            is Resource.Success -&gt; updateContents()</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                            is Resource.Error -&gt; onError(it.throwable)</span>
+                        }
+<span class="nc" id="L75">                    }</span>
+                }
+<span class="nc" id="L77">            }</span>
+<span class="nc" id="L78">        }</span>
+<span class="nc" id="L79">    }</span>
+
+    private fun initRequestLauncher() {
+<span class="nc" id="L82">        requestSuggestedEditsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            if (it.resultCode == RESULT_OK) {</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                if (isAdded) {</span>
+<span class="nc" id="L85">                    val openPageListener = SuggestedEditsSnackbars.OpenPageListener {</span>
+                        // Note: at this point, the fragment may have already been replaced by a different one (because
+                        // we call showCardContent() down below), so we can't use requireActivity() here, and instead
+                        // should use the context from the snackbar view.
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                        if (viewModel.cardActionType === ADD_IMAGE_TAGS) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                            it.context.startActivity(FilePageActivity.newIntent(it.context, PageTitle(viewModel.imageTagPage?.title, WikiSite.forLanguageCode(WikipediaApp.instance.appOrSystemLanguageCode))))</span>
+<span class="nc" id="L91">                            return@OpenPageListener</span>
+                        }
+<span class="nc" id="L93">                        val pageTitle = viewModel.sourceSummaryForEdit!!.pageTitle</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">                        if (viewModel.cardActionType === ADD_CAPTION || viewModel.cardActionType === TRANSLATE_CAPTION) {</span>
+<span class="nc" id="L95">                            it.context.startActivity(FilePageActivity.newIntent(it.context, pageTitle))</span>
+                        } else {
+<span class="nc" id="L97">                            it.context.startActivity(PageActivity.newIntentForNewTab(it.context, HistoryEntry(pageTitle, HistoryEntry.SOURCE_SUGGESTED_EDITS), pageTitle))</span>
+                        }
+<span class="nc" id="L99">                    }</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                    SuggestedEditsSnackbars.show(requireActivity(), viewModel.cardActionType, true, viewModel.targetSummaryForEdit?.lang, true, openPageListener)</span>
+<span class="nc" id="L101">                    showCardContent()</span>
+                }
+            }
+<span class="nc" id="L104">        }</span>
+<span class="nc" id="L105">    }</span>
+
+    private fun updateContents() {
+<span class="nc" id="L108">        binding.cardItemContainer.setOnClickListener(startDescriptionEditScreenListener())</span>
+<span class="nc" id="L109">        binding.callToActionButton.setOnClickListener(startDescriptionEditScreenListener())</span>
+<span class="nc" id="L110">        showCardContent()</span>
+<span class="nc" id="L111">    }</span>
+
+<span class="nc" id="L113">    private fun startDescriptionEditScreenListener() = View.OnClickListener {</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (itemClickable) {</span>
+<span class="nc" id="L115">            startDescriptionEditScreen()</span>
+        }
+<span class="nc" id="L117">    }</span>
+
+    private fun startDescriptionEditScreen() {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L121">            return</span>
+        }
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (viewModel.cardActionType == ADD_IMAGE_TAGS) {</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            viewModel.imageTagPage?.let {</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                requestSuggestedEditsLauncher?.launch(SuggestedEditsImageTagEditActivity.newIntent(requireActivity(), it, FEED))</span>
+            }
+<span class="nc" id="L127">            return</span>
+        }
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        viewModel.sourceSummaryForEdit?.let {</span>
+<span class="nc bnc" id="L130" title="All 4 branches missed.">            val pageTitle = if (viewModel.cardActionType == TRANSLATE_DESCRIPTION || viewModel.cardActionType == TRANSLATE_CAPTION) viewModel.targetSummaryForEdit!!.pageTitle else it.pageTitle</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">            requestSuggestedEditsLauncher?.launch(DescriptionEditActivity.newIntent(</span>
+<span class="nc" id="L132">                requireContext(), pageTitle, null, viewModel.sourceSummaryForEdit, viewModel.targetSummaryForEdit, viewModel.cardActionType, FEED</span>
+<span class="nc" id="L133">            ))</span>
+        }
+<span class="nc" id="L135">    }</span>
+
+    private fun showCardContent() {
+<span class="nc bnc" id="L138" title="All 6 branches missed.">        if (!isAdded || (viewModel.cardActionType != ADD_IMAGE_TAGS &amp;&amp; viewModel.sourceSummaryForEdit == null)) {</span>
+<span class="nc" id="L139">            return</span>
+        }
+<span class="nc" id="L141">        itemClickable = true</span>
+<span class="nc" id="L142">        binding.seFeedCardProgressBar.visibility = GONE</span>
+<span class="nc" id="L143">        binding.seCardErrorView.visibility = GONE</span>
+<span class="nc" id="L144">        binding.callToActionButton.visibility = VISIBLE</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        viewModel.sourceSummaryForEdit?.let {</span>
+<span class="nc bnc" id="L146" title="All 4 branches missed.">            val langCode = viewModel.targetSummaryForEdit?.lang ?: it.lang</span>
+<span class="nc" id="L147">            binding.cardView.setLayoutDirectionByLang(langCode)</span>
+<span class="nc" id="L148">        }</span>
+
+<span class="nc bnc" id="L150" title="All 5 branches missed.">        when (viewModel.cardActionType) {</span>
+<span class="nc" id="L151">            TRANSLATE_DESCRIPTION -&gt; showTranslateDescriptionUI()</span>
+<span class="nc" id="L152">            ADD_CAPTION -&gt; showAddImageCaptionUI()</span>
+<span class="nc" id="L153">            TRANSLATE_CAPTION -&gt; showTranslateImageCaptionUI()</span>
+<span class="nc" id="L154">            ADD_IMAGE_TAGS -&gt; showImageTagsUI()</span>
+<span class="nc" id="L155">            else -&gt; showAddDescriptionUI()</span>
+        }
+<span class="nc" id="L157">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L160">        _binding = null</span>
+<span class="nc" id="L161">        super.onDestroyView()</span>
+<span class="nc" id="L162">    }</span>
+
+    private fun showImageTagsUI() {
+<span class="nc" id="L165">        showAddImageCaptionUI()</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">        binding.callToActionButton.text = context?.getString(R.string.suggested_edits_feed_card_add_image_tags)</span>
+<span class="nc" id="L167">        binding.viewArticleExtract.text = StringUtil.removeNamespace(viewModel.imageTagPage!!.title)</span>
+<span class="nc" id="L168">    }</span>
+
+    private fun showAddDescriptionUI() {
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        binding.callToActionButton.text = context?.getString(R.string.suggested_edits_feed_card_add_description_button)</span>
+<span class="nc" id="L172">        binding.articleDescriptionPlaceHolder1.visibility = VISIBLE</span>
+<span class="nc" id="L173">        binding.articleDescriptionPlaceHolder2.visibility = VISIBLE</span>
+<span class="nc" id="L174">        binding.viewArticleTitle.visibility = VISIBLE</span>
+<span class="nc" id="L175">        binding.divider.visibility = VISIBLE</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        binding.viewArticleTitle.text = StringUtil.fromHtml(viewModel.sourceSummaryForEdit?.displayTitle)</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        binding.viewArticleExtract.text = StringUtil.fromHtml(viewModel.sourceSummaryForEdit?.extract)</span>
+<span class="nc" id="L178">        binding.viewArticleExtract.maxLines = ARTICLE_EXTRACT_MAX_LINE_WITHOUT_IMAGE</span>
+<span class="nc" id="L179">        showItemImage()</span>
+<span class="nc" id="L180">    }</span>
+
+    private fun showTranslateDescriptionUI() {
+<span class="nc" id="L183">        showAddDescriptionUI()</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        binding.callToActionButton.text = context?.getString(R.string.suggested_edits_feed_card_add_translation_in_language_button,</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                WikipediaApp.instance.languageState.getAppLanguageLocalizedName(viewModel.targetSummaryForEdit?.lang))</span>
+<span class="nc" id="L186">        binding.viewArticleSubtitle.visibility = VISIBLE</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        binding.viewArticleSubtitle.text = viewModel.sourceSummaryForEdit?.description</span>
+<span class="nc" id="L188">    }</span>
+
+    private fun showAddImageCaptionUI() {
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        binding.callToActionButton.text = context?.getString(R.string.suggested_edits_feed_card_add_image_caption)</span>
+<span class="nc" id="L192">        binding.viewArticleTitle.visibility = GONE</span>
+<span class="nc" id="L193">        binding.viewArticleExtract.visibility = VISIBLE</span>
+<span class="nc bnc" id="L194" title="All 4 branches missed.">        binding.viewArticleExtract.text = StringUtil.removeNamespace(viewModel.sourceSummaryForEdit?.displayTitle.orEmpty())</span>
+<span class="nc" id="L195">        showItemImage()</span>
+<span class="nc" id="L196">    }</span>
+
+    private fun showTranslateImageCaptionUI() {
+<span class="nc" id="L199">        showAddImageCaptionUI()</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        binding.callToActionButton.text = context?.getString(R.string.suggested_edits_feed_card_translate_image_caption,</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                WikipediaApp.instance.languageState.getAppLanguageLocalizedName(viewModel.targetSummaryForEdit?.lang))</span>
+<span class="nc" id="L202">        binding.viewArticleSubtitle.visibility = VISIBLE</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        binding.viewArticleSubtitle.text = viewModel.sourceSummaryForEdit?.description</span>
+<span class="nc" id="L204">    }</span>
+
+    private fun showItemImage() {
+<span class="nc" id="L207">        binding.viewArticleImage.visibility = VISIBLE</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (viewModel.cardActionType == ADD_IMAGE_TAGS) {</span>
+<span class="nc" id="L209">            binding.viewArticleImage.loadImage(Uri.parse(ImageUrlUtil.getUrlForPreferredSize</span>
+<span class="nc" id="L210">            (viewModel.imageTagPage!!.imageInfo()!!.thumbUrl, Constants.PREFERRED_CARD_THUMBNAIL_SIZE)))</span>
+        } else {
+<span class="nc bnc" id="L212" title="All 6 branches missed.">            if (viewModel.sourceSummaryForEdit!!.thumbnailUrl.isNullOrBlank()) {</span>
+<span class="nc" id="L213">                binding.viewArticleImage.visibility = GONE</span>
+<span class="nc" id="L214">                binding.viewArticleExtract.maxLines = ARTICLE_EXTRACT_MAX_LINE_WITHOUT_IMAGE</span>
+            } else {
+<span class="nc" id="L216">                binding.viewArticleImage.loadImage(Uri.parse(viewModel.sourceSummaryForEdit!!.thumbnailUrl))</span>
+<span class="nc" id="L217">                binding.viewArticleExtract.maxLines = ARTICLE_EXTRACT_MAX_LINE_WITH_IMAGE</span>
+            }
+        }
+<span class="nc" id="L220">    }</span>
+
+    fun onLoading() {
+<span class="nc" id="L223">        binding.seFeedCardProgressBar.visibility = VISIBLE</span>
+<span class="nc" id="L224">        binding.seCardErrorView.visibility = GONE</span>
+<span class="nc" id="L225">    }</span>
+
+    fun onError(caught: Throwable?) {
+<span class="nc" id="L228">        binding.seFeedCardProgressBar.visibility = GONE</span>
+<span class="nc" id="L229">        binding.seCardErrorView.setError(caught)</span>
+<span class="nc" id="L230">        binding.seCardErrorView.visibility = VISIBLE</span>
+<span class="nc" id="L231">        binding.seCardErrorView.bringToFront()</span>
+<span class="nc" id="L232">    }</span>
+
+    companion object {
+        const val EXTRA_AGE = &quot;age&quot;
+        const val EXTRA_ACTION_TYPE = &quot;actionType&quot;
+        const val MAX_RETRY_LIMIT = 5L
+
+        fun newInstance(age: Int, cardActionType: DescriptionEditActivity.Action) =
+<span class="nc" id="L240">                SuggestedEditsCardItemFragment().apply {</span>
+<span class="nc" id="L241">                    arguments = bundleOf(</span>
+<span class="nc" id="L242">                        EXTRA_AGE to age,</span>
+<span class="nc" id="L243">                        EXTRA_ACTION_TYPE to cardActionType</span>
+                    )
+<span class="nc" id="L245">                }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,1503 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.page</a> &gt; <span class="el_source">PageFragment.kt</span></div><h1>PageFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.page
+
+import android.animation.ObjectAnimator
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.res.Configuration
+import android.net.Uri
+import android.os.Bundle
+import android.view.ActionMode
+import android.view.ActionProvider
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.widget.LinearLayout
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.animation.doOnEnd
+import androidx.core.app.ActivityCompat
+import androidx.core.app.ActivityOptionsCompat
+import androidx.core.net.toUri
+import androidx.core.view.forEach
+import androidx.core.widget.TextViewCompat
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.textview.MaterialTextView
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.float
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.wikipedia.BackPressedHandler
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.LongPressHandler
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil.getCallback
+import org.wikipedia.analytics.eventplatform.ArticleFindInPageInteractionEvent
+import org.wikipedia.analytics.eventplatform.ArticleInteractionEvent
+import org.wikipedia.analytics.eventplatform.DonorExperienceEvent
+import org.wikipedia.analytics.eventplatform.EventPlatformClient
+import org.wikipedia.analytics.eventplatform.PlacesEvent
+import org.wikipedia.analytics.eventplatform.WatchlistAnalyticsHelper
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.bridge.CommunicationBridge
+import org.wikipedia.bridge.JavaScriptActionHandler
+import org.wikipedia.categories.CategoryActivity
+import org.wikipedia.categories.CategoryDialog
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.databinding.FragmentPageBinding
+import org.wikipedia.databinding.GroupFindReferencesInPageBinding
+import org.wikipedia.dataclient.RestService
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.donate.CampaignCollection
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.dataclient.okhttp.HttpStatusException
+import org.wikipedia.dataclient.okhttp.OkHttpWebViewClient
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.diff.ArticleEditDetailsActivity
+import org.wikipedia.donate.donationreminder.DonationReminderActivity
+import org.wikipedia.donate.donationreminder.DonationReminderHelper
+import org.wikipedia.edit.EditHandler
+import org.wikipedia.gallery.GalleryActivity
+import org.wikipedia.games.onthisday.OnThisDayGameMainMenuFragment
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.main.MainActivity
+import org.wikipedia.media.AvPlayer
+import org.wikipedia.navtab.NavTab
+import org.wikipedia.notifications.PollNotificationWorker
+import org.wikipedia.page.action.PageActionItem
+import org.wikipedia.page.campaign.CampaignDialog
+import org.wikipedia.page.edithistory.EditHistoryListActivity
+import org.wikipedia.page.issues.PageIssuesDialog
+import org.wikipedia.page.leadimages.LeadImagesHandler
+import org.wikipedia.page.references.PageReferences
+import org.wikipedia.page.references.ReferenceDialog
+import org.wikipedia.page.shareafact.ShareHandler
+import org.wikipedia.page.tabs.Tab
+import org.wikipedia.places.PlacesActivity
+import org.wikipedia.readinglist.LongPressMenu
+import org.wikipedia.readinglist.ReadingListBehaviorsUtil
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.settings.Prefs
+import org.wikipedia.suggestededits.PageSummaryForEdit
+import org.wikipedia.talk.TalkTopicsActivity
+import org.wikipedia.theme.ThemeChooserDialog
+import org.wikipedia.util.ActiveTimer
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.ThrowableUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ObservableWebView
+import org.wikipedia.views.PageActionOverflowView
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.watchlist.WatchlistExpiry
+import org.wikipedia.watchlist.WatchlistExpiryDialog
+import org.wikipedia.watchlist.WatchlistViewModel
+import org.wikipedia.wiktionary.WiktionaryDialog
+import java.time.Duration
+import java.time.Instant
+
+<span class="nc" id="L124">class PageFragment : Fragment(), BackPressedHandler, CommunicationBridge.CommunicationBridgeListener, ThemeChooserDialog.Callback,</span>
+    ReferenceDialog.Callback, WiktionaryDialog.Callback, WatchlistExpiryDialog.Callback {
+
+    interface Callback {
+        fun onPageDismissBottomSheet()
+        fun onPageLoadComplete()
+        fun onPageLoadPage(title: PageTitle, entry: HistoryEntry)
+        fun onPageInitWebView(v: ObservableWebView)
+        fun onPageShowLinkPreview(entry: HistoryEntry)
+        fun onPageLoadMainPageInForegroundTab()
+        fun onPageUpdateProgressBar(visible: Boolean)
+        fun onPageStartSupportActionMode(callback: ActionMode.Callback)
+        fun onPageHideSoftKeyboard()
+        fun onPageWatchlistExpirySelect(expiry: WatchlistExpiry)
+        fun onPageLoadError(title: PageTitle)
+        fun onPageLoadErrorBackPressed()
+        fun onPageSetToolbarElevationEnabled(enabled: Boolean)
+        fun onPageCloseActionMode()
+        fun onPageRequestEditSection(sectionId: Int, sectionAnchor: String?, title: PageTitle, highlightText: String?)
+        fun onPageRequestLangLinks(title: PageTitle, historyEntryId: Long)
+        fun onPageRequestGallery(title: PageTitle, fileName: String, wikiSite: WikiSite, revision: Long, isLeadImage: Boolean, options: ActivityOptionsCompat?)
+        fun onPageRequestAddImageTags(mwQueryPage: MwQueryPage, invokeSource: InvokeSource)
+        fun onPageRequestEditDescription(text: String?, title: PageTitle, sourceSummary: PageSummaryForEdit?,
+                                         targetSummary: PageSummaryForEdit?, action: DescriptionEditActivity.Action, invokeSource: InvokeSource)
+    }
+
+    private var campaignDialog: CampaignDialog? = null
+<span class="nc" id="L151">    private val donationReminderLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result -&gt;</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (result.resultCode == DonationReminderActivity.RESULT_OK_FROM_DONATION_REMINDER) {</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            campaignDialog?.dismiss()</span>
+        }
+<span class="nc" id="L155">    }</span>
+
+    private var _binding: FragmentPageBinding? = null
+<span class="nc" id="L158">    val binding get() = _binding!!</span>
+
+<span class="nc" id="L160">    private val activeTimer = ActiveTimer()</span>
+<span class="nc" id="L161">    private val scrollTriggerListener = WebViewScrollTriggerListener()</span>
+<span class="nc" id="L162">    private val pageRefreshListener = OnRefreshListener {</span>
+<span class="nc" id="L163">        webView.clearCache(true)</span>
+<span class="nc" id="L164">        refreshPage()</span>
+<span class="nc" id="L165">    }</span>
+<span class="nc" id="L166">    private val pageActionItemCallback = PageActionItemCallback()</span>
+
+    private lateinit var bridge: CommunicationBridge
+    private lateinit var leadImagesHandler: LeadImagesHandler
+    private lateinit var pageFragmentLoadState: PageFragmentLoadState
+    private lateinit var bottomBarHideHandler: ViewHideHandler
+<span class="nc" id="L172">    internal var articleInteractionEvent: ArticleInteractionEvent? = null</span>
+    private var pageRefreshed = false
+    private var errorState = false
+    private var scrolledUpForThemeChange = false
+    private var references: PageReferences? = null
+    private var avPlayer: AvPlayer? = null
+    private var avCallback: AvCallback? = null
+    private var sections: MutableList&lt;Section&gt;? = null
+<span class="nc" id="L180">    private var app = WikipediaApp.instance</span>
+
+<span class="nc" id="L182">    override lateinit var linkHandler: LinkHandler</span>
+<span class="nc" id="L183">    override lateinit var webView: ObservableWebView</span>
+<span class="nc" id="L184">    override var model = PageViewModel()</span>
+<span class="nc" id="L185">    override val toolbarMargin get() = (requireActivity() as PageActivity).getToolbarMargin()</span>
+<span class="nc" id="L186">    override val isPreview get() = false</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">    override val referencesGroup get() = references?.referencesGroup</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">    override val selectedReferenceIndex get() = references?.selectedIndex ?: 0</span>
+<span class="nc" id="L189">    override val messageCardHeight get() = leadImagesHandler.getDonationReminderCardViewHeight()</span>
+
+<span class="nc" id="L191">    lateinit var sidePanelHandler: SidePanelHandler</span>
+<span class="nc" id="L192">    lateinit var shareHandler: ShareHandler</span>
+<span class="nc" id="L193">    lateinit var editHandler: EditHandler</span>
+<span class="nc" id="L194">    var revision = 0L</span>
+
+<span class="nc bnc" id="L196" title="All 2 branches missed.">    private val shouldCreateNewTab get() = currentTab.backStack.isNotEmpty()</span>
+<span class="nc" id="L197">    private val backgroundTabPosition get() = 0.coerceAtLeast(foregroundTabPosition - 1)</span>
+<span class="nc" id="L198">    private val foregroundTabPosition get() = app.tabList.size</span>
+<span class="nc" id="L199">    private val tabLayoutOffsetParams get() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, binding.pageActionsTabLayout.height)</span>
+<span class="nc" id="L200">    val currentTab get() = app.tabList.last()</span>
+<span class="nc" id="L201">    val title get() = model.title</span>
+<span class="nc" id="L202">    val page get() = model.page</span>
+<span class="nc" id="L203">    val isLoading get() = bridge.isLoading</span>
+<span class="nc" id="L204">    val leadImageEditLang get() = leadImagesHandler.callToActionEditLang</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L207">        _binding = FragmentPageBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L208">        webView = binding.pageWebView</span>
+<span class="nc" id="L209">        initWebViewListeners()</span>
+<span class="nc" id="L210">        binding.pageRefreshContainer.scrollableChild = webView</span>
+<span class="nc" id="L211">        binding.pageRefreshContainer.setOnRefreshListener(pageRefreshListener)</span>
+<span class="nc" id="L212">        val swipeOffset = DimenUtil.getContentTopOffsetPx(requireActivity()) + REFRESH_SPINNER_ADDITIONAL_OFFSET</span>
+<span class="nc" id="L213">        binding.pageRefreshContainer.setProgressViewOffset(false, -swipeOffset, swipeOffset)</span>
+<span class="nc" id="L214">        binding.pageActionsTabLayout.callback = pageActionItemCallback</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        savedInstanceState?.let {</span>
+<span class="nc" id="L216">            scrolledUpForThemeChange = it.getBoolean(ARG_THEME_CHANGE_SCROLLED, false)</span>
+<span class="nc" id="L217">        }</span>
+<span class="nc" id="L218">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L222">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        callback()?.onPageInitWebView(webView)</span>
+<span class="nc" id="L224">        updateFontSize()</span>
+
+        // Explicitly set background color of the WebView (independently of CSS, because
+        // the background may be shown momentarily while the WebView loads content,
+        // creating a seizure-inducing effect, or at the very least, a migraine with aura).
+<span class="nc" id="L229">        val activity = requireActivity()</span>
+<span class="nc" id="L230">        webView.setBackgroundColor(ResourceUtil.getThemedColor(activity, R.attr.paper_color))</span>
+<span class="nc" id="L231">        bridge = CommunicationBridge(this)</span>
+<span class="nc" id="L232">        setupMessageHandlers()</span>
+
+<span class="nc" id="L234">        binding.pageError.retryClickListener = View.OnClickListener { refreshPage() }</span>
+<span class="nc" id="L235">        binding.pageError.backClickListener = View.OnClickListener {</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">            if (!onBackPressed()) {</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                callback()?.onPageLoadErrorBackPressed()</span>
+            }
+<span class="nc" id="L239">        }</span>
+
+<span class="nc" id="L241">        bottomBarHideHandler = ViewHideHandler(binding.pageActionsTabContainer, null, Gravity.BOTTOM, updateElevation = false) { false }</span>
+<span class="nc" id="L242">        bottomBarHideHandler.setScrollView(webView)</span>
+<span class="nc" id="L243">        bottomBarHideHandler.enabled = Prefs.readingFocusModeEnabled</span>
+
+<span class="nc" id="L245">        webView.addOnScrollChangeListener { _, scrollY, _ -&gt;</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            if (scrollY &gt; (DimenUtil.roundedDpToPx(webView.contentHeight.toFloat()) - (DimenUtil.displayHeightPx * 2)) &amp;&amp;</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                !model.isReadMoreLoaded) {</span>
+<span class="nc" id="L248">                bridge.execute(JavaScriptActionHandler.appendReadMode(model))</span>
+<span class="nc" id="L249">                model.isReadMoreLoaded = true</span>
+            }
+<span class="nc" id="L251">        }</span>
+
+<span class="nc" id="L253">        editHandler = EditHandler(this, bridge)</span>
+<span class="nc" id="L254">        sidePanelHandler = SidePanelHandler(this, bridge)</span>
+<span class="nc" id="L255">        leadImagesHandler = LeadImagesHandler(this, webView, binding.pageHeaderView, callback())</span>
+<span class="nc" id="L256">        shareHandler = ShareHandler(this, bridge)</span>
+<span class="nc" id="L257">        pageFragmentLoadState = PageFragmentLoadState(model, this, webView, bridge, leadImagesHandler, currentTab)</span>
+
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        if (callback() != null) {</span>
+<span class="nc" id="L260">            LongPressHandler(webView, HistoryEntry.SOURCE_INTERNAL_LINK, PageContainerLongPressHandler(this))</span>
+        }
+
+<span class="nc bnc" id="L263" title="All 4 branches missed.">        if (shouldLoadFromBackstack(activity) || savedInstanceState != null) {</span>
+<span class="nc" id="L264">            reloadFromBackstack()</span>
+        }
+<span class="nc" id="L266">    }</span>
+
+    override fun onSaveInstanceState(outState: Bundle) {
+<span class="nc" id="L269">        super.onSaveInstanceState(outState)</span>
+<span class="nc" id="L270">        outState.putBoolean(ARG_THEME_CHANGE_SCROLLED, scrolledUpForThemeChange)</span>
+<span class="nc" id="L271">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc bnc" id="L274" title="All 2 branches missed.">        avPlayer?.let {</span>
+<span class="nc" id="L275">            it.deinit()</span>
+<span class="nc" id="L276">            avPlayer = null</span>
+<span class="nc" id="L277">        }</span>
+        // uninitialize the bridge, so that no further JS events can have any effect.
+<span class="nc" id="L279">        bridge.cleanup()</span>
+<span class="nc" id="L280">        sidePanelHandler.log()</span>
+<span class="nc" id="L281">        leadImagesHandler.dispose()</span>
+<span class="nc" id="L282">        webView.clearAllListeners()</span>
+<span class="nc" id="L283">        (webView.parent as ViewGroup).removeView(webView)</span>
+<span class="nc" id="L284">        Prefs.isSuggestedEditsHighestPriorityEnabled = false</span>
+<span class="nc" id="L285">        _binding = null</span>
+<span class="nc" id="L286">        super.onDestroyView()</span>
+<span class="nc" id="L287">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L290">        super.onPause()</span>
+<span class="nc" id="L291">        bridge.execute(JavaScriptActionHandler.pauseAllMedia())</span>
+<span class="nc bnc" id="L292" title="All 6 branches missed.">        if (avPlayer?.isPlaying == true) {</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">            avPlayer?.stop()</span>
+<span class="nc" id="L294">            updateProgressBar(false)</span>
+        }
+<span class="nc" id="L296">        activeTimer.pause()</span>
+<span class="nc" id="L297">        addTimeSpentReading(activeTimer.elapsedSec)</span>
+<span class="nc" id="L298">        pageFragmentLoadState.updateCurrentBackStackItem()</span>
+<span class="nc" id="L299">        app.commitTabState()</span>
+<span class="nc bnc" id="L300" title="All 4 branches missed.">        val time = if (app.tabList.size &gt;= 1 &amp;&amp; !pageFragmentLoadState.backStackEmpty()) System.currentTimeMillis() else 0</span>
+<span class="nc" id="L301">        Prefs.pageLastShown = time</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">        articleInteractionEvent?.pause()</span>
+<span class="nc" id="L303">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L306">        super.onResume()</span>
+<span class="nc" id="L307">        activeTimer.resume()</span>
+<span class="nc" id="L308">        val params = CoordinatorLayout.LayoutParams(1, 1)</span>
+<span class="nc" id="L309">        binding.pageImageTransitionHolder.layoutParams = params</span>
+<span class="nc" id="L310">        binding.pageImageTransitionHolder.visibility = View.GONE</span>
+<span class="nc" id="L311">        binding.pageActionsTabLayout.update()</span>
+<span class="nc" id="L312">        updateQuickActionsAndMenuOptions()</span>
+<span class="nc bnc" id="L313" title="All 6 branches missed.">        if (ImageUrlUtil.isGif(page?.pageProperties?.leadImageUrl)) {</span>
+<span class="nc" id="L314">            leadImagesHandler.loadLeadImage()</span>
+        }
+<span class="nc bnc" id="L316" title="All 2 branches missed.">        articleInteractionEvent?.resume()</span>
+<span class="nc" id="L317">        DonationReminderHelper.maybeShowSettingSnackbar(requireActivity())</span>
+<span class="nc" id="L318">    }</span>
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+<span class="nc" id="L321">        super.onConfigurationChanged(newConfig)</span>
+        // if the screen orientation changes, then re-layout the lead image container,
+        // but only if we've finished fetching the page.
+<span class="nc bnc" id="L324" title="All 4 branches missed.">        if (!bridge.isLoading &amp;&amp; !errorState) {</span>
+<span class="nc" id="L325">            pageFragmentLoadState.onConfigurationChanged()</span>
+        }
+<span class="nc" id="L327">    }</span>
+
+    override fun onBackPressed(): Boolean {
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        articleInteractionEvent?.logBackClick()</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">        if (sidePanelHandler.isVisible) {</span>
+<span class="nc" id="L332">            sidePanelHandler.hide()</span>
+<span class="nc" id="L333">            return true</span>
+        }
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        if (pageFragmentLoadState.goBack()) {</span>
+<span class="nc" id="L336">            return true</span>
+        }
+        // if the current tab can no longer go back, then close the tab before exiting
+<span class="nc bnc" id="L339" title="All 4 branches missed.">        if (app.tabList.isNotEmpty()) {</span>
+<span class="nc" id="L340">            app.tabList.removeAt(app.tabList.size - 1)</span>
+<span class="nc" id="L341">            app.commitTabState()</span>
+        }
+<span class="nc" id="L343">        return false</span>
+    }
+
+    override fun onToggleDimImages() {
+<span class="nc" id="L347">        ActivityCompat.recreate(requireActivity())</span>
+<span class="nc" id="L348">    }</span>
+
+    override fun onToggleReadingFocusMode() {
+<span class="nc" id="L351">        webView.scrollEventsEnabled = false</span>
+<span class="nc" id="L352">        bottomBarHideHandler.enabled = Prefs.readingFocusModeEnabled</span>
+<span class="nc" id="L353">        leadImagesHandler.refreshCallToActionVisibility()</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        page?.let {</span>
+<span class="nc bnc" id="L355" title="All 4 branches missed.">            bridge.execute(JavaScriptActionHandler.setUpEditButtons(!Prefs.readingFocusModeEnabled, !it.pageProperties.canEdit))</span>
+<span class="nc" id="L356">        }</span>
+        // We disable and then re-enable scroll events coming from the WebView, because toggling
+        // reading focus mode within the article could actually change the dimensions of the page,
+        // which will cause extraneous scroll events to be sent.
+<span class="nc" id="L360">        binding.root.postDelayed({</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">            if (isAdded) {</span>
+<span class="nc" id="L362">                webView.scrollEventsEnabled = true</span>
+            }
+<span class="nc" id="L364">        }, 250)</span>
+<span class="nc" id="L365">    }</span>
+
+    override fun onCancelThemeChooser() {
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if (scrolledUpForThemeChange) {</span>
+<span class="nc" id="L369">            val animDuration = 250L</span>
+<span class="nc" id="L370">            ObjectAnimator.ofInt(webView, &quot;scrollY&quot;, webView.scrollY, 0)</span>
+<span class="nc" id="L371">                .setDuration(animDuration)</span>
+<span class="nc" id="L372">                .start()</span>
+        }
+<span class="nc" id="L374">    }</span>
+
+<span class="nc" id="L376">    override fun onEditingPrefsChanged() { }</span>
+
+    override fun wiktionaryShowDialogForTerm(term: String) {
+<span class="nc" id="L379">        shareHandler.showWiktionaryDefinition(term)</span>
+<span class="nc" id="L380">    }</span>
+
+    override fun onExpiryChanged(expiry: WatchlistExpiry) {
+<span class="nc bnc" id="L383" title="All 2 branches missed.">        callback()?.onPageWatchlistExpirySelect(expiry)</span>
+<span class="nc" id="L384">        dismissBottomSheet()</span>
+<span class="nc" id="L385">    }</span>
+
+    private fun shouldLoadFromBackstack(activity: Activity): Boolean {
+<span class="nc bnc" id="L388" title="All 4 branches missed.">        return (activity.intent != null &amp;&amp; (PageActivity.ACTION_RESUME_READING == activity.intent.action ||</span>
+<span class="nc bnc" id="L389" title="All 2 branches missed.">                activity.intent.hasExtra(Constants.INTENT_APP_SHORTCUT_CONTINUE_READING)))</span>
+    }
+
+    private fun initWebViewListeners() {
+<span class="nc" id="L393">        webView.addOnUpOrCancelMotionEventListener {</span>
+            // update our session, since it's possible for the user to remain on the page for
+            // a long time, and we wouldn't want the session to time out.
+<span class="nc" id="L396">            app.appSessionEvent.touchSession()</span>
+<span class="nc" id="L397">        }</span>
+<span class="nc" id="L398">        webView.addOnContentHeightChangedListener(scrollTriggerListener)</span>
+<span class="nc" id="L399">        webView.webViewClient = object : OkHttpWebViewClient() {</span>
+
+<span class="nc" id="L401">            override val model get() = this@PageFragment.model</span>
+
+<span class="nc" id="L403">            override val linkHandler get() = this@PageFragment.linkHandler</span>
+
+            override fun onPageFinished(view: WebView, url: String) {
+<span class="nc" id="L406">                bridge.evaluateImmediate(&quot;(function() { return (typeof pcs !== 'undefined'); })();&quot;) { pcsExists -&gt;</span>
+<span class="nc bnc" id="L407" title="All 2 branches missed.">                    if (!isAdded) {</span>
+<span class="nc" id="L408">                        return@evaluateImmediate</span>
+                    }
+                    // TODO: This is a bit of a hack: If PCS does not exist in the current page, then
+                    // it's implied that this page was loaded via Mobile Web (e.g. the Main Page) and
+                    // doesn't support PCS, meaning that we will never receive the `setup` event that
+                    // tells us the page is finished loading. In such a case, we must infer that the
+                    // page has now loaded and trigger the remaining logic ourselves.
+<span class="nc bnc" id="L415" title="All 2 branches missed.">                    if (&quot;true&quot; != pcsExists) {</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">                        if (WikipediaApp.instance.currentTheme.isDark) {</span>
+                            // TODO: remove when mobile web supports automatic dark mode through
+                            // the `prefers-color-scheme` media query.
+<span class="nc" id="L419">                            bridge.execute(JavaScriptActionHandler.mobileWebSetDarkMode())</span>
+                        }
+<span class="nc" id="L421">                        onPageSetupEvent()</span>
+<span class="nc" id="L422">                        bridge.onMetadataReady()</span>
+<span class="nc" id="L423">                        bridge.onPcsReady()</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">                        bridge.execute(JavaScriptActionHandler.mobileWebChromeShim(DimenUtil.roundedPxToDp(((requireActivity() as AppCompatActivity).supportActionBar?.height ?: 0).toFloat()),</span>
+<span class="nc" id="L425">                            DimenUtil.roundedPxToDp(binding.pageActionsTabLayout.height.toFloat())))</span>
+
+                        // In the case of certain types of namespaces, especially pages with a lot of interactivity
+                        // that we can't control, we need to bounce them out explicitly to an external
+                        // browser, even after the page is fully loaded into our WebView. This is because
+                        // we can determine the namespace only after the loading sequence is in progress.
+<span class="nc bnc" id="L431" title="All 6 branches missed.">                        if (model.page?.pageProperties?.namespace == Namespace.EVENT) {</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">                            model.title?.let {</span>
+<span class="nc" id="L433">                                UriUtil.visitInExternalBrowser(requireActivity(), it.uri.toUri())</span>
+<span class="nc" id="L434">                                binding.root.post {</span>
+<span class="nc bnc" id="L435" title="All 2 branches missed.">                                    if (isAdded) {</span>
+<span class="nc" id="L436">                                        requireActivity().onBackPressedDispatcher.onBackPressed()</span>
+                                    }
+<span class="nc" id="L438">                                }</span>
+                            }
+                        }
+<span class="nc bnc" id="L441" title="All 2 branches missed.">                        callback()?.onPageLoadComplete()</span>
+                    }
+<span class="nc" id="L443">                }</span>
+<span class="nc" id="L444">            }</span>
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
+<span class="nc bnc" id="L447" title="All 2 branches missed.">                if (!request.url.toString().contains(RestService.PAGE_HTML_ENDPOINT)) {</span>
+                    // If the request is anything except the main mobile-html content request, then
+                    // don't worry about any errors and let the WebView deal with it.
+<span class="nc" id="L450">                    return</span>
+                }
+<span class="nc" id="L452">                onPageLoadError(HttpStatusException(errorResponse.statusCode, request.url.toString(), UriUtil.decodeURL(errorResponse.reasonPhrase)))</span>
+<span class="nc" id="L453">            }</span>
+        }
+<span class="nc" id="L455">    }</span>
+
+    private fun onPageSetupEvent() {
+<span class="nc bnc" id="L458" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L459">            return</span>
+        }
+<span class="nc" id="L461">        updateProgressBar(false)</span>
+<span class="nc" id="L462">        webView.visibility = View.VISIBLE</span>
+<span class="nc" id="L463">        bridge.evaluate(JavaScriptActionHandler.getRevision()) { value -&gt;</span>
+<span class="nc bnc" id="L464" title="All 6 branches missed.">            if (!isAdded || value == null || value == &quot;null&quot;) {</span>
+<span class="nc" id="L465">                return@evaluate</span>
+            }
+<span class="nc" id="L467">            try {</span>
+<span class="nc" id="L468">                revision = value.replace(&quot;\&quot;&quot;, &quot;&quot;).toLong()</span>
+<span class="nc" id="L469">            } catch (e: Exception) {</span>
+<span class="nc" id="L470">                L.e(e)</span>
+            }
+<span class="nc" id="L472">        }</span>
+<span class="nc" id="L473">        bridge.evaluate(JavaScriptActionHandler.getSections()) { value -&gt;</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L475">                return@evaluate</span>
+            }
+<span class="nc bnc" id="L477" title="All 2 branches missed.">            model.page?.let { page -&gt;</span>
+<span class="nc" id="L478">                sections = JsonUtil.decodeFromString(value)</span>
+<span class="nc bnc" id="L479" title="All 2 branches missed.">                sections?.let { sections -&gt;</span>
+<span class="nc bnc" id="L480" title="All 8 branches missed.">                    sections.add(0, Section(0, 0, model.title?.displayText.orEmpty(), model.title?.displayText.orEmpty(), &quot;&quot;))</span>
+<span class="nc" id="L481">                    page.sections = sections</span>
+<span class="nc" id="L482">                }</span>
+
+<span class="nc" id="L484">                sidePanelHandler.setupForNewPage(page)</span>
+<span class="nc" id="L485">                sidePanelHandler.setEnabled(true)</span>
+<span class="nc" id="L486">                model.isReadMoreLoaded = false</span>
+<span class="nc" id="L487">            }</span>
+<span class="nc" id="L488">        }</span>
+<span class="nc" id="L489">        bridge.evaluate(JavaScriptActionHandler.getProtection()) { value -&gt;</span>
+<span class="nc bnc" id="L490" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L491">                return@evaluate</span>
+            }
+<span class="nc bnc" id="L493" title="All 2 branches missed.">            model.page?.let { page -&gt;</span>
+<span class="nc" id="L494">                page.pageProperties.protection = JsonUtil.decodeFromString(value)</span>
+<span class="nc" id="L495">                updateQuickActionsAndMenuOptions()</span>
+<span class="nc" id="L496">            }</span>
+<span class="nc" id="L497">        }</span>
+<span class="nc" id="L498">    }</span>
+
+    private fun handleInternalLink(title: PageTitle) {
+<span class="nc bnc" id="L501" title="All 2 branches missed.">        if (!isResumed) {</span>
+<span class="nc" id="L502">            return</span>
+        }
+<span class="nc bnc" id="L504" title="All 4 branches missed.">        if (title.namespace() === Namespace.USER_TALK || title.namespace() === Namespace.TALK) {</span>
+<span class="nc" id="L505">            startTalkTopicsActivity(title)</span>
+<span class="nc" id="L506">            return</span>
+<span class="nc bnc" id="L507" title="All 2 branches missed.">        } else if (title.namespace() == Namespace.CATEGORY) {</span>
+<span class="nc" id="L508">            startActivity(CategoryActivity.newIntent(requireActivity(), title))</span>
+<span class="nc" id="L509">            return</span>
+        }
+
+<span class="nc" id="L512">        dismissBottomSheet()</span>
+<span class="nc" id="L513">        val historyEntry = HistoryEntry(title, HistoryEntry.SOURCE_INTERNAL_LINK).apply {</span>
+<span class="nc bnc" id="L514" title="All 2 branches missed.">            prevId = model.curEntry?.id ?: -1</span>
+<span class="nc" id="L515">        }</span>
+
+<span class="nc bnc" id="L517" title="All 8 branches missed.">        if (title == model.title &amp;&amp; !title.fragment.isNullOrEmpty()) {</span>
+<span class="nc" id="L518">            scrollToSection(title.fragment!!)</span>
+<span class="nc" id="L519">            return</span>
+        }
+
+<span class="nc bnc" id="L522" title="All 2 branches missed.">        model.title?.run {</span>
+<span class="nc" id="L523">            historyEntry.referrer = uri</span>
+<span class="nc" id="L524">        }</span>
+<span class="nc bnc" id="L525" title="All 4 branches missed.">        if (title.namespace() !== Namespace.MAIN || !Prefs.isLinkPreviewEnabled) {</span>
+<span class="nc" id="L526">            loadPage(title, historyEntry)</span>
+        } else {
+<span class="nc bnc" id="L528" title="All 2 branches missed.">            callback()?.onPageShowLinkPreview(historyEntry)</span>
+        }
+<span class="nc" id="L530">    }</span>
+
+    private fun setCurrentTabAndReset(position: Int) {
+        // move the selected tab to the bottom of the list, and navigate to it!
+        // (but only if it's a different tab than the one currently in view!
+<span class="nc bnc" id="L535" title="All 2 branches missed.">        if (position &lt; app.tabList.size - 1) {</span>
+<span class="nc" id="L536">            val tab = app.tabList.removeAt(position)</span>
+<span class="nc" id="L537">            app.tabList.add(tab)</span>
+<span class="nc" id="L538">            pageFragmentLoadState.setTab(tab)</span>
+        }
+<span class="nc bnc" id="L540" title="All 2 branches missed.">        if (app.tabCount &gt; 0) {</span>
+<span class="nc" id="L541">            app.tabList.last().squashBackstack()</span>
+<span class="nc" id="L542">            pageFragmentLoadState.loadFromBackStack()</span>
+        }
+<span class="nc" id="L544">    }</span>
+
+    private fun selectedTabPosition(title: PageTitle): Int {
+<span class="nc bnc" id="L547" title="All 2 branches missed.">        return app.tabList.firstOrNull { it.backStackPositionTitle != null &amp;&amp;</span>
+<span class="nc bnc" id="L548" title="All 4 branches missed.">                title == it.backStackPositionTitle }?.let { app.tabList.indexOf(it) } ?: -1</span>
+    }
+
+    private fun openInNewTab(title: PageTitle, entry: HistoryEntry, position: Int) {
+<span class="nc" id="L552">        val selectedTabPosition = selectedTabPosition(title)</span>
+<span class="nc bnc" id="L553" title="All 2 branches missed.">        if (selectedTabPosition &gt;= 0) {</span>
+<span class="nc" id="L554">            setCurrentTabAndReset(selectedTabPosition)</span>
+<span class="nc" id="L555">            return</span>
+        }
+<span class="nc bnc" id="L557" title="All 2 branches missed.">        if (shouldCreateNewTab) {</span>
+            // create a new tab
+<span class="nc" id="L559">            val tab = Tab()</span>
+<span class="nc bnc" id="L560" title="All 2 branches missed.">            val isForeground = position == foregroundTabPosition</span>
+            // if the requested position is at the top, then make its backstack current
+<span class="nc bnc" id="L562" title="All 2 branches missed.">            if (isForeground) {</span>
+<span class="nc" id="L563">                pageFragmentLoadState.setTab(tab)</span>
+            }
+            // put this tab in the requested position
+<span class="nc" id="L566">            app.tabList.add(position, tab)</span>
+<span class="nc" id="L567">            trimTabCount()</span>
+            // add the requested page to its backstack
+<span class="nc" id="L569">            tab.backStack.add(PageBackStackItem(title, entry))</span>
+<span class="nc bnc" id="L570" title="All 2 branches missed.">            if (!isForeground) {</span>
+<span class="nc" id="L571">                lifecycleScope.launch(CoroutineExceptionHandler { _, t -&gt; L.e(t) }) {</span>
+<span class="nc" id="L572">                    ServiceFactory.get(title.wikiSite).getInfoByPageIdsOrTitles(null, title.prefixedText)</span>
+<span class="nc bnc" id="L573" title="All 4 branches missed.">                        .query?.firstPage()?.let { page -&gt;</span>
+<span class="nc bnc" id="L574" title="All 8 branches missed.">                            WikipediaApp.instance.tabList.find { it.backStackPositionTitle == title }?.backStackPositionTitle?.apply {</span>
+<span class="nc" id="L575">                                thumbUrl = page.thumbUrl()</span>
+<span class="nc" id="L576">                                description = page.description</span>
+<span class="nc" id="L577">                            }</span>
+<span class="nc" id="L578">                        }</span>
+<span class="nc" id="L579">                }</span>
+            }
+<span class="nc" id="L581">            requireActivity().invalidateOptionsMenu()</span>
+        } else {
+<span class="nc" id="L583">            pageFragmentLoadState.setTab(currentTab)</span>
+<span class="nc" id="L584">            currentTab.backStack.add(PageBackStackItem(title, entry))</span>
+        }
+<span class="nc" id="L586">    }</span>
+
+    private fun dismissBottomSheet() {
+<span class="nc" id="L589">        ExclusiveBottomSheetPresenter.dismiss(childFragmentManager)</span>
+<span class="nc bnc" id="L590" title="All 2 branches missed.">        callback()?.onPageDismissBottomSheet()</span>
+<span class="nc" id="L591">    }</span>
+
+    private fun updateProgressBar(visible: Boolean) {
+<span class="nc bnc" id="L594" title="All 2 branches missed.">        callback()?.onPageUpdateProgressBar(visible)</span>
+<span class="nc" id="L595">    }</span>
+
+    private fun startLangLinksActivity() {
+<span class="nc bnc" id="L598" title="All 2 branches missed.">        val historyEntryId = model.curEntry?.id ?: -1</span>
+<span class="nc bnc" id="L599" title="All 2 branches missed.">        model.title?.let {</span>
+<span class="nc bnc" id="L600" title="All 2 branches missed.">            callback()?.onPageRequestLangLinks(it, historyEntryId)</span>
+        }
+<span class="nc" id="L602">    }</span>
+
+    private fun trimTabCount() {
+<span class="nc bnc" id="L605" title="All 2 branches missed.">        while (app.tabList.size &gt; Constants.MAX_TABS) {</span>
+<span class="nc" id="L606">            app.tabList.removeAt(0)</span>
+        }
+<span class="nc" id="L608">    }</span>
+
+    private fun addTimeSpentReading(timeSpentSec: Int) {
+<span class="nc bnc" id="L611" title="All 2 branches missed.">        model.curEntry?.let {</span>
+<span class="nc" id="L612">            MainScope().launch(CoroutineExceptionHandler { _, throwable -&gt; L.e(throwable) }) {</span>
+<span class="nc" id="L613">                AppDatabase.instance.pageImagesDao().upsertForTimeSpent(it, timeSpentSec)</span>
+<span class="nc" id="L614">            }</span>
+
+            // Update the article visit for Donation Reminder
+<span class="nc" id="L617">            DonationReminderHelper.increaseArticleVisitCount(timeSpentSec)</span>
+<span class="nc" id="L618">        }</span>
+<span class="nc" id="L619">    }</span>
+
+    private fun getContentTopOffsetParams(context: Context): LinearLayout.LayoutParams {
+<span class="nc" id="L622">        return LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, DimenUtil.getContentTopOffsetPx(context))</span>
+    }
+
+    private fun disableActionTabs(caught: Throwable?) {
+<span class="nc" id="L626">        val offline = ThrowableUtil.isOffline(caught)</span>
+<span class="nc bnc" id="L627" title="All 2 branches missed.">        for (i in 0 until binding.pageActionsTabLayout.childCount) {</span>
+<span class="nc bnc" id="L628" title="All 2 branches missed.">            if (!offline) {</span>
+<span class="nc" id="L629">                binding.pageActionsTabLayout.disableTab(i)</span>
+            }
+        }
+<span class="nc" id="L632">    }</span>
+
+<span class="nc" id="L634">    private fun startTalkTopicsActivity(title: PageTitle, stripUrlFragment: Boolean = false) {</span>
+<span class="nc" id="L635">        val talkTitle = title.copy()</span>
+<span class="nc bnc" id="L636" title="All 2 branches missed.">        if (stripUrlFragment) {</span>
+<span class="nc" id="L637">            talkTitle.fragment = null</span>
+        }
+<span class="nc" id="L639">        startActivity(TalkTopicsActivity.newIntent(requireActivity(), talkTitle, InvokeSource.PAGE_ACTIVITY))</span>
+<span class="nc" id="L640">    }</span>
+
+    private fun startGalleryActivity(fileName: String) {
+<span class="nc bnc" id="L643" title="All 2 branches missed.">        if (app.isOnline) {</span>
+<span class="nc" id="L644">            bridge.evaluate(JavaScriptActionHandler.getElementAtPosition(DimenUtil.roundedPxToDp(webView.lastTouchX),</span>
+<span class="nc" id="L645">                DimenUtil.roundedPxToDp(webView.lastTouchY))) { s -&gt;</span>
+<span class="nc bnc" id="L646" title="All 2 branches missed.">                if (!isAdded) {</span>
+<span class="nc" id="L647">                    return@evaluate</span>
+                }
+<span class="nc" id="L649">                var options: ActivityOptionsCompat? = null</span>
+
+<span class="nc" id="L651">                val hitInfo: JavaScriptActionHandler.ImageHitInfo? = JsonUtil.decodeFromString(s)</span>
+<span class="nc bnc" id="L652" title="All 2 branches missed.">                hitInfo?.let {</span>
+<span class="nc" id="L653">                    val params = CoordinatorLayout.LayoutParams(</span>
+<span class="nc" id="L654">                        DimenUtil.roundedDpToPx(it.width),</span>
+<span class="nc" id="L655">                        DimenUtil.roundedDpToPx(it.height)</span>
+                    )
+<span class="nc" id="L657">                    params.topMargin = DimenUtil.roundedDpToPx(it.top)</span>
+<span class="nc" id="L658">                    params.leftMargin = DimenUtil.roundedDpToPx(it.left)</span>
+<span class="nc" id="L659">                    binding.pageImageTransitionHolder.layoutParams = params</span>
+<span class="nc" id="L660">                    binding.pageImageTransitionHolder.visibility = View.VISIBLE</span>
+<span class="nc" id="L661">                    ViewUtil.loadImage(binding.pageImageTransitionHolder, it.src)</span>
+<span class="nc" id="L662">                    GalleryActivity.setTransitionInfo(it)</span>
+<span class="nc" id="L663">                    options = ActivityOptionsCompat.makeSceneTransitionAnimation(requireActivity(),</span>
+<span class="nc" id="L664">                        binding.pageImageTransitionHolder, getString(R.string.transition_page_gallery))</span>
+<span class="nc" id="L665">                }</span>
+<span class="nc" id="L666">                webView.post {</span>
+<span class="nc bnc" id="L667" title="All 2 branches missed.">                    if (!isAdded) {</span>
+<span class="nc" id="L668">                        return@post</span>
+                    }
+<span class="nc bnc" id="L670" title="All 2 branches missed.">                    model.title?.let {</span>
+<span class="nc bnc" id="L671" title="All 2 branches missed.">                        callback()?.onPageRequestGallery(it, fileName, it.wikiSite, revision, false, options)</span>
+<span class="nc" id="L672">                    }</span>
+<span class="nc" id="L673">                }</span>
+<span class="nc" id="L674">            }</span>
+        } else {
+<span class="nc" id="L676">            val snackbar = FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.gallery_not_available_offline_snackbar))</span>
+<span class="nc" id="L677">            snackbar.setAction(R.string.gallery_not_available_offline_snackbar_dismiss) { snackbar.dismiss() }</span>
+<span class="nc" id="L678">            snackbar.show()</span>
+        }
+<span class="nc" id="L680">    }</span>
+
+    private fun hidePageContent() {
+<span class="nc" id="L683">        leadImagesHandler.hide()</span>
+<span class="nc" id="L684">        bridge.loadBlankPage()</span>
+<span class="nc" id="L685">        webView.visibility = View.INVISIBLE</span>
+<span class="nc" id="L686">    }</span>
+
+    fun updateWatchlistExpiry(expiry: WatchlistExpiry) {
+<span class="nc bnc" id="L689" title="All 2 branches missed.">        model.hasWatchlistExpiry = expiry !== WatchlistExpiry.NEVER</span>
+<span class="nc" id="L690">    }</span>
+
+    private fun maybeShowAnnouncement() {
+<span class="nc bnc" id="L693" title="All 2 branches missed.">        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {</span>
+<span class="nc" id="L694">            return</span>
+        }
+<span class="nc bnc" id="L696" title="All 2 branches missed.">        title?.let { pageTitle -&gt;</span>
+            // Check if the pause time is older than 1 day.
+<span class="nc" id="L698">            val dateDiff = Duration.between(Instant.ofEpochMilli(Prefs.announcementPauseTime), Instant.now())</span>
+<span class="nc bnc" id="L699" title="All 4 branches missed.">            if (Prefs.hasVisitedArticlePage &amp;&amp; dateDiff.toDays() &gt;= 1) {</span>
+<span class="nc" id="L700">                lifecycleScope.launch(CoroutineExceptionHandler { _, t -&gt; L.e(t) }) {</span>
+<span class="nc" id="L701">                    val campaignList = CampaignCollection.getActiveCampaigns()</span>
+<span class="nc bnc" id="L702" title="All 6 branches missed.">                    val availableCampaign = campaignList.find { campaign -&gt; campaign.getAssetsForLang(app.appOrSystemLanguageCode) != null }</span>
+<span class="nc bnc" id="L703" title="All 2 branches missed.">                    availableCampaign?.let {</span>
+<span class="nc" id="L704">                        val campaignId = it.getIdForLang(app.appOrSystemLanguageCode)</span>
+<span class="nc bnc" id="L705" title="All 2 branches missed.">                        if (!Prefs.announcementShownDialogs.contains(campaignId)) {</span>
+<span class="nc" id="L706">                            DonorExperienceEvent.logAction(&quot;impression&quot;, &quot;article_banner&quot;, pageTitle.wikiSite.languageCode, campaignId)</span>
+<span class="nc" id="L707">                            campaignDialog = CampaignDialog(requireActivity(), it, onNeutralButtonClick = {</span>
+<span class="nc" id="L708">                                donationReminderLauncher.launch(DonationReminderActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L709">                            })</span>
+<span class="nc bnc" id="L710" title="All 2 branches missed.">                            campaignDialog?.setCancelable(false)</span>
+<span class="nc bnc" id="L711" title="All 2 branches missed.">                            campaignDialog?.show()</span>
+                        }
+<span class="nc" id="L713">                    }</span>
+<span class="nc" id="L714">                }</span>
+            }
+<span class="nc" id="L716">        }</span>
+<span class="nc" id="L717">    }</span>
+
+    private fun showFindReferenceInPage(referenceAnchor: String,
+                                        backLinksList: List&lt;String?&gt;,
+                                        referenceText: String) {
+<span class="nc bnc" id="L722" title="All 2 branches missed.">        model.page?.run {</span>
+<span class="nc" id="L723">            startSupportActionMode(object : ActionMode.Callback {</span>
+                override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L725">                    val menuItem = menu.add(R.string.menu_page_find_in_page)</span>
+<span class="nc" id="L726">                    menuItem.actionProvider = FindReferenceInPageActionProvider(requireContext(), referenceAnchor, referenceText, backLinksList)</span>
+<span class="nc" id="L727">                    menuItem.expandActionView()</span>
+<span class="nc" id="L728">                    return true</span>
+                }
+
+                override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L732">                    mode.tag = &quot;actionModeFindReferenceInPage&quot;</span>
+<span class="nc" id="L733">                    return false</span>
+                }
+
+                override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+<span class="nc" id="L737">                    return false</span>
+                }
+
+                override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L741">                    bridge.execute(JavaScriptActionHandler.removeHighlights())</span>
+<span class="nc" id="L742">                }</span>
+            })
+<span class="nc" id="L744">        }</span>
+<span class="nc" id="L745">    }</span>
+
+    private fun setupMessageHandlers() {
+<span class="nc" id="L748">        linkHandler = object : LinkHandler(requireActivity()) {</span>
+            override fun onPageLinkClicked(anchor: String, linkText: String) {
+<span class="nc" id="L750">                dismissBottomSheet()</span>
+<span class="nc" id="L751">                bridge.execute(JavaScriptActionHandler.prepareToScrollTo(anchor, true))</span>
+<span class="nc" id="L752">            }</span>
+
+            override fun onInternalLinkClicked(title: PageTitle) {
+<span class="nc" id="L755">                handleInternalLink(title)</span>
+<span class="nc" id="L756">            }</span>
+
+            override fun onMediaLinkClicked(title: PageTitle) {
+<span class="nc" id="L759">                startGalleryActivity(title.prefixedText)</span>
+<span class="nc" id="L760">            }</span>
+
+            override fun onDiffLinkClicked(title: PageTitle, revisionId: Long) {
+<span class="nc" id="L763">                startActivity(ArticleEditDetailsActivity.newIntent(requireContext(), title, revisionId))</span>
+<span class="nc" id="L764">            }</span>
+
+            // ignore
+            override var wikiSite: WikiSite
+<span class="nc bnc" id="L768" title="All 4 branches missed.">                get() = model.title?.run { wikiSite } ?: WikiSite.forLanguageCode(&quot;en&quot;)</span>
+                set(wikiSite) {
+                    // ignore
+<span class="nc" id="L771">                }</span>
+        }
+<span class="nc" id="L773">        bridge.addListener(&quot;link&quot;, linkHandler)</span>
+<span class="nc" id="L774">        bridge.addListener(&quot;setup&quot;) { _, _ -&gt; onPageSetupEvent() }</span>
+<span class="nc" id="L775">        bridge.addListener(&quot;final_setup&quot;) { _, _ -&gt;</span>
+<span class="nc bnc" id="L776" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L777">                return@addListener</span>
+            }
+<span class="nc" id="L779">            bridge.onPcsReady()</span>
+<span class="nc bnc" id="L780" title="All 2 branches missed.">            articleInteractionEvent?.logLoaded()</span>
+<span class="nc bnc" id="L781" title="All 2 branches missed.">            callback()?.onPageLoadComplete()</span>
+
+            // do we have a URL fragment to scroll to?
+<span class="nc bnc" id="L784" title="All 2 branches missed.">            model.title?.let { prevTitle -&gt;</span>
+<span class="nc bnc" id="L785" title="All 8 branches missed.">                if (!prevTitle.fragment.isNullOrEmpty() &amp;&amp; scrollTriggerListener.stagedScrollY == 0) {</span>
+<span class="nc" id="L786">                    val scrollDelay = 100</span>
+<span class="nc" id="L787">                    webView.postDelayed({</span>
+<span class="nc bnc" id="L788" title="All 2 branches missed.">                        if (!isAdded) {</span>
+<span class="nc" id="L789">                            return@postDelayed</span>
+                        }
+<span class="nc bnc" id="L791" title="All 2 branches missed.">                        model.title?.let {</span>
+<span class="nc bnc" id="L792" title="All 6 branches missed.">                            if (!it.fragment.isNullOrEmpty()) {</span>
+<span class="nc" id="L793">                                scrollToSection(it.fragment!!)</span>
+                            }
+<span class="nc" id="L795">                        }</span>
+<span class="nc" id="L796">                    }, scrollDelay.toLong())</span>
+                }
+<span class="nc" id="L798">            }</span>
+<span class="nc" id="L799">        }</span>
+<span class="nc" id="L800">        bridge.addListener(&quot;reference&quot;) { _, messagePayload -&gt;</span>
+<span class="nc bnc" id="L801" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L802">                return@addListener</span>
+            }
+<span class="nc" id="L804">            references = JsonUtil.decodeFromString(messagePayload.toString())</span>
+<span class="nc bnc" id="L805" title="All 2 branches missed.">            references?.let {</span>
+<span class="nc bnc" id="L806" title="All 4 branches missed.">                if (it.referencesGroup.isNotEmpty()) {</span>
+<span class="nc" id="L807">                    showBottomSheet(ReferenceDialog())</span>
+                }
+<span class="nc" id="L809">            }</span>
+<span class="nc" id="L810">        }</span>
+<span class="nc" id="L811">        bridge.addListener(&quot;back_link&quot;) { _, messagePayload -&gt;</span>
+<span class="nc bnc" id="L812" title="All 2 branches missed.">            messagePayload?.let { payload -&gt;</span>
+<span class="nc bnc" id="L813" title="All 2 branches missed.">                val backLinks = payload[&quot;backLinks&quot;]?.jsonArray</span>
+<span class="nc bnc" id="L814" title="All 6 branches missed.">                if (!backLinks.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L815" title="All 4 branches missed.">                    val backLinksList = backLinks.map { it.jsonObject[&quot;id&quot;]?.jsonPrimitive?.content }</span>
+<span class="nc bnc" id="L816" title="All 12 branches missed.">                    showFindReferenceInPage(payload[&quot;referenceId&quot;]?.jsonPrimitive?.content.orEmpty(), backLinksList, payload[&quot;referenceText&quot;]?.jsonPrimitive?.content.orEmpty())</span>
+                }
+<span class="nc" id="L818">            }</span>
+<span class="nc" id="L819">        }</span>
+<span class="nc" id="L820">        bridge.addListener(&quot;scroll_to_anchor&quot;) { _, messagePayload -&gt;</span>
+<span class="nc bnc" id="L821" title="All 2 branches missed.">            messagePayload?.let { payload -&gt;</span>
+<span class="nc bnc" id="L822" title="All 4 branches missed.">                payload[&quot;rect&quot;]?.jsonObject?.let {</span>
+<span class="nc bnc" id="L823" title="All 2 branches missed.">                    val diffY = if (it.containsKey(&quot;y&quot;)) DimenUtil.roundedDpToPx(it[&quot;y&quot;]!!.jsonPrimitive.float) else DimenUtil.roundedDpToPx(it[&quot;top&quot;]!!.jsonPrimitive.float)</span>
+<span class="nc" id="L824">                    val offsetFraction = 3</span>
+<span class="nc" id="L825">                    webView.scrollY = webView.scrollY + diffY - webView.height / offsetFraction</span>
+<span class="nc" id="L826">                }</span>
+<span class="nc" id="L827">            }</span>
+<span class="nc" id="L828">        }</span>
+<span class="nc" id="L829">        bridge.addListener(&quot;image&quot;) { _, messagePayload -&gt;</span>
+<span class="nc bnc" id="L830" title="All 2 branches missed.">            messagePayload?.let { payload -&gt;</span>
+<span class="nc bnc" id="L831" title="All 10 branches missed.">                linkHandler.onUrlClick(UriUtil.decodeURL(payload[&quot;href&quot;]?.jsonPrimitive?.content.orEmpty()), payload[&quot;title&quot;]?.jsonPrimitive?.content, &quot;&quot;)</span>
+<span class="nc" id="L832">            }</span>
+<span class="nc" id="L833">        }</span>
+<span class="nc" id="L834">        bridge.addListener(&quot;media&quot;) { _, messagePayload -&gt;</span>
+<span class="nc bnc" id="L835" title="All 2 branches missed.">            messagePayload?.let { payload -&gt;</span>
+<span class="nc bnc" id="L836" title="All 10 branches missed.">                linkHandler.onUrlClick(UriUtil.decodeURL(payload[&quot;href&quot;]?.jsonPrimitive?.content.orEmpty()), payload[&quot;title&quot;]?.jsonPrimitive?.content, &quot;&quot;)</span>
+<span class="nc" id="L837">            }</span>
+<span class="nc" id="L838">        }</span>
+<span class="nc" id="L839">        bridge.addListener(&quot;pronunciation&quot;) { _, messagePayload -&gt;</span>
+<span class="nc bnc" id="L840" title="All 2 branches missed.">            messagePayload?.let { payload -&gt;</span>
+<span class="nc bnc" id="L841" title="All 2 branches missed.">                if (avPlayer == null) {</span>
+<span class="nc" id="L842">                    avPlayer = AvPlayer()</span>
+                }
+<span class="nc bnc" id="L844" title="All 2 branches missed.">                if (avCallback == null) {</span>
+<span class="nc" id="L845">                    avCallback = AvCallback()</span>
+                }
+<span class="nc bnc" id="L847" title="All 4 branches missed.">                if (!avPlayer!!.isPlaying &amp;&amp; payload.containsKey(&quot;url&quot;)) {</span>
+<span class="nc" id="L848">                    updateProgressBar(true)</span>
+<span class="nc bnc" id="L849" title="All 6 branches missed.">                    avPlayer!!.play(UriUtil.resolveProtocolRelativeUrl(payload[&quot;url&quot;]?.jsonPrimitive?.content.orEmpty()), avCallback!!)</span>
+                } else {
+<span class="nc" id="L851">                    updateProgressBar(false)</span>
+<span class="nc" id="L852">                    avPlayer!!.stop()</span>
+                }
+<span class="nc" id="L854">            }</span>
+<span class="nc" id="L855">        }</span>
+<span class="nc" id="L856">        bridge.addListener(&quot;footer_item&quot;) { _, messagePayload -&gt;</span>
+<span class="nc bnc" id="L857" title="All 2 branches missed.">            messagePayload?.let { payload -&gt;</span>
+<span class="nc bnc" id="L858" title="All 10 branches missed.">                when (payload[&quot;itemType&quot;]?.jsonPrimitive?.content) {</span>
+<span class="nc bnc" id="L859" title="All 2 branches missed.">                    &quot;talkPage&quot; -&gt; model.title?.run {</span>
+<span class="nc bnc" id="L860" title="All 2 branches missed.">                        articleInteractionEvent?.logTalkPageArticleClick()</span>
+<span class="nc" id="L861">                        startTalkTopicsActivity(this, true)</span>
+<span class="nc" id="L862">                    }</span>
+<span class="nc" id="L863">                    &quot;languages&quot; -&gt; startLangLinksActivity()</span>
+                    &quot;lastEdited&quot; -&gt; {
+<span class="nc bnc" id="L865" title="All 2 branches missed.">                        model.title?.run {</span>
+<span class="nc bnc" id="L866" title="All 2 branches missed.">                            articleInteractionEvent?.logEditHistoryArticleClick()</span>
+<span class="nc" id="L867">                            startActivity(EditHistoryListActivity.newIntent(requireContext(), this))</span>
+<span class="nc" id="L868">                        }</span>
+                    }
+                    &quot;coordinate&quot; -&gt; {
+<span class="nc bnc" id="L871" title="All 2 branches missed.">                        model.page?.let { page -&gt;</span>
+<span class="nc" id="L872">                            val location = page.pageProperties.geo</span>
+<span class="nc bnc" id="L873" title="All 2 branches missed.">                            if (location != null) {</span>
+<span class="nc" id="L874">                                PlacesEvent.logAction(&quot;places_click&quot;, &quot;article_footer&quot;)</span>
+<span class="nc" id="L875">                                requireActivity().startActivity(PlacesActivity.newIntent(requireContext(), page.title, location))</span>
+                            } else {
+<span class="nc" id="L877">                                FeedbackUtil.showMessage(this@PageFragment, getString(R.string.action_item_view_on_map_unavailable))</span>
+                            }
+<span class="nc" id="L879">                        }</span>
+                    }
+                    &quot;pageIssues&quot; -&gt; {
+<span class="nc" id="L882">                        val array = payload[&quot;payload&quot;]</span>
+<span class="nc bnc" id="L883" title="All 8 branches missed.">                        if (array != null &amp;&amp; array.jsonArray.isNotEmpty() &amp;&amp; model.title != null) {</span>
+<span class="nc" id="L884">                            val issues = array.jsonArray.mapNotNull {</span>
+<span class="nc bnc" id="L885" title="All 4 branches missed.">                                it.jsonObject[&quot;html&quot;]?.jsonPrimitive?.content</span>
+                            }
+<span class="nc" id="L887">                            PageIssuesDialog(requireActivity(), model.title!!.wikiSite, issues) { url, title, linkText -&gt;</span>
+<span class="nc" id="L888">                                linkHandler.onUrlClick(url, title, linkText)</span>
+<span class="nc" id="L889">                            }</span>
+<span class="nc" id="L890">                                .setTitle(R.string.page_issues_title)</span>
+<span class="nc" id="L891">                                .setPositiveButton(android.R.string.ok, null)</span>
+<span class="nc" id="L892">                                .show()</span>
+                        }
+                    }
+                    &quot;disambiguation&quot; -&gt; {
+                        // TODO
+                        // messagePayload contains an array of URLs called &quot;payload&quot;.
+                    }
+                }
+<span class="nc" id="L900">            }</span>
+<span class="nc" id="L901">        }</span>
+<span class="nc" id="L902">        bridge.addListener(&quot;read_more_titles_retrieved&quot;) { _, _ -&gt; }</span>
+<span class="nc" id="L903">        bridge.addListener(&quot;view_license&quot;) { _, _ -&gt;</span>
+<span class="nc" id="L904">            UriUtil.visitInExternalBrowser(requireContext(), Uri.parse(getString(R.string.cc_by_sa_4_url)))</span>
+<span class="nc" id="L905">        }</span>
+<span class="nc" id="L906">        bridge.addListener(&quot;view_in_browser&quot;) { _, _ -&gt;</span>
+<span class="nc bnc" id="L907" title="All 2 branches missed.">            model.title?.let {</span>
+<span class="nc" id="L908">                UriUtil.visitInExternalBrowser(requireContext(), Uri.parse(it.uri))</span>
+<span class="nc" id="L909">            }</span>
+<span class="nc" id="L910">        }</span>
+<span class="nc" id="L911">    }</span>
+
+<span class="nc" id="L913">    fun reloadFromBackstack(forceReload: Boolean = true) {</span>
+<span class="nc bnc" id="L914" title="All 4 branches missed.">        if (pageFragmentLoadState.setTab(currentTab) || forceReload) {</span>
+<span class="nc bnc" id="L915" title="All 2 branches missed.">            if (!pageFragmentLoadState.backStackEmpty()) {</span>
+<span class="nc" id="L916">                pageFragmentLoadState.loadFromBackStack()</span>
+            } else {
+<span class="nc bnc" id="L918" title="All 2 branches missed.">                callback()?.onPageLoadMainPageInForegroundTab()</span>
+            }
+        }
+<span class="nc" id="L921">    }</span>
+
+<span class="nc" id="L923">    fun onPageMetadataLoaded(redirectedFrom: String? = null) {</span>
+<span class="nc" id="L924">        updateQuickActionsAndMenuOptions()</span>
+<span class="nc bnc" id="L925" title="All 2 branches missed.">        if (model.page == null) {</span>
+<span class="nc" id="L926">            return</span>
+        }
+<span class="nc bnc" id="L928" title="All 2 branches missed.">        model.page?.run {</span>
+<span class="nc bnc" id="L929" title="All 4 branches missed.">            articleInteractionEvent = ArticleInteractionEvent(model.title?.wikiSite?.dbName()!!, pageProperties.pageId)</span>
+<span class="nc" id="L930">        }</span>
+<span class="nc" id="L931">        editHandler.setPage(model.page)</span>
+<span class="nc" id="L932">        binding.pageRefreshContainer.isEnabled = true</span>
+<span class="nc" id="L933">        binding.pageRefreshContainer.isRefreshing = false</span>
+<span class="nc" id="L934">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc bnc" id="L935" title="All 2 branches missed.">        redirectedFrom?.let {</span>
+<span class="nc" id="L936">            FeedbackUtil.showMessage(requireActivity(), getString(R.string.redirected_from_snackbar, it), Snackbar.LENGTH_SHORT)</span>
+<span class="nc" id="L937">        }</span>
+<span class="nc bnc" id="L938" title="All 2 branches missed.">        model.readingListPage?.let { page -&gt;</span>
+<span class="nc bnc" id="L939" title="All 2 branches missed.">            model.title?.let { title -&gt;</span>
+<span class="nc" id="L940">                lifecycleScope.launch(CoroutineExceptionHandler { _, t -&gt;</span>
+<span class="nc" id="L941">                    L.e(t)</span>
+<span class="nc" id="L942">                }) {</span>
+<span class="nc bnc" id="L943" title="All 4 branches missed.">                    if (!page.thumbUrl.equals(title.thumbUrl, true) || !page.description.equals(title.description, true)) {</span>
+<span class="nc" id="L944">                        AppDatabase.instance.readingListPageDao().updateThumbAndDescriptionByName(</span>
+<span class="nc" id="L945">                            lang = page.wiki.languageCode,</span>
+<span class="nc" id="L946">                            apiTitle = page.apiTitle,</span>
+<span class="nc" id="L947">                            thumbUrl = title.thumbUrl,</span>
+<span class="nc" id="L948">                            description = title.description</span>
+                        )
+                    }
+<span class="nc" id="L951">                }</span>
+<span class="nc" id="L952">            }</span>
+        }
+<span class="nc bnc" id="L954" title="All 2 branches missed.">        if (!errorState) {</span>
+<span class="nc" id="L955">            editHandler.setPage(model.page)</span>
+<span class="nc" id="L956">            webView.visibility = View.VISIBLE</span>
+        }
+
+<span class="nc" id="L959">        maybeShowAnnouncement()</span>
+<span class="nc" id="L960">        OnThisDayGameMainMenuFragment.maybeShowOnThisDayGameDialog(requireActivity(),</span>
+<span class="nc bnc" id="L961" title="All 4 branches missed.">            InvokeSource.PAGE_ACTIVITY, model.title?.wikiSite ?: WikipediaApp.instance.wikiSite)</span>
+
+<span class="nc" id="L963">        bridge.onMetadataReady()</span>
+        // Explicitly set the top margin (even though it might have already been set in the setup
+        // handler), since the page metadata might have altered the lead image display state.
+<span class="nc" id="L966">        bridge.execute(JavaScriptActionHandler.setTopMargin(leadImagesHandler.topMargin))</span>
+<span class="nc" id="L967">        bridge.execute(JavaScriptActionHandler.setFooter(model))</span>
+<span class="nc" id="L968">    }</span>
+
+    fun openInNewBackgroundTab(title: PageTitle, entry: HistoryEntry) {
+<span class="nc bnc" id="L971" title="All 2 branches missed.">        if (app.tabCount == 0) {</span>
+<span class="nc" id="L972">            openInNewTab(title, entry, foregroundTabPosition)</span>
+<span class="nc" id="L973">            pageFragmentLoadState.loadFromBackStack()</span>
+        } else {
+<span class="nc" id="L975">            openInNewTab(title, entry, backgroundTabPosition)</span>
+<span class="nc" id="L976">            (requireActivity() as PageActivity).animateTabsButton()</span>
+        }
+<span class="nc" id="L978">    }</span>
+
+    fun openInNewForegroundTab(title: PageTitle, entry: HistoryEntry) {
+<span class="nc" id="L981">        openInNewTab(title, entry, foregroundTabPosition)</span>
+<span class="nc" id="L982">        pageFragmentLoadState.loadFromBackStack()</span>
+<span class="nc" id="L983">    }</span>
+
+    fun openFromExistingTab(title: PageTitle, entry: HistoryEntry) {
+<span class="nc" id="L986">        val selectedTabPosition = selectedTabPosition(title)</span>
+
+<span class="nc bnc" id="L988" title="All 2 branches missed.">        if (selectedTabPosition == -1) {</span>
+<span class="nc" id="L989">            loadPage(title, entry, pushBackStack = true, squashBackstack = false)</span>
+<span class="nc" id="L990">            return</span>
+        }
+<span class="nc" id="L992">        setCurrentTabAndReset(selectedTabPosition)</span>
+<span class="nc" id="L993">    }</span>
+
+<span class="nc" id="L995">    fun loadPage(title: PageTitle, entry: HistoryEntry, pushBackStack: Boolean, squashBackstack: Boolean, isRefresh: Boolean = false) {</span>
+        // is the new title the same as what's already being displayed?
+<span class="nc bnc" id="L997" title="All 4 branches missed.">        if (currentTab.backStack.isNotEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L998" title="All 2 branches missed.">                title == currentTab.backStack[currentTab.backStackPosition].title) {</span>
+<span class="nc bnc" id="L999" title="All 4 branches missed.">            if (model.page == null || isRefresh) {</span>
+<span class="nc" id="L1000">                pageFragmentLoadState.loadFromBackStack()</span>
+<span class="nc bnc" id="L1001" title="All 6 branches missed.">            } else if (!title.fragment.isNullOrEmpty()) {</span>
+<span class="nc" id="L1002">                scrollToSection(title.fragment!!)</span>
+            }
+<span class="nc" id="L1004">            return</span>
+        }
+<span class="nc bnc" id="L1006" title="All 2 branches missed.">        if (squashBackstack) {</span>
+<span class="nc bnc" id="L1007" title="All 2 branches missed.">            if (app.tabCount &gt; 0) {</span>
+<span class="nc" id="L1008">                app.tabList.last().clearBackstack()</span>
+            }
+        }
+<span class="nc" id="L1011">        loadPage(title, entry, pushBackStack, 0, isRefresh)</span>
+<span class="nc" id="L1012">    }</span>
+
+<span class="nc" id="L1014">    fun loadPage(title: PageTitle, entry: HistoryEntry, pushBackStack: Boolean, stagedScrollY: Int, isRefresh: Boolean = false) {</span>
+        // clear the title in case the previous page load had failed.
+<span class="nc" id="L1016">        clearActivityActionBarTitle()</span>
+
+<span class="nc bnc" id="L1018" title="All 2 branches missed.">        if (ExclusiveBottomSheetPresenter.getCurrentBottomSheet(childFragmentManager) !is ThemeChooserDialog) {</span>
+<span class="nc" id="L1019">            dismissBottomSheet()</span>
+        }
+
+<span class="nc bnc" id="L1022" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+            // explicitly check notifications for the current user
+<span class="nc" id="L1024">            PollNotificationWorker.schedulePollNotificationJob(requireContext())</span>
+        }
+
+<span class="nc" id="L1027">        EventPlatformClient.AssociationController.beginNewPageView()</span>
+
+        // update the time spent reading of the current page, before loading the new one
+<span class="nc" id="L1030">        addTimeSpentReading(activeTimer.elapsedSec)</span>
+<span class="nc" id="L1031">        activeTimer.reset()</span>
+<span class="nc bnc" id="L1032" title="All 2 branches missed.">        callback()?.onPageSetToolbarElevationEnabled(false)</span>
+<span class="nc" id="L1033">        sidePanelHandler.setEnabled(false)</span>
+<span class="nc" id="L1034">        errorState = false</span>
+<span class="nc" id="L1035">        binding.pageError.visibility = View.GONE</span>
+<span class="nc" id="L1036">        model.title = title</span>
+<span class="nc" id="L1037">        model.curEntry = entry</span>
+<span class="nc" id="L1038">        model.page = null</span>
+<span class="nc" id="L1039">        model.readingListPage = null</span>
+<span class="nc" id="L1040">        model.forceNetwork = isRefresh</span>
+<span class="nc" id="L1041">        webView.visibility = View.VISIBLE</span>
+<span class="nc" id="L1042">        binding.pageActionsTabLayout.visibility = View.VISIBLE</span>
+<span class="nc" id="L1043">        binding.pageActionsTabLayout.enableAllTabs()</span>
+<span class="nc" id="L1044">        updateProgressBar(true)</span>
+<span class="nc" id="L1045">        pageRefreshed = isRefresh</span>
+<span class="nc" id="L1046">        references = null</span>
+<span class="nc" id="L1047">        revision = 0</span>
+<span class="nc" id="L1048">        pageFragmentLoadState.load(pushBackStack)</span>
+<span class="nc" id="L1049">        scrollTriggerListener.stagedScrollY = stagedScrollY</span>
+<span class="nc" id="L1050">    }</span>
+
+    fun updateFontSize() {
+<span class="nc" id="L1053">        webView.settings.defaultFontSize = app.getFontSize().toInt()</span>
+<span class="nc" id="L1054">    }</span>
+
+    fun updateQuickActionsAndMenuOptions() {
+<span class="nc bnc" id="L1057" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L1058">            return</span>
+        }
+<span class="nc" id="L1060">        binding.pageActionsTabLayout.forEach { it as MaterialTextView</span>
+<span class="nc" id="L1061">            val pageActionItem = PageActionItem.find(it.id)</span>
+<span class="nc bnc" id="L1062" title="All 8 branches missed.">            var enabled = model.page != null &amp;&amp; (!model.shouldLoadAsMobileWeb || (model.shouldLoadAsMobileWeb &amp;&amp; pageActionItem.isAvailableOnMobileWeb))</span>
+<span class="nc bnc" id="L1063" title="All 5 branches missed.">            when (pageActionItem) {</span>
+                PageActionItem.ADD_TO_WATCHLIST -&gt; {
+<span class="nc bnc" id="L1065" title="All 2 branches missed.">                    it.setText(if (model.isWatched) R.string.menu_page_unwatch else R.string.menu_page_watch)</span>
+<span class="nc" id="L1066">                    it.setCompoundDrawablesWithIntrinsicBounds(0, PageActionItem.watchlistIcon(model.isWatched, model.hasWatchlistExpiry), 0, 0)</span>
+<span class="nc bnc" id="L1067" title="All 4 branches missed.">                    enabled = enabled &amp;&amp; AccountUtil.isLoggedIn</span>
+                }
+                PageActionItem.SAVE -&gt; {
+<span class="nc" id="L1070">                    it.setCompoundDrawablesWithIntrinsicBounds(0, PageActionItem.readingListIcon(model.isInReadingList), 0, 0)</span>
+                }
+                PageActionItem.EDIT_ARTICLE -&gt; {
+<span class="nc bnc" id="L1073" title="All 8 branches missed.">                    it.setCompoundDrawablesWithIntrinsicBounds(0, PageActionItem.editArticleIcon(model.page?.pageProperties?.canEdit != true), 0, 0)</span>
+                }
+                PageActionItem.VIEW_ON_MAP -&gt; {
+<span class="nc bnc" id="L1076" title="All 6 branches missed.">                    val geoAvailable = model.page?.pageProperties?.geo != null</span>
+<span class="nc bnc" id="L1077" title="All 2 branches missed.">                    val tintColor = ResourceUtil.getThemedColorStateList(requireContext(), if (geoAvailable) R.attr.primary_color else R.attr.inactive_color)</span>
+<span class="nc" id="L1078">                    it.setTextColor(tintColor)</span>
+<span class="nc" id="L1079">                    TextViewCompat.setCompoundDrawableTintList(it, tintColor)</span>
+                }
+                else -&gt; { }
+            }
+<span class="nc" id="L1083">            it.isEnabled = enabled</span>
+<span class="nc bnc" id="L1084" title="All 2 branches missed.">            it.alpha = if (enabled) 1f else 0.5f</span>
+<span class="nc" id="L1085">        }</span>
+<span class="nc" id="L1086">        sidePanelHandler.setEnabled(false)</span>
+<span class="nc" id="L1087">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L1088">    }</span>
+
+    suspend fun updateBookmarkAndMenuOptionsFromDao() {
+<span class="nc bnc" id="L1091" title="All 2 branches missed.">        title?.let {</span>
+<span class="nc" id="L1092">            model.readingListPage = AppDatabase.instance.readingListPageDao().findPageInAnyList(it)</span>
+<span class="nc" id="L1093">            updateQuickActionsAndMenuOptions()</span>
+<span class="nc" id="L1094">            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L1095">        }</span>
+<span class="nc" id="L1096">    }</span>
+
+    fun onActionModeShown(mode: ActionMode) {
+        // make sure we have a page loaded, since shareHandler makes references to it.
+<span class="nc bnc" id="L1100" title="All 2 branches missed.">        model.page?.run {</span>
+<span class="nc" id="L1101">            shareHandler.onTextSelected(mode)</span>
+<span class="nc" id="L1102">        }</span>
+<span class="nc" id="L1103">    }</span>
+
+    fun onRequestEditSection(sectionId: Int, sectionAnchor: String?, title: PageTitle, highlightText: String?) {
+<span class="nc bnc" id="L1106" title="All 2 branches missed.">        callback()?.onPageRequestEditSection(sectionId, sectionAnchor, title, highlightText)</span>
+<span class="nc" id="L1107">    }</span>
+
+    fun sharePageLink() {
+<span class="nc bnc" id="L1110" title="All 2 branches missed.">        model.title?.let {</span>
+<span class="nc" id="L1111">            ShareUtil.shareText(requireActivity(), it)</span>
+<span class="nc" id="L1112">        }</span>
+<span class="nc" id="L1113">    }</span>
+
+    fun showFindInPage() {
+<span class="nc bnc" id="L1116" title="All 2 branches missed.">        model.title?.let { title -&gt;</span>
+<span class="nc" id="L1117">            bridge.evaluate(JavaScriptActionHandler.expandCollapsedTables(true)) {</span>
+<span class="nc bnc" id="L1118" title="All 2 branches missed.">                if (!isAdded) {</span>
+<span class="nc" id="L1119">                    return@evaluate</span>
+                }
+<span class="nc bnc" id="L1121" title="All 4 branches missed.">                val articleFindInPageInteractionEvent = ArticleFindInPageInteractionEvent(model.page?.pageProperties?.pageId ?: -1)</span>
+<span class="nc" id="L1122">                val findInPageActionProvider = FindInWebPageActionProvider(this, articleFindInPageInteractionEvent)</span>
+<span class="nc" id="L1123">                startSupportActionMode(object : ActionMode.Callback {</span>
+                    override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L1125">                        val menuItem = menu.add(R.string.menu_page_find_in_page)</span>
+<span class="nc" id="L1126">                        menuItem.actionProvider = findInPageActionProvider</span>
+<span class="nc" id="L1127">                        menuItem.expandActionView()</span>
+<span class="nc bnc" id="L1128" title="All 2 branches missed.">                        callback()?.onPageSetToolbarElevationEnabled(false)</span>
+<span class="nc" id="L1129">                        return true</span>
+                    }
+
+                    override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L1133">                        mode.tag = &quot;actionModeFindInPage&quot;</span>
+<span class="nc" id="L1134">                        return false</span>
+                    }
+
+                    override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+<span class="nc" id="L1138">                        return false</span>
+                    }
+
+                    override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc bnc" id="L1142" title="All 2 branches missed.">                        if (!isAdded) {</span>
+<span class="nc" id="L1143">                            return</span>
+                        }
+<span class="nc" id="L1145">                        articleFindInPageInteractionEvent.pageHeight = webView.contentHeight</span>
+<span class="nc" id="L1146">                        articleFindInPageInteractionEvent.logDone()</span>
+<span class="nc" id="L1147">                        webView.clearMatches()</span>
+<span class="nc bnc" id="L1148" title="All 2 branches missed.">                        callback()?.onPageHideSoftKeyboard()</span>
+<span class="nc bnc" id="L1149" title="All 2 branches missed.">                        callback()?.onPageSetToolbarElevationEnabled(true)</span>
+<span class="nc" id="L1150">                    }</span>
+                })
+<span class="nc" id="L1152">            }</span>
+<span class="nc" id="L1153">        }</span>
+<span class="nc" id="L1154">    }</span>
+
+    private fun scrollToSection(sectionAnchor: String) {
+<span class="nc bnc" id="L1157" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L1158">            return</span>
+        }
+<span class="nc" id="L1160">        bridge.execute(JavaScriptActionHandler.prepareToScrollTo(sectionAnchor, false))</span>
+<span class="nc" id="L1161">    }</span>
+
+    fun onPageLoadError(caught: Throwable) {
+<span class="nc bnc" id="L1164" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L1165">            return</span>
+        }
+<span class="nc bnc" id="L1167" title="All 2 branches missed.">        title?.let {</span>
+<span class="nc" id="L1168">            updateProgressBar(false)</span>
+<span class="nc" id="L1169">            binding.pageRefreshContainer.isRefreshing = false</span>
+<span class="nc bnc" id="L1170" title="All 2 branches missed.">            if (pageRefreshed) {</span>
+<span class="nc" id="L1171">                pageRefreshed = false</span>
+            }
+<span class="nc" id="L1173">            hidePageContent()</span>
+<span class="nc" id="L1174">            bridge.onMetadataReady()</span>
+<span class="nc bnc" id="L1175" title="All 2 branches missed.">            if (binding.pageError.visibility != View.VISIBLE) {</span>
+<span class="nc" id="L1176">                binding.pageError.setError(caught, it)</span>
+            }
+<span class="nc" id="L1178">            binding.pageError.visibility = View.VISIBLE</span>
+<span class="nc" id="L1179">            binding.pageError.contentTopOffset.layoutParams = getContentTopOffsetParams(requireContext())</span>
+<span class="nc" id="L1180">            binding.pageError.contentTopOffset.visibility = View.VISIBLE</span>
+<span class="nc" id="L1181">            binding.pageError.tabLayoutOffset.layoutParams = tabLayoutOffsetParams</span>
+<span class="nc" id="L1182">            binding.pageError.tabLayoutOffset.visibility = View.VISIBLE</span>
+<span class="nc" id="L1183">            disableActionTabs(caught)</span>
+<span class="nc bnc" id="L1184" title="All 2 branches missed.">            binding.pageRefreshContainer.isEnabled = !ThrowableUtil.is404(caught)</span>
+<span class="nc" id="L1185">            errorState = true</span>
+<span class="nc bnc" id="L1186" title="All 2 branches missed.">            callback()?.onPageLoadError(it)</span>
+        }
+<span class="nc" id="L1188">    }</span>
+
+<span class="nc" id="L1190">    fun refreshPage(stagedScrollY: Int = 0) {</span>
+<span class="nc bnc" id="L1191" title="All 2 branches missed.">        if (bridge.isLoading) {</span>
+<span class="nc" id="L1192">            binding.pageRefreshContainer.isRefreshing = false</span>
+<span class="nc" id="L1193">            return</span>
+        }
+<span class="nc bnc" id="L1195" title="All 2 branches missed.">        model.title?.let { title -&gt;</span>
+<span class="nc bnc" id="L1196" title="All 2 branches missed.">            model.curEntry?.let { entry -&gt;</span>
+<span class="nc" id="L1197">                binding.pageError.visibility = View.GONE</span>
+<span class="nc" id="L1198">                binding.pageActionsTabLayout.enableAllTabs()</span>
+<span class="nc" id="L1199">                errorState = false</span>
+<span class="nc" id="L1200">                model.curEntry = HistoryEntry(title, HistoryEntry.SOURCE_HISTORY)</span>
+<span class="nc" id="L1201">                loadPage(title, entry, false, stagedScrollY, app.isOnline)</span>
+<span class="nc" id="L1202">            }</span>
+        }
+<span class="nc" id="L1204">    }</span>
+
+   private fun clearActivityActionBarTitle() {
+<span class="nc" id="L1207">        val currentActivity = requireActivity()</span>
+<span class="nc bnc" id="L1208" title="All 2 branches missed.">        if (currentActivity is PageActivity) {</span>
+<span class="nc" id="L1209">            currentActivity.clearActionBarTitle()</span>
+        }
+<span class="nc" id="L1211">   }</span>
+
+    fun verifyBeforeEditingDescription(text: String?, invokeSource: InvokeSource) {
+<span class="nc bnc" id="L1214" title="All 2 branches missed.">        page?.let {</span>
+<span class="nc bnc" id="L1215" title="All 4 branches missed.">            if (!AccountUtil.isLoggedIn &amp;&amp; Prefs.totalAnonDescriptionsEdited &gt;= resources.getInteger(R.integer.description_max_anon_edits)) {</span>
+<span class="nc" id="L1216">                MaterialAlertDialogBuilder(requireActivity())</span>
+<span class="nc" id="L1217">                    .setMessage(R.string.description_edit_anon_limit)</span>
+<span class="nc" id="L1218">                    .setPositiveButton(R.string.page_editing_login) { _, _ -&gt;</span>
+<span class="nc" id="L1219">                        startActivity(LoginActivity.newIntent(requireContext(), LoginActivity.SOURCE_EDIT))</span>
+<span class="nc" id="L1220">                    }</span>
+<span class="nc" id="L1221">                    .setNegativeButton(R.string.description_edit_login_cancel_button_text, null)</span>
+<span class="nc" id="L1222">                    .show()</span>
+            } else {
+<span class="nc" id="L1224">                startDescriptionEditActivity(text, invokeSource)</span>
+<span class="nc" id="L1225">            }</span>
+        }
+<span class="nc" id="L1227">    }</span>
+
+    private fun startDescriptionEditActivity(text: String?, invokeSource: InvokeSource) {
+<span class="nc bnc" id="L1230" title="All 2 branches missed.">        title?.run {</span>
+<span class="nc" id="L1231">            val sourceSummary = PageSummaryForEdit(prefixedText, wikiSite.languageCode, this,</span>
+<span class="nc" id="L1232">                displayText, description, thumbUrl)</span>
+<span class="nc bnc" id="L1233" title="All 2 branches missed.">            callback()?.onPageRequestEditDescription(text, this, sourceSummary, null,</span>
+<span class="nc" id="L1234">                DescriptionEditActivity.Action.ADD_DESCRIPTION, invokeSource)</span>
+        }
+<span class="nc" id="L1236">    }</span>
+
+    fun goForward() {
+<span class="nc" id="L1239">        pageFragmentLoadState.goForward()</span>
+<span class="nc" id="L1240">    }</span>
+
+    fun showBottomSheet(dialog: BottomSheetDialogFragment) {
+<span class="nc" id="L1243">        ExclusiveBottomSheetPresenter.show(childFragmentManager, dialog)</span>
+<span class="nc" id="L1244">    }</span>
+
+    fun loadPage(title: PageTitle, entry: HistoryEntry) {
+<span class="nc bnc" id="L1247" title="All 2 branches missed.">        callback()?.onPageLoadPage(title, entry)</span>
+<span class="nc" id="L1248">    }</span>
+
+    fun startSupportActionMode(actionModeCallback: ActionMode.Callback) {
+<span class="nc bnc" id="L1251" title="All 2 branches missed.">        callback()?.onPageStartSupportActionMode(actionModeCallback)</span>
+<span class="nc" id="L1252">    }</span>
+
+    fun callback(): Callback? {
+<span class="nc" id="L1255">        return getCallback(this, Callback::class.java)</span>
+    }
+
+    fun updateWatchlist() {
+<span class="nc bnc" id="L1259" title="All 2 branches missed.">        title?.let {</span>
+<span class="nc" id="L1260">            lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L1261">                FeedbackUtil.showError(requireActivity(), throwable)</span>
+<span class="nc" id="L1262">                L.d(throwable)</span>
+<span class="nc" id="L1263">            }) {</span>
+<span class="nc" id="L1264">                val pair = WatchlistViewModel.watchPageTitle(this, it, model.isWatched, WatchlistExpiry.NEVER, model.isWatched, it.namespace().talk())</span>
+<span class="nc" id="L1265">                model.isWatched = pair.first</span>
+<span class="nc" id="L1266">                updateWatchlistExpiry(WatchlistExpiry.NEVER)</span>
+<span class="nc" id="L1267">                WatchlistViewModel.showWatchlistSnackbar(requireActivity() as AppCompatActivity, childFragmentManager, it, pair.first, pair.second)</span>
+<span class="nc" id="L1268">                updateQuickActionsAndMenuOptions()</span>
+<span class="nc" id="L1269">            }</span>
+        }
+<span class="nc" id="L1271">    }</span>
+
+    fun showAnonNotification() {
+<span class="nc" id="L1274">        (requireActivity() as PageActivity).onAnonNotification()</span>
+<span class="nc" id="L1275">    }</span>
+
+    fun showOverflowMenu(anchor: View) {
+<span class="nc" id="L1278">        PageActionOverflowView(requireContext()).show(anchor, pageActionItemCallback, currentTab, model)</span>
+<span class="nc" id="L1279">    }</span>
+
+    fun goToMainActivity(tab: NavTab, tabExtra: String) {
+<span class="nc" id="L1282">        startActivity(MainActivity.newIntent(requireActivity())</span>
+<span class="nc" id="L1283">            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)</span>
+<span class="nc" id="L1284">            .putExtra(Constants.INTENT_RETURN_TO_MAIN, true)</span>
+<span class="nc" id="L1285">            .putExtra(tabExtra, tab.code()))</span>
+<span class="nc" id="L1286">        requireActivity().finish()</span>
+<span class="nc" id="L1287">    }</span>
+
+<span class="nc" id="L1289">    private inner class AvCallback : AvPlayer.Callback {</span>
+        override fun onSuccess() {
+<span class="nc bnc" id="L1291" title="All 2 branches missed.">            avPlayer?.stop()</span>
+<span class="nc" id="L1292">            updateProgressBar(false)</span>
+<span class="nc" id="L1293">        }</span>
+
+        override fun onError(code: Int, extra: Int) {
+<span class="nc bnc" id="L1296" title="All 6 branches missed.">            if (avPlayer?.isPlaying == true) {</span>
+<span class="nc bnc" id="L1297" title="All 2 branches missed.">                avPlayer?.stop()</span>
+            }
+<span class="nc" id="L1299">            FeedbackUtil.showMessage(this@PageFragment, R.string.media_playback_error)</span>
+<span class="nc" id="L1300">            updateProgressBar(false)</span>
+<span class="nc" id="L1301">        }</span>
+    }
+
+<span class="nc" id="L1304">    private inner class WebViewScrollTriggerListener : ObservableWebView.OnContentHeightChangedListener {</span>
+<span class="nc" id="L1305">        var stagedScrollY = 0</span>
+        override fun onContentHeightChanged(contentHeight: Int) {
+<span class="nc bnc" id="L1307" title="All 4 branches missed.">            if (stagedScrollY &gt; 0 &amp;&amp; contentHeight * DimenUtil.densityScalar - webView.height &gt; stagedScrollY) {</span>
+<span class="nc" id="L1308">                webView.scrollY = stagedScrollY</span>
+<span class="nc" id="L1309">                stagedScrollY = 0</span>
+            }
+<span class="nc" id="L1311">        }</span>
+    }
+
+<span class="nc" id="L1314">    private inner class FindReferenceInPageActionProvider constructor(context: Context,</span>
+<span class="nc" id="L1315">                                                                      private val referenceAnchor: String,</span>
+<span class="nc" id="L1316">                                                                      private val referenceText: String,</span>
+<span class="nc" id="L1317">                                                                      private val backLinksList: List&lt;String?&gt;) : ActionProvider(context), View.OnClickListener {</span>
+<span class="nc" id="L1318">        private val binding = GroupFindReferencesInPageBinding.inflate(LayoutInflater.from(context), null, false)</span>
+        private var currentPos = 0
+
+        override fun onCreateActionView(): View {
+<span class="nc" id="L1322">            binding.findInPagePrev.setOnClickListener(this)</span>
+<span class="nc" id="L1323">            binding.findInPageNext.setOnClickListener(this)</span>
+<span class="nc" id="L1324">            binding.referenceLabel.setOnClickListener(this)</span>
+<span class="nc" id="L1325">            binding.referenceLabel.text = getString(R.string.reference_list_title).plus(&quot; $referenceText&quot;)</span>
+<span class="nc bnc" id="L1326" title="All 4 branches missed.">            if (backLinksList.isNotEmpty()) {</span>
+<span class="nc" id="L1327">                scrollTo(0)</span>
+            }
+<span class="nc" id="L1329">            return binding.root</span>
+        }
+
+        override fun overridesItemVisibility(): Boolean {
+<span class="nc" id="L1333">            return true</span>
+        }
+
+        override fun onClick(v: View) {
+<span class="nc" id="L1337">            when (v) {</span>
+<span class="nc bnc" id="L1338" title="All 2 branches missed.">                binding.findInPagePrev -&gt; {</span>
+<span class="nc bnc" id="L1339" title="All 4 branches missed.">                    if (backLinksList.isNotEmpty()) {</span>
+<span class="nc bnc" id="L1340" title="All 2 branches missed.">                        currentPos = if (--currentPos &lt; 0) backLinksList.size - 1 else currentPos</span>
+<span class="nc" id="L1341">                        scrollTo(currentPos)</span>
+                    }
+                }
+<span class="nc bnc" id="L1344" title="All 2 branches missed.">                binding.findInPageNext -&gt; {</span>
+<span class="nc bnc" id="L1345" title="All 4 branches missed.">                    if (backLinksList.isNotEmpty()) {</span>
+<span class="nc bnc" id="L1346" title="All 2 branches missed.">                        currentPos = if (++currentPos &gt;= backLinksList.size) 0 else currentPos</span>
+<span class="nc" id="L1347">                        scrollTo(currentPos)</span>
+                    }
+                }
+<span class="nc bnc" id="L1350" title="All 2 branches missed.">                binding.referenceLabel -&gt; {</span>
+<span class="nc" id="L1351">                    bridge.execute(JavaScriptActionHandler.scrollToAnchor(referenceAnchor))</span>
+<span class="nc bnc" id="L1352" title="All 2 branches missed.">                    callback()?.onPageCloseActionMode()</span>
+                }
+            }
+<span class="nc" id="L1355">        }</span>
+
+        private fun scrollTo(position: Int) {
+<span class="nc bnc" id="L1358" title="All 2 branches missed.">            backLinksList[position]?.let {</span>
+<span class="nc" id="L1359">                binding.referenceCount.text = getString(R.string.find_in_page_result, position + 1,</span>
+<span class="nc bnc" id="L1360" title="All 2 branches missed.">                    if (backLinksList.isEmpty()) 0 else backLinksList.size)</span>
+<span class="nc" id="L1361">                bridge.execute(JavaScriptActionHandler.prepareToScrollTo(it, true))</span>
+<span class="nc" id="L1362">            }</span>
+<span class="nc" id="L1363">        }</span>
+    }
+
+<span class="nc" id="L1366">    inner class PageActionItemCallback : PageActionItem.Callback {</span>
+        override fun onSaveSelected() {
+<span class="nc bnc" id="L1368" title="All 2 branches missed.">            if (model.isInReadingList) {</span>
+<span class="nc bnc" id="L1369" title="All 2 branches missed.">                val anchor = if (Prefs.customizeToolbarOrder.contains(PageActionItem.SAVE.id))</span>
+<span class="nc" id="L1370">                    binding.pageActionsTabLayout else (requireActivity() as PageActivity).getOverflowMenu()</span>
+<span class="nc" id="L1371">                LongPressMenu(anchor, existsInAnyList = false, callback = object : LongPressMenu.Callback {</span>
+                    override fun onAddRequest(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc bnc" id="L1373" title="All 2 branches missed.">                        title?.run {</span>
+<span class="nc" id="L1374">                            ReadingListBehaviorsUtil.addToDefaultList(requireActivity(), this, addToDefault, InvokeSource.BOOKMARK_BUTTON)</span>
+<span class="nc" id="L1375">                        }</span>
+<span class="nc" id="L1376">                    }</span>
+
+                    override fun onMoveRequest(page: ReadingListPage?, entry: HistoryEntry) {
+<span class="nc bnc" id="L1379" title="All 2 branches missed.">                        page?.let { readingListPage -&gt;</span>
+<span class="nc bnc" id="L1380" title="All 2 branches missed.">                            title?.run {</span>
+<span class="nc" id="L1381">                                ReadingListBehaviorsUtil.moveToList(requireActivity(), readingListPage.listId, this, InvokeSource.BOOKMARK_BUTTON)</span>
+<span class="nc" id="L1382">                            }</span>
+                        }
+<span class="nc" id="L1384">                    }</span>
+<span class="nc" id="L1385">                }).show(model.curEntry)</span>
+            } else {
+<span class="nc bnc" id="L1387" title="All 2 branches missed.">                title?.run {</span>
+<span class="nc" id="L1388">                    ReadingListBehaviorsUtil.addToDefaultList(requireActivity(), this, true, InvokeSource.BOOKMARK_BUTTON)</span>
+<span class="nc" id="L1389">                }</span>
+            }
+<span class="nc bnc" id="L1391" title="All 2 branches missed.">            articleInteractionEvent?.logSaveClick()</span>
+<span class="nc" id="L1392">        }</span>
+
+        override fun onLanguageSelected() {
+<span class="nc" id="L1395">            startLangLinksActivity()</span>
+<span class="nc bnc" id="L1396" title="All 2 branches missed.">            articleInteractionEvent?.logLanguageClick()</span>
+<span class="nc" id="L1397">        }</span>
+
+        override fun onFindInArticleSelected() {
+<span class="nc" id="L1400">            showFindInPage()</span>
+<span class="nc bnc" id="L1401" title="All 2 branches missed.">            articleInteractionEvent?.logFindInArticleClick()</span>
+<span class="nc" id="L1402">        }</span>
+
+        override fun onThemeSelected() {
+<span class="nc bnc" id="L1405" title="All 2 branches missed.">            articleInteractionEvent?.logThemeClick()</span>
+
+            // If we're looking at the top of the article, then scroll down a bit so that at least
+            // some of the text is shown.
+<span class="nc bnc" id="L1409" title="All 2 branches missed.">            if (webView.scrollY &lt; DimenUtil.leadImageHeightForDevice(requireActivity())) {</span>
+<span class="nc" id="L1410">                scrolledUpForThemeChange = true</span>
+<span class="nc" id="L1411">                val animDuration = 250</span>
+<span class="nc" id="L1412">                val anim = ObjectAnimator.ofInt(webView, &quot;scrollY&quot;, webView.scrollY, DimenUtil.leadImageHeightForDevice(requireActivity()))</span>
+<span class="nc" id="L1413">                anim.setDuration(animDuration.toLong()).doOnEnd {</span>
+<span class="nc" id="L1414">                    showBottomSheet(ThemeChooserDialog.newInstance(InvokeSource.PAGE_ACTION_TAB))</span>
+<span class="nc" id="L1415">                }</span>
+<span class="nc" id="L1416">                anim.start()</span>
+            } else {
+<span class="nc" id="L1418">                scrolledUpForThemeChange = false</span>
+<span class="nc" id="L1419">                showBottomSheet(ThemeChooserDialog.newInstance(InvokeSource.PAGE_ACTION_TAB))</span>
+            }
+<span class="nc" id="L1421">        }</span>
+
+        override fun onContentsSelected() {
+<span class="nc" id="L1424">            sidePanelHandler.showToC()</span>
+<span class="nc bnc" id="L1425" title="All 2 branches missed.">            articleInteractionEvent?.logContentsClick()</span>
+<span class="nc" id="L1426">        }</span>
+
+        override fun onShareSelected() {
+<span class="nc" id="L1429">            sharePageLink()</span>
+<span class="nc bnc" id="L1430" title="All 2 branches missed.">            articleInteractionEvent?.logShareClick()</span>
+<span class="nc" id="L1431">        }</span>
+
+        override fun onAddToWatchlistSelected() {
+<span class="nc bnc" id="L1434" title="All 2 branches missed.">            if (model.isWatched) {</span>
+<span class="nc" id="L1435">                WatchlistAnalyticsHelper.logRemovedFromWatchlist(model.title, requireContext())</span>
+<span class="nc bnc" id="L1436" title="All 2 branches missed.">                articleInteractionEvent?.logUnWatchClick()</span>
+            } else {
+<span class="nc" id="L1438">                WatchlistAnalyticsHelper.logAddedToWatchlist(model.title, requireContext())</span>
+<span class="nc bnc" id="L1439" title="All 2 branches missed.">                articleInteractionEvent?.logWatchClick()</span>
+            }
+<span class="nc" id="L1441">            updateWatchlist()</span>
+<span class="nc" id="L1442">        }</span>
+
+        override fun onViewTalkPageSelected() {
+<span class="nc bnc" id="L1445" title="All 2 branches missed.">            title?.let {</span>
+<span class="nc" id="L1446">                startTalkTopicsActivity(it, true)</span>
+<span class="nc" id="L1447">            }</span>
+<span class="nc bnc" id="L1448" title="All 2 branches missed.">            articleInteractionEvent?.logTalkPageClick()</span>
+<span class="nc" id="L1449">        }</span>
+
+        override fun onViewEditHistorySelected() {
+<span class="nc bnc" id="L1452" title="All 2 branches missed.">            title?.run {</span>
+<span class="nc" id="L1453">                startActivity(EditHistoryListActivity.newIntent(requireContext(), this))</span>
+<span class="nc" id="L1454">            }</span>
+<span class="nc bnc" id="L1455" title="All 2 branches missed.">            articleInteractionEvent?.logEditHistoryClick()</span>
+<span class="nc" id="L1456">        }</span>
+
+        override fun onNewTabSelected() {
+<span class="nc" id="L1459">            startActivity(PageActivity.newIntentForNewTab(requireContext()))</span>
+<span class="nc bnc" id="L1460" title="All 2 branches missed.">            articleInteractionEvent?.logNewTabClick()</span>
+<span class="nc" id="L1461">        }</span>
+
+        override fun onExploreSelected() {
+<span class="nc" id="L1464">            goToMainActivity(tab = NavTab.EXPLORE, tabExtra = Constants.INTENT_EXTRA_GO_TO_MAIN_TAB)</span>
+<span class="nc bnc" id="L1465" title="All 2 branches missed.">            articleInteractionEvent?.logExploreClick()</span>
+<span class="nc" id="L1466">        }</span>
+
+        override fun onCategoriesSelected() {
+<span class="nc bnc" id="L1469" title="All 2 branches missed.">            title?.let {</span>
+<span class="nc" id="L1470">                ExclusiveBottomSheetPresenter.show(childFragmentManager, CategoryDialog.newInstance(it))</span>
+<span class="nc" id="L1471">            }</span>
+<span class="nc bnc" id="L1472" title="All 2 branches missed.">            articleInteractionEvent?.logCategoriesClick()</span>
+<span class="nc" id="L1473">        }</span>
+
+        override fun onEditArticleSelected() {
+<span class="nc" id="L1476">            editHandler.startEditingArticle()</span>
+<span class="nc bnc" id="L1477" title="All 2 branches missed.">            articleInteractionEvent?.logEditArticleClick()</span>
+<span class="nc" id="L1478">        }</span>
+
+        override fun onViewOnMapSelected() {
+<span class="nc bnc" id="L1481" title="All 2 branches missed.">            title?.let {</span>
+<span class="nc bnc" id="L1482" title="All 4 branches missed.">                val location = page?.pageProperties?.geo</span>
+<span class="nc bnc" id="L1483" title="All 2 branches missed.">                if (location != null) {</span>
+<span class="nc" id="L1484">                    PlacesEvent.logAction(&quot;places_click&quot;, &quot;article_more_menu&quot;)</span>
+<span class="nc" id="L1485">                    requireActivity().startActivity(PlacesActivity.newIntent(requireContext(), it, location))</span>
+                } else {
+<span class="nc" id="L1487">                    FeedbackUtil.showMessage(this@PageFragment, getString(R.string.action_item_view_on_map_unavailable))</span>
+                }
+<span class="nc" id="L1489">            }</span>
+<span class="nc" id="L1490">        }</span>
+
+        override fun forwardClick() {
+<span class="nc" id="L1493">            goForward()</span>
+<span class="nc bnc" id="L1494" title="All 2 branches missed.">            articleInteractionEvent?.logForwardClick()</span>
+<span class="nc" id="L1495">        }</span>
+    }
+
+    companion object {
+        private const val ARG_THEME_CHANGE_SCROLLED = &quot;themeChangeScrolled&quot;
+<span class="nc" id="L1500">        private val REFRESH_SPINNER_ADDITIONAL_OFFSET = (16 * DimenUtil.densityScalar).toInt()</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

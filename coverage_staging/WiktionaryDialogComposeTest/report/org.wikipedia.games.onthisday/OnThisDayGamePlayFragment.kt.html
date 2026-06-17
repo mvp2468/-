@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayGamePlayFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.onthisday</a> &gt; <span class="el_source">OnThisDayGamePlayFragment.kt</span></div><h1>OnThisDayGamePlayFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.onthisday
+
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.app.Activity.RESULT_OK
+import android.content.Intent
+import android.graphics.Color
+import android.media.MediaPlayer
+import android.os.Bundle
+import android.text.format.DateFormat
+import android.text.method.ScrollingMovementMethod
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import android.widget.ImageView
+import androidx.core.animation.doOnEnd
+import androidx.core.net.toUri
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isInvisible
+import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.databinding.FragmentOnThisDayGamePlayBinding
+import org.wikipedia.feed.onthisday.OnThisDay
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.views.WikiCardView
+import java.time.LocalDate
+import java.time.MonthDay
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+
+<span class="nc" id="L44">class OnThisDayGamePlayFragment : Fragment() {</span>
+    private var _binding: FragmentOnThisDayGamePlayBinding? = null
+<span class="nc" id="L46">    private val binding get() = _binding!!</span>
+<span class="nc" id="L47">    private val viewModel: OnThisDayGameViewModel by activityViewModels()</span>
+<span class="nc" id="L48">    private val cardAnimatorSetIn = AnimatorSet()</span>
+<span class="nc" id="L49">    private val cardAnimatorSetOut = AnimatorSet()</span>
+    private var mediaPlayer: MediaPlayer? = null
+    private var selectedCardView: WikiCardView? = null
+    private var mainActivity: OnThisDayGameActivity? = null
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+<span class="nc" id="L58">        _binding = FragmentOnThisDayGamePlayBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L59">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L63">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L64">        mediaPlayer = MediaPlayer()</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        mainActivity = (activity as? OnThisDayGameActivity)</span>
+
+<span class="nc" id="L67">        binding.errorView.retryClickListener = View.OnClickListener {</span>
+<span class="nc" id="L68">            viewModel.loadGameState()</span>
+<span class="nc" id="L69">        }</span>
+
+<span class="nc" id="L71">        binding.errorView.backClickListener = View.OnClickListener {</span>
+<span class="nc" id="L72">            requireActivity().finish()</span>
+<span class="nc" id="L73">        }</span>
+
+<span class="nc" id="L75">        binding.questionCard1.setOnClickListener {</span>
+<span class="nc" id="L76">            enqueueSubmit(it as WikiCardView)</span>
+<span class="nc" id="L77">        }</span>
+<span class="nc" id="L78">        binding.questionContainer1.setOnClickListener {</span>
+<span class="nc" id="L79">            enqueueSubmit(binding.questionCard1)</span>
+<span class="nc" id="L80">        }</span>
+<span class="nc" id="L81">        binding.questionText1.setOnClickListener {</span>
+<span class="nc" id="L82">            enqueueSubmit(binding.questionCard1)</span>
+<span class="nc" id="L83">        }</span>
+<span class="nc" id="L84">        binding.questionCard2.setOnClickListener {</span>
+<span class="nc" id="L85">            enqueueSubmit(it as WikiCardView)</span>
+<span class="nc" id="L86">        }</span>
+<span class="nc" id="L87">        binding.questionContainer2.setOnClickListener {</span>
+<span class="nc" id="L88">            enqueueSubmit(binding.questionCard2)</span>
+<span class="nc" id="L89">        }</span>
+<span class="nc" id="L90">        binding.questionText2.setOnClickListener {</span>
+<span class="nc" id="L91">            enqueueSubmit(binding.questionCard2)</span>
+<span class="nc" id="L92">        }</span>
+<span class="nc" id="L93">        binding.questionText1.movementMethod = ScrollingMovementMethod()</span>
+<span class="nc" id="L94">        binding.questionText2.movementMethod = ScrollingMovementMethod()</span>
+
+<span class="nc" id="L96">        binding.nextQuestionText.setOnClickListener {</span>
+<span class="nc" id="L97">            binding.nextQuestionText.isVisible = false</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            if (selectedCardView != null) {</span>
+<span class="nc" id="L99">                val event = (selectedCardView!!.tag as OnThisDay.Event)</span>
+<span class="nc" id="L100">                viewModel.submitCurrentResponse(event.year)</span>
+<span class="nc" id="L101">                selectedCardView = null</span>
+            } else {
+<span class="nc" id="L103">                viewModel.submitCurrentResponse(0)</span>
+<span class="nc" id="L104">                binding.nextQuestionText.isVisible = false</span>
+<span class="nc" id="L105">                resetCardBorders()</span>
+            }
+<span class="nc" id="L107">        }</span>
+
+<span class="nc" id="L109">        binding.root.setOnApplyWindowInsetsListener { view, windowInsets -&gt;</span>
+<span class="nc" id="L110">            val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(windowInsets, view)</span>
+<span class="nc" id="L111">            val newStatusBarInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.statusBars())</span>
+<span class="nc" id="L112">            val newNavBarInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.navigationBars())</span>
+
+<span class="nc" id="L114">            binding.currentQuestionContainer.updateLayoutParams&lt;ViewGroup.MarginLayoutParams&gt; {</span>
+<span class="nc" id="L115">                leftMargin = newStatusBarInsets.left + newNavBarInsets.left</span>
+<span class="nc" id="L116">                rightMargin = newStatusBarInsets.right + newNavBarInsets.right</span>
+<span class="nc" id="L117">            }</span>
+
+<span class="nc" id="L119">            binding.bottomContent.updatePadding(bottom = newStatusBarInsets.bottom + newNavBarInsets.bottom)</span>
+
+<span class="nc" id="L121">            windowInsets</span>
+        }
+
+<span class="nc" id="L124">        binding.scoreView.generateViews(OnThisDayGameViewModel.MAX_QUESTIONS)</span>
+<span class="nc" id="L125">        viewModel.gameState.observe(viewLifecycleOwner) {</span>
+<span class="nc" id="L126">            when (it) {</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                is Resource.Loading -&gt; updateOnLoading()</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                is OnThisDayGameViewModel.CurrentQuestion -&gt; onCurrentQuestion(it.data)</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">                is OnThisDayGameViewModel.GameStarted -&gt; onGameStarted(it.data)</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                is OnThisDayGameViewModel.CurrentQuestionCorrect -&gt; onCurrentQuestionCorrect(it.data)</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">                is OnThisDayGameViewModel.CurrentQuestionIncorrect -&gt; onCurrentQuestionIncorrect(it.data)</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                is OnThisDayGameViewModel.GameEnded -&gt; onGameEnded()</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                is Resource.Error -&gt; updateOnError(it.throwable)</span>
+            }
+<span class="nc" id="L135">        }</span>
+<span class="nc" id="L136">    }</span>
+
+    private fun updateOnLoading() {
+<span class="nc" id="L139">        binding.errorView.isVisible = false</span>
+<span class="nc" id="L140">        binding.scoreView.isVisible = false</span>
+
+<span class="nc" id="L142">        binding.currentQuestionContainer.isVisible = false</span>
+<span class="nc" id="L143">        binding.progressBar.isVisible = true</span>
+<span class="nc" id="L144">    }</span>
+
+    private fun onGameStarted(gameState: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L147">        updateGameState(gameState)</span>
+<span class="nc" id="L148">        animateQuestionsIn()</span>
+<span class="nc" id="L149">    }</span>
+
+    private fun onCurrentQuestion(gameState: OnThisDayGameViewModel.GameState) {
+<span class="nc bnc" id="L152" title="All 6 branches missed.">        if (gameState.currentQuestionIndex &gt; 0 &amp;&amp; binding.questionText1.text.isNotEmpty()) {</span>
+<span class="nc" id="L153">            animateQuestionsOut {</span>
+<span class="nc" id="L154">                updateGameState(gameState)</span>
+<span class="nc" id="L155">                animateQuestionsIn()</span>
+<span class="nc" id="L156">            }</span>
+        } else {
+<span class="nc" id="L158">            updateGameState(gameState)</span>
+<span class="nc" id="L159">            animateQuestionsIn()</span>
+        }
+<span class="nc" id="L161">    }</span>
+
+    private fun onCurrentQuestionCorrect(gameState: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L164">        updateGameState(gameState)</span>
+
+<span class="nc" id="L166">        updateQuestionEndLayout()</span>
+<span class="nc" id="L167">        binding.correctIncorrectText.setText(R.string.on_this_day_game_correct)</span>
+<span class="nc" id="L168">        binding.pointsText.isVisible = true</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (gameState.currentQuestionState.event1.year &lt; gameState.currentQuestionState.event2.year) {</span>
+<span class="nc" id="L171">            binding.questionDate1.setBackgroundResource(R.drawable.game_date_background_correct)</span>
+<span class="nc" id="L172">            binding.questionDate1.setTextColor(Color.WHITE)</span>
+<span class="nc" id="L173">            setCorrectIcon(binding.questionStatusIcon1)</span>
+        } else {
+<span class="nc" id="L175">            binding.questionDate2.setBackgroundResource(R.drawable.game_date_background_correct)</span>
+<span class="nc" id="L176">            binding.questionDate2.setTextColor(Color.WHITE)</span>
+<span class="nc" id="L177">            setCorrectIcon(binding.questionStatusIcon2)</span>
+        }
+<span class="nc" id="L179">        playSound(&quot;sound_completion&quot;)</span>
+<span class="nc" id="L180">        enqueueGoNext(gameState)</span>
+<span class="nc" id="L181">    }</span>
+
+    private fun onCurrentQuestionIncorrect(gameState: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L184">        updateGameState(gameState)</span>
+
+<span class="nc" id="L186">        updateQuestionEndLayout()</span>
+<span class="nc" id="L187">        binding.correctIncorrectText.setText(R.string.on_this_day_game_incorrect)</span>
+
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        if (gameState.currentQuestionState.event1.year &lt; gameState.currentQuestionState.event2.year) {</span>
+<span class="nc" id="L190">            binding.questionDate1.setBackgroundResource(R.drawable.game_date_background_correct)</span>
+<span class="nc" id="L191">            binding.questionDate2.setBackgroundResource(R.drawable.game_date_background_incorrect)</span>
+<span class="nc" id="L192">            setCorrectIcon(binding.questionStatusIcon1)</span>
+<span class="nc" id="L193">            setIncorrectIcon(binding.questionStatusIcon2)</span>
+        } else {
+<span class="nc" id="L195">            binding.questionDate1.setBackgroundResource(R.drawable.game_date_background_incorrect)</span>
+<span class="nc" id="L196">            binding.questionDate2.setBackgroundResource(R.drawable.game_date_background_correct)</span>
+<span class="nc" id="L197">            setIncorrectIcon(binding.questionStatusIcon1)</span>
+<span class="nc" id="L198">            setCorrectIcon(binding.questionStatusIcon2)</span>
+        }
+<span class="nc" id="L200">        binding.questionDate1.setTextColor(Color.WHITE)</span>
+<span class="nc" id="L201">        binding.questionDate2.setTextColor(Color.WHITE)</span>
+
+<span class="nc" id="L203">        playSound(&quot;sound_error&quot;)</span>
+<span class="nc" id="L204">        enqueueGoNext(gameState)</span>
+<span class="nc" id="L205">    }</span>
+
+    private fun updateQuestionEndLayout() {
+<span class="nc" id="L208">        binding.whichCameFirstText.isVisible = false</span>
+<span class="nc" id="L209">        binding.nextQuestionText.isVisible = false</span>
+<span class="nc" id="L210">        binding.centerContent.isVisible = true</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        if (!binding.questionThumbnail1.isVisible) {</span>
+<span class="nc" id="L212">            binding.questionText1.updateLayoutParams&lt;ViewGroup.MarginLayoutParams&gt; { bottomMargin = DimenUtil.roundedDpToPx(40f) }</span>
+        }
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        if (!binding.questionThumbnail2.isVisible) {</span>
+<span class="nc" id="L215">            binding.questionText2.updateLayoutParams&lt;ViewGroup.MarginLayoutParams&gt; { bottomMargin = DimenUtil.roundedDpToPx(40f) }</span>
+        }
+<span class="nc" id="L217">    }</span>
+
+    private fun setCorrectIcon(view: ImageView) {
+<span class="nc" id="L220">        view.setImageResource(R.drawable.check_circle_24px)</span>
+<span class="nc" id="L221">        view.imageTintList = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.success_color)</span>
+<span class="nc" id="L222">        view.isVisible = true</span>
+<span class="nc" id="L223">    }</span>
+
+    private fun setIncorrectIcon(view: ImageView) {
+<span class="nc" id="L226">        view.setImageResource(R.drawable.ic_cancel_24px)</span>
+<span class="nc" id="L227">        view.imageTintList = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.destructive_color)</span>
+<span class="nc" id="L228">        view.isVisible = true</span>
+<span class="nc" id="L229">    }</span>
+
+    private fun enqueueGoNext(gameState: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L232">        binding.questionDate1.isVisible = true</span>
+<span class="nc" id="L233">        binding.questionDate2.isVisible = true</span>
+<span class="nc" id="L234">        binding.questionCard1.isEnabled = false</span>
+<span class="nc" id="L235">        binding.questionCard2.isEnabled = false</span>
+<span class="nc" id="L236">        binding.questionText1.isEnabled = false</span>
+<span class="nc" id="L237">        binding.questionText2.isEnabled = false</span>
+
+<span class="nc" id="L239">        binding.whichCameFirstText.isVisible = false</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        binding.nextQuestionText.setText(if (gameState.currentQuestionIndex &gt;= gameState.totalQuestions - 1) R.string.on_this_day_game_finish else R.string.on_this_day_game_next)</span>
+<span class="nc" id="L241">        binding.nextQuestionText.isVisible = true</span>
+<span class="nc" id="L242">    }</span>
+
+    fun animateQuestionsIn() {
+<span class="nc" id="L245">        WikiGamesEvent.submit(&quot;impression&quot;, &quot;game_play&quot;, slideName = viewModel.getCurrentScreenName(), isArchive = viewModel.isArchiveGame)</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        mainActivity?.showAppBarDateText()</span>
+<span class="nc" id="L247">        binding.whichCameFirstText.alpha = 0f</span>
+<span class="nc" id="L248">        binding.questionCard1.alpha = 0f</span>
+<span class="nc" id="L249">        binding.questionCard2.alpha = 0f</span>
+<span class="nc" id="L250">        val textA1 = ObjectAnimator.ofFloat(binding.whichCameFirstText, &quot;alpha&quot;, 0f, 1f)</span>
+<span class="nc" id="L251">        val translationX1 = ObjectAnimator.ofFloat(binding.questionCard1, &quot;translationX&quot;, DimenUtil.dpToPx(400f), 0f)</span>
+<span class="nc" id="L252">        val translationA1 = ObjectAnimator.ofFloat(binding.questionCard1, &quot;alpha&quot;, 0f, 1f)</span>
+<span class="nc" id="L253">        val translationX2 = ObjectAnimator.ofFloat(binding.questionCard2, &quot;translationX&quot;, DimenUtil.dpToPx(400f), 0f)</span>
+<span class="nc" id="L254">        val translationA2 = ObjectAnimator.ofFloat(binding.questionCard2, &quot;alpha&quot;, 0f, 1f)</span>
+
+<span class="nc" id="L256">        val duration = 750L</span>
+<span class="nc" id="L257">        var delay = 500L</span>
+<span class="nc" id="L258">        val interpolator = DecelerateInterpolator()</span>
+<span class="nc" id="L259">        textA1.duration = duration</span>
+<span class="nc" id="L260">        textA1.startDelay = delay</span>
+<span class="nc" id="L261">        textA1.interpolator = interpolator</span>
+<span class="nc" id="L262">        translationX1.duration = duration</span>
+<span class="nc" id="L263">        delay += duration</span>
+<span class="nc" id="L264">        translationX1.startDelay = delay</span>
+<span class="nc" id="L265">        translationX1.interpolator = interpolator</span>
+<span class="nc" id="L266">        translationA1.duration = duration</span>
+<span class="nc" id="L267">        translationA1.startDelay = delay</span>
+<span class="nc" id="L268">        delay += duration</span>
+<span class="nc" id="L269">        translationA1.interpolator = interpolator</span>
+<span class="nc" id="L270">        translationX2.duration = duration</span>
+<span class="nc" id="L271">        translationX2.startDelay = delay</span>
+<span class="nc" id="L272">        translationX2.interpolator = interpolator</span>
+<span class="nc" id="L273">        translationA2.duration = duration</span>
+<span class="nc" id="L274">        translationA2.startDelay = delay</span>
+<span class="nc" id="L275">        translationA2.interpolator = interpolator</span>
+
+<span class="nc" id="L277">        binding.questionCard1.isEnabled = false</span>
+<span class="nc" id="L278">        binding.questionCard2.isEnabled = false</span>
+<span class="nc" id="L279">        binding.questionText1.isEnabled = false</span>
+<span class="nc" id="L280">        binding.questionText2.isEnabled = false</span>
+<span class="nc" id="L281">        cardAnimatorSetIn.removeAllListeners()</span>
+<span class="nc" id="L282">        cardAnimatorSetIn.cancel()</span>
+<span class="nc" id="L283">        cardAnimatorSetIn.playTogether(textA1, translationX1, translationA1, translationX2, translationA2)</span>
+<span class="nc" id="L284">        cardAnimatorSetIn.doOnEnd {</span>
+<span class="nc" id="L285">            binding.questionCard1.isEnabled = true</span>
+<span class="nc" id="L286">            binding.questionCard2.isEnabled = true</span>
+<span class="nc" id="L287">            binding.questionText1.isEnabled = true</span>
+<span class="nc" id="L288">            binding.questionText2.isEnabled = true</span>
+<span class="nc" id="L289">        }</span>
+<span class="nc" id="L290">        cardAnimatorSetIn.start()</span>
+<span class="nc" id="L291">    }</span>
+
+    fun animateQuestionsOut(onFinished: () -&gt; Unit) {
+<span class="nc" id="L294">        binding.questionCard1.alpha = 1f</span>
+<span class="nc" id="L295">        binding.questionCard2.alpha = 1f</span>
+<span class="nc" id="L296">        binding.questionDate1.isInvisible = true</span>
+<span class="nc" id="L297">        binding.questionDate2.isInvisible = true</span>
+<span class="nc" id="L298">        binding.centerContent.isInvisible = true</span>
+
+<span class="nc" id="L300">        val translationX1 = ObjectAnimator.ofFloat(binding.questionCard1, &quot;translationX&quot;, 0f, DimenUtil.dpToPx(-400f))</span>
+<span class="nc" id="L301">        val translationA1 = ObjectAnimator.ofFloat(binding.questionCard1, &quot;alpha&quot;, 1f, 0f)</span>
+<span class="nc" id="L302">        val translationX2 = ObjectAnimator.ofFloat(binding.questionCard2, &quot;translationX&quot;, 0f, DimenUtil.dpToPx(-400f))</span>
+<span class="nc" id="L303">        val translationA2 = ObjectAnimator.ofFloat(binding.questionCard2, &quot;alpha&quot;, 1f, 0f)</span>
+
+<span class="nc" id="L305">        val duration = 250L</span>
+<span class="nc" id="L306">        val interpolator = AccelerateInterpolator()</span>
+<span class="nc" id="L307">        translationX1.duration = duration</span>
+<span class="nc" id="L308">        translationX1.interpolator = interpolator</span>
+<span class="nc" id="L309">        translationA1.duration = duration</span>
+<span class="nc" id="L310">        translationA1.interpolator = interpolator</span>
+<span class="nc" id="L311">        translationX2.duration = duration</span>
+<span class="nc" id="L312">        translationX2.startDelay = duration</span>
+<span class="nc" id="L313">        translationX2.interpolator = interpolator</span>
+<span class="nc" id="L314">        translationA2.duration = duration</span>
+<span class="nc" id="L315">        translationA2.startDelay = duration</span>
+<span class="nc" id="L316">        translationA2.interpolator = interpolator</span>
+
+<span class="nc" id="L318">        cardAnimatorSetOut.removeAllListeners()</span>
+<span class="nc" id="L319">        cardAnimatorSetOut.cancel()</span>
+<span class="nc" id="L320">        cardAnimatorSetOut.playTogether(translationX1, translationA1, translationX2, translationA2)</span>
+<span class="nc" id="L321">        cardAnimatorSetOut.doOnEnd {</span>
+<span class="nc" id="L322">            binding.root.post {</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">                if (isAdded) {</span>
+<span class="nc" id="L324">                    onFinished()</span>
+                }
+<span class="nc" id="L326">            }</span>
+<span class="nc" id="L327">        }</span>
+<span class="nc" id="L328">        cardAnimatorSetOut.start()</span>
+<span class="nc" id="L329">    }</span>
+
+    private fun onGameEnded() {
+<span class="nc bnc" id="L332" title="All 4 branches missed.">        mainActivity?.supportFragmentManager?.beginTransaction()</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            ?.add(R.id.fragmentContainer, OnThisDayGameResultFragment.newInstance(viewModel.invokeSource), null)</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">            ?.commit()</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        mainActivity?.setResult(RESULT_OK, Intent().putExtra(OnThisDayGameResultFragment.EXTRA_GAME_COMPLETED, true))</span>
+<span class="nc" id="L336">        playSound(&quot;sound_logo&quot;)</span>
+<span class="nc" id="L337">    }</span>
+
+    private fun updateOnError(t: Throwable) {
+<span class="nc" id="L340">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L341">        binding.scoreView.isVisible = false</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">        mainActivity?.hideAppBarDateText()</span>
+<span class="nc" id="L343">        binding.currentQuestionContainer.isVisible = false</span>
+<span class="nc" id="L344">        binding.errorView.isVisible = true</span>
+<span class="nc" id="L345">        binding.errorView.setError(t)</span>
+<span class="nc" id="L346">    }</span>
+
+    fun updateGameState(gameState: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L349">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L350">        binding.errorView.isVisible = false</span>
+
+<span class="nc" id="L352">        binding.scoreView.isVisible = true</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">        mainActivity?.showAppBarDateText()</span>
+<span class="nc" id="L354">        binding.questionDate1.isVisible = false</span>
+<span class="nc" id="L355">        binding.questionDate2.isVisible = false</span>
+<span class="nc" id="L356">        binding.questionStatusIcon1.isVisible = false</span>
+<span class="nc" id="L357">        binding.questionStatusIcon2.isVisible = false</span>
+
+<span class="nc" id="L359">        MonthDay.of(viewModel.currentMonth, viewModel.currentDay).let {</span>
+<span class="nc" id="L360">            val text = it.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(Locale.getDefault(), &quot;MMMM d&quot;)))</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">            mainActivity?.updateAppBarDateText(text)</span>
+        }
+
+<span class="nc" id="L364">        binding.scoreView.updateScores(gameState.answerState, gameState.currentQuestionIndex, gameState.currentQuestionState.goToNext)</span>
+
+<span class="nc" id="L366">        val event1 = gameState.currentQuestionState.event1</span>
+<span class="nc" id="L367">        val event2 = gameState.currentQuestionState.event2</span>
+
+<span class="nc" id="L369">        binding.questionCard1.tag = event1</span>
+<span class="nc" id="L370">        binding.questionCard2.tag = event2</span>
+
+<span class="nc" id="L372">        binding.questionDate1.text = DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).format(LocalDate.of(event1.year, viewModel.currentMonth, viewModel.currentDay))</span>
+<span class="nc" id="L373">        binding.questionText1.updateLayoutParams&lt;ViewGroup.MarginLayoutParams&gt; { bottomMargin = 0 }</span>
+<span class="nc" id="L374">        binding.questionText1.text = event1.text</span>
+<span class="nc" id="L375">        binding.questionText1.scrollY = 0</span>
+
+<span class="nc" id="L377">        val thumbnailUrl1 = viewModel.getThumbnailUrlForEvent(event1)</span>
+<span class="nc bnc" id="L378" title="All 4 branches missed.">        binding.questionThumbnail1.tag = thumbnailUrl1.isNullOrEmpty()</span>
+<span class="nc bnc" id="L379" title="All 6 branches missed.">        if (thumbnailUrl1.isNullOrEmpty()) {</span>
+<span class="nc" id="L380">            binding.questionThumbnail1.isVisible = false</span>
+        } else {
+<span class="nc" id="L382">            binding.questionThumbnail1.isVisible = true</span>
+<span class="nc" id="L383">            ViewUtil.loadImage(binding.questionThumbnail1, thumbnailUrl1, placeholderId = R.mipmap.launcher)</span>
+        }
+
+<span class="nc" id="L386">        binding.questionDate2.text = DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).format(LocalDate.of(event2.year, viewModel.currentMonth, viewModel.currentDay))</span>
+<span class="nc" id="L387">        binding.questionText2.updateLayoutParams&lt;ViewGroup.MarginLayoutParams&gt; { bottomMargin = 0 }</span>
+<span class="nc" id="L388">        binding.questionText2.text = event2.text</span>
+<span class="nc" id="L389">        binding.questionText2.scrollY = 0</span>
+
+<span class="nc" id="L391">        val thumbnailUrl2 = viewModel.getThumbnailUrlForEvent(event2)</span>
+<span class="nc bnc" id="L392" title="All 4 branches missed.">        binding.questionThumbnail2.tag = thumbnailUrl2.isNullOrEmpty()</span>
+<span class="nc bnc" id="L393" title="All 6 branches missed.">        if (thumbnailUrl2.isNullOrEmpty()) {</span>
+<span class="nc" id="L394">            binding.questionThumbnail2.isVisible = false</span>
+        } else {
+<span class="nc" id="L396">            binding.questionThumbnail2.isVisible = true</span>
+<span class="nc" id="L397">            ViewUtil.loadImage(binding.questionThumbnail2, thumbnailUrl2, placeholderId = R.mipmap.launcher)</span>
+        }
+
+<span class="nc" id="L400">        binding.whichCameFirstText.isVisible = true</span>
+<span class="nc" id="L401">        binding.whichCameFirstText.setText(R.string.on_this_day_game_title)</span>
+<span class="nc" id="L402">        binding.pointsText.isVisible = false</span>
+<span class="nc" id="L403">        binding.nextQuestionText.isVisible = false</span>
+
+<span class="nc" id="L405">        binding.questionDate1.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.primary_color))</span>
+<span class="nc" id="L406">        binding.questionDate2.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.primary_color))</span>
+<span class="nc" id="L407">        binding.questionDate1.setBackgroundResource(R.drawable.game_date_background_neutral)</span>
+<span class="nc" id="L408">        binding.questionDate2.setBackgroundResource(R.drawable.game_date_background_neutral)</span>
+
+<span class="nc" id="L410">        binding.centerContent.isVisible = false</span>
+<span class="nc" id="L411">        binding.correctIncorrectText.text = null</span>
+<span class="nc" id="L412">        binding.currentQuestionContainer.isVisible = true</span>
+
+<span class="nc" id="L414">        binding.root.post {</span>
+<span class="nc bnc" id="L415" title="All 2 branches missed.">            if (isAdded) {</span>
+<span class="nc" id="L416">                binding.questionContainer1.minimumHeight = binding.questionScroll1.height - DimenUtil.roundedDpToPx(16f)</span>
+<span class="nc" id="L417">                binding.questionContainer2.minimumHeight = binding.questionScroll2.height - DimenUtil.roundedDpToPx(16f)</span>
+            }
+<span class="nc" id="L419">        }</span>
+<span class="nc bnc" id="L420" title="All 2 branches missed.">        mainActivity?.supportInvalidateOptionsMenu()</span>
+<span class="nc" id="L421">    }</span>
+
+    private fun enqueueSubmit(cardView: WikiCardView) {
+<span class="nc bnc" id="L424" title="All 4 branches missed.">        if (viewModel.gameState.value is OnThisDayGameViewModel.CurrentQuestion || viewModel.gameState.value is OnThisDayGameViewModel.GameStarted) {</span>
+<span class="nc" id="L425">            resetCardBorders()</span>
+
+<span class="nc" id="L427">            binding.nextQuestionText.setText(R.string.on_this_day_game_submit)</span>
+<span class="nc" id="L428">            binding.nextQuestionText.isVisible = true</span>
+
+<span class="nc" id="L430">            cardView.setStrokeColor(ResourceUtil.getThemedColorStateList(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L431">            cardView.strokeWidth = DimenUtil.roundedDpToPx(2f)</span>
+<span class="nc" id="L432">            selectedCardView = cardView</span>
+        }
+<span class="nc" id="L434">    }</span>
+
+    private fun resetCardBorders() {
+<span class="nc" id="L437">        binding.questionCard1.setDefaultBorder()</span>
+<span class="nc" id="L438">        binding.questionCard2.setDefaultBorder()</span>
+<span class="nc" id="L439">    }</span>
+
+    fun playSound(soundName: String) {
+<span class="nc bnc" id="L442" title="All 2 branches missed.">        if (Prefs.isOtdSoundOn) {</span>
+<span class="nc" id="L443">            try {</span>
+<span class="nc bnc" id="L444" title="All 2 branches missed.">                mediaPlayer?.let {</span>
+<span class="nc" id="L445">                    it.reset()</span>
+<span class="nc" id="L446">                    it.setDataSource(</span>
+<span class="nc" id="L447">                        requireContext(),</span>
+<span class="nc" id="L448">                        &quot;android.resource://${requireContext().packageName}/raw/$soundName&quot;.toUri()</span>
+                    )
+<span class="nc" id="L450">                    it.prepare()</span>
+<span class="nc" id="L451">                    it.start()</span>
+<span class="nc" id="L452">                }</span>
+<span class="nc" id="L453">            } catch (e: Exception) {</span>
+<span class="nc" id="L454">                L.e(e)</span>
+            }
+        }
+<span class="nc" id="L457">    }</span>
+
+    override fun onDestroy() {
+<span class="nc" id="L460">        super.onDestroy()</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">        mediaPlayer?.release()</span>
+<span class="nc" id="L462">    }</span>
+
+    companion object {
+        fun newInstance(): OnThisDayGamePlayFragment {
+<span class="nc" id="L466">            return OnThisDayGamePlayFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

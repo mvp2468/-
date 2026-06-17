@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>YearInReviewHighlightsScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.yearinreview</a> &gt; <span class="el_source">YearInReviewHighlightsScreen.kt</span></div><h1>YearInReviewHighlightsScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.yearinreview
+
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.tooling.preview.Devices
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastForEachIndexed
+import org.wikipedia.R
+import org.wikipedia.compose.ComposeColors
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.theme.Theme
+
+@Composable
+fun YearInReviewHighlightsScreen(
+<span class="nc" id="L56">    modifier: Modifier = Modifier,</span>
+    screenData: YearInReviewScreenData.HighlightsScreen
+<span class="nc bnc" id="L58" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L59">    Column(</span>
+<span class="nc" id="L60">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L62">        Text(</span>
+<span class="nc" id="L63">            modifier = Modifier</span>
+<span class="nc" id="L64">                .padding(top = 60.dp, bottom = 16.dp),</span>
+<span class="nc" id="L65">            text = buildAnnotatedString {</span>
+<span class="nc" id="L66">                append(stringResource(R.string.year_in_review_highlights_thank_you_message))</span>
+<span class="nc" id="L67">                withStyle(</span>
+<span class="nc" id="L68">                    style = SpanStyle(</span>
+<span class="nc" id="L69">                        fontWeight = FontWeight.Normal,</span>
+                    )
+                ) {
+<span class="nc" id="L72">                    append(&quot; &quot;)</span>
+<span class="nc" id="L73">                    append(stringResource(R.string.year_in_review_highlights_looking_forward_message))</span>
+<span class="nc" id="L74">                }</span>
+<span class="nc" id="L75">            },</span>
+<span class="nc" id="L76">            color = ComposeColors.White,</span>
+<span class="nc" id="L77">            style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L78">            textAlign = TextAlign.Center,</span>
+<span class="nc" id="L79">            fontWeight = FontWeight.Medium</span>
+        )
+
+<span class="nc" id="L82">        ShareableHighlightsCard(</span>
+<span class="nc" id="L83">            modifier = Modifier</span>
+<span class="nc" id="L84">                .fillMaxWidth()</span>
+<span class="nc" id="L85">                .weight(1f, fill = false)</span>
+<span class="nc" id="L86">                .background(ComposeColors.Gray100)</span>
+<span class="nc" id="L87">                .border(width = 1.dp, color = ComposeColors.Gray300)</span>
+<span class="nc" id="L88">                .padding(horizontal = 8.dp),</span>
+<span class="nc" id="L89">            data = screenData</span>
+        )
+<span class="nc" id="L91">    }</span>
+<span class="nc" id="L92">}</span>
+
+@Composable
+<span class="nc bnc" id="L95" title="All 6 branches missed.">fun ShareableHighlightsCard(</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">    hashtag: String = stringResource(R.string.year_in_review_hashtag),</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">    logoResource: Int = R.drawable.w_nav_mark,</span>
+<span class="nc" id="L99">    logoDescription: String = stringResource(R.string.year_in_review_highlights_logo_description),</span>
+    data: YearInReviewScreenData.HighlightsScreen,
+<span class="nc bnc" id="L101" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L102">    val scrollState = rememberScrollState()</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">    val topPadding = if (scrollState.value &gt; 0) 0.dp else 8.dp</span>
+
+<span class="nc" id="L105">    Box(modifier = modifier</span>
+<span class="nc" id="L106">        .padding(top = topPadding)) {</span>
+<span class="nc" id="L107">        Column(</span>
+<span class="nc" id="L108">            modifier = Modifier</span>
+<span class="nc" id="L109">                .verticalScroll(scrollState),</span>
+<span class="nc" id="L110">            horizontalAlignment = Alignment.CenterHorizontally</span>
+        ) {
+<span class="nc" id="L112">            Text(</span>
+<span class="nc" id="L113">                text = hashtag,</span>
+<span class="nc" id="L114">                fontWeight = FontWeight.Bold,</span>
+<span class="nc" id="L115">                fontSize = 18.sp,</span>
+<span class="nc" id="L116">                lineHeight = 21.sp,</span>
+<span class="nc" id="L117">                color = ComposeColors.Gray700</span>
+            )
+<span class="nc" id="L119">            Image(</span>
+<span class="nc" id="L120">                modifier = Modifier</span>
+<span class="nc" id="L121">                    .size(163.dp)</span>
+<span class="nc" id="L122">                    .padding(vertical = 4.dp),</span>
+<span class="nc" id="L123">                painter = painterResource(logoResource),</span>
+<span class="nc" id="L124">                contentDescription = logoDescription</span>
+            )
+<span class="nc" id="L126">            Text(</span>
+<span class="nc" id="L127">                modifier = Modifier</span>
+<span class="nc" id="L128">                    .padding(4.dp),</span>
+<span class="nc" id="L129">                text = logoDescription,</span>
+<span class="nc" id="L130">                fontSize = 12.sp,</span>
+<span class="nc" id="L131">                lineHeight = 16.sp,</span>
+<span class="nc" id="L132">                color = ComposeColors.Gray700</span>
+            )
+<span class="nc" id="L134">            data.highlights.forEachIndexed { index, highlightItem -&gt;</span>
+<span class="nc" id="L135">                HighlightsContent(</span>
+<span class="nc" id="L136">                    modifier = Modifier</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                        .padding(top = 12.dp, bottom = if (index == data.highlights.size - 1) 4.dp else 0.dp),</span>
+<span class="nc" id="L138">                    highlightItem = highlightItem</span>
+                )
+<span class="nc" id="L140">            }</span>
+<span class="nc" id="L141">        }</span>
+
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (scrollState.maxValue &gt; 0) {</span>
+<span class="nc" id="L144">            Box(</span>
+<span class="nc" id="L145">                modifier = Modifier</span>
+<span class="nc" id="L146">                    .align(Alignment.CenterEnd)</span>
+<span class="nc" id="L147">                    .fillMaxHeight()</span>
+<span class="nc" id="L148">                    .width(8.dp)</span>
+<span class="nc" id="L149">                    .padding(horizontal = 2.dp)</span>
+<span class="nc" id="L150">                    .padding(bottom = 4.dp)</span>
+            ) {
+<span class="nc" id="L152">                val scrollbarHeight = (scrollState.viewportSize.toFloat()) / (scrollState.maxValue + scrollState.viewportSize) * 0.5f</span>
+<span class="nc" id="L153">                val scrollbarOffsetY = (scrollState.value.toFloat() / scrollState.maxValue) * (1f - scrollbarHeight)</span>
+
+<span class="nc" id="L155">                Box(</span>
+<span class="nc" id="L156">                    modifier = Modifier</span>
+<span class="nc" id="L157">                        .fillMaxWidth()</span>
+<span class="nc" id="L158">                        .fillMaxHeight(scrollbarHeight)</span>
+<span class="nc" id="L159">                        .align(Alignment.TopEnd)</span>
+<span class="nc" id="L160">                        .offset {</span>
+<span class="nc" id="L161">                            IntOffset(</span>
+<span class="nc" id="L162">                                x = 0,</span>
+<span class="nc" id="L163">                                y = ((scrollState.viewportSize) * scrollbarOffsetY).toInt()</span>
+<span class="nc" id="L164">                            )</span>
+                        }
+<span class="nc" id="L166">                        .background(</span>
+<span class="nc" id="L167">                            color = ComposeColors.Gray300,</span>
+<span class="nc" id="L168">                            shape = RoundedCornerShape(2.dp)</span>
+                        )
+                )
+<span class="nc" id="L171">            }</span>
+<span class="nc" id="L172">        }</span>
+<span class="nc" id="L173">    }</span>
+<span class="nc" id="L174">}</span>
+
+@Composable
+fun HighlightsContent(
+<span class="nc" id="L178">    modifier: Modifier = Modifier,</span>
+    highlightItem: YearInReviewScreenData.HighlightItem
+<span class="nc bnc" id="L180" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L181">    Row(</span>
+<span class="nc" id="L182">        modifier = modifier</span>
+<span class="nc" id="L183">            .fillMaxWidth(),</span>
+<span class="nc" id="L184">        horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+    ) {
+<span class="nc" id="L186">        Text(</span>
+<span class="nc" id="L187">            modifier = Modifier</span>
+<span class="nc" id="L188">                .width(98.dp),</span>
+<span class="nc" id="L189">            text = highlightItem.title,</span>
+<span class="nc" id="L190">            fontWeight = FontWeight.Bold,</span>
+<span class="nc" id="L191">            fontSize = 14.sp,</span>
+<span class="nc" id="L192">            lineHeight = 21.sp</span>
+        )
+
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (highlightItem.singleValue != null) {</span>
+<span class="nc" id="L196">            Text(</span>
+<span class="nc" id="L197">                text = highlightItem.singleValue,</span>
+<span class="nc" id="L198">                fontSize = 14.sp,</span>
+<span class="nc" id="L199">                lineHeight = 21.sp,</span>
+<span class="nc" id="L200">                color = Color.Black</span>
+            )
+<span class="nc" id="L202">        } else {</span>
+<span class="nc" id="L203">            Column {</span>
+<span class="nc" id="L204">                highlightItem.items.fastForEachIndexed { index, item -&gt;</span>
+<span class="nc" id="L205">                    Text(</span>
+<span class="nc" id="L206">                        text = buildAnnotatedString {</span>
+<span class="nc" id="L207">                            append(&quot;${index + 1}. &quot;)</span>
+<span class="nc" id="L208">                            withStyle(</span>
+<span class="nc" id="L209">                                style = SpanStyle(</span>
+<span class="nc" id="L210">                                    color = highlightItem.highlightColor</span>
+                                )
+                            ) {
+<span class="nc" id="L213">                                append(text = item)</span>
+<span class="nc" id="L214">                            }</span>
+<span class="nc" id="L215">                        },</span>
+<span class="nc" id="L216">                        lineHeight = 21.sp</span>
+                    )
+<span class="nc" id="L218">                }</span>
+<span class="nc" id="L219">            }</span>
+        }
+<span class="nc" id="L221">    }</span>
+<span class="nc" id="L222">}</span>
+
+@Composable
+fun ShareHighlightsScreenCapture(
+    data: YearInReviewScreenData.HighlightsScreen,
+    onBitmapReady: (Bitmap) -&gt; Unit
+<span class="nc" id="L228">) {</span>
+<span class="nc" id="L229">    val graphicsLayer = rememberGraphicsLayer()</span>
+<span class="nc" id="L230">    var isReadyToCapture by remember { mutableStateOf(false) }</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">    if (isReadyToCapture) {</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        LaunchedEffect(Unit) {</span>
+<span class="nc" id="L234">            val bitmap = graphicsLayer.toImageBitmap()</span>
+<span class="nc" id="L235">            onBitmapReady(bitmap.asAndroidBitmap())</span>
+<span class="nc" id="L236">        }</span>
+<span class="nc" id="L237">    }</span>
+
+<span class="nc" id="L239">    Box(</span>
+<span class="nc" id="L240">        modifier = Modifier</span>
+<span class="nc" id="L241">            .fillMaxSize()</span>
+<span class="nc" id="L242">            .onGloballyPositioned {</span>
+<span class="nc" id="L243">                isReadyToCapture = true</span>
+<span class="nc" id="L244">            }</span>
+<span class="nc" id="L245">            .drawWithContent {</span>
+<span class="nc" id="L246">                graphicsLayer.record {</span>
+<span class="nc" id="L247">                    drawRect(</span>
+<span class="nc" id="L248">                        color = ComposeColors.White</span>
+                    )
+<span class="nc" id="L250">                    this@drawWithContent.drawContent()</span>
+<span class="nc" id="L251">                }</span>
+<span class="nc" id="L252">            }</span>
+<span class="nc" id="L253">            .background(ComposeColors.White),</span>
+    ) {
+<span class="nc" id="L255">        ShareableHighlightsCard(</span>
+<span class="nc" id="L256">            modifier = Modifier</span>
+<span class="nc" id="L257">                .align(Alignment.Center)</span>
+<span class="nc" id="L258">                .padding(horizontal = 34.dp)</span>
+<span class="nc" id="L259">                .background(ComposeColors.Gray100)</span>
+<span class="nc" id="L260">                .border(width = 1.dp, color = ComposeColors.Gray300)</span>
+<span class="nc" id="L261">                .padding(8.dp),</span>
+<span class="nc" id="L262">            data = data</span>
+        )
+
+<span class="nc" id="L265">        Text(</span>
+<span class="nc" id="L266">            modifier = Modifier</span>
+<span class="nc" id="L267">                .align(Alignment.BottomCenter)</span>
+<span class="nc" id="L268">                .padding(bottom = 16.dp),</span>
+<span class="nc" id="L269">            text = data.screenshotUrl,</span>
+<span class="nc" id="L270">            style = MaterialTheme.typography.bodyLarge</span>
+        )
+<span class="nc" id="L272">    }</span>
+<span class="nc" id="L273">}</span>
+
+@Preview(device = Devices.PIXEL_9)
+@Composable
+<span class="nc" id="L277">private fun YearInReviewHighlightsScreenContentPreview() {</span>
+<span class="nc" id="L278">    BaseTheme(</span>
+<span class="nc" id="L279">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L280">    ) {</span>
+<span class="nc" id="L281">        YearInReviewHighlightsScreen(</span>
+<span class="nc" id="L282">            screenData = YearInReviewScreenData.HighlightsScreen(</span>
+<span class="nc" id="L283">                highlights = listOf(</span>
+<span class="nc" id="L284">                    YearInReviewScreenData.HighlightItem(</span>
+<span class="nc" id="L285">                        title = &quot;Articles I read the longest&quot;,</span>
+<span class="nc" id="L286">                        items = listOf(</span>
+<span class="nc" id="L287">                            &quot;Pamela Anderson&quot;,</span>
+<span class="nc" id="L288">                            &quot;Pamukkale&quot;,</span>
+<span class="nc" id="L289">                            &quot;History of US science fiction and fantasy magazines to 1950&quot;</span>
+                        ),
+<span class="nc" id="L291">                        highlightColor = ComposeColors.Blue600</span>
+                    )
+                ),
+<span class="nc" id="L294">                slideName = &quot;test&quot;,</span>
+<span class="nc" id="L295">                screenshotUrl = &quot;#wikimediafoundation&quot;</span>
+            )
+        )
+<span class="nc" id="L298">    }</span>
+<span class="nc" id="L299">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L303">private fun ListItemsPreview() {</span>
+<span class="nc" id="L304">    BaseTheme(</span>
+<span class="nc" id="L305">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L306">    ) {</span>
+<span class="nc" id="L307">        HighlightsContent(</span>
+<span class="nc" id="L308">            highlightItem = YearInReviewScreenData.HighlightItem(</span>
+<span class="nc" id="L309">                title = &quot;Articles I read the longest&quot;,</span>
+<span class="nc" id="L310">                items = listOf(</span>
+<span class="nc" id="L311">                    &quot;Pamela Anderson&quot;,</span>
+<span class="nc" id="L312">                    &quot;Pamukkale&quot;,</span>
+<span class="nc" id="L313">                    &quot;History of US science fiction and fantasy magazines to 1950&quot;</span>
+                ),
+<span class="nc" id="L315">                highlightColor = ComposeColors.Blue600</span>
+            )
+        )
+<span class="nc" id="L318">    }</span>
+<span class="nc" id="L319">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L323">private fun SingleValuePreview() {</span>
+<span class="nc" id="L324">    BaseTheme(</span>
+<span class="nc" id="L325">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L326">    ) {</span>
+<span class="nc" id="L327">        HighlightsContent(</span>
+<span class="nc" id="L328">            highlightItem = YearInReviewScreenData.HighlightItem(</span>
+<span class="nc" id="L329">                title = &quot;Minutes read&quot;,</span>
+<span class="nc" id="L330">                singleValue = &quot;924&quot;,</span>
+<span class="nc" id="L331">                highlightColor = ComposeColors.Blue600</span>
+            )
+        )
+<span class="nc" id="L334">    }</span>
+<span class="nc" id="L335">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

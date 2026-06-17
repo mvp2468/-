@@ -1,0 +1,490 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EditingInsightsModule.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab</a> &gt; <span class="el_source">EditingInsightsModule.kt</span></div><h1>EditingInsightsModule.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.BrushPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import org.wikipedia.R
+import org.wikipedia.compose.components.HtmlText
+import org.wikipedia.compose.components.LineChart
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.growthtasks.GrowthUserImpact
+import org.wikipedia.dataclient.growthtasks.GrowthUserImpact.ArticleViews
+import org.wikipedia.page.PageTitle
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.UiState
+import org.wikipedia.views.imageservice.ImageService
+import java.text.NumberFormat
+import java.util.Locale
+
+@Composable
+fun EditingInsightsModule(
+<span class="nc bnc" id="L65" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    uiState: UiState&lt;Pair&lt;GrowthUserImpact, Int&gt;&gt;,
+    onPageItemClick: (PageTitle) -&gt; Unit,
+    onContributionClick: (() -&gt; Unit),
+    onSuggestedEditsClick: (() -&gt; Unit),
+<span class="nc" id="L70">    wikiErrorClickEvents: WikiErrorClickEvents? = null</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L72">    when (uiState) {</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        UiState.Loading -&gt; {</span>
+<span class="nc" id="L74">            Column {</span>
+<span class="nc" id="L75">                ActivityTabShimmerView()</span>
+<span class="nc" id="L76">                ActivityTabShimmerView(size = 210.dp)</span>
+<span class="nc" id="L77">            }</span>
+        }
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        is UiState.Success -&gt; {</span>
+<span class="nc" id="L80">            val impact = uiState.data.first</span>
+<span class="nc" id="L81">            MostViewedCard(</span>
+<span class="nc" id="L82">                modifier = modifier</span>
+<span class="nc" id="L83">                    .fillMaxWidth(),</span>
+<span class="nc" id="L84">                data = impact.topViewedArticlesWithPageTitle,</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                onClick = {</span>
+<span class="nc" id="L86">                    onPageItemClick(it)</span>
+<span class="nc" id="L87">                }</span>
+            )
+<span class="nc" id="L89">            ContributionCard(</span>
+<span class="nc" id="L90">                modifier = modifier</span>
+<span class="nc" id="L91">                    .fillMaxWidth(),</span>
+<span class="nc" id="L92">                lastEditRelativeTime = impact.lastEditRelativeTime,</span>
+<span class="nc" id="L93">                editsThisMonth = impact.editsThisMonth,</span>
+<span class="nc" id="L94">                editsLastMonth = impact.editsLastMonth,</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                onContributionClick = {</span>
+<span class="nc" id="L96">                    onContributionClick()</span>
+<span class="nc" id="L97">                },</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                onSuggestedEditsClick = {</span>
+<span class="nc" id="L99">                    onSuggestedEditsClick()</span>
+<span class="nc" id="L100">                }</span>
+            )
+        }
+
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        is UiState.Error -&gt; {</span>
+<span class="nc" id="L105">            Box(</span>
+<span class="nc" id="L106">                modifier = modifier</span>
+<span class="nc" id="L107">                    .fillMaxSize(),</span>
+<span class="nc" id="L108">                contentAlignment = Alignment.Center</span>
+            ) {
+<span class="nc" id="L110">                WikiErrorView(</span>
+<span class="nc" id="L111">                    modifier = Modifier</span>
+<span class="nc" id="L112">                        .fillMaxWidth(),</span>
+<span class="nc" id="L113">                    caught = uiState.error,</span>
+<span class="nc" id="L114">                    errorClickEvents = wikiErrorClickEvents,</span>
+<span class="nc" id="L115">                    retryForGenericError = true</span>
+                )
+<span class="nc" id="L117">            }</span>
+        }
+<span class="nc" id="L119">    }</span>
+<span class="nc" id="L120">}</span>
+
+@Composable
+fun MostViewedCard(
+<span class="nc bnc" id="L124" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    data: Map&lt;PageTitle, ArticleViews&gt;,
+<span class="nc" id="L126">    showSize: Int = 3,</span>
+    onClick: (PageTitle) -&gt; Unit
+<span class="nc bnc" id="L128" title="All 2 branches missed.">) {</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">    if (data.isEmpty()) {</span>
+<span class="nc" id="L130">        return</span>
+    }
+<span class="nc" id="L132">    val formatter = remember { NumberFormat.getNumberInstance(Locale.getDefault()) }</span>
+<span class="nc" id="L133">    WikiCard(</span>
+<span class="nc" id="L134">        modifier = modifier,</span>
+<span class="nc" id="L135">        colors = CardDefaults.cardColors(</span>
+<span class="nc" id="L136">            containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L137">            contentColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L139">        elevation = 0.dp,</span>
+<span class="nc" id="L140">        border = BorderStroke(</span>
+<span class="nc" id="L141">            width = 1.dp,</span>
+<span class="nc" id="L142">            color = WikipediaTheme.colors.borderColor</span>
+        )
+<span class="nc" id="L144">    ) {</span>
+<span class="nc" id="L145">        Column {</span>
+<span class="nc" id="L146">            CommonCardHeader(</span>
+<span class="nc" id="L147">                modifier = Modifier.padding(16.dp),</span>
+<span class="nc" id="L148">                icon = painterResource(R.drawable.outline_trending_up_24),</span>
+<span class="nc" id="L149">                title = stringResource(R.string.activity_tab_impact_most_viewed)</span>
+            )
+
+<span class="nc" id="L152">            var index = 1</span>
+<span class="nc" id="L153">            data.forEach { (pageTitle, articleViews) -&gt;</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                if (index &gt; showSize) return@forEach</span>
+<span class="nc bnc" id="L155" title="All 4 branches missed.">                var iconResource = when (index++) {</span>
+<span class="nc" id="L156">                    1 -&gt; R.drawable.outline_looks_one_24</span>
+<span class="nc" id="L157">                    2 -&gt; R.drawable.outline_looks_two_24</span>
+<span class="nc" id="L158">                    3 -&gt; R.drawable.outline_looks_three_24</span>
+<span class="nc" id="L159">                    else -&gt; null</span>
+                }
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                if (data.size &lt;= 1) {</span>
+<span class="nc" id="L162">                    iconResource = null</span>
+                }
+<span class="nc" id="L164">                Box(</span>
+<span class="nc" id="L165">                    modifier = Modifier</span>
+<span class="nc" id="L166">                        .fillMaxWidth()</span>
+<span class="nc" id="L167">                        .clickable(onClick = { onClick(pageTitle) })</span>
+                ) {
+<span class="nc" id="L169">                    Row(</span>
+<span class="nc" id="L170">                        modifier = Modifier</span>
+<span class="nc" id="L171">                            .fillMaxWidth()</span>
+<span class="nc" id="L172">                            .padding(16.dp),</span>
+<span class="nc" id="L173">                        horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+                    ) {
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                        iconResource?.let {</span>
+<span class="nc" id="L176">                            Icon(</span>
+<span class="nc" id="L177">                                modifier = Modifier.size(24.dp),</span>
+<span class="nc" id="L178">                                painter = painterResource(it),</span>
+<span class="nc" id="L179">                                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L180">                                contentDescription = null</span>
+                            )
+<span class="nc" id="L182">                        }</span>
+<span class="nc" id="L183">                        Column(</span>
+<span class="nc" id="L184">                            modifier = Modifier</span>
+<span class="nc" id="L185">                                .weight(1f)</span>
+                        ) {
+<span class="nc" id="L187">                            HtmlText(</span>
+<span class="nc" id="L188">                                text = pageTitle.displayText,</span>
+<span class="nc" id="L189">                                style = MaterialTheme.typography.titleMedium.copy(</span>
+<span class="nc" id="L190">                                    fontFamily = FontFamily.Serif</span>
+                                ),
+<span class="nc" id="L192">                                color = WikipediaTheme.colors.primaryColor,</span>
+                            )
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                            pageTitle.description?.let { description -&gt;</span>
+<span class="nc" id="L195">                                Text(</span>
+<span class="nc" id="L196">                                    text = description,</span>
+<span class="nc" id="L197">                                    style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L198">                                    color = WikipediaTheme.colors.secondaryColor</span>
+                                )
+<span class="nc" id="L200">                            }</span>
+<span class="nc" id="L201">                            Row(</span>
+<span class="nc" id="L202">                                modifier = Modifier</span>
+<span class="nc" id="L203">                                    .fillMaxWidth()</span>
+<span class="nc" id="L204">                                    .padding(top = 8.dp),</span>
+<span class="nc" id="L205">                                verticalAlignment = Alignment.CenterVertically,</span>
+                            ) {
+<span class="nc" id="L207">                                LineChart(</span>
+<span class="nc" id="L208">                                    map = articleViews.viewsByDay,</span>
+<span class="nc" id="L209">                                    modifier = Modifier</span>
+<span class="nc" id="L210">                                        .width(24.dp)</span>
+<span class="nc" id="L211">                                        .height(6.dp),</span>
+<span class="nc" id="L212">                                    chartSampleSize = 10,</span>
+<span class="nc" id="L213">                                    strokeWidth = 1.dp,</span>
+<span class="nc" id="L214">                                    strokeColor = WikipediaTheme.colors.progressiveColor</span>
+                                )
+<span class="nc" id="L216">                                Text(</span>
+<span class="nc" id="L217">                                    modifier = Modifier</span>
+<span class="nc" id="L218">                                        .weight(1f)</span>
+<span class="nc" id="L219">                                        .padding(start = 8.dp),</span>
+<span class="nc" id="L220">                                    text = formatter.format(articleViews.viewsCount),</span>
+<span class="nc" id="L221">                                    style = MaterialTheme.typography.labelSmall,</span>
+<span class="nc" id="L222">                                    color = WikipediaTheme.colors.progressiveColor</span>
+                                )
+<span class="nc" id="L224">                            }</span>
+<span class="nc" id="L225">                        }</span>
+<span class="nc bnc" id="L226" title="All 6 branches missed.">                        if (!pageTitle.thumbUrl.isNullOrEmpty()) {</span>
+<span class="nc" id="L227">                            val request =</span>
+<span class="nc" id="L228">                                ImageService.getRequest(</span>
+<span class="nc" id="L229">                                    LocalContext.current,</span>
+<span class="nc" id="L230">                                    url = pageTitle.thumbUrl</span>
+                                )
+<span class="nc" id="L232">                            AsyncImage(</span>
+<span class="nc" id="L233">                                model = request,</span>
+<span class="nc" id="L234">                                placeholder = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L235">                                error = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L236">                                contentScale = ContentScale.Crop,</span>
+<span class="nc" id="L237">                                contentDescription = null,</span>
+<span class="nc" id="L238">                                modifier = Modifier</span>
+<span class="nc" id="L239">                                    .size(56.dp)</span>
+<span class="nc" id="L240">                                    .clip(RoundedCornerShape(8.dp))</span>
+                            )
+<span class="nc" id="L242">                        }</span>
+<span class="nc" id="L243">                    }</span>
+<span class="nc" id="L244">                }</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                if (index &lt; data.size - 1) {</span>
+<span class="nc" id="L246">                    HorizontalDivider(</span>
+<span class="nc" id="L247">                        color = WikipediaTheme.colors.borderColor</span>
+                    )
+<span class="nc" id="L249">                }</span>
+<span class="nc" id="L250">            }</span>
+<span class="nc" id="L251">        }</span>
+<span class="nc" id="L252">    }</span>
+<span class="nc" id="L253">}</span>
+
+@Composable
+fun ContributionCard(
+<span class="nc bnc" id="L257" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    lastEditRelativeTime: String,
+    editsThisMonth: Int,
+    editsLastMonth: Int,
+<span class="nc bnc" id="L261" title="All 2 branches missed.">    onContributionClick: (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L262">    onSuggestedEditsClick: (() -&gt; Unit)? = null</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L264">    WikiCard(</span>
+<span class="nc" id="L265">        modifier = modifier,</span>
+<span class="nc" id="L266">        colors = CardDefaults.cardColors(</span>
+<span class="nc" id="L267">            containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L268">            contentColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L270">        elevation = 0.dp,</span>
+<span class="nc" id="L271">        border = BorderStroke(</span>
+<span class="nc" id="L272">            width = 1.dp,</span>
+<span class="nc" id="L273">            color = WikipediaTheme.colors.borderColor</span>
+        ),
+<span class="nc" id="L275">        onClick = onContributionClick</span>
+<span class="nc" id="L276">    ) {</span>
+<span class="nc" id="L277">        Column {</span>
+<span class="nc" id="L278">            CommonCardHeader(</span>
+<span class="nc" id="L279">                modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp),</span>
+<span class="nc" id="L280">                icon = painterResource(R.drawable.ic_icon_user_contributions_ooui),</span>
+<span class="nc" id="L281">                title = stringResource(R.string.activity_tab_impact_contributions_this_month),</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">                subtitle = if (editsThisMonth &gt; 0) lastEditRelativeTime else null,</span>
+<span class="nc" id="L283">                showChevron = true</span>
+            )
+
+<span class="nc" id="L286">            Column(</span>
+<span class="nc" id="L287">                modifier = Modifier</span>
+<span class="nc" id="L288">                    .fillMaxWidth()</span>
+<span class="nc" id="L289">                    .padding(vertical = 16.dp)</span>
+            ) {
+<span class="nc" id="L291">                val maxEditsCount = maxOf(editsThisMonth, editsLastMonth).toFloat()</span>
+
+<span class="nc" id="L293">                ContributionEditsView(</span>
+<span class="nc" id="L294">                    modifier = Modifier</span>
+<span class="nc" id="L295">                        .fillMaxWidth()</span>
+<span class="nc" id="L296">                        .padding(top = 8.dp),</span>
+<span class="nc" id="L297">                    text = pluralStringResource(</span>
+<span class="nc" id="L298">                        R.plurals.activity_tab_impact_edits_this_month,</span>
+<span class="nc" id="L299">                        editsThisMonth</span>
+<span class="nc" id="L300">                    ).lowercase(),</span>
+<span class="nc" id="L301">                    edits = editsThisMonth,</span>
+<span class="nc" id="L302">                    maxEdits = maxEditsCount,</span>
+<span class="nc" id="L303">                    barColor = WikipediaTheme.colors.successColor</span>
+                )
+
+<span class="nc" id="L306">                ContributionEditsView(</span>
+<span class="nc" id="L307">                    modifier = Modifier</span>
+<span class="nc" id="L308">                        .fillMaxWidth()</span>
+<span class="nc" id="L309">                        .padding(top = 8.dp),</span>
+<span class="nc" id="L310">                    text = pluralStringResource(</span>
+<span class="nc" id="L311">                        R.plurals.activity_tab_impact_edits_last_month,</span>
+<span class="nc" id="L312">                        editsLastMonth</span>
+<span class="nc" id="L313">                    ).lowercase(),</span>
+<span class="nc" id="L314">                    edits = editsLastMonth,</span>
+<span class="nc" id="L315">                    maxEdits = maxEditsCount,</span>
+<span class="nc" id="L316">                    barColor = WikipediaTheme.colors.borderColor</span>
+                )
+<span class="nc" id="L318">            }</span>
+
+<span class="nc bnc" id="L320" title="All 2 branches missed.">            if (editsThisMonth == 0) {</span>
+
+<span class="nc" id="L322">                HorizontalDivider(</span>
+<span class="nc" id="L323">                    Modifier.padding(horizontal = 16.dp),</span>
+<span class="nc" id="L324">                    color = WikipediaTheme.colors.borderColor</span>
+                )
+
+<span class="nc" id="L327">                SuggestedEditsView(</span>
+<span class="nc" id="L328">                    modifier = modifier.fillMaxWidth(),</span>
+<span class="nc" id="L329">                    onClick = {</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">                        onSuggestedEditsClick?.invoke()</span>
+<span class="nc" id="L331">                    }</span>
+                )
+<span class="nc" id="L333">            }</span>
+<span class="nc" id="L334">        }</span>
+<span class="nc" id="L335">    }</span>
+<span class="nc" id="L336">}</span>
+
+@Composable
+fun SuggestedEditsView(
+<span class="nc bnc" id="L340" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L341">    onClick: (() -&gt; Unit)? = null</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L343">    Column(</span>
+<span class="nc" id="L344">        modifier = Modifier</span>
+<span class="nc" id="L345">            .fillMaxWidth()</span>
+<span class="nc" id="L346">            .padding(16.dp),</span>
+<span class="nc" id="L347">        horizontalAlignment = Alignment.CenterHorizontally,</span>
+    ) {
+<span class="nc" id="L349">        Text(</span>
+<span class="nc" id="L350">            modifier = Modifier.padding(bottom = 8.dp),</span>
+<span class="nc" id="L351">            text = stringResource(R.string.activity_tab_impact_suggested_edits_title),</span>
+<span class="nc" id="L352">            style = MaterialTheme.typography.titleSmall.copy(</span>
+<span class="nc" id="L353">                fontWeight = FontWeight.Medium</span>
+            ),
+<span class="nc" id="L355">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L357">        Text(</span>
+<span class="nc" id="L358">            textAlign = TextAlign.Center,</span>
+<span class="nc" id="L359">            text = stringResource(R.string.activity_tab_impact_suggested_edits_message),</span>
+<span class="nc" id="L360">            style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L361">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L363">        Button(</span>
+<span class="nc" id="L364">            modifier = Modifier.padding(top = 16.dp).align(Alignment.CenterHorizontally),</span>
+<span class="nc" id="L365">            contentPadding = PaddingValues(horizontal = 18.dp),</span>
+<span class="nc" id="L366">            colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L367">                containerColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L368">                contentColor = Color.White,</span>
+            ),
+<span class="nc bnc" id="L370" title="All 4 branches missed.">            onClick = { onClick?.invoke() },</span>
+<span class="nc" id="L371">        ) {</span>
+<span class="nc" id="L372">            Icon(</span>
+<span class="nc" id="L373">                modifier = Modifier.size(20.dp),</span>
+<span class="nc" id="L374">                painter = painterResource(R.drawable.ic_mode_edit_white_24dp),</span>
+<span class="nc" id="L375">                tint = Color.White,</span>
+<span class="nc" id="L376">                contentDescription = null</span>
+            )
+<span class="nc" id="L378">            Text(</span>
+<span class="nc" id="L379">                modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 4.dp),</span>
+<span class="nc" id="L380">                text = stringResource(R.string.activity_tab_impact_suggested_edits_button),</span>
+<span class="nc" id="L381">                style = MaterialTheme.typography.labelLarge</span>
+            )
+<span class="nc" id="L383">        }</span>
+<span class="nc" id="L384">    }</span>
+<span class="nc" id="L385">}</span>
+
+@Composable
+fun ContributionEditsView(
+    modifier: Modifier,
+    text: String,
+    edits: Int,
+    maxEdits: Float,
+    barColor: Color
+<span class="nc" id="L394">) {</span>
+<span class="nc" id="L395">    Row(</span>
+<span class="nc" id="L396">        modifier = modifier,</span>
+<span class="nc" id="L397">        horizontalArrangement = Arrangement.spacedBy(8.dp),</span>
+<span class="nc" id="L398">        verticalAlignment = Alignment.Bottom</span>
+    ) {
+<span class="nc" id="L400">        Text(</span>
+<span class="nc" id="L401">            text = edits.toString(),</span>
+<span class="nc" id="L402">            modifier = Modifier.padding(start = 16.dp).align(Alignment.Bottom),</span>
+<span class="nc" id="L403">            style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L404">            fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L405">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L407">        Text(</span>
+<span class="nc" id="L408">            text = text,</span>
+<span class="nc" id="L409">            style = MaterialTheme.typography.bodySmall.copy(</span>
+<span class="nc" id="L410">                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L411">                lineHeight = 22.sp</span>
+            ),
+<span class="nc" id="L413">            color = WikipediaTheme.colors.secondaryColor</span>
+        )
+<span class="nc" id="L415">    }</span>
+
+<span class="nc bnc" id="L417" title="All 2 branches missed.">    if (edits &gt; 0) {</span>
+<span class="nc" id="L418">        Box(</span>
+<span class="nc" id="L419">            modifier = Modifier</span>
+<span class="nc" id="L420">                .fillMaxWidth(edits.toFloat() / maxEdits)</span>
+<span class="nc" id="L421">                .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L422">                .height(20.dp)</span>
+<span class="nc" id="L423">                .background(</span>
+<span class="nc" id="L424">                    color = barColor,</span>
+<span class="nc" id="L425">                    shape = RoundedCornerShape(16.dp)</span>
+                )
+        )
+<span class="nc" id="L428">    }</span>
+<span class="nc" id="L429">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L433">private fun MostViewedCardPreview() {</span>
+<span class="nc" id="L434">    BaseTheme(</span>
+<span class="nc" id="L435">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L436">    ) {</span>
+<span class="nc" id="L437">        val pageTitle = PageTitle(</span>
+<span class="nc" id="L438">            text = &quot;Test Article&quot;,</span>
+<span class="nc" id="L439">            displayText = &quot;Test Article&quot;,</span>
+<span class="nc" id="L440">            wiki = WikiSite.preview(),</span>
+<span class="nc" id="L441">            description = &quot;This is a test article&quot;,</span>
+<span class="nc" id="L442">            thumbUrl = &quot;https://example.com/thumb.jpg&quot;</span>
+        )
+<span class="nc" id="L444">        val articleViews = ArticleViews(</span>
+<span class="nc" id="L445">            firstEditDate = &quot;2023-01-01&quot;,</span>
+<span class="nc" id="L446">            newestEdit = &quot;2023-10-01&quot;,</span>
+<span class="nc" id="L447">            imageUrl = &quot;https://example.com/image.jpg&quot;,</span>
+<span class="nc" id="L448">            viewsCount = 1000</span>
+        )
+<span class="nc" id="L450">        MostViewedCard(</span>
+<span class="nc" id="L451">            data = mapOf(</span>
+<span class="nc" id="L452">                pageTitle to articleViews</span>
+            ),
+<span class="nc" id="L454">            onClick = { },</span>
+        )
+<span class="nc" id="L456">    }</span>
+<span class="nc" id="L457">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L461">private fun ContributionCardPreview() {</span>
+<span class="nc" id="L462">    BaseTheme(</span>
+<span class="nc" id="L463">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L464">    ) {</span>
+<span class="nc" id="L465">        ContributionCard(</span>
+<span class="nc" id="L466">            modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L467">            lastEditRelativeTime = &quot;2 days ago&quot;,</span>
+<span class="nc" id="L468">            editsThisMonth = 9,</span>
+<span class="nc" id="L469">            editsLastMonth = 2,</span>
+<span class="nc" id="L470">            onContributionClick = null</span>
+        )
+<span class="nc" id="L472">    }</span>
+<span class="nc" id="L473">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L477">private fun ContributionCardWithSuggestedEditsPreview() {</span>
+<span class="nc" id="L478">    BaseTheme(</span>
+<span class="nc" id="L479">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L480">    ) {</span>
+<span class="nc" id="L481">        ContributionCard(</span>
+<span class="nc" id="L482">            modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L483">            lastEditRelativeTime = &quot;2024 Sep 1&quot;,</span>
+<span class="nc" id="L484">            editsThisMonth = 0,</span>
+<span class="nc" id="L485">            editsLastMonth = 0,</span>
+<span class="nc" id="L486">            onContributionClick = null</span>
+        )
+<span class="nc" id="L488">    }</span>
+<span class="nc" id="L489">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

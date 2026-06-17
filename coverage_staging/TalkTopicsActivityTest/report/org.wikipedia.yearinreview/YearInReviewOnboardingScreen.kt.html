@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>YearInReviewOnboardingScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.yearinreview</a> &gt; <span class="el_source">YearInReviewOnboardingScreen.kt</span></div><h1>YearInReviewOnboardingScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.yearinreview
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.YearInReviewEvent
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.UriUtil
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun YearInReviewOnboardingScreen(
+<span class="nc" id="L52">    modifier: Modifier = Modifier,</span>
+    onBackButtonClick: () -&gt; Unit,
+    onGetStartedClick: () -&gt; Unit
+<span class="nc bnc" id="L55" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L56">    Scaffold(</span>
+<span class="nc" id="L57">        modifier = modifier,</span>
+<span class="nc" id="L58">        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L59">        topBar = {</span>
+<span class="nc" id="L60">            TopAppBar(</span>
+<span class="nc" id="L61">                colors = TopAppBarDefaults.topAppBarColors(containerColor = WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L62">                title = {},</span>
+<span class="nc" id="L63">                navigationIcon = {</span>
+<span class="nc" id="L64">                    IconButton(onClick = { onBackButtonClick() }) {</span>
+<span class="nc" id="L65">                        Icon(</span>
+<span class="nc" id="L66">                            painter = painterResource(R.drawable.ic_close_black_24dp),</span>
+<span class="nc" id="L67">                            tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L68">                            contentDescription = stringResource(R.string.year_in_review_close)</span>
+                        )
+<span class="nc" id="L70">                    }</span>
+<span class="nc" id="L71">                }</span>
+            )
+<span class="nc" id="L73">        },</span>
+<span class="nc" id="L74">        bottomBar = {</span>
+<span class="nc" id="L75">            YearInReviewOnboardingBottomBar(onGetStartedClick = onGetStartedClick)</span>
+<span class="nc" id="L76">        },</span>
+<span class="nc" id="L77">        content = { paddingValues -&gt;</span>
+<span class="nc" id="L78">            YearInReviewOnboardingContent(</span>
+<span class="nc" id="L79">                modifier = modifier</span>
+<span class="nc" id="L80">                    .padding(paddingValues)</span>
+            )
+<span class="nc" id="L82">        }</span>
+    )
+<span class="nc" id="L84">}</span>
+
+@Composable
+fun YearInReviewOnboardingContent(
+<span class="nc" id="L88">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L90">    Column(</span>
+<span class="nc" id="L91">        verticalArrangement = Arrangement.Top,</span>
+<span class="nc" id="L92">        modifier = modifier</span>
+<span class="nc" id="L93">            .fillMaxHeight()</span>
+    ) {
+<span class="nc" id="L95">        Column(</span>
+<span class="nc" id="L96">            modifier = Modifier</span>
+<span class="nc" id="L97">                .weight(1f)</span>
+<span class="nc" id="L98">                .verticalScroll(rememberScrollState())</span>
+        ) {
+<span class="nc" id="L100">            Box(</span>
+<span class="nc" id="L101">                modifier = Modifier</span>
+<span class="nc" id="L102">                    .fillMaxWidth()</span>
+<span class="nc" id="L103">                    .aspectRatio(3f / 2f)</span>
+<span class="nc" id="L104">                    .clip(RoundedCornerShape(16.dp)),</span>
+<span class="nc" id="L105">                contentAlignment = Alignment.Center</span>
+            ) {
+<span class="nc" id="L107">                SubcomposeAsyncImage(</span>
+<span class="nc" id="L108">                    model = ImageRequest.Builder(LocalContext.current)</span>
+<span class="nc" id="L109">                        .data(R.drawable.yir_puzzle_pinch)</span>
+<span class="nc" id="L110">                        .allowHardware(false)</span>
+<span class="nc" id="L111">                        .build(),</span>
+<span class="nc" id="L112">                    loading = { LoadingIndicator() },</span>
+<span class="nc" id="L113">                    success = { SubcomposeAsyncImageContent() },</span>
+<span class="nc" id="L114">                    contentDescription = stringResource(R.string.year_in_review_screendeck_image_content_description),</span>
+<span class="nc" id="L115">                    modifier = Modifier.fillMaxSize()</span>
+                )
+<span class="nc" id="L117">            }</span>
+<span class="nc" id="L118">            Text(</span>
+<span class="nc" id="L119">                modifier = Modifier</span>
+<span class="nc" id="L120">                    .padding(top = 16.dp, start = 16.dp, end = 8.dp),</span>
+<span class="nc" id="L121">                text = stringResource(R.string.year_in_review_get_started_headline),</span>
+<span class="nc" id="L122">                color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L123">                style = MaterialTheme.typography.headlineMedium,</span>
+<span class="nc" id="L124">                textAlign = TextAlign.Center</span>
+            )
+<span class="nc" id="L126">            Text(</span>
+<span class="nc" id="L127">                modifier = Modifier</span>
+<span class="nc" id="L128">                    .padding(top = 10.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),</span>
+<span class="nc" id="L129">                text = stringResource(R.string.year_in_review_get_started_bodytext),</span>
+<span class="nc" id="L130">                color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L131">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L132">                textAlign = TextAlign.Center</span>
+            )
+<span class="nc" id="L134">        }</span>
+<span class="nc" id="L135">        Text(</span>
+<span class="nc" id="L136">            modifier = Modifier</span>
+<span class="nc" id="L137">                .padding(top = 10.dp, start = 16.dp, end = 16.dp),</span>
+<span class="nc" id="L138">            text = stringResource(R.string.year_in_review_get_started_info),</span>
+<span class="nc" id="L139">            color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L140">            style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L141">            textAlign = TextAlign.Center</span>
+        )
+<span class="nc" id="L143">    }</span>
+<span class="nc" id="L144">}</span>
+
+@Composable
+fun YearInReviewOnboardingBottomBar(
+    onGetStartedClick: () -&gt; Unit
+<span class="nc" id="L149">) {</span>
+<span class="nc" id="L150">    val context = LocalContext.current</span>
+<span class="nc" id="L151">    val mediaWikiUrl = stringResource(R.string.year_in_review_media_wiki_url)</span>
+<span class="nc" id="L152">    BottomAppBar(</span>
+<span class="nc" id="L153">        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L154">        content = {</span>
+<span class="nc" id="L155">            Row(</span>
+<span class="nc" id="L156">                horizontalArrangement = Arrangement.SpaceBetween,</span>
+<span class="nc" id="L157">                modifier = Modifier</span>
+<span class="nc" id="L158">                    .fillMaxWidth()</span>
+<span class="nc" id="L159">                    .padding(horizontal = 10.dp)</span>
+            ) {
+<span class="nc" id="L161">                OutlinedButton(</span>
+<span class="nc" id="L162">                    colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L163">                        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L164">                        contentColor = WikipediaTheme.colors.progressiveColor),</span>
+<span class="nc" id="L165">                    modifier = Modifier</span>
+<span class="nc" id="L166">                        .weight(1f)</span>
+<span class="nc" id="L167">                        .padding(end = 12.dp),</span>
+<span class="nc" id="L168">                    onClick = {</span>
+<span class="nc" id="L169">                        YearInReviewEvent.submit(action = &quot;learn_click&quot;, slide = &quot;explore_prompt&quot;)</span>
+<span class="nc" id="L170">                        UriUtil.handleExternalLink(</span>
+<span class="nc" id="L171">                            context = context,</span>
+<span class="nc" id="L172">                            uri = mediaWikiUrl.toUri()</span>
+                        )
+<span class="nc" id="L174">                    }</span>
+<span class="nc" id="L175">                ) {</span>
+<span class="nc" id="L176">                    Text(</span>
+<span class="nc" id="L177">                        text = stringResource(R.string.year_in_review_learn_more),</span>
+<span class="nc" id="L178">                        style = MaterialTheme.typography.labelLarge</span>
+                    )
+<span class="nc" id="L180">                }</span>
+<span class="nc" id="L181">                Button(</span>
+<span class="nc" id="L182">                    colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L183">                        containerColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L184">                        contentColor = WikipediaTheme.colors.paperColor</span>
+                    ),
+<span class="nc" id="L186">                    modifier = Modifier</span>
+<span class="nc" id="L187">                        .weight(1f)</span>
+<span class="nc" id="L188">                        .padding(start = 12.dp),</span>
+<span class="nc" id="L189">                    onClick = {</span>
+<span class="nc" id="L190">                        YearInReviewEvent.submit(action = &quot;start_click&quot;, slide = &quot;explore_prompt&quot;)</span>
+<span class="nc" id="L191">                        onGetStartedClick()</span>
+<span class="nc" id="L192">                    }</span>
+<span class="nc" id="L193">                ) {</span>
+<span class="nc" id="L194">                    Text(</span>
+<span class="nc" id="L195">                        text = stringResource(R.string.year_in_review_get_started),</span>
+<span class="nc" id="L196">                        style = MaterialTheme.typography.labelLarge</span>
+                    )
+<span class="nc" id="L198">                }</span>
+<span class="nc" id="L199">            }</span>
+<span class="nc" id="L200">        }</span>
+    )
+<span class="nc" id="L202">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L206">fun YearInReviewOnboardingScreenPreview() {</span>
+<span class="nc" id="L207">    BaseTheme(</span>
+<span class="nc" id="L208">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L209">    ) {</span>
+<span class="nc" id="L210">        YearInReviewOnboardingScreen(</span>
+<span class="nc" id="L211">            onBackButtonClick = {},</span>
+<span class="nc" id="L212">            onGetStartedClick = {}</span>
+        )
+<span class="nc" id="L214">    }</span>
+<span class="nc" id="L215">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

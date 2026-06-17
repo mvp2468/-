@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>YearInReviewEvent.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">YearInReviewEvent.kt</span></div><h1>YearInReviewEvent.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.donate.CampaignCollection
+import org.wikipedia.json.JsonUtil
+
+<span class="nc" id="L9">open class YearInReviewEvent {</span>
+
+    companion object {
+<span class="nc" id="L12">        fun submit(</span>
+            action: String,
+<span class="nc" id="L14">            activeInterface: String = &quot;wiki_yir&quot;,</span>
+<span class="nc" id="L15">            groupAssigned: String? = null,</span>
+<span class="nc" id="L16">            campaignId: String? = null,</span>
+<span class="nc" id="L17">            slide: String? = null,</span>
+<span class="nc" id="L18">            feedbackSelect: Int? = null,</span>
+<span class="nc" id="L19">            feedbackText: String? = null,</span>
+<span class="nc" id="L20">            wikiId: String = WikipediaApp.instance.appOrSystemLanguageCode</span>
+        ) {
+<span class="nc" id="L22">            EventPlatformClient.submit(</span>
+<span class="nc" id="L23">                AppInteractionEvent(</span>
+<span class="nc" id="L24">                    action = action,</span>
+<span class="nc" id="L25">                    active_interface = activeInterface,</span>
+<span class="nc" id="L26">                    action_data = JsonUtil.encodeToString(ActionData(</span>
+<span class="nc bnc" id="L27" title="All 2 branches missed.">                        campaignId = campaignId?.let {</span>
+<span class="nc" id="L28">                            CampaignCollection.getFormattedCampaignId(it)</span>
+                        },
+<span class="nc" id="L30">                        groupAssigned = groupAssigned,</span>
+<span class="nc" id="L31">                        slide = slide,</span>
+<span class="nc" id="L32">                        feedbackSelect = feedbackSelect,</span>
+<span class="nc" id="L33">                        feedbackText = feedbackText</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">                    )).orEmpty(),</span>
+<span class="nc" id="L35">                    primary_language = WikipediaApp.instance.languageState.appLanguageCode,</span>
+<span class="nc" id="L36">                    wiki_id = wikiId,</span>
+<span class="nc" id="L37">                    streamName = &quot;app_donor_experience&quot;</span>
+                )
+            )
+<span class="nc" id="L40">        }</span>
+    }
+
+<span class="nc" id="L43">    @Serializable</span>
+<span class="nc" id="L44">    class ActionData(</span>
+<span class="nc" id="L45">        val slide: String? = null,</span>
+<span class="nc" id="L46">        @SerialName(&quot;campaign_id&quot;) val campaignId: String? = null,</span>
+<span class="nc" id="L47">        @SerialName(&quot;group_assigned&quot;) val groupAssigned: String? = null,</span>
+<span class="nc" id="L48">        @SerialName(&quot;feedback_select&quot;) val feedbackSelect: Int? = null,</span>
+<span class="nc" id="L49">        @SerialName(&quot;feedback_text&quot;) val feedbackText: String? = null</span>
+<span class="nc" id="L50">    )</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

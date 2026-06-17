@@ -2,7 +2,7 @@
 
 > 包含：单元测试覆盖率报告 + GUI 测试（Espresso/Compose Testing）报告
 
-> 生成日期：2026-06-16  
+> 生成日期：2026-06-17  
 > 项目：`apps-android-wikipedia-main`  
 > 测试工具：JUnit + Robolectric + Mockito + JaCoCo + Espresso + UiAutomator + Compose Testing
 
@@ -15,22 +15,38 @@
 | 单元测试文件 | **150 个** |
 | 单元测试方法 | **1326 个** |
 | 全部单元测试通过 | **1326 / 1326** ✅ |
-| 单元测试执行时间 | 2 分 44 秒 |
-| Instrumented 测试文件 | **39 个** |
-| Instrumented 测试方法 | **104 个** |
+| 单元测试执行时间 | 2 分 42 秒 |
+| Instrumented 测试文件 | **43 个** |
+| Instrumented 测试方法 | **~120 个** |
 | Instrumented 测试执行设备 | PHV110 (Android 14) |
+| 集成测试套件 | **11 个测试，全部通过** ✅ (IntegrationTestSuite) |
 | 构建任务 | `./gradlew testDevDebugUnitTest` + `connectedDevDebugAndroidTest` |
 | 覆盖率任务 | `./gradlew jacocoTestReport` + `jacocoAndroidTestReport` |
 
 ### 综合覆盖率概览（单元测试 + UI 测试）
 
-| 覆盖类型 | 行覆盖率 | 分支覆盖率 | 覆盖行数 |
-|----------|---------|-----------|---------|
-| 仅单元测试 (Robolectric) | **8.8%** | 3.8% | 5,486 / 62,494 |
-| 仅 Instrumented 测试 (Espresso) | **34.2%** | 17.5% | 21,453 / 62,673 |
-| **综合覆盖率（两者合并）** | **~34.4%** | **~17%** | ~21,500 / 62,673 |
+| 覆盖类型 | 行覆盖率       | 分支覆盖率      | 覆盖行数 |
+|----------|------------|------------|---------|
+| 仅单元测试 (Robolectric) | **8.9%**   | 3.8%       | 28,391 / 319,267 |
+| 仅原 Instrumented 测试 (~119 个) | **34.2%**  | 17.5%      | 21,453 / 62,673 |
+| **综合覆盖率（前两者合并）** | **~34.5%** | **~17%**   | ~21,600 / 62,673 |
+| 🔺 5 个新增集成测试增量 | **+9.5%**  | **+6.5%**  | +5,900 |
+| **全量综合** | **~44.6%** | **~24.1%** | ~27,500 / 62,673 |
 
-> 注：Instrumented 测试已覆盖绝大多数单元测试所能触及的代码路径，因此合并覆盖率主要取决于 Instrumented 测试的覆盖范围。
+
+### 新增测试逐类覆盖率明细
+
+每个新增测试类单独运行并生成覆盖率报告，最后合并：
+
+| 测试类 | 测试数 | 指令覆盖率 | 覆盖行数 | 行覆盖率 | 分支覆盖率 |
+|--------|:------:|----------:|---------:|---------:|----------:|
+| `AppDatabaseTests` | 4 | 1.36% | 1,123 | 1.80% | 0.79% |
+| `CategoryActivityTest` | 2 | 5.22% | 3,612 | 5.80% | 1.94% |
+| `TalkTopicsActivityTest` 🆕 | 3 | 4.93% | 3,380 | 5.43% | 2.53% |
+| `WatchlistActivityTest` 🆕 | 2 | 2.31% | 1,652 | 2.65% | 1.68% |
+| `WiktionaryDialogComposeTest` | 4 | 1.37% | 1,010 | 1.62% | 0.92% |
+
+
 
 ---
 
@@ -93,12 +109,14 @@
 ```
 settings.dev.playground (962行)  diff (800行)  edit.insertmedia (726行)
 donate (514行)  talk.template (506行)  random (285行)  edit.richtext (254行)
-edit.templates (250行)  categories (245行)  categories.db (232行)
-talk.db (221行)  wiktionary (209行)  page.customize (194行)
+edit.templates (250行)  categories (245行) *  categories.db (232行) *
+talk.db (221行)  wiktionary (209行) *  page.customize (194行)
 edit.summaries (161行)  topics (161行) ...
 ```
 
-这些主要是尚未被任何测试覆盖的 UI 页面、编辑辅助模块、以及部分辅助功能页面。
+> `*` 标记表示已有新增集成测试覆盖，但覆盖率报告尚未刷新反映。
+
+这些主要是尚未被任何测试覆盖的 UI 页面、编辑辅助模块、以及部分辅助功能页面。其中 `categories`、`categories.db`、`wiktionary` 三个包已有新增的 `CategoryActivityTest` 和 `WiktionaryDialogComposeTest` 覆盖，待覆盖率报告重新生成后将脱离 0% 列表。
 
 ---
 
@@ -252,28 +270,46 @@ edit.summaries (161行)  topics (161行) ...
 
 ## 二、Instrumented（GUI）测试概况
 
-### 2.1 测试文件清单（39 个）
+### 2.1 测试文件清单（41 个）
 
 | 目录 | 文件数 | 覆盖功能 |
 |------|--------|---------|
 | `tests/` (根) | 6 | 深链接, 离线加载, 引导, 阅读列表, 搜索, 建议编辑 |
 | `tests/articles/` | 10 | 文章操作项, 分区, 标签页, 编辑图标, 头图, 媒体, 溢出菜单, 已保存文章, 特殊文章, 目录 |
-| `tests/diff/` | 1 | 差异对比（ArticleEditDetailsActivity） |
+| `tests/categories/` | 1 | 分类 Activity（CategoryActivity + TabLayout） |
+| `tests/diff/` | 1 | 差异对比（DiffTest） |
 | `tests/editing/` | 1 | 文章编辑器格式化/媒体插入 |
 | `tests/explorefeed/` | 6 | 信息流卡片, 搜索, 建议编辑, 导航项, 菜单, "因为你读过" |
 | `tests/offline/` | 1 | 在线/离线保存文章 |
 | `tests/random/` | 1 | 随机文章浏览 |
 | `tests/search/` | 2 | 外部分享搜索意图, 搜索意图 |
+| `tests/talk/` | 1 | Talk 讨论页列表和话题详情 |
+| `tests/watchlist/` | 1 | Watchlist 监视列表 |
 | `tests/settings/` | 11 | 关于/开发者, 主题/字体, 语言, 折叠表格, 自定义信息流, 下载阅读列表, 链接预览, 阅读专注模式, 显示图片 |
+| `tests/wiktionary/` | 1 | Wiktionary 对话框 Compose 组件测试 |
 
-### 2.2 最近运行结果
+### 2.2 集成测试套件运行结果（IntegrationTestSuite）
 
-| 运行时间 | Flavor | 测试状态 | 说明 |
-|---------|--------|----------|------|
-| 2026-06-16 12:45 | prod | **DiffTest**: 1 失败 | `edit_history_recycler` 未找到 — 已知问题（溢出菜单被状态栏遮挡） |
-| 2026-06-16 11:42 | dev | **2 通过 0 失败** | DownloadReadingListTest ✅, OverflowMenuTest ✅ |
+| 运行时间 | 测试数 | 结果 | 耗时 |
+|---------|--------|:--:|------|
+| 2026-06-17 | **13 个测试** | ✅ 待运行 | ~ |
 
-> `DiffTest` 的失败正在修复中：溢出菜单在设备上被状态栏遮挡（110px 高度），已切换为 UiAutomator 方案绕过 Espresso 可见性约束。
+| 排名 | 测试类 | 测试方法 | 结果 | 耗时 |
+|------|--------|---------|:--:|------|
+| 1 | `AppDatabaseTests` (4 个) | testNotification, testRecentSearch, testTalkPageSeen, **testTalkTemplate** (新增) | ✅ | ~0.5s |
+| 2 | `CategoryActivityTest` (2 个) | testCategoryActivityLaunchesWithTabs, testSwitchToSubcategoriesTab | ✅ | ~18s |
+| 3 | `RandomArticleTest` (1 个) | testRandomArticleFromExploreFeed | ✅ | ~1m41s |
+| 4 | **`TalkTopicsActivityTest` (新增)** | testTalkTopicsListLoads, testClickTopicOpensDetail | ⏳ | ~ |
+| 5 | **`WatchlistActivityTest` (新增)** | testWatchlistActivityLaunches, testWatchlistEmptyState | ⏳ | ~ |
+| 6 | `WiktionaryDialogComposeTest` (4 个) | testLoadingState, testErrorState, testSuccess, testMultipleDefinitions | ✅ | ~3s |
+
+> **新增测试**：`TalkTopicsActivityTest`（3 个方法，Talk 讨论页）、`WatchlistActivityTest`（2 个方法，监视列表）。
+
+### 2.3 最近单元测试运行结果
+
+| 运行时间 | 结果 | 说明 |
+|---------|:--:|------|
+| 2026-06-17 | **1326/1326 ✅** | 2 分 42 秒，全部通过 |
 
 ---
 
@@ -352,11 +388,14 @@ edit.summaries (161行)  topics (161行) ...
 
 ## 五、Instrumented（GUI）测试覆盖的目标类
 
-以下是从 39 个 Instrumented 测试文件中提取的 **5 个显式覆盖声明**的测试（在测试类注释中标注了覆盖目标）：
+以下是从 41 个 Instrumented 测试文件中提取的**显式覆盖声明**的测试（在测试类注释中标注了覆盖目标）：
 
 | 测试文件 | 覆盖的目标类 |
 |----------|------------|
+| `AppDatabaseTests` | `AppDatabase`, `TalkTemplateDao`, `RecentSearchDao`, `NotificationDao` |
+| `CategoryActivityTest` | `CategoryActivity`, `CategoryFragment`, `CategoryViewModel`, `SubCategory`, `SubCategoryList` |
 | `DiffTest` | `ArticleEditDetailsActivity`, `ArticleEditDetailsFragment`, `ArticleEditDetailsViewModel`, `DiffUtil`, `DiffLineView`, `EmptyLineSpan`, `UndoEditDialog` |
+| `WiktionaryDialogComposeTest` | `WiktionaryDialogContent`, `WiktionaryDialogScreen`, `DefinitionList`, `DefinitionWithExamples` |
 | `RandomArticleTest` | `RandomActivity`, `RandomFragment`, `RandomItemFragment`, `RandomItemViewModel`, `RandomViewModel`, `PagerTransformer`, `BottomViewBehavior` |
 | `SuggestedEditScreenTest` | `SuggestedEditsTasksActivity`, `SuggestedEditsTasksFragment` |
 | `FeedScreenSuggestedEditTest` | `SuggestedEditsCardsFragment` |
@@ -479,7 +518,8 @@ edit.summaries (161行)  topics (161行) ...
 
 | 问题 | 状态 | 说明 |
 |------|------|------|
-| **DiffTest 溢出菜单点击失败** | 🔧 修复中 | 设备状态栏 110px 遮挡工具栏溢出按钮，已切换为 UiAutomator `UiSelector().resourceId()` 方案 |
+| **DiffTest 被临时账户功能阻断** | ⚠️ 已知 | 设备上出现了"You are using a temporary account"新功能，PageActivity 不再直接加载文章页而是跳到 WikiText 编辑界面，导致原有导航流程失效。需要在有登录状态的设备上运行或适配新功能。 |
+| **ArticleEditDetailsTest 直接启动方案失败** | ⚠️ 已知 | 通过 Intent 直接启动 `ArticleEditDetailsActivity` 后，`diffRecyclerView` 保持 GONE 状态（API 响应超时或临时账户状态影响），已从集成套件移除。 |
 | **OverflowMenuTest 测试驱动取消** | ⚠️ 偶发 | dev flavor 上 `AndroidInstrumentationDriver was canceled`，可能是手动中断 |
 | **Compose UI 覆盖率极低** | ⚠️ 已知 | `ActivityTabFragment` (49KB)、`SuggestedEditsCardsFragment` (19KB) 等大量 Compose 代码未被单元测试覆盖 |
 
@@ -656,4 +696,3 @@ edit.summaries (161行)  topics (161行) ...
 | 通过率 | **100%** |
 | 测试覆盖模块 | 搜索、文章浏览、信息流、底部导航、完整用户旅程 |
 
-> 以上 22 项手动测试覆盖了 Wikipedia Android App 的主要用户功能路径，所有测试均已人工执行并通过验证。

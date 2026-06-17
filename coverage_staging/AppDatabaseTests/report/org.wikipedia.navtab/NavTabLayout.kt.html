@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NavTabLayout.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.navtab</a> &gt; <span class="el_source">NavTabLayout.kt</span></div><h1>NavTabLayout.kt</h1><pre class="source lang-java linenums">package org.wikipedia.navtab
+
+import android.content.Context
+import android.content.res.ColorStateList
+import android.util.AttributeSet
+import android.view.Gravity
+import android.view.Menu
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import androidx.core.view.isVisible
+import androidx.core.view.updateMarginsRelative
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import org.wikipedia.R
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L18">class NavTabLayout(context: Context, attrs: AttributeSet) : BottomNavigationView(context, attrs) {</span>
+<span class="nc" id="L19">    init {</span>
+<span class="nc" id="L20">        menu.clear()</span>
+<span class="nc" id="L21">        NavTab.entries.forEachIndexed { index, tab -&gt;</span>
+<span class="nc" id="L22">            menu.add(Menu.NONE, tab.id, index, tab.text).setIcon(tab.icon)</span>
+<span class="nc" id="L23">        }</span>
+<span class="nc" id="L24">    }</span>
+
+    fun setOverlayDot(tab: NavTab, enabled: Boolean) {
+<span class="nc" id="L27">        val itemView = findViewById&lt;ViewGroup&gt;(tab.id)</span>
+<span class="nc" id="L28">        val imageView = itemView.findViewById&lt;View?&gt;(com.google.android.material.R.id.navigation_bar_item_icon_view)</span>
+<span class="nc bnc" id="L29" title="All 8 branches missed.">        val imageParent = (imageView?.parent as? ViewGroup)?.parent as? ViewGroup</span>
+<span class="nc" id="L30">        var overlayDotView: ImageView? = itemView.findViewById(R.id.nav_tab_overlay_dot)</span>
+<span class="nc bnc" id="L31" title="All 4 branches missed.">        if (overlayDotView == null &amp;&amp; imageParent != null) {</span>
+<span class="nc" id="L32">            overlayDotView = ImageView(context)</span>
+<span class="nc" id="L33">            overlayDotView.id = R.id.nav_tab_overlay_dot</span>
+<span class="nc" id="L34">            val dotSize = DimenUtil.roundedDpToPx(6f)</span>
+<span class="nc" id="L35">            val params = LayoutParams(dotSize, dotSize)</span>
+<span class="nc" id="L36">            params.gravity = Gravity.CENTER</span>
+<span class="nc" id="L37">            val margin = DimenUtil.roundedDpToPx(8f)</span>
+<span class="nc" id="L38">            params.updateMarginsRelative(start = margin, bottom = margin)</span>
+<span class="nc" id="L39">            overlayDotView.layoutParams = params</span>
+<span class="nc" id="L40">            overlayDotView.setBackgroundResource(R.drawable.shape_circle)</span>
+<span class="nc" id="L41">            overlayDotView.backgroundTintList = ColorStateList.valueOf(ResourceUtil.getThemedColor(context, R.attr.destructive_color))</span>
+<span class="nc" id="L42">            imageParent.addView(overlayDotView)</span>
+        }
+<span class="nc bnc" id="L44" title="All 2 branches missed.">        overlayDotView?.isVisible = enabled</span>
+<span class="nc" id="L45">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

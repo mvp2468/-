@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThemeChooserDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.theme</a> &gt; <span class="el_source">ThemeChooserDialog.kt</span></div><h1>ThemeChooserDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.theme
+
+import android.content.DialogInterface
+import android.content.res.ColorStateList
+import android.content.res.Configuration
+import android.os.Build
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.SeekBar
+import android.widget.SeekBar.OnSeekBarChangeListener
+import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.button.MaterialButton
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.analytics.eventplatform.AppearanceSettingInteractionEvent
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.databinding.DialogThemeChooserBinding
+import org.wikipedia.events.WebViewInvalidateEvent
+import org.wikipedia.page.ExtendedBottomSheetDialogFragment
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L37">class ThemeChooserDialog : ExtendedBottomSheetDialogFragment() {</span>
+    private var _binding: DialogThemeChooserBinding? = null
+<span class="nc" id="L39">    private val binding get() = _binding!!</span>
+
+    interface Callback {
+        fun onToggleDimImages()
+        fun onToggleReadingFocusMode()
+        fun onCancelThemeChooser()
+        fun onEditingPrefsChanged()
+    }
+
+    private enum class FontSizeAction {
+<span class="nc" id="L49">        INCREASE, DECREASE, RESET</span>
+    }
+
+<span class="nc" id="L52">    private var app = WikipediaApp.instance</span>
+    private lateinit var appearanceSettingInteractionEvent: AppearanceSettingInteractionEvent
+    private lateinit var invokeSource: InvokeSource
+    private var updatingFont = false
+    private var isEditing = false
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L59">        _binding = DialogThemeChooserBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L60">        isEditing = requireArguments().getBoolean(EXTRA_IS_EDITING)</span>
+<span class="nc" id="L61">        updateComponents()</span>
+
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        binding.textSettingsCategory.text = getString(if (isEditing) R.string.theme_category_editing else R.string.theme_category_reading)</span>
+<span class="nc" id="L64">        binding.buttonDecreaseTextSize.setOnClickListener(FontSizeButtonListener(FontSizeAction.DECREASE))</span>
+<span class="nc" id="L65">        binding.buttonIncreaseTextSize.setOnClickListener(FontSizeButtonListener(FontSizeAction.INCREASE))</span>
+<span class="nc" id="L66">        FeedbackUtil.setButtonTooltip(binding.buttonDecreaseTextSize, binding.buttonIncreaseTextSize)</span>
+<span class="nc" id="L67">        binding.buttonThemeLight.setOnClickListener(ThemeButtonListener(Theme.LIGHT))</span>
+<span class="nc" id="L68">        binding.buttonThemeDark.setOnClickListener(ThemeButtonListener(Theme.DARK))</span>
+<span class="nc" id="L69">        binding.buttonThemeBlack.setOnClickListener(ThemeButtonListener(Theme.BLACK))</span>
+<span class="nc" id="L70">        binding.buttonThemeSepia.setOnClickListener(ThemeButtonListener(Theme.SEPIA))</span>
+<span class="nc" id="L71">        binding.buttonFontFamilySansSerif.setOnClickListener(FontFamilyListener())</span>
+<span class="nc" id="L72">        binding.buttonFontFamilySerif.setOnClickListener(FontFamilyListener())</span>
+
+<span class="nc" id="L74">        binding.themeChooserDarkModeDimImagesSwitch.setOnCheckedChangeListener { _, b -&gt; onToggleDimImages(b) }</span>
+<span class="nc" id="L75">        binding.themeChooserMatchSystemThemeSwitch.setOnCheckedChangeListener { _, b -&gt; onToggleMatchSystemTheme(b) }</span>
+<span class="nc" id="L76">        binding.themeChooserReadingFocusModeSwitch.setOnCheckedChangeListener { _, b -&gt; onToggleReadingFocusMode(b) }</span>
+
+<span class="nc" id="L78">        binding.textSizeSeekBar.setOnSeekBarChangeListener(object : OnSeekBarChangeListener {</span>
+            override fun onProgressChanged(seekBar: SeekBar, value: Int, fromUser: Boolean) {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                if (!fromUser) {</span>
+<span class="nc" id="L81">                    return</span>
+                }
+<span class="nc" id="L83">                val currentMultiplier: Int</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                if (isEditing) {</span>
+<span class="nc" id="L85">                    currentMultiplier = Prefs.editingTextSizeMultiplier</span>
+<span class="nc" id="L86">                    Prefs.editingTextSizeMultiplier = binding.textSizeSeekBar.value</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                    callback()?.onEditingPrefsChanged()</span>
+<span class="nc" id="L88">                    updateFontSize()</span>
+                } else {
+<span class="nc" id="L90">                    currentMultiplier = Prefs.textSizeMultiplier</span>
+<span class="nc" id="L91">                    val changed = app.setFontSizeMultiplier(binding.textSizeSeekBar.value)</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                    if (changed) {</span>
+<span class="nc" id="L93">                        updatingFont = true</span>
+<span class="nc" id="L94">                        updateFontSize()</span>
+                    }
+                }
+<span class="nc" id="L97">                appearanceSettingInteractionEvent.logFontSizeChange(currentMultiplier.toFloat(), Prefs.textSizeMultiplier.toFloat())</span>
+<span class="nc" id="L98">            }</span>
+
+<span class="nc" id="L100">            override fun onStartTrackingTouch(seekBar: SeekBar) {}</span>
+<span class="nc" id="L101">            override fun onStopTrackingTouch(seekBar: SeekBar) {}</span>
+        })
+
+<span class="nc" id="L104">        binding.syntaxHighlightSwitch.setOnCheckedChangeListener { _, isChecked -&gt;</span>
+<span class="nc" id="L105">            Prefs.editSyntaxHighlightEnabled = isChecked</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            callback()?.onEditingPrefsChanged()</span>
+<span class="nc" id="L107">        }</span>
+<span class="nc" id="L108">        binding.monospaceFontSwitch.setOnCheckedChangeListener { _, isChecked -&gt;</span>
+<span class="nc" id="L109">            Prefs.editMonoSpaceFontEnabled = isChecked</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            callback()?.onEditingPrefsChanged()</span>
+<span class="nc" id="L111">        }</span>
+<span class="nc" id="L112">        binding.showLineNumbersSwitch.setOnCheckedChangeListener { _, isChecked -&gt;</span>
+<span class="nc" id="L113">            Prefs.editLineNumbersEnabled = isChecked</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">            callback()?.onEditingPrefsChanged()</span>
+<span class="nc" id="L115">        }</span>
+<span class="nc" id="L116">        binding.typingSuggestionsSwitch.setOnCheckedChangeListener { _, isChecked -&gt;</span>
+<span class="nc" id="L117">            Prefs.editTypingSuggestionsEnabled = isChecked</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            callback()?.onEditingPrefsChanged()</span>
+<span class="nc" id="L119">        }</span>
+
+<span class="nc" id="L121">        lifecycleScope.launch {</span>
+<span class="nc" id="L122">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L123">                FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc" id="L124">                    when (event) {</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                        is WebViewInvalidateEvent -&gt; {</span>
+<span class="nc" id="L126">                            updatingFont = false</span>
+<span class="nc" id="L127">                            updateComponents()</span>
+                        }
+                    }
+<span class="nc" id="L130">                }</span>
+<span class="nc" id="L131">            }</span>
+<span class="nc" id="L132">        }</span>
+
+<span class="nc" id="L134">        return binding.root</span>
+    }
+
+    override fun onStart() {
+<span class="nc" id="L138">        super.onStart()</span>
+<span class="nc" id="L139">        BottomSheetBehavior.from(requireView().parent as View).peekHeight = (DimenUtil.displayHeightPx * 0.75).toInt()</span>
+<span class="nc" id="L140">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L143">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L144">        invokeSource = requireArguments().getSerializable(Constants.INTENT_EXTRA_INVOKE_SOURCE) as InvokeSource</span>
+<span class="nc" id="L145">        appearanceSettingInteractionEvent = AppearanceSettingInteractionEvent(invokeSource)</span>
+<span class="nc" id="L146">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L149">        super.onDestroyView()</span>
+<span class="nc" id="L150">        _binding = null</span>
+<span class="nc" id="L151">    }</span>
+
+    override fun onCancel(dialog: DialogInterface) {
+<span class="nc" id="L154">        super.onCancel(dialog)</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        callback()?.onCancelThemeChooser()</span>
+<span class="nc" id="L156">    }</span>
+
+    private fun updateForEditing() {
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        binding.themeChooserDarkModeDimImagesSwitch.isVisible = !isEditing</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        binding.readingFocusModeContainer.isVisible = !isEditing</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        binding.themeChooserReadingFocusModeDescription.isVisible = !isEditing</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        binding.fontFamilyContainer.isVisible = !isEditing</span>
+
+<span class="nc" id="L164">        binding.syntaxHighlightSwitch.isVisible = isEditing</span>
+<span class="nc" id="L165">        binding.monospaceFontSwitch.isVisible = isEditing</span>
+<span class="nc" id="L166">        binding.showLineNumbersSwitch.isVisible = isEditing</span>
+<span class="nc" id="L167">        binding.typingSuggestionsSwitch.isVisible = isEditing</span>
+<span class="nc" id="L168">    }</span>
+
+    private fun onToggleDimImages(enabled: Boolean) {
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        if (enabled == Prefs.dimDarkModeImages) {</span>
+<span class="nc" id="L172">            return</span>
+        }
+<span class="nc" id="L174">        Prefs.dimDarkModeImages = enabled</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        callback()?.onToggleDimImages()</span>
+<span class="nc" id="L176">    }</span>
+
+    private fun onToggleMatchSystemTheme(enabled: Boolean) {
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        if (enabled == Prefs.shouldMatchSystemTheme) {</span>
+<span class="nc" id="L180">            return</span>
+        }
+<span class="nc" id="L182">        Prefs.shouldMatchSystemTheme = enabled</span>
+<span class="nc" id="L183">        val currentTheme = app.currentTheme</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (isMatchingSystemThemeEnabled) {</span>
+<span class="nc bnc" id="L185" title="All 3 branches missed.">            when (app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                Configuration.UI_MODE_NIGHT_YES -&gt; if (!app.currentTheme.isDark) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                    app.currentTheme = if (!app.unmarshalTheme(Prefs.previousThemeId).isDark) Theme.DARK else app.unmarshalTheme(Prefs.previousThemeId)</span>
+<span class="nc" id="L188">                    Prefs.previousThemeId = currentTheme.marshallingId</span>
+                }
+<span class="nc bnc" id="L190" title="All 2 branches missed.">                Configuration.UI_MODE_NIGHT_NO -&gt; if (app.currentTheme.isDark) {</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                    app.currentTheme = if (app.unmarshalTheme(Prefs.previousThemeId).isDark) Theme.LIGHT else app.unmarshalTheme(Prefs.previousThemeId)</span>
+<span class="nc" id="L192">                    Prefs.previousThemeId = currentTheme.marshallingId</span>
+                }
+            }
+        }
+<span class="nc" id="L196">        conditionallyDisableThemeButtons()</span>
+<span class="nc" id="L197">    }</span>
+
+    private fun onToggleReadingFocusMode(enabled: Boolean) {
+<span class="nc" id="L200">        Prefs.readingFocusModeEnabled = enabled</span>
+<span class="nc" id="L201">        appearanceSettingInteractionEvent.logReadingFocusMode(enabled)</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        callback()?.onToggleReadingFocusMode()</span>
+<span class="nc" id="L203">    }</span>
+
+    private fun conditionallyDisableThemeButtons() {
+<span class="nc bnc" id="L206" title="All 4 branches missed.">        updateThemeButtonAlpha(binding.buttonThemeLight, isMatchingSystemThemeEnabled &amp;&amp; app.currentTheme.isDark)</span>
+<span class="nc bnc" id="L207" title="All 4 branches missed.">        updateThemeButtonAlpha(binding.buttonThemeSepia, isMatchingSystemThemeEnabled &amp;&amp; app.currentTheme.isDark)</span>
+<span class="nc bnc" id="L208" title="All 4 branches missed.">        updateThemeButtonAlpha(binding.buttonThemeDark, isMatchingSystemThemeEnabled &amp;&amp; !app.currentTheme.isDark)</span>
+<span class="nc bnc" id="L209" title="All 4 branches missed.">        updateThemeButtonAlpha(binding.buttonThemeBlack, isMatchingSystemThemeEnabled &amp;&amp; !app.currentTheme.isDark)</span>
+<span class="nc bnc" id="L210" title="All 4 branches missed.">        binding.buttonThemeLight.isEnabled = !isMatchingSystemThemeEnabled || !app.currentTheme.isDark</span>
+<span class="nc bnc" id="L211" title="All 4 branches missed.">        binding.buttonThemeSepia.isEnabled = !isMatchingSystemThemeEnabled || !app.currentTheme.isDark</span>
+<span class="nc bnc" id="L212" title="All 4 branches missed.">        binding.buttonThemeDark.isEnabled = !isMatchingSystemThemeEnabled || app.currentTheme.isDark</span>
+<span class="nc bnc" id="L213" title="All 4 branches missed.">        binding.buttonThemeBlack.isEnabled = !isMatchingSystemThemeEnabled || app.currentTheme.isDark</span>
+<span class="nc" id="L214">    }</span>
+
+    private fun updateThemeButtonAlpha(button: View, translucent: Boolean) {
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        button.alpha = if (translucent) 0.2f else 1.0f</span>
+<span class="nc" id="L218">    }</span>
+
+    private val isMatchingSystemThemeEnabled: Boolean
+<span class="nc bnc" id="L221" title="All 4 branches missed.">        get() = Prefs.shouldMatchSystemTheme &amp;&amp; Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.Q</span>
+
+    private fun updateComponents() {
+<span class="nc" id="L224">        updateFontSize()</span>
+<span class="nc" id="L225">        updateFontFamily()</span>
+<span class="nc" id="L226">        updateThemeButtons()</span>
+<span class="nc" id="L227">        updateDimImagesSwitch()</span>
+<span class="nc" id="L228">        updateMatchSystemThemeSwitch()</span>
+<span class="nc" id="L229">        updateForEditing()</span>
+
+<span class="nc" id="L231">        binding.themeChooserReadingFocusModeSwitch.isChecked = Prefs.readingFocusModeEnabled</span>
+
+<span class="nc" id="L233">        binding.syntaxHighlightSwitch.isChecked = Prefs.editSyntaxHighlightEnabled</span>
+<span class="nc" id="L234">        binding.monospaceFontSwitch.isChecked = Prefs.editMonoSpaceFontEnabled</span>
+<span class="nc" id="L235">        binding.showLineNumbersSwitch.isChecked = Prefs.editLineNumbersEnabled</span>
+<span class="nc" id="L236">        binding.typingSuggestionsSwitch.isChecked = Prefs.editTypingSuggestionsEnabled</span>
+<span class="nc" id="L237">    }</span>
+
+    private fun updateMatchSystemThemeSwitch() {
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.Q) {</span>
+<span class="nc" id="L241">            binding.themeChooserMatchSystemThemeSwitch.visibility = View.VISIBLE</span>
+<span class="nc" id="L242">            binding.themeChooserMatchSystemThemeSwitch.isChecked = Prefs.shouldMatchSystemTheme</span>
+<span class="nc" id="L243">            conditionallyDisableThemeButtons()</span>
+        } else {
+<span class="nc" id="L245">            binding.themeChooserMatchSystemThemeSwitch.visibility = View.GONE</span>
+        }
+<span class="nc" id="L247">    }</span>
+
+    private fun updateFontSize() {
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        val multiplier = if (isEditing) Prefs.editingTextSizeMultiplier else Prefs.textSizeMultiplier</span>
+<span class="nc" id="L251">        binding.textSizeSeekBar.value = multiplier</span>
+<span class="nc" id="L252">        val percentStr = getString(R.string.text_size_percent,</span>
+<span class="nc" id="L253">                (100 * (1 + multiplier * DimenUtil.getFloat(R.dimen.textSizeMultiplierFactor))).toInt())</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">        binding.textSizePercent.text = if (multiplier == 0) getString(R.string.text_size_percent_default, percentStr) else percentStr</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (updatingFont) {</span>
+<span class="nc" id="L256">            binding.fontChangeProgressBar.visibility = View.VISIBLE</span>
+        } else {
+<span class="nc" id="L258">            binding.fontChangeProgressBar.visibility = View.GONE</span>
+        }
+<span class="nc" id="L260">    }</span>
+
+    private fun updateFontFamily() {
+<span class="nc bnc" id="L263" title="All 2 branches missed.">        binding.buttonFontFamilySansSerif.strokeColor = ColorStateList.valueOf(ResourceUtil.getThemedColor(requireContext(), if (Prefs.fontFamily == binding.buttonFontFamilySansSerif.tag) R.attr.progressive_color else R.attr.border_color))</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">        binding.buttonFontFamilySerif.strokeColor = ColorStateList.valueOf(ResourceUtil.getThemedColor(requireContext(), if (Prefs.fontFamily == binding.buttonFontFamilySerif.tag) R.attr.progressive_color else R.attr.border_color))</span>
+<span class="nc" id="L265">    }</span>
+
+    private fun updateThemeButtons() {
+<span class="nc bnc" id="L268" title="All 2 branches missed.">        updateThemeButtonStroke(binding.buttonThemeLight, app.currentTheme === Theme.LIGHT)</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">        updateThemeButtonStroke(binding.buttonThemeSepia, app.currentTheme === Theme.SEPIA)</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        updateThemeButtonStroke(binding.buttonThemeDark, app.currentTheme === Theme.DARK)</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        updateThemeButtonStroke(binding.buttonThemeBlack, app.currentTheme === Theme.BLACK)</span>
+<span class="nc" id="L272">    }</span>
+
+    private fun updateThemeButtonStroke(button: MaterialButton, selected: Boolean) {
+<span class="nc bnc" id="L275" title="All 2 branches missed.">        button.strokeWidth = if (selected) BUTTON_STROKE_WIDTH else 0</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">        button.isClickable = !selected</span>
+<span class="nc" id="L277">    }</span>
+
+    private fun updateDimImagesSwitch() {
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        val attrColor = if (binding.themeChooserDarkModeDimImagesSwitch.isEnabled) R.attr.secondary_color else R.attr.overlay_color</span>
+<span class="nc" id="L281">        binding.themeChooserDarkModeDimImagesSwitch.isChecked = Prefs.dimDarkModeImages</span>
+<span class="nc" id="L282">        binding.themeChooserDarkModeDimImagesSwitch.isEnabled = app.currentTheme.isDark</span>
+<span class="nc" id="L283">        binding.themeChooserDarkModeDimImagesSwitch.setTextColor(ResourceUtil.getThemedColor(requireContext(), attrColor))</span>
+<span class="nc" id="L284">    }</span>
+
+<span class="nc" id="L286">    private inner class ThemeButtonListener(private val theme: Theme) : View.OnClickListener {</span>
+        override fun onClick(v: View) {
+<span class="nc bnc" id="L288" title="All 2 branches missed.">            if (app.currentTheme !== theme) {</span>
+<span class="nc" id="L289">                appearanceSettingInteractionEvent.logThemeChange(app.currentTheme, theme)</span>
+<span class="nc" id="L290">                app.currentTheme = theme</span>
+            }
+<span class="nc" id="L292">        }</span>
+    }
+
+<span class="nc" id="L295">    private inner class FontFamilyListener : View.OnClickListener {</span>
+        override fun onClick(v: View) {
+<span class="nc bnc" id="L297" title="All 2 branches missed.">            if (v.tag != null) {</span>
+<span class="nc" id="L298">                val newFontFamily = v.tag as String</span>
+<span class="nc" id="L299">                appearanceSettingInteractionEvent.logFontThemeChange(Prefs.fontFamily, newFontFamily)</span>
+<span class="nc" id="L300">                app.setFontFamily(newFontFamily)</span>
+            }
+<span class="nc" id="L302">        }</span>
+    }
+
+<span class="nc" id="L305">    private inner class FontSizeButtonListener(private val action: FontSizeAction) : View.OnClickListener {</span>
+        override fun onClick(view: View) {
+<span class="nc" id="L307">            val currentMultiplier: Int</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            if (isEditing) {</span>
+<span class="nc" id="L309">                currentMultiplier = Prefs.editingTextSizeMultiplier</span>
+<span class="nc" id="L310">                Prefs.editingTextSizeMultiplier = app.constrainFontSizeMultiplier(</span>
+<span class="nc bnc" id="L311" title="All 3 branches missed.">                        when (action) {</span>
+<span class="nc" id="L312">                            FontSizeAction.INCREASE -&gt; currentMultiplier + 1</span>
+<span class="nc" id="L313">                            FontSizeAction.DECREASE -&gt; currentMultiplier - 1</span>
+<span class="nc" id="L314">                            FontSizeAction.RESET -&gt; 0</span>
+                        })
+<span class="nc bnc" id="L316" title="All 2 branches missed.">                callback()?.onEditingPrefsChanged()</span>
+<span class="nc" id="L317">                updateFontSize()</span>
+            } else {
+<span class="nc" id="L319">                currentMultiplier = Prefs.textSizeMultiplier</span>
+<span class="nc bnc" id="L320" title="All 3 branches missed.">                val changed = when (action) {</span>
+                    FontSizeAction.INCREASE -&gt; {
+<span class="nc" id="L322">                        app.setFontSizeMultiplier(Prefs.textSizeMultiplier + 1)</span>
+                    }
+                    FontSizeAction.DECREASE -&gt; {
+<span class="nc" id="L325">                        app.setFontSizeMultiplier(Prefs.textSizeMultiplier - 1)</span>
+                    }
+                    FontSizeAction.RESET -&gt; {
+<span class="nc" id="L328">                        app.setFontSizeMultiplier(0)</span>
+                    }
+                }
+<span class="nc bnc" id="L331" title="All 2 branches missed.">                if (changed) {</span>
+<span class="nc" id="L332">                    updatingFont = true</span>
+<span class="nc" id="L333">                    updateFontSize()</span>
+                }
+            }
+<span class="nc" id="L336">            appearanceSettingInteractionEvent.logFontSizeChange(currentMultiplier.toFloat(), Prefs.textSizeMultiplier.toFloat())</span>
+<span class="nc" id="L337">        }</span>
+    }
+
+    fun callback(): Callback? {
+<span class="nc" id="L341">        return FragmentUtil.getCallback(this, Callback::class.java)</span>
+    }
+
+    companion object {
+        private const val EXTRA_IS_EDITING = &quot;isEditing&quot;
+<span class="nc" id="L346">        private val BUTTON_STROKE_WIDTH = DimenUtil.roundedDpToPx(2f)</span>
+
+<span class="nc" id="L348">        fun newInstance(source: InvokeSource, isEditing: Boolean = false): ThemeChooserDialog {</span>
+<span class="nc" id="L349">            return ThemeChooserDialog().apply {</span>
+<span class="nc" id="L350">                arguments = bundleOf(Constants.INTENT_EXTRA_INVOKE_SOURCE to source,</span>
+<span class="nc" id="L351">                        EXTRA_IS_EDITING to isEditing)</span>
+<span class="nc" id="L352">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

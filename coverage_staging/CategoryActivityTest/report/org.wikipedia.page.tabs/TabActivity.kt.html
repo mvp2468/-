@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TabActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.page.tabs</a> &gt; <span class="el_source">TabActivity.kt</span></div><h1>TabActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.page.tabs
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.databinding.ActivityTabsBinding
+import org.wikipedia.main.MainActivity
+import org.wikipedia.navtab.NavTab
+import org.wikipedia.notifications.NotificationActivity
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.PageActivity
+import org.wikipedia.readinglist.AddToReadingListDialog
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.WikiCardView
+
+<span class="nc" id="L36">class TabActivity : BaseActivity() {</span>
+    private lateinit var binding: ActivityTabsBinding
+<span class="nc" id="L38">    private val app: WikipediaApp = WikipediaApp.instance</span>
+    private var launchedFromPageActivity = false
+<span class="nc" id="L40">    private var cancelled = true</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L43">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L44">        binding = ActivityTabsBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L45">        setContentView(binding.root)</span>
+<span class="nc" id="L46">        binding.tabCountsView.updateTabCount(false)</span>
+<span class="nc" id="L47">        binding.tabCountsView.setOnClickListener { onBackPressedDispatcher.onBackPressed() }</span>
+<span class="nc" id="L48">        FeedbackUtil.setButtonTooltip(binding.tabCountsView, binding.tabButtonNotifications)</span>
+
+<span class="nc" id="L50">        binding.tabRecyclerView.adapter = TabItemAdapter()</span>
+<span class="nc" id="L51">        val touchCallback = SwipeableTabTouchHelperCallback(this)</span>
+<span class="nc" id="L52">        touchCallback.swipeableEnabled = true</span>
+<span class="nc" id="L53">        val itemTouchHelper = ItemTouchHelper(touchCallback)</span>
+<span class="nc" id="L54">        itemTouchHelper.attachToRecyclerView(binding.tabRecyclerView)</span>
+
+<span class="nc" id="L56">        launchedFromPageActivity = intent.hasExtra(LAUNCHED_FROM_PAGE_ACTIVITY)</span>
+<span class="nc" id="L57">        setStatusBarColor(ResourceUtil.getThemedColor(this, android.R.attr.colorBackground))</span>
+<span class="nc" id="L58">        setNavigationBarColor(ResourceUtil.getThemedColor(this, android.R.attr.colorBackground))</span>
+<span class="nc" id="L59">        setSupportActionBar(binding.tabToolbar)</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        supportActionBar?.run {</span>
+<span class="nc" id="L61">            setDisplayHomeAsUpEnabled(true)</span>
+<span class="nc" id="L62">            title = &quot;&quot;</span>
+<span class="nc" id="L63">        }</span>
+
+<span class="nc" id="L65">        binding.tabButtonNotifications.setOnClickListener {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L67">                startActivity(NotificationActivity.newIntent(this))</span>
+            }
+<span class="nc" id="L69">        }</span>
+<span class="nc" id="L70">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L73">        super.onPause()</span>
+<span class="nc" id="L74">        app.commitTabState()</span>
+<span class="nc" id="L75">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L78">        super.onResume()</span>
+<span class="nc" id="L79">        updateNotificationsButton(false)</span>
+<span class="nc" id="L80">    }</span>
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+<span class="nc" id="L83">        menuInflater.inflate(R.menu.menu_tabs, menu)</span>
+<span class="nc" id="L84">        return true</span>
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L88">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L89" title="All 4 branches missed.">            android.R.id.home, R.id.menu_open_a_new_tab -&gt; {</span>
+<span class="nc" id="L90">                openNewTab()</span>
+<span class="nc" id="L91">                true</span>
+            }
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            R.id.menu_close_all_tabs -&gt; {</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">                if (app.tabList.isNotEmpty()) {</span>
+<span class="nc" id="L95">                    MaterialAlertDialogBuilder(this).run {</span>
+<span class="nc" id="L96">                        setMessage(R.string.close_all_tabs_confirm)</span>
+<span class="nc" id="L97">                        setPositiveButton(R.string.close_all_tabs_confirm_yes) { _, _ -&gt;</span>
+<span class="nc" id="L98">                            L.d(&quot;All tabs removed.&quot;)</span>
+<span class="nc" id="L99">                            val appTabs = app.tabList.toMutableList()</span>
+<span class="nc" id="L100">                            app.tabList.clear()</span>
+<span class="nc" id="L101">                            binding.tabCountsView.updateTabCount(false)</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                            binding.tabRecyclerView.adapter?.notifyItemRangeRemoved(0, appTabs.size)</span>
+<span class="nc" id="L103">                            setResult(RESULT_LOAD_FROM_BACKSTACK)</span>
+<span class="nc" id="L104">                            showUndoAllSnackbar(appTabs)</span>
+<span class="nc" id="L105">                            cancelled = false</span>
+<span class="nc" id="L106">                        }</span>
+<span class="nc" id="L107">                        setNegativeButton(R.string.close_all_tabs_confirm_no, null)</span>
+<span class="nc" id="L108">                        .show()</span>
+                    }
+                }
+<span class="nc" id="L111">                true</span>
+            }
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            R.id.menu_save_all_tabs -&gt; {</span>
+<span class="nc bnc" id="L114" title="All 4 branches missed.">                if (app.tabList.isNotEmpty()) {</span>
+<span class="nc" id="L115">                    saveTabsToList()</span>
+                }
+<span class="nc" id="L117">                true</span>
+            }
+<span class="nc bnc" id="L119" title="All 2 branches missed.">            R.id.menu_explore -&gt; {</span>
+<span class="nc" id="L120">                goToMainTab()</span>
+<span class="nc" id="L121">                true</span>
+            }
+<span class="nc" id="L123">            else -&gt; super.onOptionsItemSelected(item)</span>
+        }
+    }
+
+    override fun onUnreadNotification() {
+<span class="nc" id="L128">        updateNotificationsButton(true)</span>
+<span class="nc" id="L129">    }</span>
+
+    private fun saveTabsToList() {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        val titlesList = app.tabList.filter { it.backStackPositionTitle != null }.map { it.backStackPositionTitle!! }</span>
+<span class="nc" id="L133">        ExclusiveBottomSheetPresenter.show(supportFragmentManager,</span>
+<span class="nc" id="L134">                AddToReadingListDialog.newInstance(titlesList, InvokeSource.TABS_ACTIVITY))</span>
+<span class="nc" id="L135">    }</span>
+
+    private fun openNewTab() {
+<span class="nc" id="L138">        cancelled = false</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (launchedFromPageActivity) {</span>
+<span class="nc" id="L140">            setResult(RESULT_NEW_TAB)</span>
+        } else {
+<span class="nc" id="L142">            startActivity(PageActivity.newIntentForNewTab(this@TabActivity))</span>
+        }
+<span class="nc" id="L144">        finish()</span>
+<span class="nc" id="L145">    }</span>
+
+    private fun showUndoSnackbar(index: Int, appTab: Tab, adapterPosition: Int) {
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        appTab.backStackPositionTitle?.let {</span>
+<span class="nc" id="L149">            FeedbackUtil.makeSnackbar(this, getString(R.string.tab_item_closed, it.displayText)).run {</span>
+<span class="nc" id="L150">                setAction(R.string.reading_list_item_delete_undo) {</span>
+<span class="nc" id="L151">                    app.tabList.add(index, appTab)</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                    binding.tabRecyclerView.adapter?.notifyItemInserted(adapterPosition)</span>
+<span class="nc" id="L153">                    binding.tabCountsView.updateTabCount(false)</span>
+<span class="nc bnc" id="L154" title="All 4 branches missed.">                    if (adapterPosition == 0 &amp;&amp; app.tabCount &gt; 1) {</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                        binding.tabRecyclerView.adapter?.notifyItemChanged(1)</span>
+                    }
+<span class="nc" id="L157">                }</span>
+<span class="nc" id="L158">                show()</span>
+<span class="nc" id="L159">            }</span>
+<span class="nc" id="L160">        }</span>
+<span class="nc" id="L161">    }</span>
+
+    private fun showUndoAllSnackbar(appTabs: MutableList&lt;Tab&gt;) {
+<span class="nc" id="L164">        FeedbackUtil.makeSnackbar(this, getString(R.string.all_tab_items_closed)).run {</span>
+<span class="nc" id="L165">            setAction(R.string.reading_list_item_delete_undo) {</span>
+<span class="nc" id="L166">                app.tabList.addAll(appTabs)</span>
+<span class="nc" id="L167">                appTabs.clear()</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                binding.tabRecyclerView.adapter?.notifyItemRangeInserted(0, app.tabList.size)</span>
+<span class="nc" id="L169">                binding.tabCountsView.updateTabCount(false)</span>
+<span class="nc" id="L170">            }</span>
+<span class="nc" id="L171">            show()</span>
+<span class="nc" id="L172">        }</span>
+<span class="nc" id="L173">    }</span>
+
+    private fun goToMainTab() {
+<span class="nc" id="L176">        startActivity(</span>
+<span class="nc" id="L177">            MainActivity.newIntent(this)</span>
+<span class="nc" id="L178">                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)</span>
+<span class="nc" id="L179">                .putExtra(Constants.INTENT_RETURN_TO_MAIN, true)</span>
+<span class="nc" id="L180">                .putExtra(Constants.INTENT_EXTRA_GO_TO_MAIN_TAB, NavTab.EXPLORE.code()))</span>
+<span class="nc" id="L181">        finish()</span>
+<span class="nc" id="L182">    }</span>
+
+    private fun updateNotificationsButton(animate: Boolean) {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L186">            binding.tabButtonNotifications.isVisible = true</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            if (Prefs.notificationUnreadCount &gt; 0) {</span>
+<span class="nc" id="L188">                binding.tabButtonNotifications.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                if (animate) {</span>
+<span class="nc" id="L190">                    binding.tabButtonNotifications.runAnimation()</span>
+                }
+            } else {
+<span class="nc" id="L193">                binding.tabButtonNotifications.setUnreadCount(0)</span>
+            }
+        } else {
+<span class="nc" id="L196">            binding.tabButtonNotifications.isVisible = false</span>
+        }
+<span class="nc" id="L198">    }</span>
+
+    private fun adapterPositionToTabIndex(adapterPosition: Int): Int {
+<span class="nc" id="L201">        return app.tabList.size - adapterPosition - 1</span>
+    }
+
+<span class="nc" id="L204">    private open inner class TabViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView), View.OnClickListener, SwipeableTabTouchHelperCallback.Callback {</span>
+        open fun bindItem(tab: Tab, position: Int) {
+<span class="nc bnc" id="L206" title="All 4 branches missed.">            itemView.findViewById&lt;TextView&gt;(R.id.tabArticleTitle).text = StringUtil.fromHtml(tab.backStackPositionTitle?.displayText.orEmpty())</span>
+<span class="nc bnc" id="L207" title="All 4 branches missed.">            itemView.findViewById&lt;TextView&gt;(R.id.tabArticleDescription).text = StringUtil.fromHtml(tab.backStackPositionTitle?.description.orEmpty())</span>
+<span class="nc" id="L208">            itemView.findViewById&lt;View&gt;(R.id.tabContainer).setOnClickListener(this)</span>
+<span class="nc" id="L209">            itemView.findViewById&lt;View&gt;(R.id.tabCloseButton).setOnClickListener(this)</span>
+<span class="nc" id="L210">            itemView.findViewById&lt;WikiCardView&gt;(R.id.tabCardView).run {</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                strokeWidth = DimenUtil.roundedDpToPx(if (position == 0) 1.5f else 1f)</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                strokeColor = ResourceUtil.getThemedColor(context, if (position == 0) R.attr.progressive_color else R.attr.border_color)</span>
+<span class="nc" id="L213">            }</span>
+<span class="nc" id="L214">        }</span>
+
+        override fun onClick(v: View) {
+<span class="nc" id="L217">            val adapterPosition = bindingAdapterPosition</span>
+<span class="nc" id="L218">            val index = adapterPositionToTabIndex(adapterPosition)</span>
+<span class="nc bnc" id="L219" title="All 4 branches missed.">            if (index &lt; 0 || index &gt;= app.tabList.size) {</span>
+<span class="nc" id="L220">                return</span>
+            }
+<span class="nc bnc" id="L222" title="All 2 branches missed.">            if (v.id == R.id.tabContainer) {</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                if (index &lt; app.tabList.size - 1) {</span>
+<span class="nc" id="L224">                    val tab = app.tabList.removeAt(index)</span>
+<span class="nc" id="L225">                    app.tabList.add(tab)</span>
+                }
+<span class="nc" id="L227">                cancelled = false</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">                if (launchedFromPageActivity) {</span>
+<span class="nc" id="L229">                    setResult(RESULT_LOAD_FROM_BACKSTACK)</span>
+                } else {
+<span class="nc" id="L231">                    startActivity(PageActivity.newIntent(this@TabActivity))</span>
+                }
+<span class="nc" id="L233">                finish()</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">            } else if (v.id == R.id.tabCloseButton) {</span>
+<span class="nc" id="L235">                doCloseTab()</span>
+            }
+<span class="nc" id="L237">        }</span>
+
+        override fun onSwipe() {
+<span class="nc" id="L240">            doCloseTab()</span>
+<span class="nc" id="L241">        }</span>
+
+        override fun isSwipeable(): Boolean {
+<span class="nc" id="L244">            return true</span>
+        }
+
+        private fun doCloseTab() {
+<span class="nc" id="L248">            val adapterPosition = bindingAdapterPosition</span>
+<span class="nc" id="L249">            val index = adapterPositionToTabIndex(adapterPosition)</span>
+<span class="nc" id="L250">            val appTab = app.tabList.removeAt(index)</span>
+<span class="nc" id="L251">            binding.tabCountsView.updateTabCount(false)</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">            bindingAdapter?.notifyItemRemoved(adapterPosition)</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">            if (adapterPosition == 0) {</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                bindingAdapter?.notifyItemChanged(0)</span>
+            }
+<span class="nc" id="L256">            setResult(RESULT_LOAD_FROM_BACKSTACK)</span>
+<span class="nc" id="L257">            showUndoSnackbar(index, appTab, adapterPosition)</span>
+<span class="nc" id="L258">        }</span>
+    }
+
+<span class="nc" id="L261">    private inner class TabItemAdapter : RecyclerView.Adapter&lt;TabViewHolder&gt;() {</span>
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TabViewHolder {
+<span class="nc" id="L263">            return TabViewHolder(layoutInflater.inflate(R.layout.item_tab_contents, parent, false))</span>
+        }
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L267">            return app.tabList.size</span>
+        }
+
+        override fun onBindViewHolder(holder: TabViewHolder, position: Int) {
+<span class="nc" id="L271">            holder.bindItem(app.tabList[adapterPositionToTabIndex(position)], position)</span>
+<span class="nc" id="L272">        }</span>
+    }
+
+    companion object {
+        private const val LAUNCHED_FROM_PAGE_ACTIVITY = &quot;launchedFromPageActivity&quot;
+        const val RESULT_LOAD_FROM_BACKSTACK = 10
+        const val RESULT_NEW_TAB = 11
+
+        fun newIntent(context: Context): Intent {
+<span class="nc" id="L281">            return Intent(context, TabActivity::class.java)</span>
+        }
+
+        fun newIntentFromPageActivity(context: Context): Intent {
+<span class="nc" id="L285">            return Intent(context, TabActivity::class.java)</span>
+<span class="nc" id="L286">                    .putExtra(LAUNCHED_FROM_PAGE_ACTIVITY, true)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

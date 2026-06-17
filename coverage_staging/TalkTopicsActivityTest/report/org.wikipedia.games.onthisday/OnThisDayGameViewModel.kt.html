@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayGameViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.onthisday</a> &gt; <span class="el_source">OnThisDayGameViewModel.kt</span></div><h1>OnThisDayGameViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.onthisday
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import org.wikipedia.Constants
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.page.PageSummary
+import org.wikipedia.feed.onthisday.OnThisDay
+import org.wikipedia.games.PlayTypes
+import org.wikipedia.games.WikiGames
+import org.wikipedia.games.db.DailyGameHistory
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.ReleaseUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.log.L
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import kotlin.math.min
+
+<span class="nc" id="L34">class OnThisDayGameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+
+<span class="nc" id="L36">    private val _gameState = MutableLiveData&lt;Resource&lt;GameState&gt;&gt;()</span>
+<span class="nc" id="L37">    val gameState: LiveData&lt;Resource&lt;GameState&gt;&gt; get() = _gameState</span>
+
+<span class="nc" id="L39">    val invokeSource = savedStateHandle.get&lt;Constants.InvokeSource&gt;(Constants.INTENT_EXTRA_INVOKE_SOURCE)!!</span>
+<span class="nc" id="L40">    val wikiSite = savedStateHandle.get&lt;WikiSite&gt;(Constants.ARG_WIKISITE)!!</span>
+
+    // TODO: initialize the state earlier in the loading process, so that the state is nonnull
+    // when the ViewModel is created, instead of only after the first loadGameState() call.
+    private lateinit var currentState: GameState
+    private var currentGameId: Int? = null
+
+<span class="nc" id="L47">    private val overrideDate = savedStateHandle.contains(EXTRA_DATE)</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">    var currentDate = if (overrideDate) LocalDate.ofInstant(Instant.ofEpochSecond(savedStateHandle.get&lt;Long&gt;(EXTRA_DATE)!!), ZoneOffset.UTC) else LocalDate.now()</span>
+<span class="nc" id="L49">    val currentMonth get() = currentDate.monthValue</span>
+<span class="nc" id="L50">    val currentDay get() = currentDate.dayOfMonth</span>
+<span class="nc" id="L51">    var isArchiveGame = false</span>
+
+<span class="nc" id="L53">    private val events = mutableListOf&lt;OnThisDay.Event&gt;()</span>
+<span class="nc" id="L54">    val savedPages = mutableListOf&lt;PageSummary&gt;()</span>
+
+<span class="nc" id="L56">    init {</span>
+<span class="nc" id="L57">        loadGameState()</span>
+<span class="nc" id="L58">    }</span>
+
+<span class="nc" id="L60">    fun loadGameState(useDateFromState: Boolean = true) {</span>
+<span class="nc" id="L61">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L62">            L.e(throwable)</span>
+<span class="nc" id="L63">            _gameState.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L64">        }) {</span>
+<span class="nc" id="L65">            _gameState.postValue(Resource.Loading())</span>
+
+            // TODO: remove this in March, 2027
+<span class="nc" id="L68">            migrateInProgressGameFromPrefsToDatabase()</span>
+
+<span class="nc bnc" id="L70" title="All 4 branches missed.">            if (useDateFromState &amp;&amp; !overrideDate) {</span>
+<span class="nc" id="L71">                currentDate = determineLastPlayedGameDate()</span>
+            }
+<span class="nc" id="L73">            isArchiveGame = currentDate.isBefore(LocalDate.now())</span>
+            // load game state from database
+<span class="nc" id="L75">            val gameHistory = AppDatabase.instance.dailyGameHistoryDao().findGameHistoryByDate(</span>
+<span class="nc" id="L76">                gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L77">                language = wikiSite.languageCode,</span>
+<span class="nc" id="L78">                year = currentDate.year,</span>
+<span class="nc" id="L79">                month = currentMonth,</span>
+<span class="nc" id="L80">                day = currentDay</span>
+            )
+
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            currentGameId = gameHistory?.id</span>
+
+<span class="nc" id="L85">            events.clear()</span>
+<span class="nc" id="L86">            events.addAll(OnThisDayGameProvider.getGameEvents(wikiSite, currentDate))</span>
+
+<span class="nc" id="L88">            currentState = buildGameState(gameHistory)</span>
+<span class="nc" id="L89">            savedPages.clear()</span>
+<span class="nc" id="L90">            getArticlesMentioned().forEach { pageSummary -&gt;</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                val inAnyList = AppDatabase.instance.readingListPageDao().findPageInAnyList(pageSummary.getPageTitle(wikiSite)) != null</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                if (inAnyList) {</span>
+<span class="nc" id="L93">                    savedPages.add(pageSummary)</span>
+                }
+<span class="nc" id="L95">            }</span>
+<span class="nc" id="L96">            publishGameState(gameHistory)</span>
+<span class="nc" id="L97">        }</span>
+<span class="nc" id="L98">    }</span>
+
+<span class="nc" id="L100">    private suspend fun determineLastPlayedGameDate(): LocalDate {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        val lastPlayedInfoMap = JsonUtil.decodeFromString&lt;Map&lt;String, LastPlayedInfo&gt;&gt;(Prefs.otdLastPlayedDate)</span>
+<span class="nc" id="L102">            ?: return LocalDate.now()</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        val lastPlayedInfo = lastPlayedInfoMap[wikiSite.languageCode] ?: return LocalDate.now()</span>
+<span class="nc" id="L104">        return try {</span>
+<span class="nc" id="L105">            val sessionDate = LocalDate.parse(lastPlayedInfo.sessionDate, DateTimeFormatter.ISO_LOCAL_DATE)</span>
+<span class="nc" id="L106">            val gamePlayDate = LocalDate.parse(lastPlayedInfo.gamePlayDate, DateTimeFormatter.ISO_LOCAL_DATE)</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">            if (sessionDate == LocalDate.now()) {</span>
+<span class="nc" id="L109">                val lastGame = AppDatabase.instance.dailyGameHistoryDao().findGameHistoryByDate(</span>
+<span class="nc" id="L110">                    gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L111">                    language = wikiSite.languageCode,</span>
+<span class="nc" id="L112">                    year = gamePlayDate.year,</span>
+<span class="nc" id="L113">                    month = gamePlayDate.monthValue,</span>
+<span class="nc" id="L114">                    day = gamePlayDate.dayOfMonth</span>
+                )
+<span class="nc bnc" id="L116" title="All 6 branches missed.">                if (lastGame?.status == DailyGameHistory.GAME_IN_PROGRESS) {</span>
+<span class="nc" id="L117">                    gamePlayDate</span>
+                } else {
+<span class="nc" id="L119">                    LocalDate.now()</span>
+                }
+            } else {
+<span class="nc" id="L122">                LocalDate.now()</span>
+            }
+<span class="nc" id="L124">        } catch (_: Exception) {</span>
+<span class="nc" id="L125">           LocalDate.now()</span>
+        }
+    }
+
+    private fun buildGameState(gameHistory: DailyGameHistory?): GameState {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        return if (gameHistory != null) {</span>
+<span class="nc" id="L131">            val questionIndex = min(gameHistory.currentQuestionIndex, Prefs.otdGameQuestionsPerDay - 1)</span>
+<span class="nc" id="L132">            GameState(</span>
+<span class="nc" id="L133">                currentQuestionIndex = gameHistory.currentQuestionIndex,</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                answerState = JsonUtil.decodeFromString&lt;List&lt;Boolean&gt;&gt;(gameHistory.gameData) ?: listOf(),</span>
+<span class="nc" id="L135">                currentQuestionState = composeQuestionState(questionIndex),</span>
+<span class="nc" id="L136">                status = gameHistory.status</span>
+            )
+        } else {
+<span class="nc" id="L139">            GameState(currentQuestionState = composeQuestionState(0))</span>
+        }
+    }
+
+    private suspend fun publishGameState(gameHistory: DailyGameHistory?) {
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (currentState.status == DailyGameHistory.GAME_IN_PROGRESS) {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">            if (currentState.currentQuestionIndex == 0) {</span>
+                // we're just starting the current game.
+<span class="nc" id="L147">                _gameState.postValue(GameStarted(currentState))</span>
+            } else {
+                // middle of the game
+<span class="nc" id="L150">                _gameState.postValue(CurrentQuestion(currentState))</span>
+            }
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        } else if (currentState.status == DailyGameHistory.GAME_COMPLETED) {</span>
+<span class="nc" id="L153">            currentState = currentState.copy(</span>
+<span class="nc bnc" id="L154" title="All 4 branches missed.">                answerState = JsonUtil.decodeFromString&lt;List&lt;Boolean&gt;&gt;(gameHistory?.gameData) ?: listOf(),</span>
+<span class="nc" id="L155">                currentQuestionIndex = currentState.totalQuestions</span>
+            )
+<span class="nc" id="L157">            _gameState.postValue(GameEnded(currentState, getGameStatistics(wikiSite.languageCode)))</span>
+        }
+<span class="nc" id="L159">    }</span>
+
+    fun submitCurrentResponse(selectedYear: Int) {
+<span class="nc" id="L162">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L163">            L.e(throwable)</span>
+<span class="nc" id="L164">            _gameState.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L165">        }) {</span>
+<span class="nc" id="L166">            val nextQuestionIndex = currentState.currentQuestionIndex + 1</span>
+            // more questions or final question reached
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            if (currentState.currentQuestionState.goToNext) {</span>
+<span class="nc" id="L169">                WikiGamesEvent.submit(&quot;next_click&quot;, &quot;game_play&quot;, slideName = getCurrentScreenName(), isArchive = isArchiveGame)</span>
+                // game ended
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                if (nextQuestionIndex &gt;= currentState.totalQuestions) {</span>
+<span class="nc" id="L172">                    currentState = currentState.copy(currentQuestionIndex = nextQuestionIndex)</span>
+<span class="nc" id="L173">                    saveGameProgress(status = DailyGameHistory.GAME_COMPLETED, nextQuestionIndex = nextQuestionIndex)</span>
+<span class="nc" id="L174">                    _gameState.postValue(GameEnded(currentState, getGameStatistics(wikiSite.languageCode)))</span>
+                } else {
+                    // moves to next question
+<span class="nc" id="L177">                    currentState = currentState.copy(</span>
+<span class="nc" id="L178">                        currentQuestionState = composeQuestionState(nextQuestionIndex),</span>
+<span class="nc" id="L179">                        currentQuestionIndex = nextQuestionIndex</span>
+                    )
+<span class="nc" id="L181">                    _gameState.postValue(CurrentQuestion(currentState))</span>
+                }
+            } else {
+                // when user wants to evaluate the answer
+<span class="nc" id="L185">                WikiGamesEvent.submit(&quot;select_click&quot;, &quot;game_play&quot;, slideName = getCurrentScreenName(), isArchive = isArchiveGame)</span>
+
+<span class="nc" id="L187">                currentState = currentState.copy(</span>
+<span class="nc" id="L188">                    currentQuestionState = currentState.currentQuestionState.copy(</span>
+<span class="nc" id="L189">                        yearSelected = selectedYear,</span>
+<span class="nc" id="L190">                        goToNext = true</span>
+                    )
+                )
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                val isCorrect = selectedYear == min(</span>
+<span class="nc" id="L195">                    currentState.currentQuestionState.event1.year,</span>
+<span class="nc" id="L196">                    currentState.currentQuestionState.event2.year</span>
+                )
+
+<span class="nc" id="L199">                currentState = currentState.copy(</span>
+<span class="nc" id="L200">                    answerState = currentState.answerState.toMutableList()</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                        .apply { set(currentState.currentQuestionIndex, isCorrect) }</span>
+                )
+
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                if (isCorrect) {</span>
+<span class="nc" id="L205">                    _gameState.postValue(CurrentQuestionCorrect(currentState))</span>
+                } else {
+<span class="nc" id="L207">                    _gameState.postValue(CurrentQuestionIncorrect(currentState))</span>
+                }
+<span class="nc" id="L209">                saveGameProgress(</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                    status = if (nextQuestionIndex &gt;= currentState.totalQuestions) DailyGameHistory.GAME_COMPLETED else DailyGameHistory.GAME_IN_PROGRESS,</span>
+<span class="nc" id="L211">                    nextQuestionIndex = nextQuestionIndex</span>
+                )
+            }
+<span class="nc" id="L214">        }</span>
+<span class="nc" id="L215">    }</span>
+
+    fun getCurrentScreenName(): String {
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        return if (_gameState.value is GameEnded) {</span>
+<span class="nc" id="L219">            &quot;game_end&quot;</span>
+<span class="nc bnc" id="L220" title="All 6 branches missed.">        } else if (_gameState.value == null || ::currentState.isInitialized.not() || _gameState.value is Resource.Loading) {</span>
+<span class="nc" id="L221">            &quot;game_loading&quot;</span>
+        } else {
+<span class="nc" id="L223">            &quot;game_play_&quot; + (currentState.currentQuestionIndex + 1)</span>
+        }
+    }
+
+    fun getArticlesMentioned(): List&lt;PageSummary&gt; {
+<span class="nc" id="L228">        val articles = mutableListOf&lt;PageSummary&gt;()</span>
+<span class="nc" id="L229">        events.forEach { event -&gt;</span>
+<span class="nc" id="L230">            articles.addAll(event.pages)</span>
+<span class="nc" id="L231">        }</span>
+<span class="nc" id="L232">        return articles.distinctBy { it.apiTitle }</span>
+    }
+
+    fun getEventByPageTitle(pageTitle: String): OnThisDay.Event {
+<span class="nc bnc" id="L236" title="All 10 branches missed.">        return events.find { it.pages.any { pageSummary -&gt; pageSummary.apiTitle == pageTitle || pageSummary.displayTitle == pageTitle } } ?: events[0]</span>
+    }
+
+    fun getQuestionCorrectByPageTitle(pageTitle: String): Boolean {
+<span class="nc bnc" id="L240" title="All 4 branches missed.">        val index = events.indexOfFirst { it.pages.any { pageSummary -&gt; pageSummary.apiTitle == pageTitle || pageSummary.displayTitle == pageTitle } }</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        return currentState.answerState[if (index &gt;= 0) index / 2 else 0]</span>
+    }
+
+    fun getThumbnailUrlForEvent(event: OnThisDay.Event): String? {
+<span class="nc bnc" id="L245" title="All 8 branches missed.">        return event.pages.firstOrNull { !it.thumbnailUrl.isNullOrEmpty() }?.thumbnailUrl</span>
+    }
+
+    private fun saveGameProgress(status: Int, nextQuestionIndex: Int) {
+<span class="nc" id="L249">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L250">                L.e(throwable)</span>
+<span class="nc" id="L251">            }</span>
+        ) {
+<span class="nc" id="L253">            val dailyGameHistory = DailyGameHistory(</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                id = currentGameId ?: 0,</span>
+<span class="nc" id="L255">                gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L256">                language = wikiSite.languageCode,</span>
+<span class="nc" id="L257">                year = currentDate.year,</span>
+<span class="nc" id="L258">                month = currentDate.monthValue,</span>
+<span class="nc" id="L259">                day = currentDate.dayOfMonth,</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                score = currentState.answerState.count { it },</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                playType = if (isArchiveGame) PlayTypes.PLAYED_ON_ARCHIVE.ordinal else PlayTypes.PLAYED_ON_SAME_DAY.ordinal,</span>
+<span class="nc" id="L262">                gameData = JsonUtil.encodeToString(currentState.answerState),</span>
+<span class="nc" id="L263">                currentQuestionIndex = nextQuestionIndex,</span>
+<span class="nc" id="L264">                status = status</span>
+            )
+<span class="nc" id="L266">            val resultId = AppDatabase.instance.dailyGameHistoryDao().upsert(dailyGameHistory).toInt()</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            currentGameId = if (resultId &gt; 0) resultId else currentGameId</span>
+
+<span class="nc bnc" id="L269" title="All 4 branches missed.">            val lastPlayedDate = JsonUtil.decodeFromString&lt;Map&lt;String, LastPlayedInfo&gt;&gt;(Prefs.otdLastPlayedDate)?.toMutableMap() ?: mutableMapOf()</span>
+<span class="nc" id="L270">            lastPlayedDate[wikiSite.languageCode] = LastPlayedInfo(</span>
+<span class="nc" id="L271">                gamePlayDate = currentDate.format(DateTimeFormatter.ISO_LOCAL_DATE),</span>
+<span class="nc" id="L272">                sessionDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)</span>
+            )
+<span class="nc bnc" id="L274" title="All 2 branches missed.">            Prefs.otdLastPlayedDate = JsonUtil.encodeToString(lastPlayedDate).orEmpty()</span>
+<span class="nc" id="L275">        }</span>
+<span class="nc" id="L276">    }</span>
+
+    private fun composeQuestionState(index: Int): QuestionState {
+<span class="nc" id="L279">        return QuestionState(events[index * 2], events[index * 2 + 1], currentMonth, currentDay)</span>
+    }
+
+    fun relaunchForDate(date: LocalDate) {
+<span class="nc" id="L283">        currentDate = date</span>
+<span class="nc" id="L284">        loadGameState(useDateFromState = false)</span>
+<span class="nc" id="L285">    }</span>
+
+    // TODO: remove this in March, 2027
+    private suspend fun migrateInProgressGameFromPrefsToDatabase() {
+<span class="nc bnc" id="L289" title="All 4 branches missed.">        if (Prefs.otdGameState.isEmpty()) {</span>
+<span class="nc" id="L290">            return</span>
+        }
+
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        val totalState = JsonUtil.decodeFromString&lt;TotalGameState&gt;(Prefs.otdGameState) ?: return</span>
+<span class="nc" id="L294">        totalState.langToState.forEach { (lang, gameState) -&gt;</span>
+
+<span class="nc bnc" id="L296" title="All 8 branches missed.">            if (gameState.gamePlayDate.isEmpty() || gameState.lastActiveDate.isEmpty()) return@forEach</span>
+
+<span class="nc bnc" id="L298" title="All 2 branches missed.">            if (gameState.currentQuestionIndex &lt; Prefs.otdGameQuestionsPerDay) {</span>
+<span class="nc" id="L299">                val gamePlayDate = LocalDate.parse(gameState.gamePlayDate, DateTimeFormatter.ISO_LOCAL_DATE)</span>
+<span class="nc" id="L300">                val lastActiveDate = LocalDate.parse(gameState.lastActiveDate, DateTimeFormatter.ISO_LOCAL_DATE)</span>
+<span class="nc" id="L301">                val dailyGameHistory = DailyGameHistory(</span>
+<span class="nc" id="L302">                    gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L303">                    language = lang,</span>
+<span class="nc" id="L304">                    year = gamePlayDate.year,</span>
+<span class="nc" id="L305">                    month = gamePlayDate.monthValue,</span>
+<span class="nc" id="L306">                    day = gamePlayDate.dayOfMonth,</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">                    score = gameState.answerState.count { it },</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">                    playType = if (gamePlayDate.isBefore(LocalDate.now())) {</span>
+<span class="nc" id="L309">                        PlayTypes.PLAYED_ON_ARCHIVE.ordinal</span>
+                    } else {
+<span class="nc" id="L311">                        PlayTypes.PLAYED_ON_SAME_DAY.ordinal</span>
+                    },
+<span class="nc" id="L313">                    gameData = JsonUtil.encodeToString(gameState.answerState),</span>
+<span class="nc" id="L314">                    currentQuestionIndex = gameState.currentQuestionIndex,</span>
+<span class="nc" id="L315">                    status = DailyGameHistory.GAME_IN_PROGRESS</span>
+                )
+<span class="nc" id="L317">                AppDatabase.instance.dailyGameHistoryDao().upsert(dailyGameHistory)</span>
+
+<span class="nc bnc" id="L319" title="All 4 branches missed.">                val lastPlayedMap = JsonUtil.decodeFromString&lt;Map&lt;String, LastPlayedInfo&gt;&gt;(Prefs.otdLastPlayedDate)?.toMutableMap() ?: mutableMapOf()</span>
+<span class="nc" id="L320">                lastPlayedMap[lang] = LastPlayedInfo(</span>
+<span class="nc" id="L321">                    gamePlayDate = gamePlayDate.format(DateTimeFormatter.ISO_LOCAL_DATE),</span>
+<span class="nc" id="L322">                    sessionDate = lastActiveDate.format(DateTimeFormatter.ISO_LOCAL_DATE)</span>
+                )
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                Prefs.otdLastPlayedDate = JsonUtil.encodeToString(lastPlayedMap).orEmpty()</span>
+<span class="nc" id="L325">                Prefs.otdGameState = &quot;&quot;</span>
+            }
+<span class="nc" id="L327">        }</span>
+<span class="nc" id="L328">    }</span>
+
+<span class="nc" id="L330">    @Serializable</span>
+<span class="nc" id="L331">    data class TotalGameHistory(</span>
+<span class="nc" id="L332">        val langToHistory: Map&lt;String, GameHistory&gt; = emptyMap()</span>
+<span class="nc" id="L333">    )</span>
+
+<span class="nc" id="L335">    @Serializable</span>
+<span class="nc" id="L336">    data class GameHistory(</span>
+        // map of:   year: month: day: list of answers
+<span class="nc" id="L338">        val history: Map&lt;Int, Map&lt;Int, Map&lt;Int, List&lt;Boolean&gt;&gt;&gt;&gt; = emptyMap()</span>
+<span class="nc" id="L339">    )</span>
+
+<span class="nc" id="L341">    @Serializable</span>
+<span class="nc" id="L342">    data class TotalGameState(</span>
+<span class="nc" id="L343">        val langToState: Map&lt;String, GameState&gt; = emptyMap(),</span>
+<span class="nc" id="L344">    )</span>
+
+<span class="nc" id="L346">    @Serializable</span>
+<span class="nc" id="L347">    data class GameState(</span>
+<span class="nc" id="L348">        val totalQuestions: Int = Prefs.otdGameQuestionsPerDay,</span>
+<span class="nc" id="L349">        val currentQuestionIndex: Int = 0,</span>
+        // history of today's answers (correct vs incorrect)
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        val answerState: List&lt;Boolean&gt; = List(MAX_QUESTIONS) { false },</span>
+<span class="nc" id="L352">        val currentQuestionState: QuestionState,</span>
+<span class="nc" id="L353">        var status: Int = DailyGameHistory.GAME_IN_PROGRESS,</span>
+<span class="nc" id="L354">        var gamePlayDate: String = &quot;&quot;,</span>
+<span class="nc" id="L355">        var lastActiveDate: String = &quot;&quot;</span>
+<span class="nc" id="L356">    )</span>
+
+<span class="nc" id="L358">    @Serializable</span>
+<span class="nc" id="L359">    data class GameStatistics(</span>
+<span class="nc" id="L360">        val totalGamesPlayed: Int = 0,</span>
+<span class="nc" id="L361">        val averageScore: Double? = null,</span>
+<span class="nc" id="L362">        val currentStreak: Int = 0,</span>
+<span class="nc" id="L363">        val bestStreak: Int = 0</span>
+<span class="nc" id="L364">    )</span>
+
+<span class="nc" id="L366">    @Serializable</span>
+<span class="nc" id="L367">    data class QuestionState(</span>
+<span class="nc" id="L368">        val event1: OnThisDay.Event,</span>
+<span class="nc" id="L369">        val event2: OnThisDay.Event,</span>
+<span class="nc" id="L370">        val month: Int = 0,</span>
+<span class="nc" id="L371">        val day: Int = 0,</span>
+<span class="nc" id="L372">        val yearSelected: Int? = null,</span>
+<span class="nc" id="L373">        val goToNext: Boolean = false</span>
+<span class="nc" id="L374">    )</span>
+
+<span class="nc" id="L376">    @Serializable</span>
+<span class="nc" id="L377">    data class LastPlayedInfo(</span>
+<span class="nc" id="L378">        val gamePlayDate: String,</span>
+<span class="nc" id="L379">        val sessionDate: String</span>
+    )
+
+<span class="nc" id="L382">    class CurrentQuestion(val data: GameState) : Resource&lt;GameState&gt;()</span>
+<span class="nc" id="L383">    class CurrentQuestionCorrect(val data: GameState) : Resource&lt;GameState&gt;()</span>
+<span class="nc" id="L384">    class CurrentQuestionIncorrect(val data: GameState) : Resource&lt;GameState&gt;()</span>
+<span class="nc" id="L385">    class GameStarted(val data: GameState) : Resource&lt;GameState&gt;()</span>
+<span class="nc" id="L386">    class GameEnded(val data: GameState, val gameStatistics: GameStatistics) : Resource&lt;GameState&gt;()</span>
+
+    companion object {
+        const val MAX_QUESTIONS = 5
+        const val EXTRA_DATE = &quot;date&quot;
+
+        fun dateReleasedForLang(lang: String): LocalDate {
+<span class="nc bnc" id="L393" title="All 4 branches missed.">            return if (lang == &quot;de&quot; || ReleaseUtil.isPreBetaRelease) LocalDate.of(2025, 2, 20) else LocalDate.of(2025, 5, 21)</span>
+        }
+
+        suspend fun getGameStatistics(languageCode: String): GameStatistics {
+<span class="nc" id="L397">            return withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L398">                val totalGamesPlayed = async {</span>
+<span class="nc" id="L399">                    AppDatabase.instance.dailyGameHistoryDao().getTotalGamesPlayed(</span>
+<span class="nc" id="L400">                        gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L401">                        language = languageCode</span>
+<span class="nc" id="L402">                    )</span>
+                }
+<span class="nc" id="L404">                val averageScore = async {</span>
+<span class="nc" id="L405">                    AppDatabase.instance.dailyGameHistoryDao().getAverageScore(</span>
+<span class="nc" id="L406">                        gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L407">                        language = languageCode</span>
+<span class="nc" id="L408">                    )</span>
+                }
+<span class="nc" id="L410">                val currentStreak = async {</span>
+<span class="nc" id="L411">                    AppDatabase.instance.dailyGameHistoryDao().getCurrentStreak(</span>
+<span class="nc" id="L412">                        gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L413">                        language = languageCode</span>
+<span class="nc" id="L414">                    )</span>
+                }
+
+<span class="nc" id="L417">                val bestStreak = async {</span>
+<span class="nc" id="L418">                    AppDatabase.instance.dailyGameHistoryDao().getBestStreak(</span>
+<span class="nc" id="L419">                        gameName = WikiGames.WHICH_CAME_FIRST.ordinal,</span>
+<span class="nc" id="L420">                        language = languageCode</span>
+<span class="nc" id="L421">                    )</span>
+                }
+
+<span class="nc" id="L424">                GameStatistics(</span>
+<span class="nc" id="L425">                    totalGamesPlayed = totalGamesPlayed.await(),</span>
+<span class="nc" id="L426">                    averageScore = averageScore.await(),</span>
+<span class="nc" id="L427">                    currentStreak = currentStreak.await(),</span>
+<span class="nc" id="L428">                    bestStreak = bestStreak.await()</span>
+<span class="nc" id="L429">                )</span>
+            }
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

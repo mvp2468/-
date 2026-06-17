@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeedbackUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">FeedbackUtil.kt</span></div><h1>FeedbackUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.graphics.Rect
+import android.net.Uri
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.TextView
+import android.widget.Toast
+import androidx.annotation.LayoutRes
+import androidx.annotation.StringRes
+import androidx.appcompat.widget.TooltipCompat
+import androidx.core.app.ActivityCompat
+import androidx.core.net.toUri
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.snackbar.Snackbar
+import com.skydoves.balloon.ArrowOrientationRules
+import com.skydoves.balloon.ArrowPositionRules
+import com.skydoves.balloon.Balloon
+import com.skydoves.balloon.BalloonSizeSpec
+import com.skydoves.balloon.createBalloon
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.eventplatform.BreadCrumbLogEvent
+import org.wikipedia.databinding.ViewPlainTextTooltipBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.main.MainActivity
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.edithistory.EditHistoryListActivity
+import org.wikipedia.random.RandomActivity
+import org.wikipedia.readinglist.ReadingListActivity
+import org.wikipedia.suggestededits.SuggestionsActivity
+import org.wikipedia.talk.TalkTopicsActivity
+import org.wikipedia.util.log.L
+import org.wikipedia.views.AllowSnackbarOverBottomSheet
+
+object FeedbackUtil {
+    private const val LENGTH_SHORT = 3000
+    private const val LENGTH_DEFAULT = 5000
+    const val LENGTH_MEDIUM = 8000
+    const val LENGTH_LONG = 15000
+<span class="nc" id="L50">    private val TOOLBAR_ON_CLICK_LISTENER = View.OnClickListener { v -&gt;</span>
+<span class="nc" id="L51">        showToastOverView(v, v.contentDescription, LENGTH_SHORT)</span>
+<span class="nc" id="L52">    }</span>
+
+<span class="nc" id="L54">    fun showError(activity: Activity, e: Throwable, wikiSite: WikiSite = WikipediaApp.instance.wikiSite) {</span>
+<span class="nc" id="L55">        val error = ThrowableUtil.getAppError(activity, e)</span>
+<span class="nc" id="L56">        makeSnackbar(activity, error.error, wikiSite = wikiSite).also {</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            if (error.error.length &gt; 200) {</span>
+<span class="nc" id="L58">                it.duration = Snackbar.LENGTH_INDEFINITE</span>
+<span class="nc" id="L59">                it.setAction(android.R.string.ok) { _ -&gt;</span>
+<span class="nc" id="L60">                    it.dismiss()</span>
+<span class="nc" id="L61">                }</span>
+            }
+<span class="nc" id="L63">            it.show()</span>
+<span class="nc" id="L64">        }</span>
+<span class="nc" id="L65">    }</span>
+
+    fun showMessageAsPlainText(activity: Activity, possibleHtml: CharSequence) {
+<span class="nc" id="L68">        val richText: CharSequence = StringUtil.fromHtml(possibleHtml.toString())</span>
+<span class="nc" id="L69">        showMessage(activity, richText.toString())</span>
+<span class="nc" id="L70">    }</span>
+
+    fun showMessage(fragment: Fragment, @StringRes text: Int) {
+<span class="nc" id="L73">        makeSnackbar(fragment.requireActivity(), fragment.getString(text), Snackbar.LENGTH_LONG).show()</span>
+<span class="nc" id="L74">    }</span>
+
+    fun showMessage(fragment: Fragment, text: String) {
+<span class="nc" id="L77">        makeSnackbar(fragment.requireActivity(), text, Snackbar.LENGTH_LONG).show()</span>
+<span class="nc" id="L78">    }</span>
+
+    fun showMessage(activity: Activity, @StringRes resId: Int) {
+<span class="nc" id="L81">        showMessage(activity, activity.getString(resId), Snackbar.LENGTH_LONG)</span>
+<span class="nc" id="L82">    }</span>
+
+    fun showMessage(activity: Activity, @StringRes resId: Int, duration: Int) {
+<span class="nc" id="L85">        showMessage(activity, activity.getString(resId), duration)</span>
+<span class="nc" id="L86">    }</span>
+
+<span class="nc" id="L88">    fun showMessage(activity: Activity, text: CharSequence, duration: Int = Snackbar.LENGTH_LONG) {</span>
+<span class="nc" id="L89">        makeSnackbar(activity, text, duration).show()</span>
+<span class="nc" id="L90">    }</span>
+
+    fun showPrivacyPolicy(context: Context) {
+<span class="nc" id="L93">        UriUtil.visitInExternalBrowser(context, context.getString(R.string.privacy_policy_url).toUri())</span>
+<span class="nc" id="L94">    }</span>
+
+    fun showTermsOfUse(context: Context) {
+<span class="nc" id="L97">        UriUtil.visitInExternalBrowser(context, context.getString(R.string.terms_of_use_url).toUri())</span>
+<span class="nc" id="L98">    }</span>
+
+    fun showOfflineReadingAndData(context: Context) {
+<span class="nc" id="L101">        UriUtil.visitInExternalBrowser(context, context.getString(R.string.offline_reading_and_data_url).toUri())</span>
+<span class="nc" id="L102">    }</span>
+
+    fun showAboutWikipedia(context: Context) {
+<span class="nc" id="L105">        UriUtil.visitInExternalBrowser(context, context.getString(R.string.about_wikipedia_url).toUri())</span>
+<span class="nc" id="L106">    }</span>
+
+    fun showAndroidAppFAQ(context: Context) {
+<span class="nc" id="L109">        UriUtil.visitInExternalBrowser(context, context.getString(R.string.android_app_faq_url).toUri())</span>
+<span class="nc" id="L110">    }</span>
+
+    fun showAndroidAppRequestAnAccount(context: Context) {
+<span class="nc" id="L113">        UriUtil.visitInExternalBrowser(context, context.getString(R.string.android_app_request_an_account_url).toUri())</span>
+<span class="nc" id="L114">    }</span>
+
+<span class="nc" id="L116">    fun showAndroidAppEditingFAQ(</span>
+        context: Context,
+<span class="nc" id="L118">        @StringRes urlStr: Int = R.string.android_app_edit_help_url,</span>
+    ) {
+<span class="nc" id="L120">        UriUtil.visitInExternalBrowser(context, context.getString(urlStr).toUri())</span>
+<span class="nc" id="L121">    }</span>
+
+<span class="nc" id="L123">    fun composeEmail(</span>
+        context: Context,
+<span class="nc" id="L125">        emailAddress: String = context.getString(R.string.support_email),</span>
+<span class="nc" id="L126">        subject: String = &quot;&quot;,</span>
+<span class="nc" id="L127">        body: String = &quot;&quot;,</span>
+    ) {
+<span class="nc" id="L129">        val intent = Intent()</span>
+<span class="nc" id="L130">            .setAction(Intent.ACTION_SENDTO)</span>
+<span class="nc" id="L131">            .setData(&quot;mailto:$emailAddress?subject=${Uri.encode(subject)}&amp;body=${Uri.encode(body)}&quot;.toUri())</span>
+<span class="nc" id="L132">        try {</span>
+<span class="nc" id="L133">            context.startActivity(intent)</span>
+<span class="nc" id="L134">        } catch (e: Exception) {</span>
+<span class="nc" id="L135">            L.e(e)</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    fun setButtonTooltip(vararg views: View) {
+<span class="nc" id="L140">        views.forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }</span>
+<span class="nc" id="L141">    }</span>
+
+    fun setButtonOnClickToast(vararg views: View) {
+<span class="nc" id="L144">        views.forEach { it.setOnClickListener(TOOLBAR_ON_CLICK_LISTENER) }</span>
+<span class="nc" id="L145">    }</span>
+
+<span class="nc" id="L147">    fun makeSnackbar(view: View, text: CharSequence, duration: Int = LENGTH_DEFAULT, wikiSite: WikiSite = WikipediaApp.instance.wikiSite): Snackbar {</span>
+<span class="nc" id="L148">        val snackbar = Snackbar.make(view, StringUtil.fromHtml(text.toString()).trim(), duration)</span>
+<span class="nc" id="L149">        val textView = snackbar.view.findViewById&lt;TextView&gt;(com.google.android.material.R.id.snackbar_text)</span>
+<span class="nc" id="L150">        textView.setLinkTextColor(ResourceUtil.getThemedColor(view.context, R.attr.progressive_color))</span>
+<span class="nc" id="L151">        textView.movementMethod = LinkMovementMethodExt.getExternalLinkMovementMethod(wikiSite)</span>
+<span class="nc" id="L152">        return snackbar</span>
+    }
+
+<span class="nc" id="L155">    fun makeSnackbar(activity: Activity, text: CharSequence, duration: Int = LENGTH_DEFAULT, wikiSite: WikiSite = WikipediaApp.instance.wikiSite): Snackbar {</span>
+<span class="nc" id="L156">        return makeSnackbar(findBestView(activity), text, duration, wikiSite)</span>
+    }
+
+    fun showToastOverView(view: View, text: CharSequence?, duration: Int): Toast {
+<span class="nc" id="L160">        val toast = Toast.makeText(view.context, text, duration)</span>
+<span class="nc" id="L161">        val v = LayoutInflater.from(view.context).inflate(androidx.appcompat.R.layout.abc_tooltip, null)</span>
+<span class="nc" id="L162">        val message = v.findViewById&lt;TextView&gt;(androidx.appcompat.R.id.message)</span>
+<span class="nc" id="L163">        message.text = StringUtil.removeHTMLTags(text.toString())</span>
+<span class="nc" id="L164">        message.maxLines = Int.MAX_VALUE</span>
+<span class="nc" id="L165">        toast.view = v</span>
+<span class="nc" id="L166">        val location = IntArray(2)</span>
+<span class="nc" id="L167">        view.getLocationOnScreen(location)</span>
+<span class="nc" id="L168">        toast.setGravity(Gravity.TOP or Gravity.START, location[0], location[1])</span>
+<span class="nc" id="L169">        toast.show()</span>
+<span class="nc" id="L170">        return toast</span>
+    }
+
+<span class="nc" id="L173">    fun showTooltip(</span>
+        activity: Activity,
+        anchor: View,
+        text: CharSequence,
+        aboveOrBelow: Boolean,
+        autoDismiss: Boolean,
+<span class="nc" id="L179">        arrowAnchorPadding: Int = 0,</span>
+<span class="nc" id="L180">        topOrBottomMargin: Int = 0,</span>
+<span class="nc" id="L181">        showDismissButton: Boolean = autoDismiss,</span>
+    ): Balloon {
+<span class="nc" id="L183">        return showTooltip(activity, getTooltip(anchor.context, text, autoDismiss, arrowAnchorPadding, topOrBottomMargin, aboveOrBelow, showDismissButton), anchor, aboveOrBelow, autoDismiss)</span>
+    }
+
+    fun showTooltip(
+        activity: Activity,
+        anchor: View,
+        @LayoutRes layoutRes: Int,
+        arrowAnchorPadding: Int,
+        topOrBottomMargin: Int,
+        aboveOrBelow: Boolean,
+        autoDismiss: Boolean,
+    ): Balloon {
+<span class="nc" id="L195">        return showTooltip(activity, getTooltip(anchor.context, layoutRes, arrowAnchorPadding, topOrBottomMargin, aboveOrBelow, autoDismiss), anchor, aboveOrBelow, autoDismiss)</span>
+    }
+
+    private fun showTooltip(activity: Activity, balloon: Balloon, anchor: View, aboveOrBelow: Boolean, autoDismiss: Boolean): Balloon {
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (aboveOrBelow) {</span>
+<span class="nc" id="L200">            balloon.showAlignTop(anchor, 0, DimenUtil.roundedDpToPx(8f))</span>
+        } else {
+<span class="nc" id="L202">            balloon.showAlignBottom(anchor, 0, -DimenUtil.roundedDpToPx(8f))</span>
+        }
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (!autoDismiss) {</span>
+<span class="nc" id="L205">            (activity as BaseActivity).setCurrentTooltip(balloon)</span>
+        }
+<span class="nc" id="L207">        BreadCrumbLogEvent.logTooltipShown(activity, anchor)</span>
+<span class="nc" id="L208">        return balloon</span>
+    }
+
+<span class="nc" id="L211">    fun getTooltip(</span>
+        context: Context,
+        text: CharSequence,
+        autoDismiss: Boolean,
+<span class="nc" id="L215">        arrowAnchorPadding: Int = 0,</span>
+<span class="nc" id="L216">        topOrBottomMargin: Int = 0,</span>
+<span class="nc" id="L217">        aboveOrBelow: Boolean = false,</span>
+<span class="nc" id="L218">        showDismissButton: Boolean = false,</span>
+<span class="nc" id="L219">        @StringRes dismissButtonText: Int = R.string.onboarding_got_it,</span>
+<span class="nc" id="L220">        countNum: Int = 0,</span>
+<span class="nc" id="L221">        countTotal: Int = 0,</span>
+    ): Balloon {
+<span class="nc" id="L223">        val binding = ViewPlainTextTooltipBinding.inflate(LayoutInflater.from(context))</span>
+<span class="nc" id="L224">        binding.textView.text = text</span>
+<span class="nc" id="L225">        binding.buttonView.isVisible = showDismissButton</span>
+
+        // Explicitly measure the width of the button text and set the button width, with some padding.
+        // The Balloon library seems to present our custom layout in a way that causes the automatic
+        // sizing of the button to be incorrect.
+<span class="nc" id="L230">        val dismissText = context.getString(dismissButtonText)</span>
+<span class="nc" id="L231">        val bounds = Rect()</span>
+<span class="nc" id="L232">        binding.buttonView.paint.getTextBounds(dismissText, 0, dismissText.length, bounds)</span>
+<span class="nc" id="L233">        binding.buttonView.layoutParams = binding.buttonView.layoutParams.apply {</span>
+<span class="nc" id="L234">            width = bounds.width() + DimenUtil.roundedDpToPx(40f)</span>
+<span class="nc" id="L235">        }</span>
+
+<span class="nc bnc" id="L237" title="All 2 branches missed.">        if (countTotal &gt; 0) {</span>
+<span class="nc" id="L238">            binding.countView.isVisible = true</span>
+<span class="nc" id="L239">            binding.countView.text = context.getString(R.string.x_of_y, countNum, countTotal)</span>
+        }
+
+<span class="nc" id="L242">        val balloon = createBalloon(context) {</span>
+<span class="nc" id="L243">            setArrowDrawableResource(R.drawable.ic_tooltip_arrow_up)</span>
+<span class="nc" id="L244">            setArrowPositionRules(ArrowPositionRules.ALIGN_ANCHOR)</span>
+<span class="nc" id="L245">            setArrowOrientationRules(ArrowOrientationRules.ALIGN_ANCHOR)</span>
+<span class="nc" id="L246">            setArrowSize(16)</span>
+<span class="nc" id="L247">            setMarginLeft(8)</span>
+<span class="nc" id="L248">            setMarginRight(8)</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            setMarginTop(if (aboveOrBelow) 0 else topOrBottomMargin)</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            setMarginBottom(if (aboveOrBelow) topOrBottomMargin else 0)</span>
+<span class="nc" id="L251">            setBackgroundColorResource(ResourceUtil.getThemedAttributeId(context, R.attr.progressive_color))</span>
+<span class="nc" id="L252">            setDismissWhenTouchOutside(autoDismiss)</span>
+<span class="nc" id="L253">            setLayout(binding.root)</span>
+<span class="nc" id="L254">            setWidth(BalloonSizeSpec.WRAP)</span>
+<span class="nc" id="L255">            setHeight(BalloonSizeSpec.WRAP)</span>
+<span class="nc" id="L256">            setArrowAlignAnchorPadding(arrowAnchorPadding)</span>
+<span class="nc" id="L257">        }</span>
+
+<span class="nc" id="L259">        binding.buttonView.setOnClickListener {</span>
+<span class="nc" id="L260">            balloon.dismiss()</span>
+<span class="nc" id="L261">        }</span>
+
+<span class="nc" id="L263">        return balloon</span>
+    }
+
+    private fun getTooltip(
+        context: Context, @LayoutRes layoutRes: Int, arrowAnchorPadding: Int,
+        topOrBottomMargin: Int, aboveOrBelow: Boolean, autoDismiss: Boolean,
+    ): Balloon {
+<span class="nc" id="L270">        return createBalloon(context) {</span>
+<span class="nc" id="L271">            setArrowDrawableResource(R.drawable.ic_tooltip_arrow_up)</span>
+<span class="nc" id="L272">            setArrowPositionRules(ArrowPositionRules.ALIGN_ANCHOR)</span>
+<span class="nc" id="L273">            setArrowOrientationRules(ArrowOrientationRules.ALIGN_ANCHOR)</span>
+<span class="nc" id="L274">            setArrowSize(24)</span>
+<span class="nc" id="L275">            setMarginLeft(8)</span>
+<span class="nc" id="L276">            setMarginRight(8)</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">            setMarginTop(if (aboveOrBelow) 0 else topOrBottomMargin)</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">            setMarginBottom(if (aboveOrBelow) topOrBottomMargin else 0)</span>
+<span class="nc" id="L279">            setBackgroundColorResource(ResourceUtil.getThemedAttributeId(context, R.attr.progressive_color))</span>
+<span class="nc" id="L280">            setDismissWhenTouchOutside(autoDismiss)</span>
+<span class="nc" id="L281">            setLayout(layoutRes)</span>
+<span class="nc" id="L282">            setWidth(BalloonSizeSpec.WRAP)</span>
+<span class="nc" id="L283">            setHeight(BalloonSizeSpec.WRAP)</span>
+<span class="nc" id="L284">            setArrowAlignAnchorPadding(arrowAnchorPadding)</span>
+<span class="nc" id="L285">        }</span>
+    }
+
+    private fun findBestView(activity: Activity): View {
+        // If the activity is currently displaying a bottom sheet over which we allow a snackbar,
+        // use the bottom sheet's view as the anchor for the snackbar.
+<span class="nc bnc" id="L291" title="All 2 branches missed.">        getTopmostBottomSheetFragment(activity)?.let {</span>
+<span class="nc" id="L292">            return it.requireView()</span>
+        }
+
+        // Otherwise, use the appropriate view for the activity.
+<span class="nc" id="L296">        val viewId = when (activity) {</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">            is MainActivity -&gt; R.id.fragment_main_coordinator</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">            is PageActivity -&gt; R.id.fragment_page_coordinator</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">            is RandomActivity -&gt; R.id.random_coordinator_layout</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">            is ReadingListActivity -&gt; R.id.fragment_reading_list_coordinator</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">            is SuggestionsActivity -&gt; R.id.suggestedEditsCardsCoordinator</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">            is EditHistoryListActivity -&gt; R.id.edit_history_coordinator</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">            is TalkTopicsActivity -&gt; R.id.talkTopicsSnackbar</span>
+<span class="nc" id="L304">            else -&gt; android.R.id.content</span>
+        }
+<span class="nc" id="L306">        return ActivityCompat.requireViewById(activity, viewId)</span>
+    }
+
+    private fun getTopmostBottomSheetFragment(activity: Activity): BottomSheetDialogFragment? {
+<span class="nc bnc" id="L310" title="All 8 branches missed.">        (activity as? FragmentActivity)?.supportFragmentManager?.fragments?.forEach {</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">            getTopmostBottomSheetFragment(it)?.let { fragment -&gt;</span>
+<span class="nc" id="L312">                return fragment</span>
+            }
+<span class="nc" id="L314">        }</span>
+<span class="nc" id="L315">        return null</span>
+    }
+
+    private fun getTopmostBottomSheetFragment(fragment: Fragment): BottomSheetDialogFragment? {
+<span class="nc bnc" id="L319" title="All 6 branches missed.">        if (fragment is BottomSheetDialogFragment &amp;&amp; fragment is AllowSnackbarOverBottomSheet &amp;&amp; fragment.view != null) {</span>
+<span class="nc" id="L320">            return fragment</span>
+        }
+<span class="nc" id="L322">        fragment.childFragmentManager.fragments.forEach {</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">            if (getTopmostBottomSheetFragment(it) != null) {</span>
+<span class="nc" id="L324">                return it as BottomSheetDialogFragment</span>
+            }
+<span class="nc" id="L326">        }</span>
+<span class="nc" id="L327">        return null</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsImageTagsViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsImageTagsViewModel.kt</span></div><h1>SuggestedEditsImageTagsViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.csrf.CsrfTokenClient
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.dataclient.wikidata.Entities
+import org.wikipedia.edit.EditTags
+import org.wikipedia.language.LanguageUtil
+import org.wikipedia.suggestededits.provider.EditingSuggestionsProvider
+import org.wikipedia.util.Resource
+import java.util.UUID
+
+<span class="nc" id="L20">class SuggestedEditsImageTagsViewModel : ViewModel() {</span>
+
+<span class="nc" id="L22">    private val _uiState = MutableStateFlow(Resource&lt;Pair&lt;MwQueryPage, String?&gt;&gt;())</span>
+<span class="nc" id="L23">    val uiState = _uiState.asStateFlow()</span>
+
+<span class="nc" id="L25">    private val _actionState = MutableStateFlow(Resource&lt;Entities.Entity?&gt;())</span>
+<span class="nc" id="L26">    val actionState = _actionState.asStateFlow()</span>
+
+    fun findNextSuggestedEditsItem(languageCode: String, page: MwQueryPage?) {
+<span class="nc" id="L29">        _uiState.value = Resource.Loading()</span>
+<span class="nc" id="L30">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L31">            _uiState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L32">        }) {</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">            val mwQueryPage = page ?: EditingSuggestionsProvider.getNextImageWithMissingTags()</span>
+<span class="nc" id="L34">            val caption = ServiceFactory.get(Constants.commonsWikiSite)</span>
+<span class="nc" id="L35">                .getWikidataEntityTerms(mwQueryPage.title, LanguageUtil.convertToUselangIfNeeded(languageCode))</span>
+<span class="nc bnc" id="L36" title="All 8 branches missed.">                .query?.firstPage()?.entityTerms?.label?.firstOrNull()</span>
+<span class="nc" id="L37">            _uiState.value = Resource.Success(mwQueryPage to caption)</span>
+<span class="nc" id="L38">        }</span>
+<span class="nc" id="L39">    }</span>
+
+    fun publishImageTags(page: MwQueryPage, acceptedLabels: List&lt;ImageTag&gt;) {
+<span class="nc" id="L42">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L43">            _actionState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L44">        }) {</span>
+<span class="nc" id="L45">            val csrfToken = CsrfTokenClient.getToken(Constants.commonsWikiSite)</span>
+<span class="nc" id="L46">            val mId = &quot;M&quot; + page.pageId</span>
+<span class="nc" id="L47">            var claimStr = &quot;{\&quot;claims\&quot;:[&quot;</span>
+<span class="nc" id="L48">            var commentStr = &quot;/* add-depicts: &quot;</span>
+<span class="nc" id="L49">            var first = true</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            for (label in acceptedLabels) {</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">                if (!first) {</span>
+<span class="nc" id="L52">                    claimStr += &quot;,&quot;</span>
+                }
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                if (!first) {</span>
+<span class="nc" id="L55">                    commentStr += &quot;,&quot;</span>
+                }
+<span class="nc" id="L57">                first = false</span>
+<span class="nc" id="L58">                claimStr += &quot;{\&quot;mainsnak\&quot;:&quot; +</span>
+                        &quot;{\&quot;snaktype\&quot;:\&quot;value\&quot;,\&quot;property\&quot;:\&quot;P180\&quot;,&quot; +
+                        &quot;\&quot;datavalue\&quot;:{\&quot;value\&quot;:&quot; +
+<span class="nc" id="L61">                        &quot;{\&quot;entity-type\&quot;:\&quot;item\&quot;,\&quot;id\&quot;:\&quot;${label.wikidataId}\&quot;},&quot; +</span>
+                        &quot;\&quot;type\&quot;:\&quot;wikibase-entityid\&quot;},\&quot;datatype\&quot;:\&quot;wikibase-item\&quot;},&quot; +
+                        &quot;\&quot;type\&quot;:\&quot;statement\&quot;,&quot; +
+<span class="nc" id="L64">                        &quot;\&quot;id\&quot;:\&quot;${mId}\$${UUID.randomUUID()}\&quot;,&quot; +</span>
+                        &quot;\&quot;rank\&quot;:\&quot;normal\&quot;}&quot;
+<span class="nc" id="L66">                commentStr += label.wikidataId + &quot;|&quot; + label.label.replace(&quot;|&quot;, &quot;&quot;).replace(&quot;,&quot;, &quot;&quot;)</span>
+            }
+<span class="nc" id="L68">            claimStr += &quot;]}&quot;</span>
+<span class="nc" id="L69">            commentStr += &quot; */&quot;</span>
+<span class="nc" id="L70">            val postResult = ServiceFactory.get(Constants.commonsWikiSite).postEditEntity(mId, csrfToken, claimStr, commentStr, tags = EditTags.APP_IMAGE_TAG_ADD)</span>
+<span class="nc" id="L71">            _actionState.value = Resource.Success(postResult.entity)</span>
+<span class="nc" id="L72">        }</span>
+<span class="nc" id="L73">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

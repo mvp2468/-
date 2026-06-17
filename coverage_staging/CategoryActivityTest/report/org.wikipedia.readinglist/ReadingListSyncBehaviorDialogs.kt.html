@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingListSyncBehaviorDialogs.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">ReadingListSyncBehaviorDialogs.kt</span></div><h1>ReadingListSyncBehaviorDialogs.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.app.Activity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.RecommendedReadingListEvent
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.databinding.DialogWithCheckboxBinding
+import org.wikipedia.events.ReadingListsEnableSyncStatusEvent
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.readinglist.sync.ReadingListSyncAdapter
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.SettingsActivity.Companion.newIntent
+import org.wikipedia.util.FeedbackUtil.showAndroidAppFAQ
+import org.wikipedia.util.StringUtil
+
+object ReadingListSyncBehaviorDialogs {
+    private var PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING = false
+
+    fun detectedRemoteTornDownDialog(activity: Activity) {
+<span class="nc" id="L22">        RecommendedReadingListEvent.submit(&quot;impression&quot;, &quot;sync_off_prompt&quot;)</span>
+<span class="nc" id="L23">        MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L24">                .setCancelable(false)</span>
+<span class="nc" id="L25">                .setTitle(R.string.reading_list_turned_sync_off_dialog_title)</span>
+<span class="nc" id="L26">                .setMessage(R.string.reading_list_turned_sync_off_dialog_text)</span>
+<span class="nc" id="L27">                .setPositiveButton(R.string.reading_list_turned_sync_off_dialog_ok) { _, _ -&gt;</span>
+<span class="nc" id="L28">                    RecommendedReadingListEvent.submit(&quot;ok_click&quot;, &quot;sync_off_prompt&quot;)</span>
+<span class="nc" id="L29">                }</span>
+<span class="nc" id="L30">                .setNegativeButton(R.string.reading_list_turned_sync_off_dialog_settings) { _, _ -&gt;</span>
+<span class="nc" id="L31">                    RecommendedReadingListEvent.submit(&quot;settings_click&quot;, &quot;sync_off_prompt&quot;)</span>
+<span class="nc" id="L32">                    activity.startActivity(newIntent(activity))</span>
+<span class="nc" id="L33">                }</span>
+<span class="nc" id="L34">                .show()</span>
+<span class="nc" id="L35">    }</span>
+
+    fun promptEnableSyncDialog(activity: Activity) {
+<span class="nc bnc" id="L38" title="All 4 branches missed.">        if (!Prefs.showReadingListSyncEnablePrompt || Prefs.isSuggestedEditsHighestPriorityEnabled) {</span>
+<span class="nc" id="L39">            return</span>
+        }
+<span class="nc" id="L41">        RecommendedReadingListEvent.submit(&quot;impression&quot;, &quot;sync_enable_prompt&quot;)</span>
+<span class="nc" id="L42">        val binding = DialogWithCheckboxBinding.inflate(activity.layoutInflater)</span>
+<span class="nc" id="L43">        binding.dialogMessage.text = StringUtil.fromHtml(activity.getString(R.string.reading_list_prompt_turned_sync_on_dialog_text))</span>
+<span class="nc" id="L44">        binding.dialogMessage.movementMethod = LinkMovementMethodExt { _ -&gt; showAndroidAppFAQ(activity) }</span>
+<span class="nc" id="L45">        binding.dialogCheckbox.setOnClickListener {</span>
+<span class="nc" id="L46">            RecommendedReadingListEvent.submit(&quot;noshow_click&quot;, &quot;sync_enable_prompt&quot;)</span>
+<span class="nc" id="L47">        }</span>
+<span class="nc" id="L48">        MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L49">                .setCancelable(false)</span>
+<span class="nc" id="L50">                .setTitle(R.string.reading_list_prompt_turned_sync_on_dialog_title)</span>
+<span class="nc" id="L51">                .setView(binding.root)</span>
+<span class="nc" id="L52">                .setPositiveButton(R.string.reading_list_prompt_turned_sync_on_dialog_enable_syncing) { _, _ -&gt;</span>
+<span class="nc" id="L53">                    RecommendedReadingListEvent.submit(&quot;sync_enable_click&quot;, &quot;sync_enable_prompt&quot;)</span>
+<span class="nc" id="L54">                    ReadingListSyncAdapter.setSyncEnabledWithSetup()</span>
+<span class="nc" id="L55">                }</span>
+<span class="nc" id="L56">                .setNegativeButton(R.string.reading_list_prompt_turned_sync_on_dialog_no_thanks) { _, _ -&gt;</span>
+<span class="nc" id="L57">                    RecommendedReadingListEvent.submit(&quot;nothanks_click&quot;, &quot;sync_enable_prompt&quot;)</span>
+<span class="nc" id="L58">                }</span>
+<span class="nc" id="L59">                .setOnDismissListener {</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                    Prefs.showReadingListSyncEnablePrompt = !binding.dialogCheckbox.isChecked</span>
+<span class="nc" id="L61">                    FlowEventBus.post(ReadingListsEnableSyncStatusEvent())</span>
+<span class="nc" id="L62">                }</span>
+<span class="nc" id="L63">                .show()</span>
+<span class="nc" id="L64">    }</span>
+
+    fun promptLogInToSyncDialog(activity: Activity) {
+<span class="nc bnc" id="L67" title="All 4 branches missed.">        if (!Prefs.showReadingListSyncEnablePrompt || PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING) {</span>
+<span class="nc" id="L68">            return</span>
+        }
+<span class="nc" id="L70">        RecommendedReadingListEvent.submit(&quot;impression&quot;, &quot;sync_prompt&quot;)</span>
+<span class="nc" id="L71">        val binding = DialogWithCheckboxBinding.inflate(activity.layoutInflater)</span>
+<span class="nc" id="L72">        binding.dialogMessage.text = StringUtil.fromHtml(activity.getString(R.string.reading_lists_login_reminder_text_with_link))</span>
+<span class="nc" id="L73">        binding.dialogMessage.movementMethod = LinkMovementMethodExt { _ -&gt; showAndroidAppFAQ(activity) }</span>
+<span class="nc" id="L74">        binding.dialogCheckbox.setOnClickListener {</span>
+<span class="nc" id="L75">            RecommendedReadingListEvent.submit(&quot;noshow_click&quot;, &quot;sync_prompt&quot;)</span>
+<span class="nc" id="L76">        }</span>
+<span class="nc" id="L77">        MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L78">                .setCancelable(false)</span>
+<span class="nc" id="L79">                .setTitle(R.string.reading_list_login_reminder_title)</span>
+<span class="nc" id="L80">                .setView(binding.root)</span>
+<span class="nc" id="L81">                .setPositiveButton(R.string.reading_list_preference_login_or_signup_to_enable_sync_dialog_login) { _, _ -&gt;</span>
+<span class="nc" id="L82">                    val loginIntent = LoginActivity.newIntent(activity, LoginActivity.SOURCE_READING_MANUAL_SYNC)</span>
+<span class="nc" id="L83">                    RecommendedReadingListEvent.submit(&quot;sync_login_click&quot;, &quot;sync_prompt&quot;)</span>
+<span class="nc" id="L84">                    activity.startActivity(loginIntent)</span>
+<span class="nc" id="L85">                }</span>
+<span class="nc" id="L86">                .setNegativeButton(R.string.reading_list_prompt_turned_sync_on_dialog_no_thanks) { _, _ -&gt;</span>
+<span class="nc" id="L87">                    RecommendedReadingListEvent.submit(&quot;nothanks_click&quot;, &quot;sync_prompt&quot;)</span>
+<span class="nc" id="L88">                }</span>
+<span class="nc" id="L89">                .setOnDismissListener {</span>
+<span class="nc" id="L90">                    PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING = false</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                    Prefs.showReadingListSyncEnablePrompt = !binding.dialogCheckbox.isChecked</span>
+<span class="nc" id="L92">                }</span>
+<span class="nc" id="L93">                .show()</span>
+<span class="nc" id="L94">        PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING = true</span>
+<span class="nc" id="L95">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

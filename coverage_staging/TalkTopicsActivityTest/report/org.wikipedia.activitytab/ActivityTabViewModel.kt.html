@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActivityTabViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab</a> &gt; <span class="el_source">ActivityTabViewModel.kt</span></div><h1>ActivityTabViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab
+
+import android.text.format.DateUtils
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.cachedIn
+import androidx.paging.insertSeparators
+import androidx.paging.map
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activitytab.timeline.HistoryEntryPagingSource
+import org.wikipedia.activitytab.timeline.ReadingListPagingSource
+import org.wikipedia.activitytab.timeline.TimelineItem
+import org.wikipedia.activitytab.timeline.TimelinePagingSource
+import org.wikipedia.activitytab.timeline.TimelineSource
+import org.wikipedia.activitytab.timeline.UserContribPagingSource
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.categories.db.Category
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.growthtasks.GrowthUserImpact
+import org.wikipedia.extensions.toLocalDate
+import org.wikipedia.games.onthisday.OnThisDayGameViewModel
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.UiState
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.Date
+import java.util.concurrent.TimeUnit
+import kotlin.math.abs
+
+<span class="nc" id="L51">class ActivityTabViewModel : ViewModel() {</span>
+<span class="nc" id="L52">    private val _readingHistoryState = MutableStateFlow&lt;UiState&lt;ReadingHistory&gt;&gt;(UiState.Loading)</span>
+<span class="nc" id="L53">    val readingHistoryState: StateFlow&lt;UiState&lt;ReadingHistory&gt;&gt; = _readingHistoryState.asStateFlow()</span>
+
+<span class="nc" id="L55">    private val _donationUiState = MutableStateFlow&lt;UiState&lt;String?&gt;&gt;(UiState.Loading)</span>
+<span class="nc" id="L56">    val donationUiState: StateFlow&lt;UiState&lt;String?&gt;&gt; = _donationUiState.asStateFlow()</span>
+
+<span class="nc" id="L58">    private val _wikiGamesUiState = MutableStateFlow&lt;UiState&lt;OnThisDayGameViewModel.GameStatistics?&gt;&gt;(UiState.Loading)</span>
+<span class="nc" id="L59">    val wikiGamesUiState: StateFlow&lt;UiState&lt;OnThisDayGameViewModel.GameStatistics?&gt;&gt; = _wikiGamesUiState.asStateFlow()</span>
+
+    private var currentTimelinePagingSource: TimelinePagingSource? = null
+
+    val wikiSiteForTimeline get(): WikiSite {
+<span class="nc" id="L64">        return when (val langCode = Prefs.userContribFilterLangCode) {</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            Constants.WIKI_CODE_COMMONS -&gt; WikiSite(Service.COMMONS_URL)</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            Constants.WIKI_CODE_WIKIDATA -&gt; WikiSite(Service.WIKIDATA_URL)</span>
+<span class="nc" id="L67">            else -&gt; WikiSite.forLanguageCode(langCode)</span>
+        }
+    }
+
+<span class="nc" id="L71">    val timelineFlow = Pager(</span>
+<span class="nc" id="L72">        config = PagingConfig(</span>
+<span class="nc" id="L73">            pageSize = 150,</span>
+<span class="nc" id="L74">            prefetchDistance = 20</span>
+        ),
+<span class="nc" id="L76">        pagingSourceFactory = { TimelinePagingSource(</span>
+<span class="nc" id="L77">            createTimelineSources()</span>
+<span class="nc" id="L78">        ).also {</span>
+<span class="nc" id="L79">            currentTimelinePagingSource = it</span>
+<span class="nc" id="L80">        } }</span>
+<span class="nc" id="L81">    ).flow.cachedIn(viewModelScope)</span>
+<span class="nc" id="L82">        .map { pagingData -&gt;</span>
+<span class="nc" id="L83">            pagingData.insertSeparators { before, after -&gt;</span>
+<span class="nc bnc" id="L84" title="All 4 branches missed.">                if (before == null &amp;&amp; after != null) TimelineDisplayItem.DateSeparator(after.timestamp)</span>
+<span class="nc bnc" id="L85" title="All 6 branches missed.">                else if (before != null &amp;&amp; after != null &amp;&amp; before.timestamp.toLocalDate() != after.timestamp.toLocalDate()) {</span>
+<span class="nc" id="L86">                    TimelineDisplayItem.DateSeparator(after.timestamp)</span>
+<span class="nc" id="L87">                } else null</span>
+<span class="nc" id="L88">            }.map { item -&gt;</span>
+<span class="nc" id="L89">                when (item) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                    is TimelineItem -&gt; TimelineDisplayItem.TimelineEntry(item)</span>
+<span class="nc" id="L91">                    else -&gt; item as TimelineDisplayItem</span>
+<span class="nc" id="L92">                }</span>
+<span class="nc" id="L93">            }</span>
+        }
+
+<span class="nc" id="L96">    private val _impactUiState = MutableStateFlow&lt;UiState&lt;Pair&lt;GrowthUserImpact, Int&gt;&gt;&gt;(UiState.Loading)</span>
+<span class="nc" id="L97">    val impactUiState: StateFlow&lt;UiState&lt;Pair&lt;GrowthUserImpact, Int&gt;&gt;&gt; = _impactUiState.asStateFlow()</span>
+
+<span class="nc" id="L99">    private val _scrollToGames = MutableStateFlow(false)</span>
+<span class="nc" id="L100">    val scrollToGames = _scrollToGames.asStateFlow()</span>
+
+<span class="nc" id="L102">    var shouldRefreshTimelineSilently: Boolean = false</span>
+
+<span class="nc" id="L104">    val allDataLoaded = combine(</span>
+<span class="nc" id="L105">        readingHistoryState,</span>
+<span class="nc" id="L106">        donationUiState,</span>
+<span class="nc" id="L107">        wikiGamesUiState,</span>
+<span class="nc" id="L108">        impactUiState</span>
+    ) { reading, donation, games, impact -&gt;
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        reading !is UiState.Loading &amp;&amp;</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                donation !is UiState.Loading &amp;&amp;</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                games !is UiState.Loading &amp;&amp;</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">                impact !is UiState.Loading</span>
+<span class="nc" id="L114">    }.stateIn(viewModelScope, SharingStarted.Lazily, false)</span>
+
+    fun loadAll() {
+<span class="nc" id="L117">        loadReadingHistory()</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (!AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L119">            return</span>
+        }
+<span class="nc" id="L121">        loadDonationResults()</span>
+<span class="nc" id="L122">        loadWikiGamesStats()</span>
+<span class="nc" id="L123">        loadImpact()</span>
+<span class="nc" id="L124">        refreshTimeline()</span>
+<span class="nc" id="L125">    }</span>
+
+    private fun refreshTimeline() {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        currentTimelinePagingSource?.invalidate()</span>
+<span class="nc" id="L129">    }</span>
+
+    fun loadReadingHistory() {
+<span class="nc" id="L132">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L133">            _readingHistoryState.value = UiState.Error(throwable)</span>
+<span class="nc" id="L134">        }) {</span>
+<span class="nc" id="L135">            _readingHistoryState.value = UiState.Loading</span>
+<span class="nc" id="L136">            delay(500)</span>
+<span class="nc" id="L137">            val now = LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()</span>
+<span class="nc" id="L138">            val weekInMillis = TimeUnit.DAYS.toMillis(7)</span>
+<span class="nc" id="L139">            var weekAgo = now - weekInMillis</span>
+<span class="nc" id="L140">            val totalTimeSpent = AppDatabase.instance.historyEntryWithImageDao().getTimeSpentBetween(weekAgo)</span>
+
+<span class="nc" id="L142">            val thirtyDaysAgo = now - TimeUnit.DAYS.toMillis(30)</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            val articlesReadThisMonth = AppDatabase.instance.historyEntryDao().getDistinctEntriesCountSince(thirtyDaysAgo) ?: 0</span>
+<span class="nc" id="L144">            val articlesReadByWeek = mutableListOf&lt;Int&gt;()</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">            articlesReadByWeek.add(AppDatabase.instance.historyEntryDao().getDistinctEntriesCountSince(weekAgo) ?: 0)</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">            for (i in 1..3) {</span>
+<span class="nc" id="L147">                weekAgo -= weekInMillis</span>
+<span class="nc" id="L148">                val articlesRead = AppDatabase.instance.historyEntryDao().getDistinctEntriesCountBetween(weekAgo, weekAgo + weekInMillis)</span>
+<span class="nc" id="L149">                articlesReadByWeek.add(articlesRead)</span>
+            }
+<span class="nc bnc" id="L151" title="All 8 branches missed.">            val mostRecentReadTime = AppDatabase.instance.historyEntryDao().getMostRecentEntry()?.timestamp?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()</span>
+
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            val articlesSavedThisMonth = AppDatabase.instance.readingListPageDao().getTotalSavedPagesBetween(thirtyDaysAgo) ?: 0</span>
+<span class="nc" id="L154">            val articlesSaved = AppDatabase.instance.readingListPageDao().getSavedPagesSince(thirtyDaysAgo, 4)</span>
+<span class="nc" id="L155">                .map { ReadingListPage.toPageTitle(it) }</span>
+<span class="nc bnc" id="L156" title="All 6 branches missed.">            val mostRecentSaveTime = AppDatabase.instance.readingListPageDao().getMostRecentSavedPage()?.atime?.let { Instant.ofEpochMilli(it) }?.atZone(ZoneId.systemDefault())?.toLocalDateTime()</span>
+
+<span class="nc" id="L158">            val currentDate = LocalDate.now()</span>
+<span class="nc" id="L159">            val topCategories = AppDatabase.instance.categoryDao().getTopCategoriesByMonth(currentDate.year, currentDate.monthValue)</span>
+
+<span class="nc" id="L161">            _readingHistoryState.value = UiState.Success(ReadingHistory(</span>
+<span class="nc" id="L162">                timeSpentThisWeek = totalTimeSpent,</span>
+<span class="nc" id="L163">                articlesReadThisMonth = articlesReadThisMonth,</span>
+<span class="nc" id="L164">                lastArticleReadTime = mostRecentReadTime,</span>
+<span class="nc" id="L165">                articlesReadByWeek = articlesReadByWeek,</span>
+<span class="nc" id="L166">                articlesSavedThisMonth = articlesSavedThisMonth,</span>
+<span class="nc" id="L167">                lastArticleSavedTime = mostRecentSaveTime,</span>
+<span class="nc" id="L168">                articlesSaved = articlesSaved,</span>
+<span class="nc" id="L169">                topCategories.take(3))</span>
+            )
+<span class="nc" id="L171">        }</span>
+<span class="nc" id="L172">    }</span>
+
+    fun loadDonationResults() {
+<span class="nc bnc" id="L175" title="All 4 branches missed.">        val lastDonationTime = Prefs.donationResults.lastOrNull()?.dateTime?.let {</span>
+<span class="nc" id="L176">            val timestampInLong = LocalDateTime.parse(it).atZone(ZoneId.systemDefault()).toInstant().epochSecond</span>
+<span class="nc" id="L177">            val relativeTime = DateUtils.getRelativeTimeSpanString(</span>
+<span class="nc" id="L178">                timestampInLong * 1000, // Convert seconds to milliseconds</span>
+<span class="nc" id="L179">                System.currentTimeMillis(),</span>
+<span class="nc" id="L180">                0L</span>
+            )
+<span class="nc" id="L182">            return@let relativeTime.toString()</span>
+        }
+<span class="nc" id="L184">        _donationUiState.value = UiState.Success(lastDonationTime)</span>
+<span class="nc" id="L185">    }</span>
+
+    fun loadWikiGamesStats() {
+<span class="nc" id="L188">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L189">            _wikiGamesUiState.value = UiState.Error(throwable)</span>
+<span class="nc" id="L190">        }) {</span>
+<span class="nc" id="L191">            _wikiGamesUiState.value = UiState.Loading</span>
+<span class="nc" id="L192">            delay(500)</span>
+<span class="nc" id="L193">            val lastGameHistory = AppDatabase.instance.dailyGameHistoryDao().findLastGameHistory()</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (lastGameHistory == null) {</span>
+<span class="nc" id="L195">                _wikiGamesUiState.value = UiState.Success(null)</span>
+<span class="nc" id="L196">                return@launch</span>
+            }
+
+<span class="nc" id="L199">            val gamesStats =</span>
+<span class="nc" id="L200">                OnThisDayGameViewModel.getGameStatistics(WikipediaApp.instance.wikiSite.languageCode)</span>
+<span class="nc" id="L201">            _wikiGamesUiState.value = UiState.Success(gamesStats)</span>
+<span class="nc" id="L202">        }</span>
+<span class="nc" id="L203">    }</span>
+
+    fun loadImpact() {
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (!AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L207">            return</span>
+        }
+<span class="nc" id="L209">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L210">            _impactUiState.value = UiState.Error(throwable)</span>
+<span class="nc" id="L211">        }) {</span>
+<span class="nc" id="L212">            _impactUiState.value = UiState.Loading</span>
+            // The impact API is rate limited, so we cache it manually.
+<span class="nc" id="L214">            val wikiSite = WikipediaApp.instance.wikiSite</span>
+<span class="nc" id="L215">            val now = Instant.now().epochSecond</span>
+<span class="nc" id="L216">            val impact: GrowthUserImpact</span>
+<span class="nc" id="L217">            val impactLastResponseBodyMap = Prefs.impactLastResponseBody.toMutableMap()</span>
+<span class="nc" id="L218">            val impactResponse = impactLastResponseBodyMap[wikiSite.languageCode]</span>
+<span class="nc bnc" id="L219" title="All 8 branches missed.">            if (impactResponse.isNullOrEmpty() || abs(now - Prefs.impactLastQueryTime) &gt; TimeUnit.HOURS.toSeconds(12)) {</span>
+<span class="nc bnc" id="L220" title="All 4 branches missed.">                val userId = ServiceFactory.get(wikiSite).getUserInfo().query?.userInfo?.id!!</span>
+<span class="nc" id="L221">                impact = ServiceFactory.getCoreRest(wikiSite).getUserImpact(userId)</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                impactLastResponseBodyMap[wikiSite.languageCode] = JsonUtil.encodeToString(impact).orEmpty()</span>
+<span class="nc" id="L223">                Prefs.impactLastResponseBody = impactLastResponseBodyMap</span>
+<span class="nc" id="L224">                Prefs.impactLastQueryTime = now</span>
+            } else {
+<span class="nc" id="L226">                impact = JsonUtil.decodeFromString(impactResponse)!!</span>
+            }
+
+<span class="nc" id="L229">            val pagesResponse = ServiceFactory.get(wikiSite).getInfoByTitlesWithGlobalUserInfo(</span>
+<span class="nc" id="L230">                titles = impact.topViewedArticles.keys.joinToString(separator = &quot;|&quot;)</span>
+            )
+            // Transform the response to a map of PageTitle to ArticleViews
+<span class="nc bnc" id="L233" title="All 4 branches missed.">            val pageMap = pagesResponse.query?.pages?.associate { page -&gt;</span>
+<span class="nc" id="L234">                val pageTitle = PageTitle(</span>
+<span class="nc" id="L235">                    text = page.title,</span>
+<span class="nc" id="L236">                    wiki = wikiSite,</span>
+<span class="nc" id="L237">                    thumbUrl = page.thumbUrl(),</span>
+<span class="nc" id="L238">                    description = page.description,</span>
+<span class="nc" id="L239">                    displayText = page.displayTitle(wikiSite.languageCode)</span>
+                )
+<span class="nc" id="L241">                pageTitle to impact.topViewedArticles[pageTitle.text]!!</span>
+<span class="nc" id="L242">            } ?: emptyMap()</span>
+
+<span class="nc" id="L244">            impact.topViewedArticlesWithPageTitle = pageMap</span>
+
+<span class="nc bnc" id="L246" title="All 4 branches missed.">            _impactUiState.value = UiState.Success(Pair(impact, (pagesResponse.query?.globalUserInfo?.editCount ?: 0)))</span>
+<span class="nc" id="L247">        }</span>
+<span class="nc" id="L248">    }</span>
+
+    fun createPageTitleForCategory(category: Category): PageTitle {
+<span class="nc" id="L251">        return PageTitle(title = category.title, wiki = WikiSite.forLanguageCode(category.lang))</span>
+    }
+
+    private fun createTimelineSources(): List&lt;TimelineSource&gt; {
+<span class="nc" id="L255">        val historyEntryPagingSource = HistoryEntryPagingSource(AppDatabase.instance.historyEntryWithImageDao())</span>
+<span class="nc" id="L256">        val userContribPagingSource = UserContribPagingSource(wikiSiteForTimeline, AccountUtil.userName, AppDatabase.instance.historyEntryWithImageDao())</span>
+<span class="nc" id="L257">        val readingListPagingSource = ReadingListPagingSource(AppDatabase.instance.readingListPageDao())</span>
+<span class="nc" id="L258">        return listOf(historyEntryPagingSource, readingListPagingSource, userContribPagingSource)</span>
+    }
+
+    fun getTotalEditsCount(): Int {
+<span class="nc" id="L262">        return when (val currentState = _impactUiState.value) {</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">            is UiState.Success -&gt; currentState.data.first.totalEditsCount</span>
+<span class="nc" id="L264">            else -&gt; 0</span>
+        }
+    }
+
+    fun hasNoDonationData(): Boolean {
+<span class="nc" id="L269">        return when (val currentState = _donationUiState.value) {</span>
+<span class="nc bnc" id="L270" title="All 4 branches missed.">            is UiState.Success -&gt; currentState.data == null</span>
+<span class="nc" id="L271">            else -&gt; true</span>
+        }
+    }
+
+    fun hasNoReadingHistoryData(): Boolean {
+<span class="nc" id="L276">        return when (val currentState = _readingHistoryState.value) {</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">            is UiState.Success -&gt; {</span>
+<span class="nc" id="L278">                val data = currentState.data</span>
+<span class="nc bnc" id="L279" title="All 8 branches missed.">                data.timeSpentThisWeek &lt;= 0 &amp;&amp; data.articlesReadThisMonth &lt;= 0 &amp;&amp; data.articlesSavedThisMonth &lt;= 0 &amp;&amp; data.topCategories.isEmpty()</span>
+            }
+<span class="nc" id="L281">            else -&gt; true</span>
+        }
+    }
+
+    fun hasNoImpactData(): Boolean {
+<span class="nc" id="L286">        return when (val currentState = _impactUiState.value) {</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            is UiState.Success -&gt; {</span>
+<span class="nc" id="L288">                val data = currentState.data.first</span>
+<span class="nc bnc" id="L289" title="All 6 branches missed.">                data.totalEditsCount &lt;= 0 &amp;&amp; data.receivedThanksCount &lt;= 0 &amp;&amp; data.totalPageviewsCount &lt;= 0</span>
+            }
+<span class="nc" id="L291">            else -&gt; true</span>
+        }
+    }
+
+    fun hasNoGameStats(): Boolean {
+<span class="nc" id="L296">        return when (val currentState = _wikiGamesUiState.value) {</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">            is UiState.Success -&gt; {</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">                val data = currentState.data ?: return true</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">                data.totalGamesPlayed &lt;= 0</span>
+            }
+<span class="nc" id="L301">            else -&gt; true</span>
+        }
+    }
+
+    fun onScrollToGames() {
+<span class="nc" id="L306">        _scrollToGames.value = true</span>
+<span class="nc" id="L307">    }</span>
+
+    fun onScrollToGamesConsumed() {
+<span class="nc" id="L310">        _scrollToGames.value = false</span>
+<span class="nc" id="L311">    }</span>
+
+<span class="nc" id="L313">    class ReadingHistory(</span>
+<span class="nc" id="L314">        val timeSpentThisWeek: Long,</span>
+<span class="nc" id="L315">        val articlesReadThisMonth: Int,</span>
+<span class="nc" id="L316">        val lastArticleReadTime: LocalDateTime?,</span>
+<span class="nc" id="L317">        val articlesReadByWeek: List&lt;Int&gt;,</span>
+<span class="nc" id="L318">        val articlesSavedThisMonth: Int,</span>
+<span class="nc" id="L319">        val lastArticleSavedTime: LocalDateTime?,</span>
+<span class="nc" id="L320">        val articlesSaved: List&lt;PageTitle&gt;,</span>
+<span class="nc" id="L321">        val topCategories: List&lt;Category&gt;</span>
+    )
+
+    companion object {
+        const val CAMPAIGN_ID = &quot;appmenu_activity&quot;
+    }
+}
+
+sealed class TimelineDisplayItem {
+<span class="nc" id="L330">    data class DateSeparator(val date: Date) : TimelineDisplayItem()</span>
+<span class="nc" id="L331">    data class TimelineEntry(val item: TimelineItem) : TimelineDisplayItem()</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MoveToReadingListDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">MoveToReadingListDialog.kt</span></div><h1>MoveToReadingListDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.content.DialogInterface
+import android.os.Bundle
+import android.os.Parcelable
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.os.bundleOf
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L24">class MoveToReadingListDialog : AddToReadingListDialog() {</span>
+    private var sourceReadingList: ReadingList? = null
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+                              savedInstanceState: Bundle?): View {
+<span class="nc" id="L28">        val parentView = super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L29">        parentView.findViewById&lt;TextView&gt;(R.id.dialog_title).setText(R.string.reading_list_move_to)</span>
+<span class="nc" id="L30">        val sourceReadingListId = requireArguments().getLong(SOURCE_READING_LIST_ID)</span>
+
+<span class="nc" id="L32">        lifecycleScope.launch(CoroutineExceptionHandler { _, exception -&gt;</span>
+<span class="nc" id="L33">            L.w(exception)</span>
+<span class="nc" id="L34">        }) {</span>
+<span class="nc" id="L35">            sourceReadingList = AppDatabase.instance.readingListDao().getListById(sourceReadingListId, false)</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">            if (sourceReadingList == null) {</span>
+<span class="nc" id="L37">                dismiss()</span>
+            }
+<span class="nc" id="L39">        }</span>
+
+<span class="nc" id="L41">        return parentView</span>
+    }
+
+    override fun commitChanges(readingList: ReadingList, titles: List&lt;PageTitle&gt;) {
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        sourceReadingList?.let {</span>
+<span class="nc" id="L46">            lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L47">                L.e(throwable)</span>
+<span class="nc" id="L48">            }) {</span>
+<span class="nc" id="L49">                val movedTitlesList = withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L50">                    AppDatabase.instance.readingListPageDao().movePagesToListAndDeleteSourcePages(it, readingList, titles)</span>
+                }
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                showViewListSnackBar(readingList, if (movedTitlesList.size == 1) getString(R.string.reading_list_article_moved_to_named, movedTitlesList[0], readingList.title) else getString(R.string.reading_list_articles_moved_to_named, movedTitlesList.size, readingList.title))</span>
+<span class="nc" id="L53">                dismiss()</span>
+<span class="nc" id="L54">            }</span>
+        }
+<span class="nc" id="L56">    }</span>
+
+    companion object {
+        private const val SOURCE_READING_LIST_ID = &quot;sourceReadingListId&quot;
+
+        fun newInstance(sourceReadingListId: Long,
+                        title: PageTitle,
+                        source: InvokeSource): MoveToReadingListDialog {
+<span class="nc" id="L64">            return newInstance(sourceReadingListId, listOf(title), source, true, null)</span>
+        }
+
+<span class="nc" id="L67">        fun newInstance(sourceReadingListId: Long,</span>
+                        title: PageTitle,
+                        source: InvokeSource,
+<span class="nc" id="L70">                        showDefaultList: Boolean = true,</span>
+<span class="nc" id="L71">                        listener: DialogInterface.OnDismissListener? = null): MoveToReadingListDialog {</span>
+<span class="nc" id="L72">            return newInstance(sourceReadingListId, listOf(title), source, showDefaultList, listener)</span>
+        }
+
+<span class="nc" id="L75">        fun newInstance(sourceReadingListId: Long,</span>
+                        titles: List&lt;PageTitle&gt;,
+                        source: InvokeSource,
+<span class="nc" id="L78">                        showDefaultList: Boolean = true,</span>
+<span class="nc" id="L79">                        listener: DialogInterface.OnDismissListener? = null): MoveToReadingListDialog {</span>
+<span class="nc" id="L80">            return MoveToReadingListDialog().apply {</span>
+<span class="nc" id="L81">                arguments = bundleOf(PAGE_TITLE_LIST to ArrayList&lt;Parcelable&gt;(titles),</span>
+<span class="nc" id="L82">                        Constants.INTENT_EXTRA_INVOKE_SOURCE to source,</span>
+<span class="nc" id="L83">                        SOURCE_READING_LIST_ID to sourceReadingListId,</span>
+<span class="nc" id="L84">                        SHOW_DEFAULT_LIST to showDefaultList)</span>
+<span class="nc" id="L85">                dismissListener = listener</span>
+<span class="nc" id="L86">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

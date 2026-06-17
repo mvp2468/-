@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayGameBaseFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.onthisday</a> &gt; <span class="el_source">OnThisDayGameBaseFragment.kt</span></div><h1>OnThisDayGameBaseFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.onthisday
+
+import androidx.fragment.app.Fragment
+import java.time.LocalDate
+
+<span class="nc" id="L6">abstract class OnThisDayGameBaseFragment : Fragment() {</span>
+    private var onThisDayGameArchiveCalendarHelper: OnThisDayGameArchiveCalendarHelper? = null
+
+    protected fun prepareAndOpenArchiveCalendar(languageCode: String) {
+<span class="nc bnc" id="L10" title="All 2 branches missed.">        onThisDayGameArchiveCalendarHelper?.unRegister()</span>
+<span class="nc" id="L11">        onThisDayGameArchiveCalendarHelper = OnThisDayGameArchiveCalendarHelper(</span>
+<span class="nc" id="L12">            fragment = this,</span>
+<span class="nc" id="L13">            languageCode = languageCode,</span>
+<span class="nc" id="L14">            onDateSelected = { date -&gt; onArchiveDateSelected(date) }</span>
+<span class="nc" id="L15">        ).also {</span>
+<span class="nc" id="L16">            it.register()</span>
+<span class="nc" id="L17">            it.show()</span>
+<span class="nc" id="L18">        }</span>
+<span class="nc" id="L19">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc bnc" id="L22" title="All 2 branches missed.">        onThisDayGameArchiveCalendarHelper?.unRegister()</span>
+<span class="nc" id="L23">        onThisDayGameArchiveCalendarHelper = null</span>
+<span class="nc" id="L24">        super.onDestroyView()</span>
+<span class="nc" id="L25">    }</span>
+
+    abstract fun onArchiveDateSelected(date: LocalDate)
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

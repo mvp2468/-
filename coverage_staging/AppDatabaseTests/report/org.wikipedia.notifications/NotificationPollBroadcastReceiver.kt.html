@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NotificationPollBroadcastReceiver.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.notifications</a> &gt; <span class="el_source">NotificationPollBroadcastReceiver.kt</span></div><h1>NotificationPollBroadcastReceiver.kt</h1><pre class="source lang-java linenums">package org.wikipedia.notifications
+
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.SystemClock
+import androidx.annotation.StringRes
+import androidx.core.app.PendingIntentCompat
+import androidx.core.app.RemoteInput
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.csrf.CsrfTokenClient
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.events.UnreadNotificationsEvent
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.games.onthisday.OnThisDayGameNotificationManager
+import org.wikipedia.main.MainActivity
+import org.wikipedia.notifications.db.Notification
+import org.wikipedia.page.PageTitle
+import org.wikipedia.push.WikipediaFirebaseMessagingService
+import org.wikipedia.readinglist.recommended.RecommendedReadingListNotificationManager
+import org.wikipedia.readinglist.recommended.RecommendedReadingListUpdateFrequency
+import org.wikipedia.settings.Prefs
+import org.wikipedia.talk.NotificationDirectReplyHelper
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.ReleaseUtil
+import org.wikipedia.util.log.L
+import java.util.concurrent.TimeUnit
+
+<span class="nc" id="L42">class NotificationPollBroadcastReceiver : BroadcastReceiver() {</span>
+
+    override fun onReceive(context: Context, intent: Intent) {
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        if (!DeviceUtil.assertAppContext(context, true)) {</span>
+<span class="nc" id="L46">            return</span>
+        }
+
+<span class="nc" id="L49">        when {</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            Intent.ACTION_BOOT_COMPLETED == intent.action -&gt; {</span>
+                // To test the BOOT_COMPLETED intent:
+                // `adb shell am broadcast -a android.intent.action.BOOT_COMPLETED`
+
+                // Update our channel name, if needed.
+<span class="nc" id="L55">                L.d(&quot;channel=&quot; + ReleaseUtil.getChannel(context))</span>
+<span class="nc" id="L56">                startPollTask(context)</span>
+            }
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            ACTION_POLL == intent.action -&gt; {</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                if (!AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L60">                    return</span>
+                }
+<span class="nc" id="L62">                maybeShowLocalNotificationForEditorReactivation(context)</span>
+
+                // If push notifications are active, then don't actually do any polling.
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                if (WikipediaFirebaseMessagingService.isUsingPush()) {</span>
+<span class="nc" id="L66">                    return</span>
+                }
+<span class="nc" id="L68">                PollNotificationWorker.schedulePollNotificationJob(context)</span>
+            }
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            ACTION_DIRECT_REPLY == intent.action -&gt; {</span>
+<span class="nc" id="L71">                val remoteInput = RemoteInput.getResultsFromIntent(intent)</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                val text = remoteInput?.getCharSequence(RESULT_KEY_DIRECT_REPLY)</span>
+
+<span class="nc" id="L74">                val wiki = intent.parcelableExtra&lt;WikiSite&gt;(Constants.ARG_WIKISITE)</span>
+<span class="nc" id="L75">                val title = intent.parcelableExtra&lt;PageTitle&gt;(Constants.ARG_TITLE)</span>
+<span class="nc bnc" id="L76" title="All 10 branches missed.">                if (wiki != null &amp;&amp; title != null &amp;&amp; !text.isNullOrEmpty()) {</span>
+<span class="nc" id="L77">                    NotificationDirectReplyHelper.handleReply(context, wiki, title, text.toString(),</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">                        intent.getStringExtra(RESULT_EXTRA_REPLY_TO).orEmpty(),</span>
+<span class="nc" id="L79">                        intent.getIntExtra(RESULT_EXTRA_ID, 0))</span>
+                }
+            }
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            ACTION_DAILY_GAME == intent.action -&gt; {</span>
+<span class="nc" id="L83">                OnThisDayGameNotificationManager.showNotification(context)</span>
+            }
+
+<span class="nc bnc" id="L86" title="All 2 branches missed.">            ACTION_RECOMMENDED_READING_LIST == intent.action -&gt; {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                if (Prefs.recommendedReadingListUpdateFrequency == RecommendedReadingListUpdateFrequency.MONTHLY) {</span>
+<span class="nc" id="L88">                    RecommendedReadingListNotificationManager.scheduleRecommendedReadingListNotification(context)</span>
+                }
+<span class="nc" id="L90">                RecommendedReadingListNotificationManager.showNotification(context, Prefs.recommendedReadingListUpdateFrequency)</span>
+            }
+        }
+<span class="nc" id="L93">    }</span>
+
+    companion object {
+        const val ACTION_POLL = &quot;action_notification_poll&quot;
+        const val ACTION_CANCEL = &quot;action_notification_cancel&quot;
+        const val ACTION_DIRECT_REPLY = &quot;action_direct_reply&quot;
+        const val ACTION_DAILY_GAME = &quot;action_daily_game&quot;
+        const val ACTION_RECOMMENDED_READING_LIST = &quot;action_recommended_reading_list&quot;
+        const val RESULT_KEY_DIRECT_REPLY = &quot;key_direct_reply&quot;
+        const val RESULT_EXTRA_REPLY_TO = &quot;extra_reply_to&quot;
+        const val RESULT_EXTRA_ID = &quot;extra_id&quot;
+        const val TYPE_MULTIPLE = &quot;multiple&quot;
+
+        private const val FIRST_EDITOR_REACTIVATION_NOTIFICATION_SHOW_ON_DAY = 3
+        private const val SECOND_EDITOR_REACTIVATION_NOTIFICATION_SHOW_ON_DAY = 7
+
+        fun startPollTask(context: Context) {
+<span class="fc" id="L110">            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager</span>
+<span class="fc" id="L111">            try {</span>
+<span class="fc" id="L112">                alarmManager.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP,</span>
+<span class="fc" id="L113">                        SystemClock.elapsedRealtime(),</span>
+<span class="fc" id="L114">                        TimeUnit.MINUTES.toMillis((context.resources.getInteger(R.integer.notification_poll_interval_minutes) /</span>
+<span class="pc bpc" id="L115" title="3 of 4 branches missed.">                                if (Prefs.isSuggestedEditsReactivationTestEnabled &amp;&amp; !ReleaseUtil.isDevRelease) 10 else 1).toLong()),</span>
+<span class="fc" id="L116">                        getAlarmPendingIntent(context))</span>
+<span class="nc" id="L117">            } catch (e: Exception) {</span>
+                // There seems to be a Samsung-specific issue where it doesn't update the existing
+                // alarm correctly and adds it as a new one, and eventually hits the limit of 500
+                // concurrent alarms, causing a crash.
+<span class="nc" id="L121">                L.e(e)</span>
+            }
+<span class="fc" id="L123">        }</span>
+
+        fun stopPollTask(context: Context) {
+<span class="nc" id="L126">            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager</span>
+<span class="nc" id="L127">            alarmManager.cancel(getAlarmPendingIntent(context))</span>
+<span class="nc" id="L128">        }</span>
+
+        private fun getAlarmPendingIntent(context: Context): PendingIntent {
+<span class="fc" id="L131">            val intent = Intent(context, NotificationPollBroadcastReceiver::class.java)</span>
+<span class="fc" id="L132">            intent.action = ACTION_POLL</span>
+<span class="fc" id="L133">            return PendingIntentCompat.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT, false)!!</span>
+        }
+
+        fun getCancelNotificationPendingIntent(context: Context, id: Long, type: String?): PendingIntent? {
+<span class="nc" id="L137">            val intent = Intent(context, NotificationPollBroadcastReceiver::class.java)</span>
+<span class="nc" id="L138">                    .setAction(ACTION_CANCEL)</span>
+<span class="nc" id="L139">                    .putExtra(Constants.INTENT_EXTRA_NOTIFICATION_ID, id)</span>
+<span class="nc" id="L140">                    .putExtra(Constants.INTENT_EXTRA_NOTIFICATION_TYPE, type)</span>
+<span class="nc" id="L141">            return PendingIntentCompat.getBroadcast(context, id.toInt(), intent, 0, false)</span>
+        }
+
+        fun onNotificationsComplete(context: Context,
+                                     notifications: List&lt;Notification&gt;,
+                                     dbWikiSiteMap: Map&lt;String, WikiSite&gt;,
+                                     dbWikiNameMap: Map&lt;String, String&gt;) {
+<span class="nc bnc" id="L148" title="All 2 branches missed.">            if (Prefs.isSuggestedEditsHighestPriorityEnabled) {</span>
+<span class="nc" id="L149">                return</span>
+            }
+
+<span class="nc" id="L152">            MainScope().launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L153">                L.w(throwable)</span>
+<span class="nc" id="L154">            }) {</span>
+                // The notifications that we need to display are those that don't exist in our db yet.
+<span class="nc" id="L156">                val notificationsToDisplay = notifications.filter {</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                    AppDatabase.instance.notificationDao().getNotificationById(it.wiki, it.id) == null</span>
+                }
+<span class="nc" id="L159">                AppDatabase.instance.notificationDao().insertNotifications(notificationsToDisplay)</span>
+
+<span class="nc bnc" id="L161" title="All 4 branches missed.">                if (notificationsToDisplay.isNotEmpty()) {</span>
+<span class="nc" id="L162">                    Prefs.notificationUnreadCount = notificationsToDisplay.size</span>
+<span class="nc" id="L163">                    FlowEventBus.post(UnreadNotificationsEvent())</span>
+                }
+
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                if (notificationsToDisplay.size &gt; 2) {</span>
+                    // Record that there is an incoming notification to track/compare further actions on it.
+<span class="nc" id="L168">                    NotificationPresenter.showMultipleUnread(context, notificationsToDisplay.size)</span>
+                } else {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                    for (n in notificationsToDisplay) {</span>
+                        // Record that there is an incoming notification to track/compare further actions on it.
+<span class="nc" id="L172">                        NotificationPresenter.showNotification(context, n,</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                            dbWikiNameMap.getOrElse(n.wiki) { n.wiki },</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                            (dbWikiSiteMap.getOrElse(n.wiki) { WikipediaApp.instance.wikiSite }).languageCode)</span>
+                    }
+                }
+<span class="nc" id="L177">            }</span>
+<span class="nc" id="L178">        }</span>
+
+        suspend fun markRead(wiki: WikiSite, notifications: List&lt;Notification&gt;, unread: Boolean) {
+<span class="nc" id="L181">            withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L182">                val token = CsrfTokenClient.getToken(wiki)</span>
+<span class="nc" id="L183">                notifications.windowed(50, partialWindows = true).forEach { window -&gt;</span>
+<span class="nc" id="L184">                    val idListStr = window.joinToString(&quot;|&quot;)</span>
+<span class="nc bnc" id="L185" title="All 4 branches missed.">                    ServiceFactory.get(wiki).markRead(token, if (unread) null else idListStr, if (unread) idListStr else null)</span>
+<span class="nc" id="L186">                }</span>
+<span class="nc" id="L187">            }</span>
+<span class="nc" id="L188">        }</span>
+
+        private fun maybeShowLocalNotificationForEditorReactivation(context: Context) {
+<span class="nc bnc" id="L191" title="All 4 branches missed.">            if (Prefs.lastDescriptionEditTime == 0L || WikipediaApp.instance.currentResumedActivity != null) {</span>
+<span class="nc" id="L192">                return</span>
+            }
+<span class="nc" id="L194">            var days = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - Prefs.lastDescriptionEditTime)</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            if (Prefs.isSuggestedEditsReactivationTestEnabled) {</span>
+<span class="nc" id="L196">                days = TimeUnit.MILLISECONDS.toMinutes(System.currentTimeMillis() - Prefs.lastDescriptionEditTime)</span>
+            }
+<span class="nc bnc" id="L198" title="All 8 branches missed.">            if (days in FIRST_EDITOR_REACTIVATION_NOTIFICATION_SHOW_ON_DAY until SECOND_EDITOR_REACTIVATION_NOTIFICATION_SHOW_ON_DAY &amp;&amp; !Prefs.isSuggestedEditsReactivationPassStageOne) {</span>
+<span class="nc" id="L199">                Prefs.isSuggestedEditsReactivationPassStageOne = true</span>
+<span class="nc" id="L200">                showSuggestedEditsLocalNotification(context, R.string.suggested_edits_reactivation_notification_stage_one)</span>
+<span class="nc bnc" id="L201" title="All 4 branches missed.">            } else if (days &gt;= SECOND_EDITOR_REACTIVATION_NOTIFICATION_SHOW_ON_DAY &amp;&amp; Prefs.isSuggestedEditsReactivationPassStageOne) {</span>
+<span class="nc" id="L202">                Prefs.isSuggestedEditsReactivationPassStageOne = false</span>
+<span class="nc" id="L203">                showSuggestedEditsLocalNotification(context, R.string.suggested_edits_reactivation_notification_stage_two)</span>
+            }
+<span class="nc" id="L205">        }</span>
+
+        fun showSuggestedEditsLocalNotification(context: Context, @StringRes description: Int) {
+<span class="nc" id="L208">            val intent = NotificationPresenter.addIntentExtras(MainActivity.newIntent(context).putExtra(Constants.INTENT_EXTRA_GO_TO_SE_TAB, true), 0)</span>
+<span class="nc" id="L209">            NotificationPresenter.showNotification(context, NotificationPresenter.getDefaultBuilder(context, 0), 0,</span>
+<span class="nc" id="L210">                    context.getString(R.string.suggested_edits_reactivation_notification_title),</span>
+<span class="nc" id="L211">                    context.getString(description), context.getString(description), null,</span>
+<span class="nc" id="L212">                    R.drawable.ic_mode_edit_white_24dp, R.color.blue600, intent)</span>
+<span class="nc" id="L213">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

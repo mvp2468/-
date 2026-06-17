@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiffResponse.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.restbase</a> &gt; <span class="el_source">DiffResponse.kt</span></div><h1>DiffResponse.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.restbase
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+<span class="nc" id="L6">@Serializable</span>
+@Suppress(&quot;unused&quot;)
+class DiffResponse {
+
+    private val from: DiffRevision? = null
+    private val to: DiffRevision? = null
+<span class="nc" id="L12">    val diff: List&lt;DiffItem&gt; = emptyList()</span>
+
+<span class="nc" id="L14">    @Serializable</span>
+<span class="nc" id="L15">    class DiffItem(</span>
+<span class="nc" id="L16">        val type: Int = 0,</span>
+<span class="nc" id="L17">        val lineNumber: Int = -1,</span>
+<span class="nc" id="L18">        val text: String = &quot;&quot;,</span>
+<span class="nc" id="L19">        private val offset: DiffOffset? = null,</span>
+<span class="nc" id="L20">        val highlightRanges: List&lt;HighlightRange&gt; = emptyList()</span>
+<span class="nc" id="L21">    )</span>
+
+<span class="nc" id="L23">    @Serializable</span>
+    class DiffOffset {
+
+        private val from: Int? = null
+        private val to: Int? = null
+    }
+
+<span class="nc" id="L30">    @Serializable</span>
+<span class="nc" id="L31">    class HighlightRange(</span>
+<span class="nc" id="L32">        val start: Int = 0,</span>
+<span class="nc" id="L33">        val length: Int = 0,</span>
+<span class="nc" id="L34">        val type: Int = 0</span>
+<span class="nc" id="L35">    )</span>
+
+<span class="nc" id="L37">    @Serializable</span>
+    class DiffRevision {
+
+        private val id: Long = 0
+
+        @SerialName(&quot;slot_role&quot;)
+        private val slotRole: String? = null
+        private val sections: List&lt;RevisionSection&gt;? = null
+    }
+
+<span class="nc" id="L47">    @Serializable</span>
+    class RevisionSection {
+
+        private val level = 0
+        private val heading: String? = null
+        private val offset = 0
+    }
+
+<span class="nc" id="L55">    companion object {</span>
+        // A line with the same content in both revisions, included to provide context when viewing the diff.
+        // The API returns up to two context lines around each change.
+        const val DIFF_TYPE_LINE_WITH_SAME_CONTENT = 0
+
+        // A line included in the to revision but not in the from revision.
+        const val DIFF_TYPE_LINE_ADDED = 1
+
+        // A line included in the from revision but not in the to revision.
+        const val DIFF_TYPE_LINE_REMOVED = 2
+
+        // A line containing text that differs between the two revisions.
+        // (For changes to paragraph location as well as content, see type 5.)
+        const val DIFF_TYPE_LINE_WITH_DIFF = 3
+
+        // When a paragraph's location differs between the two revisions, this represents the location
+        // in the from revision.
+        const val DIFF_TYPE_PARAGRAPH_MOVED_FROM = 4
+
+        // When a paragraph's location differs between the two revisions, this represents the location
+        // in the to revision. This type can also include word-level differences between the two revisions.
+        const val DIFF_TYPE_PARAGRAPH_MOVED_TO = 5
+        const val HIGHLIGHT_TYPE_ADD = 0
+        const val HIGHLIGHT_TYPE_DELETE = 1
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

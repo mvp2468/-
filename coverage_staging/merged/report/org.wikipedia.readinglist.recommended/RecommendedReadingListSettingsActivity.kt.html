@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListSettingsActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.recommended</a> &gt; <span class="el_source">RecommendedReadingListSettingsActivity.kt</span></div><h1>RecommendedReadingListSettingsActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.recommended
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.eventplatform.RecommendedReadingListEvent
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.events.NewRecommendedReadingListEvent
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+
+<span class="nc" id="L30">class RecommendedReadingListSettingsActivity : BaseActivity(), BaseActivity.Callback {</span>
+
+<span class="nc" id="L32">    private val viewModel: RecommendedReadingListSettingsViewModel by viewModels()</span>
+    private lateinit var currentRecommendedReadingListSource: RecommendedReadingListSource
+
+<span class="nc" id="L35">    private val recommendedReadingListSourceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L37">            viewModel.updateRecommendedReadingListSource(Prefs.recommendedReadingListSource)</span>
+<span class="nc" id="L38">            val currentTitlesWithOffset = Prefs.recommendedReadingListSourceTitlesWithOffset</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">            if (currentRecommendedReadingListSource != Prefs.recommendedReadingListSource) {</span>
+<span class="nc" id="L40">                showSnackBar(Prefs.recommendedReadingListSource, onAction = {</span>
+<span class="nc" id="L41">                    viewModel.updateRecommendedReadingListSource(currentRecommendedReadingListSource)</span>
+<span class="nc" id="L42">                    Prefs.recommendedReadingListSourceTitlesWithOffset = currentTitlesWithOffset</span>
+<span class="nc" id="L43">                    RecommendedReadingListEvent.submit(&quot;built_undo_click&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L44">                })</span>
+<span class="nc" id="L45">                Prefs.resetRecommendedReadingList = true</span>
+<span class="nc" id="L46">                Prefs.recommendedReadingListSourceTitlesWithOffset = emptyList()</span>
+            }
+        }
+<span class="nc" id="L49">    }</span>
+
+<span class="nc" id="L51">    private val recommendedReadingListInterestsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L53">            viewModel.updateRecommendedReadingListSource(Prefs.recommendedReadingListSource)</span>
+<span class="nc" id="L54">            Prefs.resetRecommendedReadingList = true</span>
+        }
+<span class="nc" id="L56">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L59">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L60">        callback = this</span>
+<span class="nc" id="L61">        DeviceUtil.setEdgeToEdge(this)</span>
+<span class="nc" id="L62">        RecommendedReadingListEvent.submit(&quot;impression&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L63">        setContent {</span>
+<span class="nc" id="L64">            val uiState by viewModel.uiState.collectAsState()</span>
+<span class="nc" id="L65">            val resetUiState by viewModel.resetUiState.collectAsState()</span>
+
+<span class="nc" id="L67">            BaseTheme {</span>
+<span class="nc" id="L68">                RecommendedReadingListSettingsScreen(</span>
+<span class="nc" id="L69">                    uiState = uiState,</span>
+<span class="nc" id="L70">                    resetUiState = resetUiState,</span>
+<span class="nc" id="L71">                    modifier = Modifier</span>
+<span class="nc" id="L72">                        .fillMaxSize()</span>
+<span class="nc" id="L73">                        .safeDrawingPadding()</span>
+<span class="nc" id="L74">                        .imePadding(),</span>
+<span class="nc" id="L75">                    onBackButtonClick = {</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                        if (resetUiState !is Resource.Loading) {</span>
+<span class="nc" id="L77">                            RecommendedReadingListEvent.submit(&quot;back_click&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L78">                            viewModel.generateRecommendedReadingList()</span>
+                        }
+<span class="nc" id="L80">                    },</span>
+<span class="nc" id="L81">                    onRecommendedReadingListSourceClick = {</span>
+<span class="nc" id="L82">                        RecommendedReadingListEvent.submit(&quot;built_click&quot;, &quot;discover_settings&quot;, selected = Prefs.recommendedReadingListSource.eventString)</span>
+<span class="nc" id="L83">                        currentRecommendedReadingListSource = Prefs.recommendedReadingListSource</span>
+<span class="nc" id="L84">                        recommendedReadingListSourceLauncher.launch(RecommendedReadingListOnboardingActivity.newIntent(this, fromSettings = true))</span>
+<span class="nc" id="L85">                    },</span>
+<span class="nc" id="L86">                    onInterestClick = {</span>
+<span class="nc" id="L87">                        RecommendedReadingListEvent.submit(&quot;interests_click&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L88">                        recommendedReadingListInterestsLauncher.launch(RecommendedReadingListOnboardingActivity.newIntent(this, startFromSourceSelection = false, fromSettings = true))</span>
+<span class="nc" id="L89">                    },</span>
+<span class="nc" id="L90">                    onNotificationStateChanged = {</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                        RecommendedReadingListEvent.submit(if (it) &quot;notifs_on_click&quot; else &quot;notifs_off_click&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                        if (it) {</span>
+<span class="nc" id="L93">                            requestPermissionAndScheduleRecommendedReadingNotification()</span>
+                        } else {
+<span class="nc" id="L95">                            RecommendedReadingListNotificationManager.cancelRecommendedReadingListNotification(this)</span>
+<span class="nc" id="L96">                            viewModel.toggleNotification(false)</span>
+                        }
+<span class="nc" id="L98">                    },</span>
+<span class="nc" id="L99">                    onUpdateFrequency = {</span>
+<span class="nc bnc" id="L100" title="All 3 branches missed.">                        val frequencyForEvent = when (it) {</span>
+<span class="nc" id="L101">                            RecommendedReadingListUpdateFrequency.DAILY -&gt; &quot;daily&quot;</span>
+<span class="nc" id="L102">                            RecommendedReadingListUpdateFrequency.WEEKLY -&gt; &quot;weekly&quot;</span>
+<span class="nc" id="L103">                            RecommendedReadingListUpdateFrequency.MONTHLY -&gt; &quot;monthly&quot;</span>
+                        }
+<span class="nc" id="L105">                        RecommendedReadingListEvent.submit(&quot;update_${frequencyForEvent}_click&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L106">                        viewModel.updateFrequency(it)</span>
+<span class="nc" id="L107">                        requestPermissionAndScheduleRecommendedReadingNotification()</span>
+<span class="nc" id="L108">                    },</span>
+<span class="nc" id="L109">                    onArticleNumberChanged = {</span>
+<span class="nc" id="L110">                        RecommendedReadingListEvent.submit(&quot;article_count_click&quot;, &quot;discover_settings&quot;, countSaved = it)</span>
+<span class="nc" id="L111">                        viewModel.updateArticleNumbers(it)</span>
+<span class="nc" id="L112">                    },</span>
+<span class="nc" id="L113">                    onRecommendedReadingListSwitchClick = {</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                        RecommendedReadingListEvent.submit(if (it) &quot;discover_on_click&quot; else &quot;discover_off_click&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L115">                        viewModel.toggleDiscoverReadingList(it)</span>
+<span class="nc" id="L116">                        FlowEventBus.post(NewRecommendedReadingListEvent())</span>
+<span class="nc" id="L117">                    },</span>
+<span class="nc" id="L118">                    wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L119">                        backClickListener = {</span>
+<span class="nc" id="L120">                            onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L121">                        },</span>
+<span class="nc" id="L122">                        retryClickListener = {</span>
+<span class="nc" id="L123">                            viewModel.generateRecommendedReadingList()</span>
+<span class="nc" id="L124">                        }</span>
+                    ),
+<span class="nc" id="L126">                    onListGenerated = {</span>
+<span class="nc" id="L127">                        onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L128">                    }</span>
+                )
+<span class="nc" id="L130">            }</span>
+<span class="nc" id="L131">        }</span>
+<span class="nc" id="L132">    }</span>
+
+    override fun onPermissionResult(activity: BaseActivity, isGranted: Boolean) {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        if (isGranted) {</span>
+<span class="nc" id="L136">            RecommendedReadingListNotificationManager.scheduleRecommendedReadingListNotification(this)</span>
+<span class="nc" id="L137">            viewModel.toggleNotification(true)</span>
+        } else {
+<span class="nc" id="L139">            viewModel.toggleNotification(false)</span>
+        }
+<span class="nc" id="L141">    }</span>
+
+    private fun requestPermissionAndScheduleRecommendedReadingNotification() {
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.TIRAMISU) {</span>
+<span class="nc" id="L145">            val permission = android.Manifest.permission.POST_NOTIFICATIONS</span>
+<span class="nc" id="L146">            when {</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED -&gt; {</span>
+<span class="nc" id="L148">                    RecommendedReadingListNotificationManager.scheduleRecommendedReadingListNotification(this)</span>
+<span class="nc" id="L149">                    viewModel.toggleNotification(true)</span>
+                }
+<span class="nc" id="L151">                else -&gt; requestPermissionLauncher.launch(permission)</span>
+            }
+        } else {
+<span class="nc" id="L154">            RecommendedReadingListNotificationManager.scheduleRecommendedReadingListNotification(this)</span>
+<span class="nc" id="L155">            viewModel.toggleNotification(true)</span>
+        }
+<span class="nc" id="L157">    }</span>
+
+    private fun showSnackBar(recommendedReadingListSource: RecommendedReadingListSource, onAction: () -&gt; Unit) {
+<span class="nc bnc" id="L160" title="All 3 branches missed.">        val message = getString(when (recommendedReadingListSource) {</span>
+<span class="nc" id="L161">            RecommendedReadingListSource.INTERESTS -&gt; R.string.recommended_reading_list_settings_updates_base_snackbar_interests</span>
+<span class="nc" id="L162">            RecommendedReadingListSource.READING_LIST -&gt; R.string.recommended_reading_list_settings_updates_base_snackbar_saved</span>
+<span class="nc" id="L163">            RecommendedReadingListSource.HISTORY -&gt; R.string.recommended_reading_list_settings_updates_base_snackbar_history</span>
+        })
+<span class="nc" id="L165">        FeedbackUtil.makeSnackbar(this, message)</span>
+<span class="nc" id="L166">            .setAction(R.string.recommended_reading_list_settings_updates_base_snackbar_action) {</span>
+<span class="nc" id="L167">                onAction()</span>
+<span class="nc" id="L168">            }</span>
+<span class="nc" id="L169">            .show()</span>
+<span class="nc" id="L170">    }</span>
+
+    companion object {
+        fun newIntent(context: Context): Intent {
+<span class="nc" id="L174">            return Intent(context, RecommendedReadingListSettingsActivity::class.java)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

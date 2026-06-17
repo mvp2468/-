@@ -1,0 +1,953 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingListsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">ReadingListsFragment.kt</span></div><h1>ReadingListsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.animation.LayoutTransition
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.core.graphics.ColorUtils
+import androidx.core.text.buildSpannedString
+import androidx.core.text.color
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.eventplatform.ReadingListsAnalyticsHelper
+import org.wikipedia.analytics.eventplatform.RecommendedReadingListEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.databinding.FragmentReadingListsBinding
+import org.wikipedia.events.ArticleSavedOrDeletedEvent
+import org.wikipedia.events.NewRecommendedReadingListEvent
+import org.wikipedia.feed.FeedFragment
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.history.SearchActionModeCallback
+import org.wikipedia.main.MainActivity
+import org.wikipedia.main.MainFragment
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageAvailableOfflineHandler
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.readinglist.database.RecommendedPage
+import org.wikipedia.readinglist.recommended.RecommendedReadingListHelper
+import org.wikipedia.readinglist.recommended.RecommendedReadingListOnboardingActivity
+import org.wikipedia.readinglist.recommended.RecommendedReadingListUpdateFrequency
+import org.wikipedia.readinglist.sync.ReadingListSyncAdapter
+import org.wikipedia.readinglist.sync.ReadingListSyncEvent
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.RemoteConfig
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.CircularProgressBar
+import org.wikipedia.views.DefaultViewHolder
+import org.wikipedia.views.DrawableItemDecoration
+import org.wikipedia.views.MultiSelectActionModeCallback
+import org.wikipedia.views.MultiSelectActionModeCallback.Companion.isTagType
+import org.wikipedia.views.PageItemView
+import org.wikipedia.views.ReadingListsOverflowView
+
+<span class="nc" id="L87">class ReadingListsFragment : Fragment(), SortReadingListsDialog.Callback, ReadingListItemActionsDialog.Callback {</span>
+    private var _binding: FragmentReadingListsBinding? = null
+<span class="nc" id="L89">    private val binding get() = _binding!!</span>
+<span class="nc" id="L90">    private var displayedLists = listOf&lt;Any&gt;()</span>
+<span class="nc" id="L91">    private val adapter = ReadingListAdapter()</span>
+<span class="nc" id="L92">    private val readingListItemCallback = ReadingListItemCallback()</span>
+<span class="nc" id="L93">    private val readingListPageItemCallback = ReadingListPageItemCallback()</span>
+<span class="nc" id="L94">    private val searchActionModeCallback = ReadingListsSearchCallback()</span>
+<span class="nc" id="L95">    private val multiSelectModeCallback = MultiSelectCallback()</span>
+    private var actionMode: ActionMode? = null
+<span class="nc" id="L97">    private val overflowCallback = OverflowCallback()</span>
+    private var currentSearchQuery: String? = null
+    private var selectMode: Boolean = false
+    private var importMode: Boolean = false
+    private var recentPreviewSavedReadingList: ReadingList? = null
+    private var shouldShowImportedSnackbar = false
+
+<span class="nc" id="L104">    val filePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        if (it.resultCode == AppCompatActivity.RESULT_OK) {</span>
+<span class="nc bnc" id="L106" title="All 4 branches missed.">            it.data?.data?.let { uri -&gt;</span>
+<span class="nc" id="L107">                onListsImportResult(uri)</span>
+<span class="nc" id="L108">            }</span>
+        }
+<span class="nc" id="L110">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L113">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L114">        RecommendedReadingListEvent.submit(&quot;impression&quot;, &quot;rrl_saved&quot;)</span>
+<span class="nc" id="L115">        retainInstance = true</span>
+<span class="nc" id="L116">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L119">        _binding = FragmentReadingListsBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L120">        binding.searchEmptyView.setEmptyText(R.string.search_reading_lists_no_results)</span>
+<span class="nc" id="L121">        binding.recyclerView.layoutManager = LinearLayoutManager(context)</span>
+<span class="nc" id="L122">        binding.recyclerView.adapter = adapter</span>
+<span class="nc" id="L123">        binding.recyclerView.addItemDecoration(DrawableItemDecoration(requireContext(), R.attr.list_divider))</span>
+<span class="nc" id="L124">        setUpScrollListener()</span>
+<span class="nc" id="L125">        binding.swipeRefreshLayout.setOnRefreshListener { refreshSync(this, binding.swipeRefreshLayout) }</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (RemoteConfig.config.disableReadingListSync) {</span>
+<span class="nc" id="L127">            binding.swipeRefreshLayout.isEnabled = false</span>
+        }
+<span class="nc" id="L129">        binding.searchEmptyView.visibility = View.GONE</span>
+<span class="nc" id="L130">        enableLayoutTransition(true)</span>
+
+<span class="nc" id="L132">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L133">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L134">                FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc" id="L135">                    when (event) {</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                        is ReadingListSyncEvent -&gt; {</span>
+<span class="nc" id="L137">                            binding.recyclerView.post {</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                                if (isAdded) {</span>
+<span class="nc bnc" id="L139" title="All 8 branches missed.">                                    updateLists(currentSearchQuery, !currentSearchQuery.isNullOrEmpty() || recentPreviewSavedReadingList != null)</span>
+                                }
+<span class="nc" id="L141">                            }</span>
+                        }
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                        is ArticleSavedOrDeletedEvent -&gt; {</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                            if (event.isAdded) {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                                if (Prefs.readingListsPageSaveCount &lt; SAVE_COUNT_LIMIT) {</span>
+<span class="nc" id="L146">                                    showReadingListsSyncDialog()</span>
+<span class="nc" id="L147">                                    Prefs.readingListsPageSaveCount += 1</span>
+                                }
+                            }
+                        }
+                    }
+<span class="nc" id="L152">                }</span>
+<span class="nc" id="L153">            }</span>
+<span class="nc" id="L154">        }</span>
+
+<span class="nc" id="L156">        return binding.root</span>
+    }
+
+    private fun setUpScrollListener() {
+<span class="nc" id="L160">        binding.recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {</span>
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+<span class="nc" id="L162">                super.onScrolled(recyclerView, dx, dy)</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                (requireActivity() as MainActivity).updateToolbarElevation(binding.recyclerView.computeVerticalScrollOffset() != 0)</span>
+<span class="nc" id="L164">            }</span>
+        })
+<span class="nc" id="L166">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L169">        binding.recyclerView.adapter = null</span>
+<span class="nc" id="L170">        binding.recyclerView.clearOnScrollListeners()</span>
+<span class="nc" id="L171">        _binding = null</span>
+<span class="nc" id="L172">        super.onDestroyView()</span>
+<span class="nc" id="L173">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L176">        super.onResume()</span>
+<span class="nc" id="L177">        updateLists()</span>
+<span class="nc" id="L178">        ReadingListsAnalyticsHelper.logListsShown(requireContext(), displayedLists.size)</span>
+<span class="nc" id="L179">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L180">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L183">        super.onPause()</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        actionMode?.finish()</span>
+<span class="nc" id="L185">    }</span>
+
+    override fun onToggleItemOffline(pageId: Long) {
+<span class="nc bnc" id="L188" title="All 2 branches missed.">        val page = getPageById(pageId) ?: return</span>
+<span class="nc" id="L189">        ReadingListBehaviorsUtil.togglePageOffline(requireActivity(), page) { this.updateLists() }</span>
+<span class="nc" id="L190">    }</span>
+
+    override fun onShareItem(pageId: Long) {
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        val page = getPageById(pageId) ?: return</span>
+<span class="nc" id="L194">        ShareUtil.shareText(requireActivity(), ReadingListPage.toPageTitle(page))</span>
+<span class="nc" id="L195">    }</span>
+
+    override fun onAddItemToOther(pageId: Long) {
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        val page = getPageById(pageId) ?: return</span>
+<span class="nc" id="L199">        ExclusiveBottomSheetPresenter.show(childFragmentManager,</span>
+<span class="nc" id="L200">                AddToReadingListDialog.newInstance(ReadingListPage.toPageTitle(page), InvokeSource.READING_LIST_ACTIVITY))</span>
+<span class="nc" id="L201">    }</span>
+
+    override fun onMoveItemToOther(pageId: Long) {
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        val page = getPageById(pageId) ?: return</span>
+<span class="nc" id="L205">        ExclusiveBottomSheetPresenter.show(childFragmentManager,</span>
+<span class="nc" id="L206">                MoveToReadingListDialog.newInstance(page.listId, ReadingListPage.toPageTitle(page), InvokeSource.READING_LIST_ACTIVITY))</span>
+<span class="nc" id="L207">    }</span>
+
+    override fun onSelectItem(pageId: Long) {
+        // ignore
+<span class="nc" id="L211">    }</span>
+
+    override fun onDeleteItem(pageId: Long) {
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        val page = getPageById(pageId) ?: return</span>
+<span class="nc" id="L215">        ReadingListBehaviorsUtil.deletePages(requireActivity(), ReadingListBehaviorsUtil.getListsContainPage(page), page, { this.updateLists() }) { this.updateLists() }</span>
+<span class="nc" id="L216">    }</span>
+
+    private fun getPageById(id: Long): ReadingListPage? {
+<span class="nc bnc" id="L219" title="All 4 branches missed.">        return displayedLists.firstOrNull { it is ReadingListPage &amp;&amp; it.id == id } as ReadingListPage?</span>
+    }
+
+<span class="nc" id="L222">    private inner class OverflowCallback : ReadingListsOverflowView.Callback {</span>
+        override fun sortByClick() {
+<span class="nc" id="L224">            ExclusiveBottomSheetPresenter.show(childFragmentManager,</span>
+<span class="nc" id="L225">                    SortReadingListsDialog.newInstance(Prefs.getReadingListSortMode(ReadingList.SORT_BY_NAME_ASC)))</span>
+<span class="nc" id="L226">        }</span>
+
+        override fun createNewListClick() {
+<span class="nc" id="L229">            val existingTitles = displayedLists.filterIsInstance&lt;ReadingList&gt;().map { it.title }</span>
+<span class="nc" id="L230">            ReadingListTitleDialog.readingListTitleDialog(requireActivity(), getString(R.string.reading_list_name_sample), &quot;&quot;,</span>
+<span class="nc" id="L231">                    existingTitles, callback = object : ReadingListTitleDialog.Callback {</span>
+                    override fun onSuccess(text: String, description: String) {
+<span class="nc" id="L233">                        viewLifecycleOwner.lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L234">                            L.w(throwable)</span>
+<span class="nc" id="L235">                        }) {</span>
+<span class="nc" id="L236">                            AppDatabase.instance.readingListDao().createList(text, description)</span>
+<span class="nc" id="L237">                            updateLists()</span>
+<span class="nc" id="L238">                        }</span>
+<span class="nc" id="L239">                    }</span>
+<span class="nc" id="L240">                }).show()</span>
+<span class="nc" id="L241">        }</span>
+
+        override fun importNewList() {
+<span class="nc" id="L244">            var filePickerIntent = Intent(Intent.ACTION_GET_CONTENT)</span>
+<span class="nc" id="L245">            filePickerIntent.type = &quot;application/json&quot;</span>
+<span class="nc" id="L246">            filePickerIntent = Intent.createChooser(filePickerIntent, getString(R.string.reading_lists_import_file_picker_title))</span>
+<span class="nc" id="L247">            filePickerLauncher.launch(filePickerIntent)</span>
+<span class="nc" id="L248">        }</span>
+
+        override fun selectListClick() {
+<span class="nc" id="L251">            beginMultiSelect()</span>
+<span class="nc" id="L252">            adapter.notifyDataSetChanged()</span>
+<span class="nc" id="L253">        }</span>
+
+        override fun refreshClick() {
+<span class="nc" id="L256">            binding.swipeRefreshLayout.isRefreshing = true</span>
+<span class="nc" id="L257">            refreshSync(this@ReadingListsFragment, binding.swipeRefreshLayout)</span>
+<span class="nc" id="L258">        }</span>
+    }
+
+    private fun sortListsBy(option: Int) {
+<span class="nc bnc" id="L262" title="All 5 branches missed.">        when (option) {</span>
+<span class="nc" id="L263">            ReadingList.SORT_BY_NAME_DESC -&gt; Prefs.setReadingListSortMode(ReadingList.SORT_BY_NAME_DESC)</span>
+<span class="nc" id="L264">            ReadingList.SORT_BY_RECENT_DESC -&gt; Prefs.setReadingListSortMode(ReadingList.SORT_BY_RECENT_DESC)</span>
+<span class="nc" id="L265">            ReadingList.SORT_BY_RECENT_ASC -&gt; Prefs.setReadingListSortMode(ReadingList.SORT_BY_RECENT_ASC)</span>
+<span class="nc" id="L266">            ReadingList.SORT_BY_NAME_ASC -&gt; Prefs.setReadingListSortMode(ReadingList.SORT_BY_NAME_ASC)</span>
+<span class="nc" id="L267">            else -&gt; Prefs.setReadingListSortMode(ReadingList.SORT_BY_NAME_ASC)</span>
+        }
+<span class="nc" id="L269">        updateLists()</span>
+<span class="nc" id="L270">    }</span>
+
+    private fun enableLayoutTransition(enable: Boolean) {
+<span class="nc bnc" id="L273" title="All 2 branches missed.">        if (enable) {</span>
+<span class="nc" id="L274">            binding.contentContainer.layoutTransition.enableTransitionType(LayoutTransition.CHANGING)</span>
+<span class="nc" id="L275">            binding.emptyContainer.layoutTransition.enableTransitionType(LayoutTransition.CHANGING)</span>
+        } else {
+<span class="nc" id="L277">            binding.contentContainer.layoutTransition.disableTransitionType(LayoutTransition.CHANGING)</span>
+<span class="nc" id="L278">            binding.emptyContainer.layoutTransition.disableTransitionType(LayoutTransition.CHANGING)</span>
+        }
+<span class="nc" id="L280">    }</span>
+
+    fun updateLists() {
+<span class="nc bnc" id="L283" title="All 6 branches missed.">        updateLists(currentSearchQuery, !currentSearchQuery.isNullOrEmpty())</span>
+<span class="nc" id="L284">    }</span>
+
+    fun startSearchActionMode() {
+<span class="nc" id="L287">        (requireActivity() as AppCompatActivity).startSupportActionMode(searchActionModeCallback)</span>
+<span class="nc" id="L288">    }</span>
+
+    fun showReadingListsOverflowMenu() {
+<span class="nc" id="L291">        ReadingListsOverflowView(requireContext()).show((requireActivity() as MainActivity).getToolbar().findViewById(R.id.menu_overflow_button), overflowCallback)</span>
+<span class="nc" id="L292">    }</span>
+
+    private fun updateLists(searchQuery: String?, forcedRefresh: Boolean) {
+<span class="nc" id="L295">        maybeShowOnboarding(searchQuery)</span>
+<span class="nc" id="L296">        ReadingListBehaviorsUtil.searchListsAndPages(lifecycleScope, searchQuery) { lists -&gt;</span>
+<span class="nc" id="L297">            val result = DiffUtil.calculateDiff(object : DiffUtil.Callback() {</span>
+                override fun getOldListSize(): Int {
+<span class="nc" id="L299">                    return lists.size</span>
+                }
+
+                override fun getNewListSize(): Int {
+<span class="nc" id="L303">                    return lists.size</span>
+                }
+
+                override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+<span class="nc bnc" id="L307" title="All 4 branches missed.">                    if (displayedLists.size &lt;= oldItemPosition || lists.size &lt;= newItemPosition) {</span>
+<span class="nc" id="L308">                        return false</span>
+                    }
+<span class="nc bnc" id="L310" title="All 4 branches missed.">                    return (displayedLists[oldItemPosition] is ReadingList &amp;&amp; lists[newItemPosition] is ReadingList &amp;&amp;</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">                            (displayedLists[oldItemPosition] as ReadingList).id == (lists[newItemPosition] as ReadingList).id)</span>
+                }
+
+                override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+<span class="nc bnc" id="L315" title="All 4 branches missed.">                    if (displayedLists.size &lt;= oldItemPosition || lists.size &lt;= newItemPosition) {</span>
+<span class="nc" id="L316">                        return false</span>
+                    }
+<span class="nc bnc" id="L318" title="All 2 branches missed.">                    return (displayedLists[oldItemPosition] is ReadingList &amp;&amp;</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                            (displayedLists[oldItemPosition] as ReadingList).compareTo(lists[newItemPosition]))</span>
+                }
+            })
+
+            // if the default list is empty, then removes it.
+<span class="nc bnc" id="L324" title="All 4 branches missed.">            if (lists.size == 1 &amp;&amp; lists[0] is ReadingList &amp;&amp;</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">                    (lists[0] as ReadingList).isDefault &amp;&amp;</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">                    (lists[0] as ReadingList).pages.isEmpty()) {</span>
+<span class="nc" id="L327">                lists.removeAt(0)</span>
+            }
+
+            // If the number of lists has changed, just invalidate everything, as a
+            // simple way to get the bottom item margin to apply to the correct item.
+<span class="nc bnc" id="L332" title="All 6 branches missed.">            val invalidateAll = (importMode || forcedRefresh || displayedLists.size != lists.size ||</span>
+<span class="nc bnc" id="L333" title="All 14 branches missed.">                    (!currentSearchQuery.isNullOrEmpty() &amp;&amp; !searchQuery.isNullOrEmpty() &amp;&amp; currentSearchQuery != searchQuery))</span>
+
+<span class="nc" id="L335">            lifecycleScope.launch {</span>
+                // Asynchronous update of lists affects the multiselect process
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                if (!isTagType(actionMode)) {</span>
+<span class="nc" id="L338">                    displayedLists = lists</span>
+                }
+
+<span class="nc bnc" id="L341" title="All 2 branches missed.">                if (invalidateAll) {</span>
+<span class="nc" id="L342">                    adapter.notifyDataSetChanged()</span>
+                } else {
+<span class="nc" id="L344">                    result.dispatchUpdatesTo(adapter)</span>
+                }
+
+<span class="nc bnc" id="L347" title="All 2 branches missed.">                if (recentPreviewSavedReadingList == null) {</span>
+<span class="nc" id="L348">                    recentPreviewSavedReadingList = displayedLists.filterIsInstance&lt;ReadingList&gt;()</span>
+<span class="nc bnc" id="L349" title="All 6 branches missed.">                        .find { it.id == Prefs.readingListRecentReceivedId }</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">                        ?.also { shouldShowImportedSnackbar = true }</span>
+<span class="nc" id="L351">                        ?: run {</span>
+<span class="nc" id="L352">                            shouldShowImportedSnackbar = false</span>
+<span class="nc" id="L353">                            null</span>
+                        }
+                }
+
+<span class="nc" id="L357">                binding.swipeRefreshLayout.isRefreshing = false</span>
+<span class="nc" id="L358">                maybeShowListLimitMessage()</span>
+<span class="nc" id="L359">                updateEmptyState(searchQuery)</span>
+<span class="nc" id="L360">                maybeDeleteListFromIntent()</span>
+<span class="nc" id="L361">                maybeShowPreviewSavedReadingListsSnackbar()</span>
+<span class="nc" id="L362">                currentSearchQuery = searchQuery</span>
+<span class="nc" id="L363">                maybeTurnOffImportMode(lists.filterIsInstance&lt;ReadingList&gt;().toMutableList())</span>
+
+                // Recommended Reading List discover card
+<span class="nc" id="L366">                val recommendedArticles = AppDatabase.instance.recommendedPageDao().getNewRecommendedPages()</span>
+<span class="nc bnc" id="L367" title="All 6 branches missed.">                if (RecommendedReadingListHelper.readyToGenerateList() &amp;&amp; recommendedArticles.isNotEmpty()) {</span>
+<span class="nc" id="L368">                    setupRecommendedReadingListDiscoverCardView(recommendedArticles)</span>
+                } else {
+<span class="nc" id="L370">                    binding.discoverCardView.isVisible = false</span>
+                }
+<span class="nc" id="L372">            }</span>
+<span class="nc" id="L373">        }</span>
+<span class="nc" id="L374">    }</span>
+
+    private fun maybeTurnOffImportMode(lists: MutableList&lt;ReadingList&gt;) {
+<span class="nc bnc" id="L377" title="All 2 branches missed.">        if (!importMode) {</span>
+<span class="nc" id="L378">            return</span>
+        }
+<span class="nc bnc" id="L380" title="All 2 branches missed.">        importMode = lists.any { it.pages.any { pages -&gt; pages.sizeBytes == 0L } }</span>
+<span class="nc" id="L381">    }</span>
+
+    private fun maybeShowListLimitMessage() {
+<span class="nc bnc" id="L384" title="All 4 branches missed.">        if (actionMode == null &amp;&amp; displayedLists.size &gt;= Constants.MAX_READING_LISTS_LIMIT) {</span>
+<span class="nc" id="L385">            val message = getString(R.string.reading_lists_limit_message)</span>
+<span class="nc" id="L386">            FeedbackUtil.makeSnackbar(requireActivity(), message).show()</span>
+        }
+<span class="nc" id="L388">    }</span>
+
+    private fun updateEmptyState(searchQuery: String?) {
+<span class="nc bnc" id="L391" title="All 6 branches missed.">        if (searchQuery.isNullOrEmpty()) {</span>
+<span class="nc" id="L392">            binding.searchEmptyView.visibility = View.GONE</span>
+<span class="nc" id="L393">            setUpEmptyContainer()</span>
+<span class="nc bnc" id="L394" title="All 4 branches missed.">            setEmptyContainerVisibility(displayedLists.isEmpty() &amp;&amp; !binding.onboardingView.isVisible)</span>
+        } else {
+<span class="nc bnc" id="L396" title="All 2 branches missed.">            binding.searchEmptyView.visibility = if (displayedLists.isEmpty()) View.VISIBLE else View.GONE</span>
+<span class="nc" id="L397">            setEmptyContainerVisibility(false)</span>
+        }
+<span class="nc" id="L399">    }</span>
+
+    private fun setEmptyContainerVisibility(visible: Boolean) {
+<span class="nc bnc" id="L402" title="All 2 branches missed.">        if (visible) {</span>
+<span class="nc" id="L403">            binding.emptyContainer.visibility = View.VISIBLE</span>
+<span class="nc" id="L404">            requireActivity().window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)</span>
+        } else {
+<span class="nc" id="L406">            binding.emptyContainer.visibility = View.GONE</span>
+        }
+<span class="nc" id="L408">    }</span>
+
+    private fun setUpEmptyContainer() {
+<span class="nc bnc" id="L411" title="All 4 branches missed.">        if (displayedLists.size == 1 &amp;&amp; displayedLists[0] is ReadingList &amp;&amp;</span>
+<span class="nc bnc" id="L412" title="All 2 branches missed.">                (displayedLists[0] as ReadingList).isDefault &amp;&amp;</span>
+<span class="nc bnc" id="L413" title="All 4 branches missed.">                (displayedLists[0] as ReadingList).pages.isNotEmpty()) {</span>
+<span class="nc" id="L414">            binding.emptyTitle.text = getString(R.string.no_user_lists_title)</span>
+<span class="nc" id="L415">            binding.emptyMessage.text = getString(R.string.no_user_lists_msg)</span>
+        } else {
+<span class="nc" id="L417">            binding.emptyTitle.text = getString(R.string.saved_list_empty_title)</span>
+<span class="nc" id="L418">            binding.emptyMessage.text = getString(R.string.reading_lists_empty_message)</span>
+        }
+<span class="nc" id="L420">    }</span>
+
+    override fun onSortOptionClick(position: Int) {
+<span class="nc" id="L423">        sortListsBy(position)</span>
+<span class="nc" id="L424">    }</span>
+
+<span class="nc" id="L426">    private inner class ReadingListItemHolder(itemView: ReadingListItemView) : DefaultViewHolder&lt;View&gt;(itemView) {</span>
+        fun bindItem(readingList: ReadingList) {
+<span class="nc" id="L428">            view.setReadingList(readingList, ReadingListItemView.Description.SUMMARY, selectMode,</span>
+<span class="nc bnc" id="L429" title="All 4 branches missed.">                newImport = readingList.id == recentPreviewSavedReadingList?.id)</span>
+<span class="nc" id="L430">            view.setSearchQuery(currentSearchQuery)</span>
+<span class="nc" id="L431">            view.saveClickListener = View.OnClickListener {</span>
+<span class="nc" id="L432">                startActivity(ReadingListActivity.newIntent(requireActivity(), ReadingListMode.PREVIEW))</span>
+<span class="nc" id="L433">            }</span>
+<span class="nc" id="L434">        }</span>
+
+<span class="nc" id="L436">        override val view get() = itemView as ReadingListItemView</span>
+    }
+
+<span class="nc" id="L439">    private inner class ReadingListPageItemHolder(itemView: PageItemView&lt;ReadingListPage&gt;) : DefaultViewHolder&lt;PageItemView&lt;ReadingListPage&gt;&gt;(itemView) {</span>
+        fun bindItem(page: ReadingListPage) {
+<span class="nc" id="L441">            view.item = page</span>
+<span class="nc" id="L442">            view.setTitle(page.displayTitle)</span>
+<span class="nc" id="L443">            view.setTitleMaxLines(2)</span>
+<span class="nc" id="L444">            view.setTitleEllipsis()</span>
+<span class="nc" id="L445">            view.setDescription(page.description)</span>
+<span class="nc" id="L446">            view.setDescriptionMaxLines(2)</span>
+<span class="nc" id="L447">            view.setDescriptionEllipsis()</span>
+<span class="nc" id="L448">            view.setImageUrl(page.thumbUrl)</span>
+<span class="nc" id="L449">            view.isSelected = page.selected</span>
+<span class="nc bnc" id="L450" title="All 6 branches missed.">            view.setSecondaryActionIcon(if (page.saving) R.drawable.ic_download_in_progress else R.drawable.ic_download_circle_gray_24dp, !page.offline || page.saving)</span>
+<span class="nc bnc" id="L451" title="All 4 branches missed.">            view.setCircularProgressVisibility(page.downloadProgress &gt; 0 &amp;&amp; page.downloadProgress &lt; CircularProgressBar.MAX_PROGRESS)</span>
+<span class="nc bnc" id="L452" title="All 2 branches missed.">            view.setProgress(if (page.downloadProgress == CircularProgressBar.MAX_PROGRESS) 0 else page.downloadProgress)</span>
+<span class="nc" id="L453">            view.setActionHint(R.string.reading_list_article_make_offline)</span>
+<span class="nc" id="L454">            view.setSearchQuery(currentSearchQuery)</span>
+<span class="nc" id="L455">            view.setUpChipGroup(ReadingListBehaviorsUtil.getListsContainPage(page))</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">            PageAvailableOfflineHandler.check(page) { view.setViewsGreyedOut(!it) }</span>
+<span class="nc" id="L457">        }</span>
+    }
+
+<span class="nc" id="L460">    private inner class ReadingListAdapter : RecyclerView.Adapter&lt;DefaultViewHolder&lt;*&gt;&gt;() {</span>
+        override fun getItemViewType(position: Int): Int {
+<span class="nc bnc" id="L462" title="All 2 branches missed.">            return if (displayedLists[position] is ReadingList) {</span>
+<span class="nc" id="L463">                VIEW_TYPE_ITEM</span>
+            } else {
+<span class="nc" id="L465">                VIEW_TYPE_PAGE_ITEM</span>
+            }
+        }
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L470">            return displayedLists.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DefaultViewHolder&lt;*&gt; {
+<span class="nc bnc" id="L474" title="All 2 branches missed.">            return if (viewType == VIEW_TYPE_ITEM) {</span>
+<span class="nc" id="L475">                ReadingListItemHolder(ReadingListItemView(requireContext()))</span>
+            } else {
+<span class="nc" id="L477">                ReadingListPageItemHolder(PageItemView(requireContext()))</span>
+            }
+        }
+
+        override fun onBindViewHolder(holder: DefaultViewHolder&lt;*&gt;, pos: Int) {
+<span class="nc bnc" id="L482" title="All 2 branches missed.">            if (holder is ReadingListItemHolder) {</span>
+<span class="nc" id="L483">                holder.bindItem(displayedLists[pos] as ReadingList)</span>
+            } else {
+<span class="nc" id="L485">                (holder as ReadingListPageItemHolder).bindItem(displayedLists[pos] as ReadingListPage)</span>
+            }
+<span class="nc" id="L487">        }</span>
+
+        override fun onViewAttachedToWindow(holder: DefaultViewHolder&lt;*&gt;) {
+<span class="nc" id="L490">            super.onViewAttachedToWindow(holder)</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">            if (holder is ReadingListItemHolder) {</span>
+<span class="nc" id="L492">                holder.view.callback = readingListItemCallback</span>
+            } else {
+<span class="nc" id="L494">                (holder as ReadingListPageItemHolder).view.callback = readingListPageItemCallback</span>
+            }
+<span class="nc" id="L496">        }</span>
+
+        override fun onViewDetachedFromWindow(holder: DefaultViewHolder&lt;*&gt;) {
+<span class="nc bnc" id="L499" title="All 2 branches missed.">            if (holder is ReadingListItemHolder) {</span>
+<span class="nc" id="L500">                holder.view.callback = null</span>
+            } else {
+<span class="nc" id="L502">                (holder as ReadingListPageItemHolder).view.callback = null</span>
+            }
+<span class="nc" id="L504">            super.onViewDetachedFromWindow(holder)</span>
+<span class="nc" id="L505">        }</span>
+    }
+
+<span class="nc" id="L508">    private inner class ReadingListItemCallback : ReadingListItemView.Callback {</span>
+        override fun onClick(readingList: ReadingList) {
+<span class="nc bnc" id="L510" title="All 2 branches missed.">            if (isTagType(actionMode)) {</span>
+<span class="nc" id="L511">                toggleSelectList(readingList)</span>
+            } else {
+<span class="nc bnc" id="L513" title="All 2 branches missed.">                actionMode?.finish()</span>
+<span class="nc bnc" id="L514" title="All 2 branches missed.">                if (recentPreviewSavedReadingList != null) {</span>
+<span class="nc" id="L515">                    recentPreviewSavedReadingList = null</span>
+<span class="nc" id="L516">                    Prefs.readingListRecentReceivedId = -1</span>
+<span class="nc bnc" id="L517" title="All 4 branches missed.">                    val pos = displayedLists.indexOfFirst { it is ReadingList &amp;&amp; it.id == readingList.id }</span>
+<span class="nc bnc" id="L518" title="All 2 branches missed.">                    if (pos != -1) {</span>
+<span class="nc" id="L519">                        adapter.notifyItemChanged(pos)</span>
+                    }
+                }
+<span class="nc" id="L522">                RecommendedReadingListEvent.submit(&quot;open_list_click&quot;, &quot;rrl_saved&quot;)</span>
+<span class="nc" id="L523">                startActivity(ReadingListActivity.newIntent(requireContext(), readingList))</span>
+            }
+<span class="nc" id="L525">        }</span>
+
+        override fun onRename(readingList: ReadingList) {
+<span class="nc bnc" id="L528" title="All 2 branches missed.">            if (readingList.isDefault) {</span>
+<span class="nc" id="L529">                L.w(&quot;Attempted to rename default list.&quot;)</span>
+<span class="nc" id="L530">                return</span>
+            }
+<span class="nc" id="L532">            ReadingListBehaviorsUtil.renameReadingList(requireActivity() as AppCompatActivity, readingList) {</span>
+<span class="nc" id="L533">                ReadingListSyncAdapter.manualSync()</span>
+<span class="nc" id="L534">                updateLists(currentSearchQuery, true)</span>
+<span class="nc" id="L535">            }</span>
+<span class="nc" id="L536">        }</span>
+
+        override fun onDelete(readingList: ReadingList) {
+<span class="nc" id="L539">            ReadingListBehaviorsUtil.deleteReadingList(requireActivity(), readingList, true) {</span>
+<span class="nc" id="L540">                ReadingListBehaviorsUtil.showDeleteListUndoSnackbar(requireActivity(), readingList) { updateLists() }</span>
+<span class="nc" id="L541">                updateLists()</span>
+<span class="nc" id="L542">            }</span>
+<span class="nc" id="L543">        }</span>
+
+        override fun onSaveAllOffline(readingList: ReadingList) {
+<span class="nc" id="L546">            ReadingListBehaviorsUtil.savePagesForOffline(requireActivity(), readingList.pages) { updateLists(currentSearchQuery, true) }</span>
+<span class="nc" id="L547">        }</span>
+
+        override fun onRemoveAllOffline(readingList: ReadingList) {
+<span class="nc" id="L550">            ReadingListBehaviorsUtil.removePagesFromOffline(requireActivity(), readingList.pages) { updateLists(currentSearchQuery, true) }</span>
+<span class="nc" id="L551">        }</span>
+
+        override fun onSelectList(readingList: ReadingList) {
+<span class="nc bnc" id="L554" title="All 2 branches missed.">            if (!isTagType(actionMode)) {</span>
+<span class="nc" id="L555">                beginMultiSelect()</span>
+            }
+<span class="nc" id="L557">            toggleSelectList(readingList)</span>
+<span class="nc" id="L558">        }</span>
+
+        override fun onChecked(readingList: ReadingList) {
+<span class="nc" id="L561">            toggleSelectList(readingList)</span>
+<span class="nc" id="L562">        }</span>
+
+        override fun onShare(readingList: ReadingList) {
+<span class="nc" id="L565">            ReadingListsShareHelper.shareReadingList(requireActivity() as AppCompatActivity, readingList)</span>
+<span class="nc" id="L566">        }</span>
+    }
+
+    private fun toggleSelectList(readingList: ReadingList?) {
+<span class="nc bnc" id="L570" title="All 2 branches missed.">        readingList?.let {</span>
+<span class="nc" id="L571">            displayedLists.filterIsInstance&lt;ReadingList&gt;().forEach { list -&gt;</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">                if (list.title == readingList.title) {</span>
+<span class="nc bnc" id="L573" title="All 2 branches missed.">                    list.selected = !list.selected</span>
+                }
+<span class="nc" id="L575">            }</span>
+<span class="nc bnc" id="L576" title="All 2 branches missed.">            actionMode?.invalidate()</span>
+<span class="nc" id="L577">            adapter.notifyDataSetChanged()</span>
+<span class="nc" id="L578">        }</span>
+<span class="nc" id="L579">    }</span>
+
+    private fun beginMultiSelect() {
+<span class="nc bnc" id="L582" title="All 2 branches missed.">        if (!isTagType(actionMode)) {</span>
+<span class="nc" id="L583">            selectMode = true</span>
+<span class="nc" id="L584">            (requireActivity() as AppCompatActivity).startSupportActionMode(multiSelectModeCallback)</span>
+        }
+<span class="nc" id="L586">    }</span>
+
+    private fun finishActionMode() {
+<span class="nc bnc" id="L589" title="All 2 branches missed.">        actionMode?.finish()</span>
+<span class="nc" id="L590">    }</span>
+
+<span class="nc" id="L592">    private inner class ReadingListPageItemCallback : PageItemView.Callback&lt;ReadingListPage?&gt; {</span>
+        override fun onClick(item: ReadingListPage?) {
+<span class="nc bnc" id="L594" title="All 2 branches missed.">            item?.let {</span>
+<span class="nc" id="L595">                val title = ReadingListPage.toPageTitle(it)</span>
+<span class="nc" id="L596">                val entry = HistoryEntry(title, HistoryEntry.SOURCE_READING_LIST)</span>
+<span class="nc" id="L597">                ReadingListBehaviorsUtil.updateReadingListPage(item)</span>
+<span class="nc" id="L598">                startActivity(PageActivity.newIntentForCurrentTab(requireContext(), entry, entry.title))</span>
+<span class="nc" id="L599">            }</span>
+<span class="nc" id="L600">        }</span>
+
+        override fun onLongClick(item: ReadingListPage?): Boolean {
+<span class="nc bnc" id="L603" title="All 2 branches missed.">            item?.let {</span>
+<span class="nc" id="L604">                ExclusiveBottomSheetPresenter.show(childFragmentManager,</span>
+<span class="nc bnc" id="L605" title="All 2 branches missed.">                        ReadingListItemActionsDialog.newInstance(ReadingListBehaviorsUtil.getListsContainPage(it), it.id, actionMode != null))</span>
+<span class="nc" id="L606">                return true</span>
+            }
+<span class="nc" id="L608">            return false</span>
+        }
+
+        override fun onActionClick(item: ReadingListPage?, view: View) {
+<span class="nc bnc" id="L612" title="All 2 branches missed.">            item?.let {</span>
+<span class="nc bnc" id="L613" title="All 4 branches missed.">                if (Prefs.isDownloadOnlyOverWiFiEnabled &amp;&amp; !DeviceUtil.isOnWiFi &amp;&amp;</span>
+<span class="nc bnc" id="L614" title="All 2 branches missed.">                        it.status == ReadingListPage.STATUS_QUEUE_FOR_SAVE) {</span>
+<span class="nc" id="L615">                    it.offline = false</span>
+                }
+<span class="nc bnc" id="L617" title="All 2 branches missed.">                if (it.saving) {</span>
+<span class="nc" id="L618">                    Toast.makeText(context, R.string.reading_list_article_save_in_progress, Toast.LENGTH_LONG).show()</span>
+                } else {
+<span class="nc" id="L620">                    ReadingListBehaviorsUtil.toggleOffline(requireActivity(), it) { adapter.notifyDataSetChanged() }</span>
+                }
+<span class="nc" id="L622">            }</span>
+<span class="nc" id="L623">        }</span>
+
+        override fun onListChipClick(readingList: ReadingList) {
+<span class="nc" id="L626">            startActivity(ReadingListActivity.newIntent(requireContext(), readingList))</span>
+<span class="nc" id="L627">        }</span>
+    }
+
+    private fun maybeDeleteListFromIntent() {
+<span class="nc bnc" id="L631" title="All 2 branches missed.">        if (requireActivity().intent.hasExtra(Constants.INTENT_EXTRA_DELETE_READING_LIST)) {</span>
+<span class="nc" id="L632">            val titleToDelete = requireActivity().intent</span>
+<span class="nc" id="L633">                    .getStringExtra(Constants.INTENT_EXTRA_DELETE_READING_LIST)</span>
+<span class="nc" id="L634">            requireActivity().intent.removeExtra(Constants.INTENT_EXTRA_DELETE_READING_LIST)</span>
+<span class="nc" id="L635">            displayedLists.forEach {</span>
+<span class="nc bnc" id="L636" title="All 4 branches missed.">                if (it is ReadingList &amp;&amp; it.title == titleToDelete) {</span>
+<span class="nc" id="L637">                    ReadingListBehaviorsUtil.deleteReadingList(requireActivity(), it, false) {</span>
+<span class="nc" id="L638">                        ReadingListBehaviorsUtil.showDeleteListUndoSnackbar(requireActivity(), it) { updateLists() }</span>
+<span class="nc" id="L639">                        updateLists()</span>
+<span class="nc" id="L640">                    }</span>
+                }
+<span class="nc" id="L642">            }</span>
+        }
+<span class="nc" id="L644">    }</span>
+
+    private val selectedLists
+<span class="nc" id="L647">        get() = displayedLists.filterIsInstance&lt;ReadingList&gt;().filter { it.selected }</span>
+
+<span class="nc" id="L649">    private inner class MultiSelectCallback : MultiSelectActionModeCallback() {</span>
+<span class="nc bnc" id="L650" title="All 2 branches missed.">        private val allSelected get() = selectedLists.size == displayedLists.count { it is ReadingList }</span>
+<span class="nc" id="L651">        private val noneSelected get() = selectedLists.isEmpty()</span>
+
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L654">            super.onCreateActionMode(mode, menu)</span>
+<span class="nc" id="L655">            mode.menuInflater.inflate(R.menu.menu_action_mode_reading_lists, menu)</span>
+<span class="nc" id="L656">            actionMode = mode</span>
+<span class="nc" id="L657">            val deleteItem = menu.findItem(R.id.menu_delete_selected)</span>
+<span class="nc" id="L658">            deleteItem.isEnabled = false</span>
+<span class="nc" id="L659">            return true</span>
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L663">            val listsSelected = selectedLists</span>
+<span class="nc bnc" id="L664" title="All 4 branches missed.">            val onlyDefaultSelected = listsSelected.size == 1 &amp;&amp; listsSelected[0].isDefault</span>
+<span class="nc bnc" id="L665" title="All 2 branches missed.">            mode.title = if (listsSelected.isEmpty()) &quot;&quot; else getString(R.string.multi_select_items_selected, listsSelected.size)</span>
+<span class="nc" id="L666">            val fullOpacity = 255</span>
+<span class="nc" id="L667">            val halfOpacity = 80</span>
+<span class="nc" id="L668">            val deleteItem = menu.findItem(R.id.menu_delete_selected)</span>
+<span class="nc" id="L669">            val exportItem = menu.findItem(R.id.menu_export_selected)</span>
+<span class="nc" id="L670">            val exportItemTitleColor = ResourceUtil.getThemedColor(requireContext(), R.attr.progressive_color)</span>
+<span class="nc" id="L671">            exportItem.title = buildSpannedString {</span>
+<span class="nc" id="L672">                color(ColorUtils.setAlphaComponent(exportItemTitleColor,</span>
+<span class="nc bnc" id="L673" title="All 2 branches missed.">                    if (listsSelected.isEmpty()) halfOpacity else fullOpacity)) {</span>
+<span class="nc" id="L674">                    append(exportItem.title)</span>
+<span class="nc" id="L675">                }</span>
+<span class="nc" id="L676">            }</span>
+<span class="nc bnc" id="L677" title="All 6 branches missed.">            deleteItem.icon?.alpha = if (listsSelected.isEmpty() || onlyDefaultSelected) halfOpacity else fullOpacity</span>
+<span class="nc bnc" id="L678" title="All 2 branches missed.">            exportItem.isEnabled = listsSelected.isNotEmpty()</span>
+<span class="nc bnc" id="L679" title="All 6 branches missed.">            deleteItem.isEnabled = listsSelected.isNotEmpty() &amp;&amp; !onlyDefaultSelected</span>
+
+<span class="nc" id="L681">            val selectButton = menu.findItem(R.id.menu_select)</span>
+<span class="nc" id="L682">            selectButton.setIcon(when {</span>
+<span class="nc bnc" id="L683" title="All 2 branches missed.">                noneSelected -&gt; R.drawable.ic_outline_library_add_check_24</span>
+<span class="nc bnc" id="L684" title="All 2 branches missed.">                allSelected -&gt; R.drawable.ic_deselect_all</span>
+<span class="nc" id="L685">                else -&gt; R.drawable.ic_select_indeterminate</span>
+            })
+<span class="nc" id="L687">            selectButton.title = when {</span>
+<span class="nc bnc" id="L688" title="All 2 branches missed.">                noneSelected -&gt; getString(R.string.notifications_menu_check_all)</span>
+<span class="nc bnc" id="L689" title="All 2 branches missed.">                allSelected -&gt; getString(R.string.notifications_menu_uncheck_all)</span>
+<span class="nc" id="L690">                else -&gt; &quot;&quot;</span>
+            }
+<span class="nc" id="L692">            return super.onPrepareActionMode(mode, menu)</span>
+        }
+
+        override fun onActionItemClicked(mode: ActionMode, menuItem: MenuItem): Boolean {
+<span class="nc" id="L696">            when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L697" title="All 2 branches missed.">                R.id.menu_delete_selected -&gt; {</span>
+<span class="nc" id="L698">                    onDeleteSelected()</span>
+<span class="nc" id="L699">                    return true</span>
+                }
+<span class="nc bnc" id="L701" title="All 2 branches missed.">                R.id.menu_export_selected -&gt; {</span>
+<span class="nc bnc" id="L702" title="All 2 branches missed.">                    if (selectedLists.isEmpty()) {</span>
+<span class="nc" id="L703">                        Toast.makeText(context, getString(R.string.reading_lists_export_select_lists_message),</span>
+<span class="nc" id="L704">                            Toast.LENGTH_SHORT).show()</span>
+<span class="nc" id="L705">                        return true</span>
+                    }
+<span class="nc" id="L707">                    ReadingListsExportImportHelper.exportLists(activity as BaseActivity, selectedLists)</span>
+<span class="nc" id="L708">                    finishActionMode()</span>
+<span class="nc" id="L709">                    return true</span>
+                }
+<span class="nc bnc" id="L711" title="All 2 branches missed.">                R.id.menu_select -&gt; {</span>
+<span class="nc" id="L712">                    when {</span>
+<span class="nc bnc" id="L713" title="All 2 branches missed.">                        allSelected -&gt; unselectAllLists()</span>
+<span class="nc" id="L714">                        else -&gt; selectAllLists()</span>
+                    }
+<span class="nc" id="L716">                    mode.invalidate()</span>
+                }
+            }
+<span class="nc" id="L719">            return false</span>
+        }
+
+        override fun onDeleteSelected() {
+<span class="nc" id="L723">            selectedLists.let {</span>
+<span class="nc" id="L724">                ReadingListBehaviorsUtil.deleteReadingLists(requireActivity(), it) {</span>
+<span class="nc" id="L725">                    ReadingListBehaviorsUtil.showDeleteListsUndoSnackbar(requireActivity(), it) { updateLists() }</span>
+<span class="nc" id="L726">                    finishActionMode()</span>
+<span class="nc" id="L727">                    updateLists()</span>
+<span class="nc" id="L728">                }</span>
+<span class="nc" id="L729">            }</span>
+<span class="nc" id="L730">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L733">            selectMode = false</span>
+<span class="nc" id="L734">            unselectAllLists()</span>
+<span class="nc" id="L735">            actionMode = null</span>
+<span class="nc" id="L736">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L737">        }</span>
+    }
+
+    private fun unselectAllLists() {
+<span class="nc" id="L741">        selectedLists.let {</span>
+<span class="nc" id="L742">            it.forEach { list -&gt;</span>
+<span class="nc" id="L743">                list.selected = false</span>
+<span class="nc" id="L744">            }</span>
+<span class="nc" id="L745">            adapter.notifyDataSetChanged()</span>
+<span class="nc" id="L746">        }</span>
+<span class="nc" id="L747">    }</span>
+
+    private fun selectAllLists() {
+<span class="nc" id="L750">         displayedLists.let {</span>
+<span class="nc" id="L751">            displayedLists.filterIsInstance&lt;ReadingList&gt;()</span>
+<span class="nc bnc" id="L752" title="All 2 branches missed.">                .filter { !it.selected }</span>
+<span class="nc" id="L753">                .onEach { it.selected = true }</span>
+        }
+<span class="nc" id="L755">        adapter.notifyDataSetChanged()</span>
+<span class="nc" id="L756">    }</span>
+
+<span class="nc" id="L758">    private inner class ReadingListsSearchCallback : SearchActionModeCallback() {</span>
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L760">            actionMode = mode</span>
+            // searching delay will let the animation cannot catch the update of list items, and will cause crashes
+<span class="nc" id="L762">            enableLayoutTransition(false)</span>
+<span class="nc" id="L763">            binding.onboardingView.isVisible = false</span>
+<span class="nc bnc" id="L764" title="All 2 branches missed.">            if (isAdded) {</span>
+<span class="nc" id="L765">                (requireParentFragment() as MainFragment).setBottomNavVisible(false)</span>
+            }
+<span class="nc" id="L767">            return super.onCreateActionMode(mode, menu)</span>
+        }
+
+        override fun onQueryChange(s: String) {
+<span class="nc" id="L771">            updateLists(s.trim(), false)</span>
+<span class="nc" id="L772">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L775">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L776">            enableLayoutTransition(true)</span>
+<span class="nc" id="L777">            actionMode = null</span>
+<span class="nc" id="L778">            currentSearchQuery = null</span>
+<span class="nc bnc" id="L779" title="All 2 branches missed.">            if (isAdded) {</span>
+<span class="nc" id="L780">                (requireParentFragment() as MainFragment).setBottomNavVisible(true)</span>
+            }
+<span class="nc" id="L782">            updateLists()</span>
+<span class="nc" id="L783">        }</span>
+
+        override fun getSearchHintString(): String {
+<span class="nc" id="L786">            return requireContext().resources.getString(R.string.filter_hint_filter_my_lists_and_articles)</span>
+        }
+
+        override fun getParentContext(): Context {
+<span class="nc" id="L790">            return requireContext()</span>
+        }
+    }
+
+    private fun showReadingListsSyncDialog() {
+<span class="nc bnc" id="L795" title="All 2 branches missed.">        if (!Prefs.isReadingListSyncEnabled) {</span>
+<span class="nc bnc" id="L796" title="All 2 branches missed.">            if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L797">                ReadingListSyncBehaviorDialogs.promptEnableSyncDialog(requireActivity())</span>
+            } else {
+<span class="nc bnc" id="L799" title="All 2 branches missed.">                if (recentPreviewSavedReadingList == null) {</span>
+<span class="nc" id="L800">                    ReadingListSyncBehaviorDialogs.promptLogInToSyncDialog(requireActivity())</span>
+                }
+            }
+        }
+<span class="nc" id="L804">    }</span>
+
+    private fun maybeShowPreviewSavedReadingListsSnackbar() {
+<span class="nc bnc" id="L807" title="All 2 branches missed.">        if (shouldShowImportedSnackbar) {</span>
+<span class="nc" id="L808">            ReadingListsAnalyticsHelper.logReceiveFinish(requireContext(), recentPreviewSavedReadingList)</span>
+<span class="nc" id="L809">            FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.reading_lists_preview_saved_snackbar))</span>
+<span class="nc" id="L810">                .setAction(R.string.suggested_edits_article_cta_snackbar_action) {</span>
+<span class="nc bnc" id="L811" title="All 2 branches missed.">                    recentPreviewSavedReadingList?.let {</span>
+<span class="nc" id="L812">                        startActivity(ReadingListActivity.newIntent(requireContext(), it))</span>
+<span class="nc" id="L813">                    }</span>
+<span class="nc" id="L814">                }</span>
+<span class="nc" id="L815">                .show()</span>
+<span class="nc" id="L816">            shouldShowImportedSnackbar = false</span>
+<span class="nc" id="L817">            Prefs.receiveReadingListsData = null</span>
+<span class="nc" id="L818">            Prefs.readingListRecentReceivedId = -1L</span>
+        }
+<span class="nc" id="L820">    }</span>
+
+    private fun maybeShowOnboarding(searchQuery: String?) {
+<span class="nc bnc" id="L823" title="All 6 branches missed.">        if (!searchQuery.isNullOrEmpty()) {</span>
+<span class="nc" id="L824">            binding.onboardingView.isVisible = false</span>
+<span class="nc" id="L825">            return</span>
+        }
+<span class="nc bnc" id="L827" title="All 2 branches missed.">        if (!Prefs.isRecommendedReadingListOnboardingShown) {</span>
+<span class="nc" id="L828">            RecommendedReadingListEvent.submit(&quot;impression&quot;, &quot;rrl_saved_prompt&quot;)</span>
+<span class="nc" id="L829">            binding.onboardingView.setMessageLabel(getString(R.string.recommended_reading_list_onboarding_card_new))</span>
+<span class="nc" id="L830">            binding.onboardingView.setMessageTitle(getString(R.string.recommended_reading_list_onboarding_card_title))</span>
+<span class="nc" id="L831">            binding.onboardingView.setMessageText(getString(R.string.recommended_reading_list_onboarding_card_message))</span>
+<span class="nc" id="L832">            binding.onboardingView.setImageResource(-1, false)</span>
+<span class="nc" id="L833">            binding.onboardingView.setPositiveButton(R.string.recommended_reading_list_onboarding_card_positive_button, {</span>
+<span class="nc" id="L834">                startActivity(RecommendedReadingListOnboardingActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L835">                RecommendedReadingListEvent.submit(&quot;enter_click&quot;, &quot;rrl_saved_prompt&quot;)</span>
+<span class="nc" id="L836">            }, true)</span>
+<span class="nc" id="L837">            binding.onboardingView.setNegativeButton(R.string.recommended_reading_list_onboarding_card_negative_button, {</span>
+<span class="nc" id="L838">                binding.onboardingView.isVisible = false</span>
+<span class="nc" id="L839">                Prefs.isRecommendedReadingListOnboardingShown = true</span>
+<span class="nc" id="L840">                updateEmptyState(null)</span>
+<span class="nc" id="L841">                FeedbackUtil.showMessage(this@ReadingListsFragment, getString(R.string.recommended_reading_list_onboarding_card_negative_snackbar))</span>
+<span class="nc" id="L842">                RecommendedReadingListEvent.submit(&quot;nothanks_click&quot;, &quot;rrl_saved_prompt&quot;)</span>
+<span class="nc" id="L843">            }, false)</span>
+<span class="nc" id="L844">            binding.onboardingView.isVisible = true</span>
+<span class="nc bnc" id="L845" title="All 6 branches missed.">        } else if ((AccountUtil.isLoggedIn &amp;&amp; !AccountUtil.isTemporaryAccount) &amp;&amp; !Prefs.isReadingListSyncEnabled &amp;&amp;</span>
+<span class="nc bnc" id="L846" title="All 4 branches missed.">                Prefs.isReadingListSyncReminderEnabled &amp;&amp; !RemoteConfig.config.disableReadingListSync) {</span>
+<span class="nc" id="L847">            binding.onboardingView.setMessageLabel(null)</span>
+<span class="nc" id="L848">            binding.onboardingView.setMessageTitle(getString(R.string.reading_lists_sync_reminder_title))</span>
+<span class="nc" id="L849">            binding.onboardingView.setMessageText(StringUtil.fromHtml(getString(R.string.reading_lists_sync_reminder_text)).toString())</span>
+<span class="nc" id="L850">            binding.onboardingView.setImageResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.sync_reading_list_prompt_drawable), true)</span>
+<span class="nc" id="L851">            binding.onboardingView.setPositiveButton(R.string.reading_lists_sync_reminder_action, { ReadingListSyncAdapter.setSyncEnabledWithSetup() }, true)</span>
+<span class="nc" id="L852">            binding.onboardingView.setNegativeButton(R.string.reading_lists_ignore_button, {</span>
+<span class="nc" id="L853">                binding.onboardingView.isVisible = false</span>
+<span class="nc" id="L854">                Prefs.isReadingListSyncReminderEnabled = false</span>
+<span class="nc" id="L855">            }, false)</span>
+<span class="nc" id="L856">            binding.onboardingView.isVisible = true</span>
+<span class="nc bnc" id="L857" title="All 8 branches missed.">        } else if ((!AccountUtil.isLoggedIn || AccountUtil.isTemporaryAccount) &amp;&amp; Prefs.isReadingListLoginReminderEnabled &amp;&amp; !RemoteConfig.config.disableReadingListSync) {</span>
+<span class="nc" id="L858">            binding.onboardingView.setMessageLabel(null)</span>
+<span class="nc" id="L859">            binding.onboardingView.setMessageTitle(getString(R.string.reading_list_login_reminder_title))</span>
+<span class="nc" id="L860">            binding.onboardingView.setMessageText(getString(R.string.reading_lists_login_reminder_text))</span>
+<span class="nc" id="L861">            binding.onboardingView.setImageResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.sync_reading_list_prompt_drawable), true)</span>
+<span class="nc" id="L862">            binding.onboardingView.setPositiveButton(R.string.reading_lists_login_button, {</span>
+<span class="nc bnc" id="L863" title="All 4 branches missed.">                if (isAdded &amp;&amp; requireParentFragment() is FeedFragment.Callback) {</span>
+<span class="nc" id="L864">                    (requireParentFragment() as FeedFragment.Callback).onLoginRequested()</span>
+                }
+<span class="nc" id="L866">            }, true)</span>
+<span class="nc" id="L867">            binding.onboardingView.setNegativeButton(R.string.reading_lists_ignore_button, {</span>
+<span class="nc" id="L868">                binding.onboardingView.isVisible = false</span>
+<span class="nc" id="L869">                Prefs.isReadingListLoginReminderEnabled = false</span>
+<span class="nc" id="L870">                updateEmptyState(null)</span>
+<span class="nc" id="L871">            }, false)</span>
+<span class="nc" id="L872">            binding.onboardingView.isVisible = true</span>
+        } else {
+<span class="nc" id="L874">            binding.onboardingView.isVisible = false</span>
+        }
+<span class="nc" id="L876">    }</span>
+
+    private fun onListsImportResult(uri: Uri) {
+<span class="nc" id="L879">        binding.swipeRefreshLayout.isRefreshing = true</span>
+<span class="nc bnc" id="L880" title="All 6 branches missed.">        activity?.contentResolver?.openInputStream(uri)?.use { inputStream -&gt;</span>
+<span class="nc bnc" id="L881" title="All 2 branches missed.">            val inputString = inputStream.bufferedReader().use { it.readText() }</span>
+<span class="nc" id="L882">            ReadingListsExportImportHelper.importLists(activity as AppCompatActivity, inputString)</span>
+<span class="nc" id="L883">            importMode = true</span>
+<span class="nc" id="L884">        }</span>
+<span class="nc" id="L885">    }</span>
+
+    private fun setupRecommendedReadingListDiscoverCardView(recommendedArticles: List&lt;RecommendedPage&gt;) {
+<span class="nc" id="L888">        binding.discoverCardView.isVisible = true</span>
+<span class="nc" id="L889">        binding.discoverCardView.setContent {</span>
+<span class="nc" id="L890">            val images by remember(Prefs.recommendedReadingListArticlesNumber, Prefs.recommendedReadingListSource) { mutableStateOf(recommendedArticles.mapNotNull { it.thumbUrl }) }</span>
+<span class="nc" id="L891">            var isNewListGenerated by remember { mutableStateOf(Prefs.isNewRecommendedReadingListGenerated) }</span>
+<span class="nc" id="L892">            val subtitle = when (AccountUtil.isLoggedIn) {</span>
+<span class="nc bnc" id="L893" title="All 2 branches missed.">                true -&gt; { getString(R.string.recommended_reading_list_page_subtitle_made_for, &quot;&lt;b&gt;&quot; + AccountUtil.userName + &quot;&lt;/b&gt;&quot;) }</span>
+<span class="nc bnc" id="L894" title="All 2 branches missed.">                false -&gt; { getString(R.string.recommended_reading_list_page_logged_out_subtitle_made_for_you) }</span>
+            }
+
+<span class="nc" id="L897">            LaunchedEffect(Unit) {</span>
+<span class="nc" id="L898">                FlowEventBus.events.collect { event -&gt;</span>
+<span class="nc bnc" id="L899" title="All 2 branches missed.">                    if (event is NewRecommendedReadingListEvent) {</span>
+<span class="nc" id="L900">                        isNewListGenerated = Prefs.isNewRecommendedReadingListGenerated</span>
+                    }
+<span class="nc" id="L902">                }</span>
+            }
+<span class="nc bnc" id="L904" title="All 3 branches missed.">            val description = when (Prefs.recommendedReadingListUpdateFrequency) {</span>
+<span class="nc" id="L905">                RecommendedReadingListUpdateFrequency.DAILY -&gt; R.string.recommended_reading_list_page_description_daily</span>
+<span class="nc" id="L906">                RecommendedReadingListUpdateFrequency.WEEKLY -&gt; R.string.recommended_reading_list_page_description_weekly</span>
+<span class="nc" id="L907">                RecommendedReadingListUpdateFrequency.MONTHLY -&gt; R.string.recommended_reading_list_page_description_monthly</span>
+            }
+<span class="nc" id="L909">            BaseTheme {</span>
+<span class="nc" id="L910">                RecommendedReadingListDiscoverCardView(</span>
+<span class="nc" id="L911">                    modifier = Modifier</span>
+<span class="nc" id="L912">                        .clickable {</span>
+<span class="nc" id="L913">                            FlowEventBus.post(NewRecommendedReadingListEvent())</span>
+<span class="nc" id="L914">                            startActivity(ReadingListActivity.newIntent(requireActivity(), ReadingListMode.RECOMMENDED))</span>
+<span class="nc" id="L915">                        }</span>
+<span class="nc" id="L916">                        .padding(16.dp),</span>
+<span class="nc" id="L917">                    title = getString(R.string.recommended_reading_list_title),</span>
+<span class="nc" id="L918">                    subtitleIcon = R.drawable.ic_wikipedia_w,</span>
+<span class="nc" id="L919">                    subtitle = subtitle,</span>
+<span class="nc" id="L920">                    description = getString(description),</span>
+<span class="nc" id="L921">                    images = images,</span>
+<span class="nc" id="L922">                    isNewListGenerated = isNewListGenerated,</span>
+<span class="nc" id="L923">                    isUserLoggedIn = AccountUtil.isLoggedIn</span>
+                )
+<span class="nc" id="L925">            }</span>
+<span class="nc" id="L926">        }</span>
+<span class="nc" id="L927">    }</span>
+
+    companion object {
+        private const val VIEW_TYPE_ITEM = 0
+        private const val VIEW_TYPE_PAGE_ITEM = 1
+        private const val SAVE_COUNT_LIMIT = 3
+
+        fun newInstance(): ReadingListsFragment {
+<span class="nc" id="L935">            return ReadingListsFragment()</span>
+        }
+
+        fun refreshSync(fragment: Fragment, swipeRefreshLayout: SwipeRefreshLayout) {
+<span class="nc bnc" id="L939" title="All 4 branches missed.">            if (!AccountUtil.isLoggedIn || AccountUtil.isTemporaryAccount) {</span>
+<span class="nc" id="L940">                ReadingListSyncBehaviorDialogs.promptLogInToSyncDialog(fragment.requireActivity())</span>
+<span class="nc" id="L941">                swipeRefreshLayout.isRefreshing = false</span>
+            } else {
+<span class="nc" id="L943">                Prefs.isReadingListSyncEnabled = true</span>
+
+                // TODO: Change this back to the less forceful manualSyncWithRefresh() when the
+                // service-side endpoint is fixed.
+                // https://phabricator.wikimedia.org/T351149
+<span class="nc" id="L948">                ReadingListSyncAdapter.manualSyncWithForce()</span>
+            }
+<span class="nc" id="L950">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

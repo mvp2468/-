@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GeoUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">GeoUtil.kt</span></div><h1>GeoUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.icu.number.NumberFormatter
+import android.icu.number.Precision
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
+import android.icu.util.ULocale
+import android.location.Location
+import android.net.Uri
+import android.os.Build
+import androidx.core.net.toUri
+import org.wikipedia.R
+import org.wikipedia.feed.announcement.GeoIPCookieUnmarshaller
+import org.wikipedia.history.db.HistoryEntryWithImage
+import org.wikipedia.settings.Prefs
+import java.text.DecimalFormat
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+object GeoUtil {
+    @Suppress(&quot;UnsafeImplicitIntentLaunch&quot;)
+    fun sendGeoIntent(activity: Activity,
+                      location: Location,
+                      placeName: String?) {
+        // Using geo:latitude,longitude doesn't give a point on the map, hence using query
+<span class="nc" id="L34">        var geoStr = &quot;geo:0,0?q=${location.latitude},${location.longitude}&quot;</span>
+<span class="nc bnc" id="L35" title="All 6 branches missed.">        if (!placeName.isNullOrEmpty()) {</span>
+<span class="nc" id="L36">            geoStr += &quot;(${Uri.encode(placeName)})&quot;</span>
+        }
+<span class="nc" id="L38">        try {</span>
+<span class="nc" id="L39">            activity.startActivity(Intent(Intent.ACTION_VIEW, geoStr.toUri()))</span>
+<span class="nc" id="L40">        } catch (_: ActivityNotFoundException) {</span>
+<span class="nc" id="L41">            FeedbackUtil.showMessage(activity, R.string.error_no_maps_app)</span>
+        }
+<span class="nc" id="L43">    }</span>
+
+    val geoIPCountry
+<span class="nc" id="L46">        get() = try {</span>
+<span class="nc bnc" id="L47" title="All 6 branches missed.">            if (!Prefs.geoIPCountryOverride.isNullOrEmpty()) {</span>
+<span class="nc" id="L48">                Prefs.geoIPCountryOverride</span>
+            } else {
+<span class="nc" id="L50">                GeoIPCookieUnmarshaller.unmarshal().country</span>
+            }
+<span class="nc" id="L52">        } catch (_: IllegalArgumentException) {</span>
+            // For our purposes, don't care about malformations in the GeoIP cookie for now.
+<span class="nc" id="L54">            null</span>
+<span class="nc" id="L55">        }</span>
+
+    fun getDistanceWithUnit(startLocation: Location, endLocation: Location, locale: Locale): String {
+<span class="nc" id="L58">        val usingMiles = listOf(&quot;US&quot;, &quot;GB&quot;, &quot;LR&quot;, &quot;MM&quot;).contains(locale.country)</span>
+<span class="nc" id="L59">        var distance = startLocation.distanceTo(endLocation) / 1000.0 // in Kilometers</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (usingMiles) {</span>
+<span class="nc" id="L61">            distance *= 0.62137119 // Convert to miles</span>
+        }
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.R) {</span>
+<span class="nc" id="L64">            val uLocale = ULocale.forLocale(locale)</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            val measure = Measure(distance, if (usingMiles) MeasureUnit.MILE else MeasureUnit.KILOMETER)</span>
+<span class="nc" id="L66">            return NumberFormatter.withLocale(uLocale)</span>
+<span class="nc" id="L67">                .unit(measure.unit)</span>
+<span class="nc" id="L68">                .unitWidth(NumberFormatter.UnitWidth.SHORT)</span>
+<span class="nc" id="L69">                .precision(Precision.maxFraction(2))</span>
+<span class="nc" id="L70">                .format(measure.number)</span>
+<span class="nc" id="L71">                .toString()</span>
+        } else {
+<span class="nc" id="L73">            val formatter = DecimalFormat(&quot;#.##&quot;)</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            return &quot;${formatter.format(distance)} ${if (usingMiles) &quot;mi&quot; else &quot;km&quot;}&quot;</span>
+        }
+    }
+
+    fun isSamePlace(startLat: Double, endLat: Double, startLon: Double, endLon: Double): Boolean {
+<span class="nc" id="L79">        val tolerance = 0.0000001</span>
+<span class="nc bnc" id="L80" title="All 4 branches missed.">        return abs(startLat - endLat) &lt; tolerance &amp;&amp; abs(startLon - endLon) &lt; tolerance</span>
+    }
+
+<span class="nc" id="L83">    data class Cluster(</span>
+<span class="nc" id="L84">        val id: Int,</span>
+<span class="nc" id="L85">        val locations: MutableList&lt;HistoryEntryWithImage&gt; = mutableListOf(),</span>
+<span class="nc" id="L86">        val centroid: Location? = null</span>
+<span class="nc" id="L87">    )</span>
+
+<span class="nc" id="L89">    class LocationClusterer {</span>
+<span class="nc" id="L90">        fun clusterLocations(</span>
+            locations: List&lt;HistoryEntryWithImage&gt;,
+<span class="nc" id="L92">            epsilonKm: Double = 0.5,</span>
+<span class="nc" id="L93">            minPoints: Int = 3</span>
+        ): List&lt;Cluster&gt; {
+<span class="nc" id="L95">            val clusters = mutableListOf&lt;Cluster&gt;()</span>
+<span class="nc" id="L96">            val visited = mutableSetOf&lt;HistoryEntryWithImage&gt;()</span>
+<span class="nc" id="L97">            val noise = mutableSetOf&lt;HistoryEntryWithImage&gt;()</span>
+<span class="nc" id="L98">            var clusterId = 0</span>
+
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            for (location in locations) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                if (location in visited) continue</span>
+<span class="nc" id="L102">                visited.add(location)</span>
+
+<span class="nc" id="L104">                val neighbors = getNeighbors(location, locations, epsilonKm)</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                if (neighbors.size &lt; minPoints) {</span>
+<span class="nc" id="L106">                    noise.add(location)</span>
+                } else {
+<span class="nc" id="L108">                    val cluster = Cluster(id = clusterId++)</span>
+<span class="nc" id="L109">                    expandCluster(location, neighbors, cluster, visited, locations, epsilonKm, minPoints)</span>
+
+<span class="nc bnc" id="L111" title="All 4 branches missed.">                    if (cluster.locations.isNotEmpty()) {</span>
+<span class="nc" id="L112">                        cluster.copy(centroid = calculateCentroid(cluster.locations))</span>
+<span class="nc" id="L113">                        clusters.add(cluster)</span>
+                    }
+                }
+            }
+
+<span class="nc" id="L118">            return clusters.map { cluster -&gt;</span>
+<span class="nc" id="L119">                cluster.copy(centroid = calculateCentroid(cluster.locations))</span>
+            }
+        }
+
+        private fun expandCluster(
+            location: HistoryEntryWithImage,
+            neighbors: MutableList&lt;HistoryEntryWithImage&gt;,
+            cluster: Cluster,
+            visited: MutableSet&lt;HistoryEntryWithImage&gt;,
+            allLocations: List&lt;HistoryEntryWithImage&gt;,
+            epsilon: Double,
+            minPoints: Int
+        ) {
+<span class="nc" id="L132">            cluster.locations.add(location)</span>
+
+<span class="nc" id="L134">            var i = 0</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            while (i &lt; neighbors.size) {</span>
+<span class="nc" id="L136">                val neighbor = neighbors[i]</span>
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                if (neighbor !in visited) {</span>
+<span class="nc" id="L139">                    visited.add(neighbor)</span>
+<span class="nc" id="L140">                    val neighborNeighbors = getNeighbors(neighbor, allLocations, epsilon)</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                    if (neighborNeighbors.size &gt;= minPoints) {</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                        neighbors.addAll(neighborNeighbors.filter { it !in neighbors })</span>
+                    }
+                }
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                if (cluster.locations.none { it == neighbor }) {</span>
+<span class="nc" id="L148">                    cluster.locations.add(neighbor)</span>
+                }
+<span class="nc" id="L150">                i++</span>
+            }
+<span class="nc" id="L152">        }</span>
+
+        private fun getNeighbors(
+            location: HistoryEntryWithImage,
+            allLocations: List&lt;HistoryEntryWithImage&gt;,
+            epsilonKm: Double
+        ): MutableList&lt;HistoryEntryWithImage&gt; {
+<span class="nc" id="L159">            return allLocations.filter { other -&gt;</span>
+<span class="nc bnc" id="L160" title="All 4 branches missed.">                other != location &amp;&amp; haversineDistance(location, other) &lt;= epsilonKm</span>
+<span class="nc" id="L161">            }.toMutableList()</span>
+        }
+
+        private fun calculateCentroid(locations: List&lt;HistoryEntryWithImage&gt;): Location {
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (locations.isEmpty())</span>
+<span class="nc" id="L166">                throw IllegalArgumentException(&quot;Cannot calculate centroid of empty list&quot;)</span>
+
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            val avgLat = locations.map { it.geoLat ?: 0.0 }.average()</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            val avgLon = locations.map { it.geoLon ?: 0.0 }.average()</span>
+
+<span class="nc" id="L171">            return Location(&quot;centroid&quot;).also {</span>
+<span class="nc" id="L172">                it.latitude = avgLat</span>
+<span class="nc" id="L173">                it.longitude = avgLon</span>
+<span class="nc" id="L174">            }</span>
+        }
+
+        /**
+         * Calculate distance between two locations using Haversine formula
+         * @return Distance in kilometers
+         */
+        private fun haversineDistance(loc1: HistoryEntryWithImage, loc2: HistoryEntryWithImage): Double {
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            val lat1 = loc1.geoLat ?: 0.0</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            val lon1 = loc1.geoLon ?: 0.0</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            val lat2 = loc2.geoLat ?: 0.0</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            val lon2 = loc2.geoLon ?: 0.0</span>
+<span class="nc" id="L186">            val dLat = Math.toRadians(lat2 - lat1)</span>
+<span class="nc" id="L187">            val dLon = Math.toRadians(lon2 - lon1)</span>
+<span class="nc" id="L188">            val a = sin(dLat / 2).pow(2) +</span>
+<span class="nc" id="L189">                    cos(Math.toRadians(lat1)) *</span>
+<span class="nc" id="L190">                    cos(Math.toRadians(lat2)) *</span>
+<span class="nc" id="L191">                    sin(dLon / 2).pow(2)</span>
+<span class="nc" id="L192">            val c = 2 * atan2(sqrt(a), sqrt(1 - a))</span>
+<span class="nc" id="L193">            val earthRadiusKm = 6371.0</span>
+<span class="nc" id="L194">            return earthRadiusKm * c</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

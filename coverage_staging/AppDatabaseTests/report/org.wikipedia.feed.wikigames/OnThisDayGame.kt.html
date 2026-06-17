@@ -1,0 +1,585 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayGame.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.wikigames</a> &gt; <span class="el_source">OnThisDayGame.kt</span></div><h1>OnThisDayGame.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.wikigames
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.BrushPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Devices
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import kotlinx.coroutines.delay
+import org.wikipedia.R
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.extensions.getString
+import org.wikipedia.feed.onthisday.OnThisDay
+import org.wikipedia.games.onthisday.OnThisDayGameProvider
+import org.wikipedia.games.onthisday.OnThisDayGameResultFragment
+import org.wikipedia.theme.Theme
+import org.wikipedia.views.imageservice.ImageService
+
+@Composable
+fun OnThisDayGameCardPreview(
+<span class="nc" id="L62">    modifier: Modifier = Modifier,</span>
+    state: OnThisDayCardGameState.Preview,
+    titleText: String,
+    onPlayClick: () -&gt; Unit
+<span class="nc bnc" id="L66" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L67">    val context = LocalContext.current</span>
+<span class="nc" id="L68">    WikiCard(</span>
+<span class="nc" id="L69">        modifier = modifier,</span>
+<span class="nc" id="L70">        border = BorderStroke(width = 0.5.dp, color = WikipediaTheme.colors.borderColor),</span>
+<span class="nc" id="L71">        elevation = 2.dp</span>
+<span class="nc" id="L72">    ) {</span>
+<span class="nc" id="L73">        Column(</span>
+<span class="nc" id="L74">            modifier = Modifier</span>
+<span class="nc" id="L75">                .padding(vertical = 16.dp)</span>
+<span class="nc" id="L76">                .fillMaxSize(),</span>
+        ) {
+<span class="nc" id="L78">            Column(</span>
+<span class="nc" id="L79">                modifier = Modifier.weight(1f)</span>
+            ) {
+<span class="nc" id="L81">                Row(</span>
+<span class="nc" id="L82">                    modifier = Modifier.padding(horizontal = 16.dp),</span>
+<span class="nc" id="L83">                    verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L84">                    horizontalArrangement = Arrangement.spacedBy(12.dp)</span>
+                ) {
+<span class="nc" id="L86">                    Icon(</span>
+<span class="nc" id="L87">                        modifier = Modifier</span>
+<span class="nc" id="L88">                            .size(24.dp),</span>
+<span class="nc" id="L89">                        painter = painterResource(R.drawable.ic_events_24dp),</span>
+<span class="nc" id="L90">                        tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L91">                        contentDescription = null</span>
+                    )
+<span class="nc" id="L93">                    Text(</span>
+<span class="nc" id="L94">                        text = titleText,</span>
+<span class="nc" id="L95">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L96">                        style = MaterialTheme.typography.titleMedium.copy(</span>
+<span class="nc" id="L97">                            fontWeight = FontWeight.SemiBold,</span>
+<span class="nc" id="L98">                            letterSpacing = 0.15.sp</span>
+                        )
+                    )
+<span class="nc" id="L101">                }</span>
+
+<span class="nc" id="L103">                OnThisDayGameFirstEventView(</span>
+<span class="nc" id="L104">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L105">                    event = state.event1</span>
+                )
+
+<span class="nc" id="L108">                HorizontalDivider(</span>
+<span class="nc" id="L109">                    modifier = Modifier</span>
+<span class="nc" id="L110">                        .fillMaxWidth(),</span>
+<span class="nc" id="L111">                    color = WikipediaTheme.colors.borderColor</span>
+                )
+
+<span class="nc" id="L114">                OnThisDayGameFirstEventView(</span>
+<span class="nc" id="L115">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L116">                    event = state.event2</span>
+                )
+<span class="nc" id="L118">            }</span>
+
+<span class="nc" id="L120">            Box(</span>
+<span class="nc" id="L121">                modifier = Modifier</span>
+<span class="nc" id="L122">                    .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L123">                    .fillMaxWidth()</span>
+            ) {
+<span class="nc" id="L125">                FilledTonalButton(</span>
+<span class="nc" id="L126">                    modifier = Modifier</span>
+<span class="nc" id="L127">                        .align(Alignment.CenterEnd),</span>
+<span class="nc" id="L128">                    colors = ButtonDefaults.filledTonalButtonColors(</span>
+<span class="nc" id="L129">                        containerColor = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc" id="L130">                        contentColor = WikipediaTheme.colors.progressiveColor</span>
+                    ),
+<span class="nc" id="L132">                    onClick = onPlayClick</span>
+<span class="nc" id="L133">                ) {</span>
+<span class="nc" id="L134">                    Text(</span>
+<span class="nc" id="L135">                        text = context.getString(state.langCode, R.string.on_this_day_game_play_today_btn_text),</span>
+<span class="nc" id="L136">                        style = MaterialTheme.typography.bodyLarge.copy(</span>
+<span class="nc" id="L137">                            fontWeight = FontWeight.Medium</span>
+                        ),
+<span class="nc" id="L139">                        textAlign = TextAlign.Center</span>
+                    )
+<span class="nc" id="L141">                }</span>
+<span class="nc" id="L142">            }</span>
+<span class="nc" id="L143">        }</span>
+<span class="nc" id="L144">    }</span>
+<span class="nc" id="L145">}</span>
+
+@Composable
+fun OnThisDayGameCardSimple(
+<span class="nc" id="L149">    modifier: Modifier = Modifier,</span>
+    iconRes: Int,
+    iconTint: Color,
+    titleText: String,
+    onPlayClick: () -&gt; Unit
+<span class="nc bnc" id="L154" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L155">    WikiCard(</span>
+<span class="nc" id="L156">        modifier = modifier,</span>
+<span class="nc" id="L157">        border = BorderStroke(width = 0.5.dp, color = WikipediaTheme.colors.borderColor),</span>
+<span class="nc" id="L158">        elevation = 2.dp</span>
+<span class="nc" id="L159">    ) {</span>
+<span class="nc" id="L160">        Box(</span>
+<span class="nc" id="L161">            modifier = Modifier.clickable {</span>
+<span class="nc" id="L162">                onPlayClick()</span>
+<span class="nc" id="L163">            }</span>
+        ) {
+<span class="nc" id="L165">            Column(</span>
+<span class="nc" id="L166">                modifier = Modifier</span>
+<span class="nc" id="L167">                    .padding(16.dp)</span>
+<span class="nc" id="L168">                    .fillMaxSize()</span>
+            ) {
+<span class="nc" id="L170">                Icon(</span>
+<span class="nc" id="L171">                    modifier = Modifier</span>
+<span class="nc" id="L172">                        .size(44.dp),</span>
+<span class="nc" id="L173">                    painter = painterResource(iconRes),</span>
+<span class="nc" id="L174">                    tint = iconTint,</span>
+<span class="nc" id="L175">                    contentDescription = null</span>
+                )
+
+<span class="nc" id="L178">                Text(</span>
+<span class="nc" id="L179">                    modifier = Modifier</span>
+<span class="nc" id="L180">                        .padding(top = 16.dp),</span>
+<span class="nc" id="L181">                    text = titleText,</span>
+<span class="nc" id="L182">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L183">                    style = MaterialTheme.typography.titleMedium.copy(</span>
+<span class="nc" id="L184">                        fontWeight = FontWeight.SemiBold,</span>
+<span class="nc" id="L185">                        letterSpacing = 0.15.sp</span>
+                    )
+                )
+<span class="nc" id="L188">            }</span>
+<span class="nc" id="L189">        }</span>
+<span class="nc" id="L190">    }</span>
+<span class="nc" id="L191">}</span>
+
+@Composable
+fun OnThisDayGameCardProgress(
+<span class="nc bnc" id="L195" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L196">    isArchiveGame: Boolean = false,</span>
+    state: OnThisDayCardGameState.InProgress,
+    titleText: String,
+    onContinueClick: () -&gt; Unit
+<span class="nc bnc" id="L200" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L201">    val context = LocalContext.current</span>
+<span class="nc" id="L202">    WikiCard(</span>
+<span class="nc" id="L203">        modifier = modifier,</span>
+<span class="nc" id="L204">        border = BorderStroke(width = 0.5.dp, color = WikipediaTheme.colors.borderColor),</span>
+<span class="nc" id="L205">        elevation = 2.dp</span>
+<span class="nc" id="L206">    ) {</span>
+<span class="nc" id="L207">        Box(</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">            modifier = if (isArchiveGame) Modifier.clickable { onContinueClick() } else Modifier</span>
+        ) {
+<span class="nc" id="L210">            Column(</span>
+<span class="nc" id="L211">                modifier = Modifier</span>
+<span class="nc" id="L212">                    .padding(16.dp)</span>
+<span class="nc" id="L213">                    .fillMaxSize()</span>
+            ) {
+<span class="nc" id="L215">                Icon(</span>
+<span class="nc" id="L216">                    modifier = Modifier</span>
+<span class="nc" id="L217">                        .size(44.dp),</span>
+<span class="nc" id="L218">                    painter = painterResource(R.drawable.ic_events_24dp),</span>
+<span class="nc" id="L219">                    tint = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L220">                    contentDescription = null</span>
+                )
+
+<span class="nc" id="L223">                Text(</span>
+<span class="nc" id="L224">                    modifier = Modifier</span>
+<span class="nc" id="L225">                        .padding(top = 16.dp),</span>
+<span class="nc" id="L226">                    text = titleText,</span>
+<span class="nc" id="L227">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L228">                    style = MaterialTheme.typography.titleMedium.copy(</span>
+<span class="nc" id="L229">                        fontWeight = FontWeight.SemiBold,</span>
+<span class="nc" id="L230">                        letterSpacing = 0.15.sp</span>
+                    )
+                )
+
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                val descriptionText = if (isArchiveGame) {</span>
+<span class="nc" id="L235">                    stringResource(</span>
+<span class="nc" id="L236">                        R.string.on_this_day_game_card_progress_short_label,</span>
+<span class="nc" id="L237">                        state.currentQuestion + 1</span>
+                    )
+<span class="nc" id="L239">                } else {</span>
+<span class="nc" id="L240">                    stringResource(</span>
+<span class="nc" id="L241">                        R.string.on_this_day_game_card_progress_label,</span>
+<span class="nc" id="L242">                        state.currentQuestion + 1</span>
+                    )
+                }
+
+<span class="nc" id="L246">                Text(</span>
+<span class="nc" id="L247">                    modifier = Modifier,</span>
+<span class="nc" id="L248">                    text = descriptionText,</span>
+<span class="nc" id="L249">                    color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L250">                    style = MaterialTheme.typography.bodyMedium.copy(</span>
+<span class="nc" id="L251">                        lineHeight = 24.sp,</span>
+<span class="nc" id="L252">                        letterSpacing = 0.sp</span>
+                    )
+                )
+
+<span class="nc" id="L256">                Spacer(Modifier.weight(1f))</span>
+
+<span class="nc bnc" id="L258" title="All 2 branches missed.">                if (!isArchiveGame) {</span>
+<span class="nc" id="L259">                    Box(</span>
+<span class="nc" id="L260">                        modifier = Modifier</span>
+<span class="nc" id="L261">                            .fillMaxWidth()</span>
+                    ) {
+<span class="nc" id="L263">                        FilledTonalButton(</span>
+<span class="nc" id="L264">                            modifier = Modifier</span>
+<span class="nc" id="L265">                                .align(Alignment.CenterEnd),</span>
+<span class="nc" id="L266">                            colors = ButtonDefaults.filledTonalButtonColors(</span>
+<span class="nc" id="L267">                                containerColor = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc" id="L268">                                contentColor = WikipediaTheme.colors.progressiveColor</span>
+                            ),
+<span class="nc" id="L270">                            onClick = onContinueClick</span>
+<span class="nc" id="L271">                        ) {</span>
+<span class="nc" id="L272">                            Text(</span>
+<span class="nc" id="L273">                                text = context.getString(</span>
+<span class="nc" id="L274">                                    state.langCode,</span>
+<span class="nc" id="L275">                                    R.string.on_this_day_game_continue_btn_text</span>
+                                ),
+<span class="nc" id="L277">                                style = MaterialTheme.typography.bodyLarge.copy(</span>
+<span class="nc" id="L278">                                    fontWeight = FontWeight.Medium</span>
+                                ),
+<span class="nc" id="L280">                                textAlign = TextAlign.Center</span>
+                            )
+<span class="nc" id="L282">                        }</span>
+<span class="nc" id="L283">                    }</span>
+<span class="nc" id="L284">                }</span>
+<span class="nc" id="L285">            }</span>
+<span class="nc" id="L286">        }</span>
+<span class="nc" id="L287">    }</span>
+<span class="nc" id="L288">}</span>
+
+@Composable
+fun OnThisDayGameCardCompleted(
+<span class="nc bnc" id="L292" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L293">    isArchiveGame: Boolean = false,</span>
+    state: OnThisDayCardGameState.Completed,
+    titleText: String,
+    onPlayClick: () -&gt; Unit,
+    onReviewResult: () -&gt; Unit,
+    onPlayTheArchive: () -&gt; Unit,
+    onCountDownFinished: () -&gt; Unit
+<span class="nc bnc" id="L300" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L301">    val context = LocalContext.current</span>
+<span class="nc" id="L302">    WikiCard(</span>
+<span class="nc" id="L303">        modifier = modifier,</span>
+<span class="nc" id="L304">        border = BorderStroke(width = 0.5.dp, color = WikipediaTheme.colors.borderColor),</span>
+<span class="nc" id="L305">        elevation = 2.dp</span>
+<span class="nc" id="L306">    ) {</span>
+<span class="nc" id="L307">        Box(</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            modifier = if (isArchiveGame) Modifier.clickable { onPlayClick() } else Modifier</span>
+        ) {
+<span class="nc" id="L310">            Column(</span>
+<span class="nc" id="L311">                modifier = Modifier</span>
+<span class="nc" id="L312">                    .padding(16.dp)</span>
+<span class="nc" id="L313">                    .fillMaxSize()</span>
+            ) {
+<span class="nc" id="L315">                Icon(</span>
+<span class="nc" id="L316">                    modifier = Modifier</span>
+<span class="nc" id="L317">                        .size(44.dp),</span>
+<span class="nc" id="L318">                    painter = painterResource(R.drawable.ic_event_available),</span>
+<span class="nc" id="L319">                    tint = WikipediaTheme.colors.successColor,</span>
+<span class="nc" id="L320">                    contentDescription = null</span>
+                )
+
+<span class="nc" id="L323">                Text(</span>
+<span class="nc" id="L324">                    modifier = Modifier</span>
+<span class="nc" id="L325">                        .padding(top = 16.dp),</span>
+<span class="nc" id="L326">                    text = titleText,</span>
+<span class="nc" id="L327">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L328">                    style = MaterialTheme.typography.titleMedium.copy(</span>
+<span class="nc" id="L329">                        fontWeight = FontWeight.SemiBold,</span>
+<span class="nc" id="L330">                        letterSpacing = 0.15.sp</span>
+                    )
+                )
+
+<span class="nc" id="L334">                OnThisDayGameCountdown(</span>
+<span class="nc" id="L335">                    state = state,</span>
+<span class="nc" id="L336">                    isArchiveGame = isArchiveGame,</span>
+<span class="nc" id="L337">                    onCountDownFinished = onCountDownFinished</span>
+                )
+<span class="nc" id="L339">                Spacer(Modifier.weight(1f))</span>
+
+<span class="nc bnc" id="L341" title="All 2 branches missed.">                if (!isArchiveGame) {</span>
+<span class="nc" id="L342">                    FlowRow(</span>
+<span class="nc" id="L343">                        modifier = Modifier</span>
+<span class="nc" id="L344">                            .fillMaxWidth(),</span>
+<span class="nc" id="L345">                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),</span>
+<span class="nc" id="L346">                        verticalArrangement = Arrangement.spacedBy(8.dp),</span>
+<span class="nc" id="L347">                        maxItemsInEachRow = 2</span>
+<span class="nc" id="L348">                    ) {</span>
+<span class="nc" id="L349">                        FilledTonalButton(</span>
+<span class="nc" id="L350">                            colors = ButtonDefaults.filledTonalButtonColors(</span>
+<span class="nc" id="L351">                                containerColor = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc" id="L352">                                contentColor = WikipediaTheme.colors.progressiveColor</span>
+                            ),
+<span class="nc" id="L354">                            onClick = onReviewResult</span>
+<span class="nc" id="L355">                        ) {</span>
+<span class="nc" id="L356">                            Text(</span>
+<span class="nc" id="L357">                                text = context.getString(</span>
+<span class="nc" id="L358">                                    state.langCode,</span>
+<span class="nc" id="L359">                                    R.string.on_this_day_game_review_results_btn_text</span>
+                                ),
+<span class="nc" id="L361">                                style = MaterialTheme.typography.bodyLarge.copy(</span>
+<span class="nc" id="L362">                                    fontWeight = FontWeight.Medium</span>
+                                ),
+<span class="nc" id="L364">                                textAlign = TextAlign.Center</span>
+                            )
+<span class="nc" id="L366">                        }</span>
+
+<span class="nc" id="L368">                        TextButton(</span>
+<span class="nc" id="L369">                            onClick = onPlayTheArchive</span>
+<span class="nc" id="L370">                        ) {</span>
+<span class="nc" id="L371">                            Text(</span>
+<span class="nc" id="L372">                                text = context.getString(</span>
+<span class="nc" id="L373">                                    state.langCode,</span>
+<span class="nc" id="L374">                                    R.string.on_this_day_game_archive_btn_text</span>
+                                ),
+<span class="nc" id="L376">                                style = MaterialTheme.typography.bodyLarge.copy(</span>
+<span class="nc" id="L377">                                    fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L378">                                    color = WikipediaTheme.colors.progressiveColor</span>
+                                ),
+<span class="nc" id="L380">                                textAlign = TextAlign.Center</span>
+                            )
+<span class="nc" id="L382">                        }</span>
+<span class="nc" id="L383">                    }</span>
+<span class="nc" id="L384">                }</span>
+<span class="nc" id="L385">            }</span>
+<span class="nc" id="L386">        }</span>
+<span class="nc" id="L387">    }</span>
+<span class="nc" id="L388">}</span>
+
+@Composable
+fun OnThisDayGameFirstEventView(
+<span class="nc" id="L392">    modifier: Modifier = Modifier,</span>
+    event: OnThisDay.Event
+<span class="nc bnc" id="L394" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L395">    Row(</span>
+<span class="nc" id="L396">        modifier = modifier.padding(16.dp),</span>
+<span class="nc" id="L397">        horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+    ) {
+<span class="nc" id="L399">        Text(</span>
+<span class="nc" id="L400">            modifier = Modifier</span>
+<span class="nc" id="L401">                .weight(1f),</span>
+<span class="nc" id="L402">            text = event.text,</span>
+<span class="nc" id="L403">            color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L404">            style = MaterialTheme.typography.bodyMedium.copy(</span>
+<span class="nc" id="L405">                lineHeight = 24.sp,</span>
+<span class="nc" id="L406">                letterSpacing = 0.sp</span>
+            ),
+<span class="nc" id="L408">            maxLines = 3,</span>
+<span class="nc" id="L409">            overflow = TextOverflow.Ellipsis</span>
+        )
+
+<span class="nc bnc" id="L412" title="All 2 branches missed.">        OnThisDayGameProvider.getThumbnailUrlForEvent(event)?.let { thumbnailUrl -&gt;</span>
+<span class="nc" id="L413">            AsyncImage(</span>
+<span class="nc" id="L414">                model = ImageService.getRequest(</span>
+<span class="nc" id="L415">                    LocalContext.current,</span>
+<span class="nc" id="L416">                    url = thumbnailUrl</span>
+                ),
+<span class="nc" id="L418">                error = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L419">                contentScale = ContentScale.Crop,</span>
+<span class="nc" id="L420">                contentDescription = null,</span>
+<span class="nc" id="L421">                modifier = Modifier</span>
+<span class="nc" id="L422">                    .size(72.dp)</span>
+<span class="nc" id="L423">                    .clip(RoundedCornerShape(8.dp))</span>
+            )
+<span class="nc" id="L425">        }</span>
+<span class="nc" id="L426">    }</span>
+<span class="nc" id="L427">}</span>
+
+/**
+ * Counts down the time remaining until the next day by recalculating the duration every second.
+ * To avoid false triggers (e.g. user completes the game early in the morning when duration is already &gt; 23hrs),
+ * onCountDownFinished only fires after the countdown has dropped below 1 hour.
+ * This ensures that an actual countdown cycle occurred.
+ * Once below 1 hour, it then watches for the duration to jump back above 23 hours (3600 * 23 seconds),
+ * which indicates the date has flipped to the next day.
+ */
+@Composable
+fun OnThisDayGameCountdown(
+    state: OnThisDayCardGameState.Completed,
+    isArchiveGame: Boolean,
+    onCountDownFinished: () -&gt; Unit
+<span class="nc" id="L442">) {</span>
+<span class="nc" id="L443">    var hasCountedDown = false</span>
+<span class="nc" id="L444">    var duration by remember { mutableStateOf(OnThisDayGameResultFragment.timeUntilNextDay()) }</span>
+<span class="nc" id="L445">    LaunchedEffect(Unit) {</span>
+<span class="nc" id="L446">        while (true) {</span>
+<span class="nc" id="L447">            delay(1000L)</span>
+<span class="nc" id="L448">            duration = OnThisDayGameResultFragment.timeUntilNextDay()</span>
+<span class="nc bnc" id="L449" title="All 2 branches missed.">            if (duration.seconds &lt; 3600) {</span>
+<span class="nc" id="L450">                hasCountedDown = true</span>
+            }
+<span class="nc bnc" id="L452" title="All 4 branches missed.">            if (hasCountedDown &amp;&amp; duration.seconds &gt; 3600 * 23) {</span>
+<span class="nc" id="L453">                onCountDownFinished()</span>
+<span class="nc" id="L454">                break</span>
+            }
+        }
+<span class="nc" id="L457">    }</span>
+
+<span class="nc bnc" id="L459" title="All 2 branches missed.">    val countdownText = if (isArchiveGame) {</span>
+<span class="nc" id="L460">        stringResource(R.string.on_this_day_game_explore_feed_card_score_short_message, state.score, state.totalQuestions)</span>
+<span class="nc" id="L461">    } else {</span>
+<span class="nc" id="L462">        stringResource(R.string.on_this_day_game_explore_feed_card_score_message, state.score, state.totalQuestions, String.format(</span>
+<span class="nc" id="L463">            LocalLocale.current.platformLocale,</span>
+<span class="nc" id="L464">            &quot;%02d:%02d:%02d&quot;,</span>
+<span class="nc" id="L465">            duration.toHoursPart(),</span>
+<span class="nc" id="L466">            duration.toMinutesPart(),</span>
+<span class="nc" id="L467">            duration.toSecondsPart()</span>
+        ))
+    }
+
+<span class="nc" id="L471">    Text(</span>
+<span class="nc" id="L472">        modifier = Modifier,</span>
+<span class="nc" id="L473">        text = countdownText,</span>
+<span class="nc" id="L474">        color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L475">        style = MaterialTheme.typography.bodyMedium.copy(</span>
+<span class="nc" id="L476">            lineHeight = 24.sp,</span>
+<span class="nc" id="L477">            letterSpacing = 0.sp</span>
+        )
+    )
+<span class="nc" id="L480">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L484">private fun OnThisDayGameCardPreviewPreview() {</span>
+<span class="nc" id="L485">    BaseTheme(</span>
+<span class="nc" id="L486">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L487">    ) {</span>
+<span class="nc" id="L488">        OnThisDayGameCardPreview(</span>
+<span class="nc" id="L489">            state = OnThisDayCardGameState.Preview(</span>
+<span class="nc" id="L490">                langCode = &quot;en&quot;,</span>
+<span class="nc" id="L491">                event1 = OnThisDay.Event(</span>
+<span class="nc" id="L492">                    pages = emptyList(),</span>
+<span class="nc" id="L493">                    text = &quot;Event 1: Lorem ipsum dolor sit amet, consectetur adipiscing elit.&quot;,</span>
+<span class="nc" id="L494">                    year = 1990</span>
+                ),
+<span class="nc" id="L496">                event2 = OnThisDay.Event(</span>
+<span class="nc" id="L497">                    pages = emptyList(),</span>
+<span class="nc" id="L498">                    text = &quot;Event 2: Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.&quot;,</span>
+<span class="nc" id="L499">                    year = 2000</span>
+                )
+            ),
+<span class="nc" id="L502">            titleText = &quot;November 3&quot;,</span>
+<span class="nc" id="L503">            onPlayClick = {}</span>
+        )
+<span class="nc" id="L505">    }</span>
+<span class="nc" id="L506">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L510">private fun OnThisDayGameCardProgressPreview() {</span>
+<span class="nc" id="L511">    BaseTheme(</span>
+<span class="nc" id="L512">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L513">    ) {</span>
+<span class="nc" id="L514">        OnThisDayGameCardProgress(</span>
+<span class="nc" id="L515">            isArchiveGame = false,</span>
+<span class="nc" id="L516">            state = OnThisDayCardGameState.InProgress(&quot;en&quot;, 3),</span>
+<span class="nc" id="L517">            titleText = &quot;November 2&quot;,</span>
+<span class="nc" id="L518">            onContinueClick = {}</span>
+        )
+<span class="nc" id="L520">    }</span>
+<span class="nc" id="L521">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L525">private fun OnThisDayGameCardCompletedPreview() {</span>
+<span class="nc" id="L526">    BaseTheme(</span>
+<span class="nc" id="L527">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L528">    ) {</span>
+<span class="nc" id="L529">        OnThisDayGameCardCompleted(</span>
+<span class="nc" id="L530">            isArchiveGame = false,</span>
+<span class="nc" id="L531">            state = OnThisDayCardGameState.Completed(</span>
+<span class="nc" id="L532">                langCode = &quot;en&quot;,</span>
+<span class="nc" id="L533">                score = 4,</span>
+<span class="nc" id="L534">                totalQuestions = 5</span>
+            ),
+<span class="nc" id="L536">            titleText = &quot;November 1&quot;,</span>
+<span class="nc" id="L537">            onPlayClick = {},</span>
+<span class="nc" id="L538">            onReviewResult = {},</span>
+<span class="nc" id="L539">            onPlayTheArchive = {},</span>
+<span class="nc" id="L540">            onCountDownFinished = {}</span>
+        )
+<span class="nc" id="L542">    }</span>
+<span class="nc" id="L543">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L547">private fun OnThisDayGameCardSimplePreview() {</span>
+<span class="nc" id="L548">    BaseTheme(</span>
+<span class="nc" id="L549">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L550">    ) {</span>
+<span class="nc" id="L551">        OnThisDayGameCardSimple(</span>
+<span class="nc" id="L552">            titleText = &quot;Archive&quot;,</span>
+<span class="nc" id="L553">            iconRes = R.drawable.event_repeat_24dp,</span>
+<span class="nc" id="L554">            iconTint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L555">            onPlayClick = {}</span>
+        )
+<span class="nc" id="L557">    }</span>
+<span class="nc" id="L558">}</span>
+
+@Preview(showBackground = true, fontScale = 3f, device = Devices.PIXEL_2)
+@Composable
+<span class="nc" id="L562">private fun OnThisDayGameCardPreviewBiggerFontSizePreview() {</span>
+<span class="nc" id="L563">    BaseTheme(</span>
+<span class="nc" id="L564">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L565">    ) {</span>
+<span class="nc" id="L566">        OnThisDayGameCardPreview(</span>
+<span class="nc" id="L567">            state = OnThisDayCardGameState.Preview(</span>
+<span class="nc" id="L568">                langCode = &quot;en&quot;,</span>
+<span class="nc" id="L569">                event1 = OnThisDay.Event(</span>
+<span class="nc" id="L570">                    pages = emptyList(),</span>
+<span class="nc" id="L571">                    text = &quot;Event 1: Lorem ipsum dolor sit amet, consectetur adipiscing elit.&quot;,</span>
+<span class="nc" id="L572">                    year = 1990</span>
+                ),
+<span class="nc" id="L574">                event2 = OnThisDay.Event(</span>
+<span class="nc" id="L575">                    pages = emptyList(),</span>
+<span class="nc" id="L576">                    text = &quot;Event 2: Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.&quot;,</span>
+<span class="nc" id="L577">                    year = 2000</span>
+                )
+            ),
+<span class="nc" id="L580">            titleText = &quot;November 3&quot;,</span>
+<span class="nc" id="L581">            onPlayClick = {}</span>
+        )
+<span class="nc" id="L583">    }</span>
+<span class="nc" id="L584">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

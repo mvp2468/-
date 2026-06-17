@@ -1,0 +1,581 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingListSyncAdapter.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.sync</a> &gt; <span class="el_source">ReadingListSyncAdapter.kt</span></div><h1>ReadingListSyncAdapter.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.sync
+
+import android.content.ContentResolver
+import android.content.Context
+import android.os.Bundle
+import androidx.core.os.bundleOf
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.csrf.CsrfTokenClient
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.events.ReadingListsEnableDialogEvent
+import org.wikipedia.events.ReadingListsEnabledStatusEvent
+import org.wikipedia.events.ReadingListsNoLongerSyncedEvent
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.readinglist.sync.SyncedReadingLists.RemoteReadingList
+import org.wikipedia.readinglist.sync.SyncedReadingLists.RemoteReadingListEntry
+import org.wikipedia.savedpages.SavedPageSyncService
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.RemoteConfig
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+
+<span class="nc" id="L41">class ReadingListSyncAdapter(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {</span>
+
+    override suspend fun doWork(): Result {
+<span class="nc" id="L44">        return withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L45">            val extras = getBooleanExtraFromData(inputData)</span>
+<span class="nc bnc" id="L46" title="All 6 branches missed.">            if (RemoteConfig.config.disableReadingListSync || !AccountUtil.isLoggedIn || AccountUtil.isTemporaryAccount ||</span>
+<span class="nc bnc" id="L47" title="All 4 branches missed.">                !(Prefs.isReadingListSyncEnabled || Prefs.isReadingListsRemoteDeletePending)) {</span>
+<span class="nc" id="L48">                L.d(&quot;Skipping sync of reading lists.&quot;)</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">                if (extras.containsKey(SYNC_EXTRAS_REFRESHING)) {</span>
+<span class="nc" id="L50">                    SavedPageSyncService.sendSyncEvent()</span>
+                }
+<span class="nc" id="L52">                return@withContext Result.success()</span>
+            }
+<span class="nc" id="L54">            L.d(&quot;Begin sync of reading lists...&quot;)</span>
+<span class="nc" id="L55">            val listIdsDeleted = Prefs.readingListsDeletedIds.toMutableSet()</span>
+<span class="nc" id="L56">            val pageIdsDeleted = Prefs.readingListPagesDeletedIds.toMutableSet()</span>
+<span class="nc" id="L57">            var allLocalLists: MutableList&lt;ReadingList&gt;? = null</span>
+<span class="nc" id="L58">            val wiki = WikipediaApp.instance.wikiSite</span>
+<span class="nc" id="L59">            val client = ReadingListClient(wiki)</span>
+<span class="nc" id="L60">            val readingListSyncNotification = ReadingListSyncNotification.instance</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            val lastSyncTime = Prefs.readingListsLastSyncTime.orEmpty()</span>
+<span class="nc" id="L62">            var shouldSendSyncEvent = extras.containsKey(SYNC_EXTRAS_REFRESHING)</span>
+<span class="nc" id="L63">            var shouldRetry = false</span>
+<span class="nc" id="L64">            var shouldRetryWithForce = false</span>
+<span class="nc" id="L65">            try {</span>
+<span class="nc" id="L66">                IN_PROGRESS = true</span>
+<span class="nc" id="L67">                var syncEverything = false</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                if (extras.containsKey(SYNC_EXTRAS_FORCE_FULL_SYNC) ||</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">                    Prefs.isReadingListsRemoteDeletePending ||</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                    Prefs.isReadingListsRemoteSetupPending) {</span>
+                    // reset the remote ID on all lists, since they will need to be recreated next time.
+<span class="nc" id="L72">                    L.d(&quot;Resetting all lists to un-synced.&quot;)</span>
+<span class="nc" id="L73">                    syncEverything = true</span>
+<span class="nc" id="L74">                    AppDatabase.instance.readingListDao().markAllListsUnsynced()</span>
+<span class="nc" id="L75">                    AppDatabase.instance.readingListPageDao().markAllPagesUnsynced()</span>
+<span class="nc" id="L76">                    allLocalLists = AppDatabase.instance.readingListDao().getAllLists().toMutableList()</span>
+                }
+
+<span class="nc" id="L79">                val csrfToken = CsrfTokenClient.getToken(wiki)</span>
+
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                if (Prefs.isReadingListsRemoteDeletePending) {</span>
+                    // Are we scheduled for a teardown? If so, delete everything and bail.
+<span class="nc" id="L83">                    L.d(&quot;Tearing down remote lists...&quot;)</span>
+<span class="nc" id="L84">                    client.tearDown(csrfToken)</span>
+<span class="nc" id="L85">                    Prefs.isReadingListsRemoteDeletePending = false</span>
+<span class="nc" id="L86">                    return@withContext Result.success()</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                } else if (Prefs.isReadingListsRemoteSetupPending) {</span>
+                    // ...Or are we scheduled for setup?
+<span class="nc" id="L89">                    client.setup(csrfToken)</span>
+<span class="nc" id="L90">                    Prefs.isReadingListsRemoteSetupPending = false</span>
+                }
+
+                // -----------------------------------------------
+                // PHASE 1: Sync from remote to local.
+                // -----------------------------------------------
+<span class="nc" id="L96">                var remoteListsModified = mutableListOf&lt;RemoteReadingList&gt;()</span>
+<span class="nc" id="L97">                var remoteEntriesModified = mutableListOf&lt;RemoteReadingListEntry&gt;()</span>
+<span class="nc bnc" id="L98" title="All 4 branches missed.">                if (lastSyncTime.isEmpty()) {</span>
+<span class="nc" id="L99">                    syncEverything = true</span>
+                }
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                if (!syncEverything) {</span>
+<span class="nc" id="L103">                    try {</span>
+<span class="nc" id="L104">                        L.d(&quot;Fetching changes from server, since $lastSyncTime&quot;)</span>
+<span class="nc" id="L105">                        val allChanges = client.getChangesSince(lastSyncTime)</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                        allChanges.lists?.let {</span>
+<span class="nc" id="L107">                            remoteListsModified = it as MutableList&lt;RemoteReadingList&gt;</span>
+<span class="nc" id="L108">                        }</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                        allChanges.entries?.let {</span>
+<span class="nc" id="L110">                            remoteEntriesModified = it as MutableList&lt;RemoteReadingListEntry&gt;</span>
+<span class="nc" id="L111">                        }</span>
+<span class="nc" id="L112">                    } catch (t: Throwable) {</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">                        if (client.isErrorType(t, &quot;too-old&quot;)) {</span>
+                            // If too much time has elapsed between syncs, then perform a full sync.
+<span class="nc" id="L115">                            syncEverything = true</span>
+                        } else {
+<span class="nc" id="L117">                            throw t</span>
+                        }
+                    }
+                }
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                if (allLocalLists == null) {</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                    allLocalLists = if (syncEverything) {</span>
+<span class="nc" id="L124">                        AppDatabase.instance.readingListDao().getAllLists().toMutableList()</span>
+                    } else {
+<span class="nc" id="L126">                        AppDatabase.instance.readingListDao().getAllListsWithUnsyncedPages().toMutableList()</span>
+                    }
+                }
+
+                        // Perform a quick check for whether we'll need to sync all lists
+<span class="nc bnc" id="L131" title="All 2 branches missed.">                for (remoteEntry in remoteEntriesModified) {</span>
+                    // find the list to which this entry belongs...
+<span class="nc bnc" id="L133" title="All 6 branches missed.">                    val eigenLocalList = allLocalLists.find { it.remoteId == remoteEntry.listId }</span>
+<span class="nc bnc" id="L134" title="All 6 branches missed.">                    val eigenRemoteList = remoteListsModified.find { it.id == remoteEntry.listId }</span>
+
+<span class="nc bnc" id="L136" title="All 4 branches missed.">                    if (eigenLocalList == null &amp;&amp; eigenRemoteList == null) {</span>
+<span class="nc" id="L137">                        L.w(&quot;Remote entry belongs to an unknown local list. Falling back to full sync.&quot;)</span>
+<span class="nc" id="L138">                        syncEverything = true</span>
+<span class="nc" id="L139">                        break</span>
+                    }
+                }
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                if (syncEverything) {</span>
+<span class="nc" id="L143">                    allLocalLists = AppDatabase.instance.readingListDao().getAllLists().toMutableList()</span>
+<span class="nc" id="L144">                    L.d(&quot;Fetching all lists from server...&quot;)</span>
+<span class="nc" id="L145">                    remoteListsModified = client.allLists as MutableList&lt;RemoteReadingList&gt;</span>
+                }
+
+                // Notify any event consumers that reading lists are, in fact, enabled.
+<span class="nc" id="L149">                FlowEventBus.post(ReadingListsEnabledStatusEvent())</span>
+
+                // setup syncing indicator for remote to local
+<span class="nc" id="L152">                val remoteItemsTotal = remoteListsModified.size</span>
+
+                // First, update our list hierarchy to match the remote hierarchy.
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                for ((remoteItemsSynced, remoteList) in remoteListsModified.withIndex()) {</span>
+<span class="nc" id="L156">                    readingListSyncNotification.setNotificationProgress(applicationContext, remoteItemsTotal, remoteItemsSynced)</span>
+                    // Find the remote list in our local lists...
+<span class="nc" id="L158">                    var localList: ReadingList? = null</span>
+<span class="nc" id="L159">                    var upsertNeeded = false</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                    for (list in allLocalLists) {</span>
+<span class="nc bnc" id="L161" title="All 4 branches missed.">                        if (list.isDefault &amp;&amp; remoteList.isDefault) {</span>
+<span class="nc" id="L162">                            localList = list</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                            if (list.remoteId != remoteList.id) {</span>
+<span class="nc" id="L164">                                list.remoteId = remoteList.id</span>
+<span class="nc" id="L165">                                upsertNeeded = true</span>
+                            }
+<span class="nc" id="L167">                            break</span>
+                        }
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                        if (list.remoteId == remoteList.id) {</span>
+<span class="nc" id="L170">                            localList = list</span>
+<span class="nc" id="L171">                            break</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                        } else if (StringUtil.normalizedEquals(list.title, remoteList.name())) {</span>
+<span class="nc" id="L173">                            localList = list</span>
+<span class="nc" id="L174">                            localList.remoteId = remoteList.id</span>
+<span class="nc" id="L175">                            upsertNeeded = true</span>
+<span class="nc" id="L176">                            break</span>
+                        }
+                    }
+<span class="nc bnc" id="L179" title="All 6 branches missed.">                    if (remoteList.isDefault &amp;&amp; localList != null &amp;&amp; !localList.isDefault) {</span>
+<span class="nc" id="L180">                        L.logRemoteError(RuntimeException(&quot;Unexpected: remote default list corresponds to local non-default list.&quot;))</span>
+<span class="nc" id="L181">                        localList = AppDatabase.instance.readingListDao().getDefaultList()</span>
+                    }
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                    if (remoteList.isDeleted) {</span>
+<span class="nc bnc" id="L184" title="All 4 branches missed.">                        if (localList != null &amp;&amp; !localList.isDefault) {</span>
+<span class="nc" id="L185">                            L.d(&quot;Deleting local list &quot; + localList.title)</span>
+<span class="nc" id="L186">                            AppDatabase.instance.readingListDao().deleteList(localList, false)</span>
+<span class="nc" id="L187">                            AppDatabase.instance.readingListPageDao().markPagesForDeletion(localList, localList.pages, false)</span>
+<span class="nc" id="L188">                            allLocalLists.remove(localList)</span>
+<span class="nc" id="L189">                            shouldSendSyncEvent = true</span>
+                        }
+<span class="nc" id="L191">                        continue</span>
+                    }
+<span class="nc bnc" id="L193" title="All 2 branches missed.">                    if (localList == null) {</span>
+                        // A new list needs to be created locally.
+<span class="nc" id="L195">                        L.d(&quot;Creating local list &quot; + remoteList.name())</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                        localList = if (remoteList.isDefault) {</span>
+<span class="nc" id="L197">                            L.logRemoteError(RuntimeException(&quot;Unexpected: local default list no longer matches remote.&quot;))</span>
+<span class="nc" id="L198">                            AppDatabase.instance.readingListDao().getDefaultList()</span>
+                        } else {
+<span class="nc" id="L200">                            AppDatabase.instance.readingListDao().createList(remoteList.name(), remoteList.description())</span>
+                        }
+<span class="nc" id="L202">                        localList.remoteId = remoteList.id</span>
+<span class="nc" id="L203">                        localList.atime = remoteList.created.toInstant(ZoneOffset.UTC).toEpochMilli()</span>
+<span class="nc" id="L204">                        localList.mtime = remoteList.updated.toInstant(ZoneOffset.UTC).toEpochMilli()</span>
+<span class="nc" id="L205">                        allLocalLists.add(localList)</span>
+<span class="nc" id="L206">                        upsertNeeded = true</span>
+                    } else {
+<span class="nc bnc" id="L208" title="All 4 branches missed.">                        if (!localList.isDefault &amp;&amp; !StringUtil.normalizedEquals(localList.title, remoteList.name())) {</span>
+<span class="nc" id="L209">                            localList.title = remoteList.name()</span>
+<span class="nc" id="L210">                            upsertNeeded = true</span>
+                        }
+<span class="nc bnc" id="L212" title="All 4 branches missed.">                        if (!localList.isDefault &amp;&amp; !StringUtil.normalizedEquals(localList.description, remoteList.description())) {</span>
+<span class="nc" id="L213">                            localList.description = remoteList.description()</span>
+<span class="nc" id="L214">                            upsertNeeded = true</span>
+                        }
+                    }
+<span class="nc bnc" id="L217" title="All 2 branches missed.">                    if (upsertNeeded) {</span>
+<span class="nc" id="L218">                        L.d(&quot;Updating info for local list &quot; + localList.title)</span>
+<span class="nc" id="L219">                        localList.dirty = false</span>
+<span class="nc" id="L220">                        AppDatabase.instance.readingListDao().updateList(localList, false)</span>
+<span class="nc" id="L221">                        shouldSendSyncEvent = true</span>
+                    }
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                    if (syncEverything) {</span>
+<span class="nc" id="L224">                        L.d(&quot;Fetching all pages in remote list &quot; + remoteList.name())</span>
+<span class="nc" id="L225">                        client.getListEntries(remoteList.id).forEach {</span>
+                            // TODO: optimization opportunity -- create/update local pages in bulk.
+<span class="nc" id="L227">                            createOrUpdatePage(localList, it)</span>
+<span class="nc" id="L228">                        }</span>
+<span class="nc" id="L229">                        shouldSendSyncEvent = true</span>
+                    }
+                }
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                if (!syncEverything) {</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                    for (remoteEntry in remoteEntriesModified) {</span>
+                        // find the list to which this entry belongs...
+<span class="nc bnc" id="L235" title="All 6 branches missed.">                        val eigenList = allLocalLists.find { it.remoteId == remoteEntry.listId }</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">                        if (eigenList == null) {</span>
+<span class="nc" id="L237">                            L.w(&quot;Remote entry belongs to an unknown local list.&quot;)</span>
+<span class="nc" id="L238">                            continue</span>
+                        }
+<span class="nc" id="L240">                        shouldSendSyncEvent = true</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">                        if (remoteEntry.isDeleted) {</span>
+<span class="nc" id="L242">                            deletePageByTitle(eigenList, pageTitleFromRemoteEntry(remoteEntry))</span>
+                        } else {
+<span class="nc" id="L244">                            createOrUpdatePage(eigenList, remoteEntry)</span>
+                        }
+                    }
+                }
+
+                // -----------------------------------------------
+                // PHASE 2: Sync from local to remote.
+                // -----------------------------------------------
+
+                // Do any remote lists need to be deleted?
+<span class="nc" id="L254">                val listIdsToDelete = mutableListOf&lt;Long&gt;()</span>
+<span class="nc" id="L255">                listIdsToDelete.addAll(listIdsDeleted)</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">                for (id in listIdsToDelete) {</span>
+<span class="nc" id="L257">                    L.d(&quot;Deleting remote list id $id&quot;)</span>
+<span class="nc" id="L258">                    try {</span>
+<span class="nc" id="L259">                        client.deleteList(csrfToken, id)</span>
+<span class="nc" id="L260">                    } catch (t: Throwable) {</span>
+<span class="nc" id="L261">                        L.w(t)</span>
+<span class="nc bnc" id="L262" title="All 4 branches missed.">                        if (!client.isServiceError(t) &amp;&amp; !client.isUnavailableError(t)) {</span>
+<span class="nc" id="L263">                            throw t</span>
+                        }
+                    }
+<span class="nc" id="L266">                    listIdsDeleted.remove(id)</span>
+                }
+
+                // Do any remote pages need to be deleted?
+<span class="nc" id="L270">                val pageIdsToDelete = pageIdsDeleted.toMutableSet()</span>
+
+                // Determine if any articles need to be de-duplicated (because of bugs in previous sync inconsistencies)
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                if (syncEverything) {</span>
+<span class="nc" id="L274">                    allLocalLists.forEach { list -&gt;</span>
+<span class="nc" id="L275">                        val distinct = list.pages.distinctBy { pageTitleFromRemoteEntry(remoteEntryFromLocalPage(it)) }</span>
+<span class="nc" id="L276">                        val toRemove = list.pages.toMutableSet()</span>
+<span class="nc" id="L277">                        toRemove.removeAll(distinct.toSet())</span>
+<span class="nc bnc" id="L278" title="All 4 branches missed.">                        if (toRemove.isNotEmpty()) {</span>
+<span class="nc" id="L279">                            toRemove.forEach {</span>
+<span class="nc" id="L280">                                AppDatabase.instance.readingListPageDao().deleteReadingListPage(it)</span>
+<span class="nc" id="L281">                            }</span>
+<span class="nc" id="L282">                            pageIdsToDelete.addAll(createIdsForDeletion(list, toRemove))</span>
+                        }
+<span class="nc" id="L284">                    }</span>
+                }
+
+<span class="nc bnc" id="L287" title="All 2 branches missed.">                for (id in pageIdsToDelete) {</span>
+<span class="nc" id="L288">                    L.d(&quot;Deleting remote page id $id&quot;)</span>
+<span class="nc" id="L289">                    val listAndPageId = id.split(&quot;:&quot;).toTypedArray()</span>
+<span class="nc" id="L290">                    try {</span>
+                        // TODO: optimization opportunity once server starts supporting batch deletes.
+<span class="nc" id="L292">                        client.deletePageFromList(csrfToken, listAndPageId[0].toLong(), listAndPageId[1].toLong())</span>
+<span class="nc" id="L293">                    } catch (t: Throwable) {</span>
+<span class="nc" id="L294">                        L.w(t)</span>
+<span class="nc bnc" id="L295" title="All 4 branches missed.">                        if (!client.isServiceError(t) &amp;&amp; !client.isUnavailableError(t)) {</span>
+<span class="nc" id="L296">                            throw t</span>
+                        }
+                    }
+<span class="nc" id="L299">                    pageIdsDeleted.remove(id)</span>
+                }
+
+                // setup syncing indicator for local to remote
+<span class="nc" id="L303">                val localItemsTotal = allLocalLists.size</span>
+
+                // Determine whether any remote lists need to be created or updated
+<span class="nc bnc" id="L306" title="All 2 branches missed.">                for ((localItemsSynced, localList) in allLocalLists.withIndex()) {</span>
+<span class="nc" id="L307">                    readingListSyncNotification.setNotificationProgress(applicationContext, localItemsTotal, localItemsSynced)</span>
+<span class="nc" id="L308">                    val remoteList = RemoteReadingList(name = localList.title, description = localList.description)</span>
+<span class="nc" id="L309">                    var upsertNeeded = false</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                    if (localList.remoteId &gt; 0) {</span>
+<span class="nc bnc" id="L311" title="All 4 branches missed.">                        if (!localList.isDefault &amp;&amp; localList.dirty) {</span>
+                            // Update remote metadata for this list.
+<span class="nc" id="L313">                            L.d(&quot;Updating info for remote list &quot; + remoteList.name())</span>
+<span class="nc" id="L314">                            client.updateList(csrfToken, localList.remoteId, remoteList)</span>
+<span class="nc" id="L315">                            upsertNeeded = true</span>
+                        }
+<span class="nc bnc" id="L317" title="All 2 branches missed.">                    } else if (!localList.isDefault) {</span>
+                        // This list needs to be created remotely.
+<span class="nc" id="L319">                        L.d(&quot;Creating remote list &quot; + remoteList.name())</span>
+<span class="nc" id="L320">                        val id = client.createList(csrfToken, remoteList)</span>
+<span class="nc" id="L321">                        localList.remoteId = id</span>
+<span class="nc" id="L322">                        upsertNeeded = true</span>
+                    }
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                    if (upsertNeeded) {</span>
+<span class="nc" id="L325">                        localList.dirty = false</span>
+<span class="nc" id="L326">                        AppDatabase.instance.readingListDao().updateList(localList, false)</span>
+                    }
+                }
+<span class="nc bnc" id="L329" title="All 2 branches missed.">                for (localList in allLocalLists) {</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">                    val localPages = localList.pages.filter { it.remoteId &lt; 1 }</span>
+<span class="nc" id="L331">                    val newEntries = localPages.map { remoteEntryFromLocalPage(it) }</span>
+                    // Note: newEntries.size() is guaranteed to be equal to localPages.size()
+<span class="nc bnc" id="L333" title="All 2 branches missed.">                    if (newEntries.isEmpty()) {</span>
+<span class="nc" id="L334">                        continue</span>
+                    }
+<span class="nc" id="L336">                    var tryOneAtATime = false</span>
+<span class="nc" id="L337">                    try {</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">                        if (localPages.size == 1) {</span>
+<span class="nc" id="L339">                            L.d(&quot;Creating new remote page &quot; + localPages[0].displayTitle)</span>
+<span class="nc" id="L340">                            localPages[0].remoteId = client.addPageToList(csrfToken, localList.remoteId, newEntries[0])</span>
+<span class="nc" id="L341">                            AppDatabase.instance.readingListPageDao().updateReadingListPage(localPages[0])</span>
+                        } else {
+<span class="nc" id="L343">                            L.d(&quot;Creating &quot; + newEntries.size + &quot; new remote pages&quot;)</span>
+<span class="nc" id="L344">                            val ids = client.addPagesToList(csrfToken, localList.remoteId, newEntries)</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">                            for (i in ids.indices) {</span>
+<span class="nc" id="L346">                                localPages[i].remoteId = ids[i]</span>
+                            }
+<span class="nc" id="L348">                            AppDatabase.instance.readingListPageDao().updateReadingListPages(localPages)</span>
+                        }
+<span class="nc" id="L350">                    } catch (t: Throwable) {</span>
+                        // TODO: optimization opportunity -- if the server can return the ID
+                        // of the existing page(s), then we wouldn't need to do a hard sync.
+
+                        // If the page already exists in the remote list, this means that
+                        // the contents of this list have diverged from the remote list,
+                        // so let's force a full sync.
+<span class="nc bnc" id="L357" title="All 2 branches missed.">                        if (client.isErrorType(t, &quot;duplicate-page&quot;)) {</span>
+<span class="nc" id="L358">                            shouldRetryWithForce = true</span>
+<span class="nc" id="L359">                            break</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">                        } else if (client.isErrorType(t, &quot;entry-limit&quot;)) {</span>
+                            // TODO: handle more meaningfully than ignoring, for now.
+<span class="nc bnc" id="L362" title="All 2 branches missed.">                        } else if (client.isErrorType(t, &quot;no-such-project&quot;)) {</span>
+                            // Something is malformed in the page domain, but we don't know which page
+                            // in the batch caused the error. Therefore, let's retry uploading the pages
+                            // one at a time, and single out the one that fails.
+<span class="nc" id="L366">                            tryOneAtATime = true</span>
+                        } else {
+<span class="nc" id="L368">                            throw t</span>
+                        }
+                    }
+<span class="nc bnc" id="L371" title="All 2 branches missed.">                    if (tryOneAtATime) {</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">                        for (i in localPages.indices) {</span>
+<span class="nc" id="L373">                            val localPage = localPages[i]</span>
+<span class="nc" id="L374">                            try {</span>
+<span class="nc" id="L375">                                L.d(&quot;Creating new remote page &quot; + localPage.displayTitle)</span>
+<span class="nc" id="L376">                                localPage.remoteId = client.addPageToList(csrfToken, localList.remoteId, newEntries[i])</span>
+<span class="nc" id="L377">                            } catch (t: Throwable) {</span>
+<span class="nc bnc" id="L378" title="All 2 branches missed.">                                if (client.isErrorType(t, &quot;duplicate-page&quot;)) {</span>
+<span class="nc" id="L379">                                    shouldRetryWithForce = true</span>
+<span class="nc" id="L380">                                    break</span>
+<span class="nc bnc" id="L381" title="All 2 branches missed.">                                } else if (client.isErrorType(t, &quot;entry-limit&quot;)) {</span>
+                                    // TODO: handle more meaningfully than ignoring, for now.
+<span class="nc bnc" id="L383" title="All 2 branches missed.">                                } else if (client.isErrorType(t, &quot;no-such-project&quot;)) {</span>
+                                    // Ignore the error, and give this malformed page a bogus remoteID,
+                                    // so that we won't try syncing it again.
+<span class="nc" id="L386">                                    localPage.remoteId = Int.MAX_VALUE.toLong()</span>
+                                    // ...and also log it:
+<span class="nc" id="L388">                                    L.logRemoteError(RuntimeException(&quot;Attempted to sync malformed page: ${localPage.wiki}, ${localPage.displayTitle}&quot;))</span>
+                                } else {
+<span class="nc" id="L390">                                    throw t</span>
+                                }
+                            }
+                        }
+<span class="nc" id="L394">                        AppDatabase.instance.readingListPageDao().updateReadingListPages(localPages)</span>
+                    }
+                }
+<span class="nc" id="L397">            } catch (e: CancellationException) {</span>
+<span class="nc" id="L398">                throw e</span>
+<span class="nc" id="L399">            } catch (t: Throwable) {</span>
+<span class="nc" id="L400">                var errorMsg = t</span>
+<span class="nc bnc" id="L401" title="All 2 branches missed.">                if (client.isErrorType(t, &quot;not-set-up&quot;)) {</span>
+<span class="nc" id="L402">                    Prefs.isReadingListSyncEnabled = false</span>
+<span class="nc bnc" id="L403" title="All 4 branches missed.">                    if (lastSyncTime.isEmpty()) {</span>
+                        // This means that it's our first time attempting to sync, and we see that
+                        // syncing isn't enabled on the server. So, let's prompt the user to enable it:
+<span class="nc" id="L406">                        FlowEventBus.post(ReadingListsEnableDialogEvent())</span>
+                    } else {
+                        // This can only mean that our reading lists have been torn down (disabled) by
+                        // another client, so we need to notify the user of this development.
+<span class="nc" id="L410">                        FlowEventBus.post(ReadingListsNoLongerSyncedEvent())</span>
+                    }
+                }
+<span class="nc bnc" id="L413" title="All 2 branches missed.">                if (client.isErrorType(t, &quot;notloggedin&quot;)) {</span>
+<span class="nc" id="L414">                    try {</span>
+<span class="nc" id="L415">                        L.d(&quot;Server doesn't believe we're logged in, so logging in...&quot;)</span>
+<span class="nc" id="L416">                        CsrfTokenClient.getToken(wiki)</span>
+<span class="nc" id="L417">                        shouldRetry = true</span>
+<span class="nc" id="L418">                    } catch (caught: Throwable) {</span>
+<span class="nc" id="L419">                        errorMsg = caught</span>
+                    }
+                }
+<span class="nc" id="L422">                L.w(errorMsg)</span>
+            } finally {
+<span class="nc bnc" id="L424" title="All 4 branches missed.">                Prefs.readingListsLastSyncTime = client.lastDateHeader?.toString() ?: lastSyncTime</span>
+<span class="nc" id="L425">                Prefs.readingListsDeletedIds = listIdsDeleted</span>
+<span class="nc" id="L426">                Prefs.readingListPagesDeletedIds = pageIdsDeleted</span>
+<span class="nc" id="L427">                readingListSyncNotification.cancelNotification(applicationContext)</span>
+<span class="nc bnc" id="L428" title="All 2 branches missed.">                if (shouldSendSyncEvent) {</span>
+<span class="nc" id="L429">                    SavedPageSyncService.sendSyncEvent(extras.containsKey(SYNC_EXTRAS_REFRESHING))</span>
+                }
+<span class="nc bnc" id="L431" title="All 6 branches missed.">                if ((shouldRetry || shouldRetryWithForce) &amp;&amp; !extras.containsKey(SYNC_EXTRAS_RETRYING)) {</span>
+<span class="nc" id="L432">                    val b = Bundle()</span>
+<span class="nc" id="L433">                    b.putAll(extras)</span>
+<span class="nc" id="L434">                    b.putBoolean(SYNC_EXTRAS_RETRYING, true)</span>
+<span class="nc bnc" id="L435" title="All 2 branches missed.">                    if (shouldRetryWithForce) {</span>
+<span class="nc" id="L436">                        b.putBoolean(SYNC_EXTRAS_FORCE_FULL_SYNC, true)</span>
+                    }
+<span class="nc" id="L438">                    manualSync(b)</span>
+                }
+<span class="nc" id="L440">                IN_PROGRESS = false</span>
+<span class="nc" id="L441">                SavedPageSyncService.enqueue()</span>
+<span class="nc" id="L442">                L.d(&quot;Finished sync of reading lists.&quot;)</span>
+            }
+<span class="nc" id="L444">            Result.success()</span>
+        }
+    }
+
+    private fun getBooleanExtraFromData(inputData: Data): Bundle {
+<span class="nc" id="L449">        val extras = Bundle()</span>
+<span class="nc" id="L450">        inputData.keyValueMap.forEach {</span>
+<span class="nc" id="L451">            extras.putBoolean(it.key, it.value as Boolean)</span>
+<span class="nc" id="L452">        }</span>
+<span class="nc" id="L453">        return extras</span>
+    }
+
+    private suspend fun createOrUpdatePage(listForPage: ReadingList,
+                                   remotePage: RemoteReadingListEntry) {
+<span class="nc" id="L458">        val remoteTitle = pageTitleFromRemoteEntry(remotePage)</span>
+<span class="nc bnc" id="L459" title="All 4 branches missed.">        var localPage = listForPage.pages.find { ReadingListPage.toPageTitle(it) == remoteTitle }</span>
+<span class="nc bnc" id="L460" title="All 2 branches missed.">        var updateOnly = localPage != null</span>
+
+<span class="nc bnc" id="L462" title="All 2 branches missed.">        if (localPage == null) {</span>
+<span class="nc" id="L463">            localPage = ReadingListPage(pageTitleFromRemoteEntry(remotePage))</span>
+<span class="nc" id="L464">            localPage.listId = listForPage.id</span>
+<span class="nc bnc" id="L465" title="All 2 branches missed.">            updateOnly = AppDatabase.instance.readingListPageDao().getPageByTitle(listForPage, remoteTitle) != null</span>
+        }
+<span class="nc" id="L467">        localPage.remoteId = remotePage.id</span>
+<span class="nc" id="L468">        localPage.atime = remotePage.created.toInstant(ZoneOffset.UTC).toEpochMilli()</span>
+<span class="nc" id="L469">        localPage.mtime = remotePage.updated.toInstant(ZoneOffset.UTC).toEpochMilli()</span>
+<span class="nc bnc" id="L470" title="All 2 branches missed.">        if (updateOnly) {</span>
+<span class="nc" id="L471">            L.d(&quot;Updating local page &quot; + localPage.apiTitle)</span>
+<span class="nc" id="L472">            AppDatabase.instance.readingListPageDao().updateReadingListPage(localPage)</span>
+        } else {
+<span class="nc" id="L474">            L.d(&quot;Creating local page &quot; + localPage.apiTitle)</span>
+<span class="nc" id="L475">            AppDatabase.instance.readingListPageDao().addPagesToList(listForPage, listOf(localPage), false)</span>
+        }
+<span class="nc" id="L477">    }</span>
+
+<span class="nc" id="L479">    private suspend fun deletePageByTitle(listForPage: ReadingList, title: PageTitle) {</span>
+<span class="nc bnc" id="L480" title="All 4 branches missed.">        var localPage = listForPage.pages.find { ReadingListPage.toPageTitle(it) == title }</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">        if (localPage == null) {</span>
+<span class="nc" id="L482">            localPage = AppDatabase.instance.readingListPageDao().getPageByTitle(listForPage, title)</span>
+<span class="nc bnc" id="L483" title="All 2 branches missed.">            if (localPage == null) {</span>
+<span class="nc" id="L484">                return</span>
+            }
+        }
+<span class="nc" id="L487">        L.d(&quot;Deleting local page &quot; + localPage.apiTitle)</span>
+<span class="nc" id="L488">        AppDatabase.instance.readingListPageDao().markPagesForDeletion(listForPage, listOf(localPage), false)</span>
+<span class="nc" id="L489">    }</span>
+
+    private fun pageTitleFromRemoteEntry(remoteEntry: RemoteReadingListEntry): PageTitle {
+<span class="nc" id="L492">        return PageTitle(remoteEntry.title(), WikiSite(remoteEntry.project()))</span>
+    }
+
+    private fun remoteEntryFromLocalPage(localPage: ReadingListPage): RemoteReadingListEntry {
+<span class="nc" id="L496">        val title = ReadingListPage.toPageTitle(localPage)</span>
+<span class="nc" id="L497">        return RemoteReadingListEntry(0, 0,</span>
+<span class="nc" id="L498">            &quot;${title.wikiSite.scheme()}://${title.wikiSite.authority()}&quot;, title.prefixedText,</span>
+<span class="nc bnc" id="L499" title="All 2 branches missed.">            created = if (localPage.atime == 0L) LocalDateTime.now() else LocalDateTime.ofInstant(Instant.ofEpochMilli(localPage.atime), ZoneOffset.UTC),</span>
+<span class="nc bnc" id="L500" title="All 2 branches missed.">            updated = if (localPage.mtime == 0L) LocalDateTime.now() else LocalDateTime.ofInstant(Instant.ofEpochMilli(localPage.mtime), ZoneOffset.UTC))</span>
+    }
+
+    companion object {
+        private const val WORK_NAME = &quot;readingListSyncAdapter&quot;
+        private const val SYNC_EXTRAS_FORCE_FULL_SYNC = &quot;forceFullSync&quot;
+        private const val SYNC_EXTRAS_REFRESHING = &quot;refreshing&quot;
+        private const val SYNC_EXTRAS_RETRYING = &quot;retrying&quot;
+        private var IN_PROGRESS = false
+
+        fun inProgress(): Boolean {
+<span class="nc" id="L511">            return IN_PROGRESS</span>
+        }
+
+        fun setSyncEnabledWithSetup() {
+<span class="nc" id="L515">            Prefs.isReadingListSyncEnabled = true</span>
+<span class="nc" id="L516">            Prefs.isReadingListsRemoteSetupPending = true</span>
+<span class="nc" id="L517">            Prefs.isReadingListsRemoteDeletePending = false</span>
+<span class="nc" id="L518">            manualSync()</span>
+<span class="nc" id="L519">        }</span>
+
+        fun manualSyncWithDeleteList(list: ReadingList) {
+<span class="nc bnc" id="L522" title="All 2 branches missed.">            if (list.remoteId &lt;= 0) {</span>
+<span class="nc" id="L523">                return</span>
+            }
+<span class="nc" id="L525">            Prefs.addReadingListsDeletedIds(setOf(list.remoteId))</span>
+<span class="nc" id="L526">            manualSync()</span>
+<span class="nc" id="L527">        }</span>
+
+        fun createIdsForDeletion(list: ReadingList, pages: Set&lt;ReadingListPage&gt;): Set&lt;String&gt; {
+<span class="nc bnc" id="L530" title="All 4 branches missed.">            return if (list.remoteId &lt;= 0) emptySet() else pages.map { it.remoteId }.filter { it &gt; 0 }.map { &quot;${list.remoteId}:$it&quot; }.toSet()</span>
+        }
+
+        fun manualSyncWithDeletePages(list: ReadingList, pages: List&lt;ReadingListPage&gt;) {
+<span class="nc" id="L534">            val ids = createIdsForDeletion(list, pages.toSet())</span>
+<span class="nc bnc" id="L535" title="All 4 branches missed.">            if (ids.isNotEmpty()) {</span>
+<span class="nc" id="L536">                Prefs.addReadingListPagesDeletedIds(ids)</span>
+<span class="nc" id="L537">                manualSync()</span>
+            }
+<span class="nc" id="L539">        }</span>
+
+        fun manualSyncWithForce() {
+<span class="nc" id="L542">            manualSync(bundleOf(SYNC_EXTRAS_FORCE_FULL_SYNC to true))</span>
+<span class="nc" id="L543">        }</span>
+
+        fun manualSyncWithRefresh() {
+<span class="nc" id="L546">            Prefs.isSuggestedEditsHighestPriorityEnabled = false</span>
+<span class="nc" id="L547">            manualSync(bundleOf(SYNC_EXTRAS_REFRESHING to true))</span>
+<span class="nc" id="L548">        }</span>
+
+<span class="nc" id="L550">        fun manualSync(extras: Bundle = Bundle()) {</span>
+<span class="nc bnc" id="L551" title="All 2 branches missed.">            if (inProgress()) {</span>
+<span class="nc" id="L552">                return</span>
+            }
+<span class="nc bnc" id="L554" title="All 4 branches missed.">            if (AccountUtil.account() == null || !WikipediaApp.instance.isOnline) {</span>
+<span class="nc bnc" id="L555" title="All 2 branches missed.">                if (extras.containsKey(SYNC_EXTRAS_REFRESHING)) {</span>
+<span class="nc" id="L556">                    SavedPageSyncService.sendSyncEvent()</span>
+                }
+<span class="nc" id="L558">                return</span>
+            }
+<span class="nc" id="L560">            extras.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true)</span>
+<span class="nc" id="L561">            extras.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true)</span>
+
+            // Convert the Bundle to a Data object
+<span class="nc" id="L564">            val dataBuilder = Data.Builder()</span>
+<span class="nc" id="L565">            extras.keySet().forEach {</span>
+<span class="nc" id="L566">                dataBuilder.putBoolean(it, extras.getBoolean(it))</span>
+<span class="nc" id="L567">            }</span>
+
+<span class="nc" id="L569">            val constraints = Constraints.Builder()</span>
+<span class="nc" id="L570">                .setRequiredNetworkType(NetworkType.CONNECTED)</span>
+<span class="nc" id="L571">                .build()</span>
+<span class="nc" id="L572">            val workRequest = OneTimeWorkRequestBuilder&lt;ReadingListSyncAdapter&gt;()</span>
+<span class="nc" id="L573">                .setConstraints(constraints)</span>
+<span class="nc" id="L574">                .setInputData(dataBuilder.build())</span>
+<span class="nc" id="L575">                .build()</span>
+<span class="nc" id="L576">            WorkManager.getInstance(WikipediaApp.instance)</span>
+<span class="nc" id="L577">                .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, workRequest)</span>
+<span class="nc" id="L578">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetProviderFeaturedPage.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets</a> &gt; <span class="el_source">WidgetProviderFeaturedPage.kt</span></div><h1>WidgetProviderFeaturedPage.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.widget.RemoteViews
+import androidx.core.app.PendingIntentCompat
+import androidx.core.os.BundleCompat
+import androidx.work.BackoffPolicy
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
+import androidx.work.WorkRequest
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.Service
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.imageservice.ImageService
+import java.util.concurrent.TimeUnit
+
+<span class="nc" id="L31">class WidgetProviderFeaturedPage : AppWidgetProvider() {</span>
+
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager,
+                          appWidgetIds: IntArray) {
+<span class="nc" id="L35">        val thisWidget = ComponentName(context, WidgetProviderFeaturedPage::class.java)</span>
+<span class="nc" id="L36">        val allWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget)</span>
+
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        for (widgetId in allWidgetIds) {</span>
+<span class="nc" id="L39">            L.d(&quot;updating widget...&quot;)</span>
+<span class="nc" id="L40">            val remoteViews = RemoteViews(context.packageName, R.layout.widget_featured_page)</span>
+<span class="nc" id="L41">            val options = appWidgetManager.getAppWidgetOptions(widgetId)</span>
+
+<span class="nc" id="L43">            var pageTitle: PageTitle? = null</span>
+<span class="nc" id="L44">            val bundle = BundleCompat.getParcelable(options, Constants.ARG_TITLE, Bundle::class.java)</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">            if (bundle != null) {</span>
+<span class="nc" id="L46">                bundle.classLoader = WikipediaApp.instance.classLoader</span>
+<span class="nc" id="L47">                pageTitle = BundleCompat.getParcelable(bundle, Constants.ARG_TITLE, PageTitle::class.java)</span>
+            }
+<span class="nc bnc" id="L49" title="All 4 branches missed.">            if (pageTitle == null || (System.currentTimeMillis() - lastServerUpdateMillis) &gt; TimeUnit.HOURS.toMillis(1)) {</span>
+<span class="nc" id="L50">                lastServerUpdateMillis = System.currentTimeMillis()</span>
+<span class="nc" id="L51">                WorkManager.getInstance(context).cancelAllWorkByTag(WidgetFeaturedPageWorker::class.java.simpleName)</span>
+<span class="nc" id="L52">                val workRequest = OneTimeWorkRequest.Builder(WidgetFeaturedPageWorker::class.java)</span>
+<span class="nc" id="L53">                    .addTag(WidgetFeaturedPageWorker::class.java.simpleName)</span>
+<span class="nc" id="L54">                    .setBackoffCriteria(BackoffPolicy.LINEAR, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)</span>
+<span class="nc" id="L55">                    .build()</span>
+<span class="nc" id="L56">                WorkManager.getInstance(context).enqueue(workRequest)</span>
+<span class="nc" id="L57">                return</span>
+            }
+
+<span class="nc" id="L60">            remoteViews.setTextViewText(R.id.widget_content_title, StringUtil.fromHtml(pageTitle.displayText))</span>
+<span class="nc bnc" id="L61" title="All 6 branches missed.">            if (pageTitle.description.isNullOrEmpty()) {</span>
+<span class="nc" id="L62">                remoteViews.setViewVisibility(R.id.widget_content_description, View.GONE)</span>
+            } else {
+<span class="nc" id="L64">                remoteViews.setTextViewText(R.id.widget_content_description, pageTitle.description)</span>
+<span class="nc" id="L65">                remoteViews.setViewVisibility(R.id.widget_content_description, View.VISIBLE)</span>
+            }
+<span class="nc bnc" id="L67" title="All 6 branches missed.">            if (pageTitle.thumbUrl.isNullOrEmpty()) {</span>
+<span class="nc" id="L68">                remoteViews.setViewVisibility(R.id.widget_content_thumbnail, View.GONE)</span>
+            } else {
+<span class="nc" id="L70">                ImageService.loadImage(context, ImageUrlUtil.getUrlForPreferredSize(pageTitle.thumbUrl!!,</span>
+<span class="nc" id="L71">                    Service.PREFERRED_THUMB_SIZE), onSuccess = { bitmap -&gt;</span>
+<span class="nc" id="L72">                    remoteViews.setImageViewBitmap(R.id.widget_content_thumbnail, bitmap)</span>
+<span class="nc" id="L73">                    appWidgetManager.updateAppWidget(widgetId, remoteViews)</span>
+<span class="nc" id="L74">                })</span>
+<span class="nc" id="L75">                remoteViews.setViewVisibility(R.id.widget_content_thumbnail, View.VISIBLE)</span>
+            }
+
+<span class="nc" id="L78">            val historyEntry = HistoryEntry(pageTitle, HistoryEntry.SOURCE_WIDGET)</span>
+<span class="nc" id="L79">            val pendingIntent = PendingIntentCompat.getActivity(context, 1,</span>
+<span class="nc" id="L80">                PageActivity.newIntentForNewTab(context, historyEntry, historyEntry.title)</span>
+<span class="nc" id="L81">                    .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, Constants.InvokeSource.WIDGET)</span>
+<span class="nc" id="L82">                    .putExtra(Constants.INTENT_WIDGET_TYPE, WidgetTypes.FEATURED_ARTICLE.value)</span>
+<span class="nc" id="L83">                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK),</span>
+<span class="nc" id="L84">                    PendingIntent.FLAG_UPDATE_CURRENT, false)</span>
+
+<span class="nc" id="L86">            remoteViews.setOnClickPendingIntent(R.id.widget_container, pendingIntent)</span>
+<span class="nc" id="L87">            appWidgetManager.updateAppWidget(widgetId, remoteViews)</span>
+        }
+<span class="nc" id="L89">    }</span>
+
+    companion object {
+        private var lastServerUpdateMillis = 0L
+
+<span class="nc" id="L94">        fun forceUpdateWidget(context: Context, pageTitle: PageTitle? = null) {</span>
+<span class="nc" id="L95">            val appWidgetManager = AppWidgetManager.getInstance(context.applicationContext)</span>
+<span class="nc" id="L96">            val ids = appWidgetManager.getAppWidgetIds(ComponentName(context.applicationContext, WidgetProviderFeaturedPage::class.java))</span>
+<span class="nc" id="L97">            ids.forEach { id -&gt;</span>
+<span class="nc" id="L98">                val options = appWidgetManager.getAppWidgetOptions(id)</span>
+<span class="nc" id="L99">                val bundle = Bundle(WikipediaApp.instance.classLoader)</span>
+<span class="nc" id="L100">                bundle.putParcelable(Constants.ARG_TITLE, pageTitle)</span>
+<span class="nc" id="L101">                options.putParcelable(Constants.ARG_TITLE, bundle)</span>
+<span class="nc" id="L102">                appWidgetManager.updateAppWidgetOptions(id, options)</span>
+<span class="nc" id="L103">            }</span>
+<span class="nc bnc" id="L104" title="All 6 branches missed.">            if (ids.isNotEmpty()) {</span>
+<span class="nc" id="L105">                context.sendBroadcast(Intent(context, WidgetProviderFeaturedPage::class.java)</span>
+<span class="nc" id="L106">                    .setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE)</span>
+<span class="nc" id="L107">                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids))</span>
+            }
+<span class="nc" id="L109">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

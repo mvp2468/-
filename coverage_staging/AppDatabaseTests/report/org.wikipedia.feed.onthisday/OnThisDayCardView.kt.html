@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.onthisday</a> &gt; <span class="el_source">OnThisDayCardView.kt</span></div><h1>OnThisDayCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.onthisday
+
+import android.app.Activity
+import android.app.ActivityOptions
+import android.content.Context
+import android.net.Uri
+import android.view.LayoutInflater
+import android.view.View
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.databinding.ViewCardOnThisDayBinding
+import org.wikipedia.feed.view.CardFooterView
+import org.wikipedia.feed.view.DefaultFeedCardView
+import org.wikipedia.feed.view.FeedAdapter
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.readinglist.LongPressMenu
+import org.wikipedia.readinglist.ReadingListBehaviorsUtil
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.TransitionUtil
+import org.wikipedia.views.ImageZoomHelper
+
+<span class="nc" id="L24">class OnThisDayCardView(context: Context) : DefaultFeedCardView&lt;OnThisDayCard&gt;(context), CardFooterView.Callback {</span>
+
+<span class="nc" id="L26">    private val binding = ViewCardOnThisDayBinding.inflate(LayoutInflater.from(context), this, true)</span>
+    private var age = 0
+
+<span class="nc" id="L29">    init {</span>
+<span class="nc" id="L30">        binding.onThisDayCardViewClickContainer.setOnClickListener { view -&gt; onCardClicked(view) }</span>
+<span class="nc" id="L31">    }</span>
+
+    override fun onFooterClicked() {
+<span class="nc bnc" id="L34" title="All 2 branches missed.">        card?.let {</span>
+<span class="nc" id="L35">            val options = ActivityOptions.makeSceneTransitionAnimation(context as Activity,</span>
+<span class="nc" id="L36">                binding.cardHeader.titleView, context.getString(R.string.transition_on_this_day))</span>
+<span class="nc" id="L37">            context.startActivity(OnThisDayActivity.newIntent(context, age, -1,</span>
+<span class="nc" id="L38">                it.wikiSite(), InvokeSource.ON_THIS_DAY_CARD_FOOTER), options.toBundle())</span>
+<span class="nc" id="L39">        }</span>
+<span class="nc" id="L40">    }</span>
+
+<span class="nc" id="L42">    override var callback: FeedAdapter.Callback? = null</span>
+        set(value) {
+<span class="nc" id="L44">            field = value</span>
+<span class="nc" id="L45">            binding.cardHeader.setCallback(value)</span>
+<span class="nc" id="L46">        }</span>
+
+<span class="nc" id="L48">    override var card: OnThisDayCard? = null</span>
+        set(value) {
+<span class="nc" id="L50">            field = value</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            value?.let {</span>
+<span class="nc" id="L52">                age = it.age</span>
+<span class="nc" id="L53">                setLayoutDirectionByWikiSite(it.wikiSite(), binding.rtlContainer)</span>
+<span class="nc" id="L54">                binding.eventLayout.yearsText.text = DateUtil.getYearDifferenceString(context, it.year(), it.wikiSite().languageCode)</span>
+<span class="nc" id="L55">                updateOtdEventUI(it)</span>
+<span class="nc" id="L56">                header(it)</span>
+<span class="nc" id="L57">                footer(it)</span>
+<span class="nc" id="L58">            }</span>
+<span class="nc" id="L59">        }</span>
+
+    private fun header(card: OnThisDayCard) {
+<span class="nc" id="L62">        binding.cardHeader</span>
+<span class="nc" id="L63">            .setTitle(card.title())</span>
+<span class="nc" id="L64">            .setLangCode(card.wikiSite().languageCode)</span>
+<span class="nc" id="L65">            .setCard(card)</span>
+<span class="nc" id="L66">            .setCallback(callback)</span>
+<span class="nc" id="L67">        binding.eventLayout.text.text = card.text()</span>
+<span class="nc" id="L68">        binding.eventLayout.year.text = DateUtil.yearToStringWithEra(card.year())</span>
+<span class="nc" id="L69">    }</span>
+
+    private fun footer(card: OnThisDayCard) {
+<span class="nc" id="L72">        binding.eventLayout.pagesIndicator.visibility = GONE</span>
+<span class="nc" id="L73">        binding.cardFooterView.setFooterActionText(</span>
+<span class="nc" id="L74">            card.footerActionText(),</span>
+<span class="nc" id="L75">            card.wikiSite().languageCode</span>
+        )
+<span class="nc" id="L77">        binding.cardFooterView.callback = this</span>
+<span class="nc" id="L78">    }</span>
+
+    private fun onCardClicked(view: View) {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        card?.let {</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            val isYearClicked = view.id == R.id.year</span>
+<span class="nc" id="L83">            val options = ActivityOptions.makeSceneTransitionAnimation(context as Activity,</span>
+<span class="nc" id="L84">                binding.cardHeader.titleView, context.getString(R.string.transition_on_this_day))</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            context.startActivity(OnThisDayActivity.newIntent(context, age, if (isYearClicked) it.year() else -1, it.wikiSite(),</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                    if (isYearClicked) InvokeSource.ON_THIS_DAY_CARD_YEAR else InvokeSource.ON_THIS_DAY_CARD_BODY), options.toBundle()</span>
+            )
+<span class="nc" id="L88">        }</span>
+<span class="nc" id="L89">    }</span>
+
+    private fun updateOtdEventUI(card: OnThisDayCard) {
+<span class="nc" id="L92">        binding.eventLayout.pagesPager.visibility = GONE</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (card.pages().isEmpty()) {</span>
+<span class="nc" id="L94">            binding.eventLayout.onThisDayPage.root.visibility = GONE</span>
+<span class="nc" id="L95">            return</span>
+        }
+<span class="nc" id="L97">        binding.eventLayout.onThisDayPage.root.visibility = VISIBLE</span>
+<span class="nc bnc" id="L98" title="All 6 branches missed.">        val chosenPage = card.pages().find { it.thumbnailUrl != null }</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        chosenPage?.let { page -&gt;</span>
+<span class="nc bnc" id="L100" title="All 6 branches missed.">            if (page.thumbnailUrl.isNullOrEmpty()) {</span>
+<span class="nc" id="L101">                binding.eventLayout.onThisDayPage.imageContainer.visibility = GONE</span>
+            } else {
+<span class="nc" id="L103">                binding.eventLayout.onThisDayPage.imageContainer.visibility = VISIBLE</span>
+<span class="nc" id="L104">                binding.eventLayout.onThisDayPage.image.loadImage(Uri.parse(page.thumbnailUrl))</span>
+<span class="nc" id="L105">                ImageZoomHelper.setViewZoomable(binding.eventLayout.onThisDayPage.image)</span>
+            }
+<span class="nc" id="L107">            binding.eventLayout.onThisDayPage.description.text = page.description</span>
+<span class="nc" id="L108">            binding.eventLayout.onThisDayPage.description.visibility =</span>
+<span class="nc bnc" id="L109" title="All 6 branches missed.">                if (page.description.isNullOrEmpty()) GONE else VISIBLE</span>
+<span class="nc" id="L110">            binding.eventLayout.onThisDayPage.title.maxLines =</span>
+<span class="nc bnc" id="L111" title="All 6 branches missed.">                if (page.description.isNullOrEmpty()) 2 else 1</span>
+<span class="nc" id="L112">            binding.eventLayout.onThisDayPage.title.text = StringUtil.fromHtml(page.displayTitle)</span>
+<span class="nc" id="L113">            binding.eventLayout.onThisDayPage.root.setOnClickListener {</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                callback?.onSelectPage(card,</span>
+<span class="nc" id="L115">                    HistoryEntry(page.getPageTitle(card.wikiSite()), HistoryEntry.SOURCE_ON_THIS_DAY_CARD),</span>
+<span class="nc" id="L116">                    TransitionUtil.getSharedElements(context, binding.eventLayout.onThisDayPage.image)</span>
+                )
+<span class="nc" id="L118">            }</span>
+<span class="nc" id="L119">            binding.eventLayout.onThisDayPage.root.setOnLongClickListener { view -&gt;</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                if (ImageZoomHelper.isZooming) {</span>
+<span class="nc" id="L121">                    ImageZoomHelper.dispatchCancelEvent(binding.eventLayout.onThisDayPage.root)</span>
+                } else {
+<span class="nc" id="L123">                    val pageTitle = page.getPageTitle(card.wikiSite())</span>
+<span class="nc" id="L124">                    val entry = HistoryEntry(pageTitle, HistoryEntry.SOURCE_ON_THIS_DAY_CARD)</span>
+<span class="nc" id="L125">                    LongPressMenu(view, callback = object : LongPressMenu.Callback {</span>
+                        override fun onOpenLink(entry: HistoryEntry) {
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                            callback?.onSelectPage(</span>
+<span class="nc" id="L128">                                card,</span>
+<span class="nc" id="L129">                                entry,</span>
+<span class="nc" id="L130">                                TransitionUtil.getSharedElements(</span>
+<span class="nc" id="L131">                                    context,</span>
+<span class="nc" id="L132">                                    binding.eventLayout.onThisDayPage.image</span>
+                                )
+                            )
+<span class="nc" id="L135">                        }</span>
+
+                        override fun onOpenInNewTab(entry: HistoryEntry) {
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                            callback?.onSelectPage(card, entry, true)</span>
+<span class="nc" id="L139">                        }</span>
+
+                        override fun onAddRequest(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc" id="L142">                            ReadingListBehaviorsUtil.addToDefaultList(context as Activity, entry.title, addToDefault, InvokeSource.ON_THIS_DAY_CARD_BODY)</span>
+<span class="nc" id="L143">                        }</span>
+
+                        override fun onMoveRequest(page: ReadingListPage?, entry: HistoryEntry) {
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                            page?.let {</span>
+<span class="nc" id="L147">                                ReadingListBehaviorsUtil.moveToList(context as Activity, page.listId, entry.title, InvokeSource.ON_THIS_DAY_CARD_BODY)</span>
+<span class="nc" id="L148">                            }</span>
+<span class="nc" id="L149">                        }</span>
+<span class="nc" id="L150">                    }).show(entry)</span>
+                }
+<span class="nc" id="L152">                true</span>
+            }
+<span class="nc" id="L154">        }</span>
+<span class="nc" id="L155">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikipediaColor.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.compose.theme</a> &gt; <span class="el_source">WikipediaColor.kt</span></div><h1>WikipediaColor.kt</h1><pre class="source lang-java linenums">package org.wikipedia.compose.theme
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
+import org.wikipedia.compose.ComposeColors
+
+<span class="fc" id="L9">@Immutable</span>
+<span class="fc" id="L10">data class WikipediaColor(</span>
+<span class="pc" id="L11">    val isDarkTheme: Boolean = false,</span>
+<span class="fc" id="L12">    val primaryColor: Color,</span>
+<span class="pc" id="L13">    val paperColor: Color,</span>
+<span class="pc" id="L14">    val backgroundColor: Color,</span>
+<span class="pc" id="L15">    val inactiveColor: Color,</span>
+<span class="fc" id="L16">    val placeholderColor: Color,</span>
+<span class="pc" id="L17">    val secondaryColor: Color,</span>
+<span class="fc" id="L18">    val borderColor: Color,</span>
+<span class="fc" id="L19">    val progressiveColor: Color,</span>
+<span class="pc" id="L20">    val successColor: Color,</span>
+<span class="pc" id="L21">    val destructiveColor: Color,</span>
+<span class="pc" id="L22">    val warningColor: Color,</span>
+<span class="pc" id="L23">    val highlightColor: Color,</span>
+<span class="pc" id="L24">    val focusColor: Color,</span>
+<span class="pc" id="L25">    val additionColor: Color,</span>
+<span class="fc" id="L26">    val overlayColor: Color</span>
+<span class="fc" id="L27">)</span>
+
+<span class="fc" id="L29">val LocalWikipediaColor = staticCompositionLocalOf {</span>
+<span class="nc" id="L30">    WikipediaColor(</span>
+<span class="nc" id="L31">        primaryColor = Color.Unspecified,</span>
+<span class="nc" id="L32">        paperColor = Color.Unspecified,</span>
+<span class="nc" id="L33">        backgroundColor = Color.Unspecified,</span>
+<span class="nc" id="L34">        inactiveColor = Color.Unspecified,</span>
+<span class="nc" id="L35">        placeholderColor = Color.Unspecified,</span>
+<span class="nc" id="L36">        secondaryColor = Color.Unspecified,</span>
+<span class="nc" id="L37">        borderColor = Color.Unspecified,</span>
+<span class="nc" id="L38">        progressiveColor = Color.Unspecified,</span>
+<span class="nc" id="L39">        successColor = Color.Unspecified,</span>
+<span class="nc" id="L40">        destructiveColor = Color.Unspecified,</span>
+<span class="nc" id="L41">        warningColor = Color.Unspecified,</span>
+<span class="nc" id="L42">        highlightColor = Color.Unspecified,</span>
+<span class="nc" id="L43">        focusColor = Color.Unspecified,</span>
+<span class="nc" id="L44">        additionColor = Color.Unspecified,</span>
+<span class="nc" id="L45">        overlayColor = Color.Unspecified,</span>
+<span class="nc" id="L46">    )</span>
+}
+
+<span class="fc" id="L49">val LightColors = WikipediaColor(</span>
+<span class="fc" id="L50">    primaryColor = ComposeColors.Gray700,</span>
+<span class="fc" id="L51">    paperColor = ComposeColors.White,</span>
+<span class="fc" id="L52">    backgroundColor = ComposeColors.Gray100,</span>
+<span class="fc" id="L53">    inactiveColor = ComposeColors.Gray400,</span>
+<span class="fc" id="L54">    placeholderColor = ComposeColors.Gray500,</span>
+<span class="fc" id="L55">    secondaryColor = ComposeColors.Gray600,</span>
+<span class="fc" id="L56">    borderColor = ComposeColors.Gray200,</span>
+<span class="fc" id="L57">    progressiveColor = ComposeColors.Blue600,</span>
+<span class="fc" id="L58">    successColor = ComposeColors.Green700,</span>
+<span class="fc" id="L59">    destructiveColor = ComposeColors.Red700,</span>
+<span class="fc" id="L60">    warningColor = ComposeColors.Yellow700,</span>
+<span class="fc" id="L61">    highlightColor = ComposeColors.Yellow500,</span>
+<span class="fc" id="L62">    focusColor = ComposeColors.Orange500,</span>
+<span class="fc" id="L63">    additionColor = ComposeColors.Blue300_15,</span>
+<span class="fc" id="L64">    overlayColor = ComposeColors.Black_30</span>
+)
+
+<span class="pc" id="L67">val DarkColors = WikipediaColor(</span>
+<span class="fc" id="L68">    isDarkTheme = true,</span>
+<span class="fc" id="L69">    primaryColor = ComposeColors.Gray200,</span>
+<span class="fc" id="L70">    paperColor = ComposeColors.Gray700,</span>
+<span class="fc" id="L71">    backgroundColor = ComposeColors.Gray675,</span>
+<span class="fc" id="L72">    inactiveColor = ComposeColors.Gray500,</span>
+<span class="fc" id="L73">    placeholderColor = ComposeColors.Gray400,</span>
+<span class="fc" id="L74">    secondaryColor = ComposeColors.Gray300,</span>
+<span class="fc" id="L75">    borderColor = ComposeColors.Gray650,</span>
+<span class="fc" id="L76">    progressiveColor = ComposeColors.Blue300,</span>
+<span class="fc" id="L77">    successColor = ComposeColors.Green600,</span>
+<span class="fc" id="L78">    destructiveColor = ComposeColors.Red500,</span>
+<span class="fc" id="L79">    warningColor = ComposeColors.Orange500,</span>
+<span class="fc" id="L80">    highlightColor = ComposeColors.Yellow500_40,</span>
+<span class="fc" id="L81">    focusColor = ComposeColors.Orange500_50,</span>
+<span class="fc" id="L82">    additionColor = ComposeColors.Blue600_30,</span>
+<span class="fc" id="L83">    overlayColor = ComposeColors.Black_70</span>
+)
+
+<span class="pc" id="L86">val BlackColors = WikipediaColor(</span>
+<span class="fc" id="L87">    isDarkTheme = true,</span>
+<span class="fc" id="L88">    primaryColor = ComposeColors.Gray200,</span>
+<span class="fc" id="L89">    paperColor = ComposeColors.Black,</span>
+<span class="fc" id="L90">    backgroundColor = ComposeColors.Gray700,</span>
+<span class="fc" id="L91">    inactiveColor = ComposeColors.Gray500,</span>
+<span class="fc" id="L92">    placeholderColor = ComposeColors.Gray500,</span>
+<span class="fc" id="L93">    secondaryColor = ComposeColors.Gray300,</span>
+<span class="fc" id="L94">    borderColor = ComposeColors.Gray675,</span>
+<span class="fc" id="L95">    progressiveColor = ComposeColors.Blue300,</span>
+<span class="fc" id="L96">    successColor = ComposeColors.Green600,</span>
+<span class="fc" id="L97">    destructiveColor = ComposeColors.Red500,</span>
+<span class="fc" id="L98">    warningColor = ComposeColors.Orange500,</span>
+<span class="fc" id="L99">    highlightColor = ComposeColors.Yellow500_40,</span>
+<span class="fc" id="L100">    focusColor = ComposeColors.Orange500_50,</span>
+<span class="fc" id="L101">    additionColor = ComposeColors.Blue600_30,</span>
+<span class="fc" id="L102">    overlayColor = ComposeColors.Black_70</span>
+)
+
+<span class="pc" id="L105">val SepiaColors = WikipediaColor(</span>
+<span class="fc" id="L106">    primaryColor = ComposeColors.Gray700,</span>
+<span class="fc" id="L107">    paperColor = ComposeColors.Beige100,</span>
+<span class="fc" id="L108">    backgroundColor = ComposeColors.Beige300,</span>
+<span class="fc" id="L109">    inactiveColor = ComposeColors.Taupe200,</span>
+<span class="fc" id="L110">    placeholderColor = ComposeColors.Taupe600,</span>
+<span class="fc" id="L111">    secondaryColor = ComposeColors.Gray600,</span>
+<span class="fc" id="L112">    borderColor = ComposeColors.Beige400,</span>
+<span class="fc" id="L113">    progressiveColor = ComposeColors.Blue600,</span>
+<span class="fc" id="L114">    successColor = ComposeColors.Green700,</span>
+<span class="fc" id="L115">    destructiveColor = ComposeColors.Red700,</span>
+<span class="fc" id="L116">    warningColor = ComposeColors.Yellow700,</span>
+<span class="fc" id="L117">    highlightColor = ComposeColors.Yellow500,</span>
+<span class="fc" id="L118">    focusColor = ComposeColors.Orange500,</span>
+<span class="fc" id="L119">    additionColor = ComposeColors.Blue300_15,</span>
+<span class="fc" id="L120">    overlayColor = ComposeColors.Black_30</span>
+)
+
+@Composable
+<span class="nc" id="L124">fun WikipediaColor.shimmerColors(): List&lt;Color&gt; {</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">    return if (isDarkTheme) {</span>
+<span class="nc" id="L126">        listOf(</span>
+<span class="nc" id="L127">            borderColor.copy(alpha = 0.3f),</span>
+<span class="nc" id="L128">            inactiveColor.copy(alpha = 0.5f),</span>
+<span class="nc" id="L129">            borderColor.copy(alpha = 0.3f)</span>
+        )
+    } else {
+<span class="nc" id="L132">        listOf(</span>
+<span class="nc" id="L133">            borderColor.copy(alpha = 0.6f),</span>
+<span class="nc" id="L134">            backgroundColor.copy(alpha = 0.8f),</span>
+<span class="nc" id="L135">            borderColor.copy(alpha = 0.6f)</span>
+        )
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

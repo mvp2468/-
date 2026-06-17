@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Html.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.compose.extensions</a> &gt; <span class="el_source">Html.kt</span></div><h1>Html.kt</h1><pre class="source lang-java linenums">/*
+ * Copyright 2024 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wikipedia.compose.extensions
+
+import android.graphics.Typeface
+import android.text.Layout
+import android.text.Spanned
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.AlignmentSpan
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StrikethroughSpan
+import android.text.style.StyleSpan
+import android.text.style.SubscriptSpan
+import android.text.style.SuperscriptSpan
+import android.text.style.TypefaceSpan
+import android.text.style.URLSpan
+import android.text.style.UnderlineSpan
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.LinkInteractionListener
+import androidx.compose.ui.text.ParagraphStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.em
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L51">fun AnnotatedString.Companion.composeFromHtml(</span>
+    htmlString: String,
+    linkStyles: TextLinkStyles?,
+<span class="nc" id="L54">    linkInteractionListener: LinkInteractionListener? = null</span>
+): AnnotatedString {
+<span class="fc" id="L56">    val spanned = StringUtil.fromHtml(htmlString)</span>
+<span class="fc" id="L57">    return spanned.toAnnotatedString(linkStyles, linkInteractionListener)</span>
+}
+
+// TODO
+// https://issuetracker.google.com/issues/374066408
+// Everything below this point is copied from Html.android.kt from the Compose library itself.
+// Once the above issue is resolved upstream, we'll be able to plug in our own TagHandler.
+// Until then, keep an eye on updates of this file (also upstream) for any bugs/fixes.
+
+<span class="nc" id="L66">internal fun Spanned.toAnnotatedString(</span>
+<span class="nc" id="L67">    linkStyles: TextLinkStyles? = null,</span>
+<span class="nc" id="L68">    linkInteractionListener: LinkInteractionListener? = null</span>
+): AnnotatedString {
+<span class="fc" id="L70">    return AnnotatedString.Builder(capacity = length)</span>
+<span class="fc" id="L71">        .append(this)</span>
+<span class="fc" id="L72">        .also { it.addSpans(</span>
+<span class="fc" id="L73">            this,</span>
+<span class="fc" id="L74">            linkStyles,</span>
+<span class="fc" id="L75">            linkInteractionListener</span>
+<span class="fc" id="L76">        ) }</span>
+<span class="fc" id="L77">        .toAnnotatedString()</span>
+}
+
+private fun AnnotatedString.Builder.addSpans(
+    spanned: Spanned,
+    linkStyles: TextLinkStyles?,
+    linkInteractionListener: LinkInteractionListener?
+) {
+<span class="fc" id="L85">    spanned.getSpans(0, length, Any::class.java).forEach { span -&gt;</span>
+<span class="nc" id="L86">        val range = TextRange(spanned.getSpanStart(span), spanned.getSpanEnd(span))</span>
+<span class="nc" id="L87">        addSpan(</span>
+<span class="nc" id="L88">            span,</span>
+<span class="nc" id="L89">            range.start,</span>
+<span class="nc" id="L90">            range.end,</span>
+<span class="nc" id="L91">            linkStyles,</span>
+<span class="nc" id="L92">            linkInteractionListener</span>
+        )
+<span class="nc" id="L94">    }</span>
+<span class="fc" id="L95">}</span>
+
+private fun AnnotatedString.Builder.addSpan(
+    span: Any,
+    start: Int,
+    end: Int,
+    linkStyles: TextLinkStyles?,
+    linkInteractionListener: LinkInteractionListener?
+) {
+<span class="nc" id="L104">    when (span) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        is AbsoluteSizeSpan -&gt; {</span>
+            // TODO(soboleva) need density object or make dip/px new units in TextUnit
+        }
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        is AlignmentSpan -&gt; {</span>
+<span class="nc" id="L109">            addStyle(span.toParagraphStyle(), start, end)</span>
+        }
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        is BackgroundColorSpan -&gt; {</span>
+<span class="nc" id="L112">            addStyle(SpanStyle(background = Color(span.backgroundColor)), start, end)</span>
+        }
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        is ForegroundColorSpan -&gt; {</span>
+<span class="nc" id="L115">            addStyle(SpanStyle(color = Color(span.foregroundColor)), start, end)</span>
+        }
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        is RelativeSizeSpan -&gt; {</span>
+<span class="nc" id="L118">            addStyle(SpanStyle(fontSize = span.sizeChange.em), start, end)</span>
+        }
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        is StrikethroughSpan -&gt; {</span>
+<span class="nc" id="L121">            addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), start, end)</span>
+        }
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        is StyleSpan -&gt; {</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            span.toSpanStyle()?.let { addStyle(it, start, end) }</span>
+        }
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        is SubscriptSpan -&gt; {</span>
+<span class="nc" id="L127">            addStyle(SpanStyle(baselineShift = BaselineShift.Subscript), start, end)</span>
+        }
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        is SuperscriptSpan -&gt; {</span>
+<span class="nc" id="L130">            addStyle(SpanStyle(baselineShift = BaselineShift.Superscript), start, end)</span>
+        }
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        is TypefaceSpan -&gt; {</span>
+<span class="nc" id="L133">            addStyle(span.toSpanStyle(), start, end)</span>
+        }
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        is UnderlineSpan -&gt; {</span>
+<span class="nc" id="L136">            addStyle(SpanStyle(textDecoration = TextDecoration.Underline), start, end)</span>
+        }
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        is URLSpan -&gt; {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            span.url?.let { url -&gt;</span>
+<span class="nc" id="L140">                val link = LinkAnnotation.Url(</span>
+<span class="nc" id="L141">                    url,</span>
+<span class="nc" id="L142">                    linkStyles,</span>
+<span class="nc" id="L143">                    linkInteractionListener</span>
+                )
+<span class="nc" id="L145">                addLink(link, start, end)</span>
+<span class="nc" id="L146">            }</span>
+        }
+    }
+<span class="nc" id="L149">}</span>
+
+private fun AlignmentSpan.toParagraphStyle(): ParagraphStyle {
+<span class="nc bnc" id="L152" title="All 4 branches missed.">    val alignment = when (this.alignment) {</span>
+<span class="nc" id="L153">        Layout.Alignment.ALIGN_NORMAL -&gt; TextAlign.Start</span>
+<span class="nc" id="L154">        Layout.Alignment.ALIGN_CENTER -&gt; TextAlign.Center</span>
+<span class="nc" id="L155">        Layout.Alignment.ALIGN_OPPOSITE -&gt; TextAlign.End</span>
+<span class="nc" id="L156">        else -&gt; TextAlign.Unspecified</span>
+    }
+<span class="nc" id="L158">    return ParagraphStyle(textAlign = alignment)</span>
+}
+
+private fun StyleSpan.toSpanStyle(): SpanStyle? {
+    /* StyleSpan doc: styles are cumulative -- if both bold and italic are set in
+     * separate spans, or if the base style is bold and a span calls for italic,
+     * you get bold italic.  You can't turn off a style from the base style.
+     */
+<span class="nc bnc" id="L166" title="All 4 branches missed.">    return when (style) {</span>
+        Typeface.BOLD -&gt; {
+<span class="nc" id="L168">            SpanStyle(fontWeight = FontWeight.Bold)</span>
+        }
+        Typeface.ITALIC -&gt; {
+<span class="nc" id="L171">            SpanStyle(fontStyle = FontStyle.Italic)</span>
+        }
+        Typeface.BOLD_ITALIC -&gt; {
+<span class="nc" id="L174">            SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)</span>
+        }
+<span class="nc" id="L176">        else -&gt; null</span>
+    }
+}
+
+private fun TypefaceSpan.toSpanStyle(): SpanStyle {
+<span class="nc" id="L181">    val fontFamily = when (family) {</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        FontFamily.Cursive.name -&gt; FontFamily.Cursive</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        FontFamily.Monospace.name -&gt; FontFamily.Monospace</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        FontFamily.SansSerif.name -&gt; FontFamily.SansSerif</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        FontFamily.Serif.name -&gt; FontFamily.Serif</span>
+<span class="nc" id="L186">        else -&gt; { optionalFontFamilyFromName(family) }</span>
+    }
+<span class="nc" id="L188">    return SpanStyle(fontFamily = fontFamily)</span>
+}
+
+/**
+ * Mirrors [androidx.compose.ui.text.font.PlatformTypefaces.optionalOnDeviceFontFamilyByName]
+ * behavior with both font weight and font style being Normal in this case */
+private fun optionalFontFamilyFromName(familyName: String?): FontFamily? {
+<span class="nc bnc" id="L195" title="All 6 branches missed.">    if (familyName.isNullOrEmpty()) return null</span>
+<span class="nc" id="L196">    val typeface = Typeface.create(familyName, Typeface.NORMAL)</span>
+<span class="nc bnc" id="L197" title="All 4 branches missed.">    return typeface.takeIf { typeface != Typeface.DEFAULT &amp;&amp;</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            typeface != Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">    }?.let { FontFamily(it) }</span>
+}
+
+/**
+ * This tag is added at the beginning of a string fed to the HTML parser in order to trigger
+ * a TagHandler's callback early on so we can replace the ContentHandler with our
+ * own [AnnotationContentHandler]. This is needed to handle the opening &lt;annotation&gt; tags since by
+ * the time TagHandler is triggered, the parser already visited and left the opening &lt;annotation&gt;
+ * tag which contains the attributes. Note that closing tag doesn't have the attributes and
+ * therefore not enough to construct the intermediate [AnnotationSpan] object that is later
+ * transformed into [AnnotatedString]'s string annotation.
+ */
+private const val ContentHandlerReplacementTag = &quot;ContentHandlerReplacementTag&quot;
+private const val AnnotationTag = &quot;annotation&quot;
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

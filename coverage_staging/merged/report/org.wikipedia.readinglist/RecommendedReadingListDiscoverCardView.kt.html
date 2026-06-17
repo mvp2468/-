@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListDiscoverCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">RecommendedReadingListDiscoverCardView.kt</span></div><h1>RecommendedReadingListDiscoverCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import org.wikipedia.R
+import org.wikipedia.compose.components.HtmlText
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+import org.wikipedia.views.imageservice.ImageService
+
+@Composable
+fun RecommendedReadingListDiscoverCardView(
+<span class="nc bnc" id="L43" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    title: String,
+    @DrawableRes subtitleIcon: Int,
+    subtitle: String,
+    description: String,
+    images: List&lt;String&gt;,
+<span class="nc bnc" id="L49" title="All 2 branches missed.">    isNewListGenerated: Boolean = false,</span>
+<span class="nc" id="L50">    isUserLoggedIn: Boolean = false,</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L52">    WikiCard(</span>
+<span class="nc" id="L53">        elevation = 4.dp</span>
+<span class="nc" id="L54">    ) {</span>
+<span class="nc" id="L55">        Row(</span>
+<span class="nc" id="L56">            modifier = modifier,</span>
+<span class="nc" id="L57">            horizontalArrangement = Arrangement.spacedBy(16.dp),</span>
+        ) {
+<span class="nc" id="L59">            Column(</span>
+<span class="nc" id="L60">                modifier = Modifier</span>
+<span class="nc" id="L61">                    .weight(1.1f),</span>
+<span class="nc" id="L62">                verticalArrangement = Arrangement.spacedBy(8.dp)</span>
+            ) {
+<span class="nc" id="L64">                Row(</span>
+<span class="nc" id="L65">                    verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L66">                    horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+                ) {
+<span class="nc" id="L68">                    Text(</span>
+<span class="nc" id="L69">                        text = title,</span>
+<span class="nc" id="L70">                        style = MaterialTheme.typography.titleMedium,</span>
+<span class="nc" id="L71">                        color = WikipediaTheme.colors.primaryColor</span>
+                    )
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                    if (isNewListGenerated) {</span>
+<span class="nc" id="L74">                        Box(</span>
+<span class="nc" id="L75">                            modifier = Modifier</span>
+<span class="nc" id="L76">                                .size(6.dp)</span>
+<span class="nc" id="L77">                                .clip(CircleShape)</span>
+<span class="nc" id="L78">                                .background(WikipediaTheme.colors.destructiveColor)</span>
+                        )
+<span class="nc" id="L80">                    }</span>
+<span class="nc" id="L81">                }</span>
+
+<span class="nc" id="L83">                Row(</span>
+<span class="nc" id="L84">                    verticalAlignment = Alignment.Top,</span>
+<span class="nc" id="L85">                    horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+                ) {
+<span class="nc" id="L87">                    Icon(</span>
+<span class="nc" id="L88">                        modifier = Modifier</span>
+<span class="nc" id="L89">                            .size(20.dp),</span>
+<span class="nc" id="L90">                        painter = painterResource(subtitleIcon),</span>
+<span class="nc" id="L91">                        tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L92">                        contentDescription = null</span>
+                    )
+<span class="nc" id="L94">                    HtmlText(</span>
+<span class="nc" id="L95">                        modifier = Modifier</span>
+<span class="nc" id="L96">                            .padding(top = 2.dp),</span>
+<span class="nc" id="L97">                        text = subtitle,</span>
+<span class="nc" id="L98">                        style = TextStyle(</span>
+<span class="nc" id="L99">                            color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L100">                            fontSize = 14.sp,</span>
+<span class="nc" id="L101">                            fontWeight = FontWeight.Normal</span>
+                        )
+                    )
+<span class="nc" id="L104">                }</span>
+
+<span class="nc" id="L106">                Text(</span>
+<span class="nc" id="L107">                    text = description,</span>
+<span class="nc" id="L108">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L109">                    style = MaterialTheme.typography.bodySmall</span>
+                )
+<span class="nc" id="L111">            }</span>
+
+<span class="nc bnc" id="L113" title="All 4 branches missed.">            if (images.isNotEmpty()) {</span>
+<span class="nc" id="L114">                LazyVerticalGrid(</span>
+<span class="nc" id="L115">                    modifier = Modifier</span>
+<span class="nc" id="L116">                        .clip(RoundedCornerShape(12.dp))</span>
+<span class="nc" id="L117">                        .weight(0.9f)</span>
+<span class="nc" id="L118">                        .height(140.dp),</span>
+<span class="nc" id="L119">                    columns = GridCells.Fixed(2)</span>
+<span class="nc" id="L120">                ) {</span>
+<span class="nc" id="L121">                    items(4) { index -&gt;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                        val imageUrl = images.getOrNull(index) ?: &quot;&quot;</span>
+<span class="nc bnc" id="L123" title="All 4 branches missed.">                        if (imageUrl.isEmpty()) {</span>
+<span class="nc" id="L124">                            Box(</span>
+<span class="nc" id="L125">                                modifier = Modifier</span>
+<span class="nc" id="L126">                                    .size(70.dp)</span>
+<span class="nc" id="L127">                                    .background(WikipediaTheme.colors.borderColor)</span>
+                            )
+                        } else {
+<span class="nc" id="L130">                            AsyncImage(</span>
+<span class="nc" id="L131">                                model = ImageService.getRequest(</span>
+<span class="nc" id="L132">                                    context = LocalContext.current,</span>
+<span class="nc" id="L133">                                    url = imageUrl</span>
+                                ),
+<span class="nc" id="L135">                                modifier = Modifier</span>
+<span class="nc" id="L136">                                    .size(70.dp),</span>
+<span class="nc" id="L137">                                contentScale = ContentScale.Crop,</span>
+<span class="nc" id="L138">                                contentDescription = null,</span>
+<span class="nc" id="L139">                                placeholder = ColorPainter(WikipediaTheme.colors.borderColor),</span>
+<span class="nc" id="L140">                                error = ColorPainter(WikipediaTheme.colors.borderColor),</span>
+                            )
+                        }
+<span class="nc" id="L143">                    }</span>
+<span class="nc" id="L144">                }</span>
+<span class="nc" id="L145">            }</span>
+<span class="nc" id="L146">        }</span>
+<span class="nc" id="L147">    }</span>
+<span class="nc" id="L148">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L152">private fun RecommendedReadingListDiscoverCardViewPreview() {</span>
+<span class="nc" id="L153">    BaseTheme(</span>
+<span class="nc" id="L154">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L155">    ) {</span>
+<span class="nc" id="L156">        RecommendedReadingListDiscoverCardView(</span>
+<span class="nc" id="L157">            modifier = Modifier</span>
+<span class="nc" id="L158">                .padding(16.dp),</span>
+<span class="nc" id="L159">            title = &quot;Discover&quot;,</span>
+<span class="nc" id="L160">            subtitle = &quot;Made for you&quot;,</span>
+<span class="nc" id="L161">            subtitleIcon = R.drawable.ic_wikipedia_w,</span>
+<span class="nc" id="L162">            description = &quot;Your weekly reading list. Learn about new topics,  picked just for you. Updates at midnight.&quot;,</span>
+<span class="nc" id="L163">            images = listOf()</span>
+        )
+<span class="nc" id="L165">    }</span>
+<span class="nc" id="L166">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

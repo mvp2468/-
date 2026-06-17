@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsFeedClient.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.suggestededits</a> &gt; <span class="el_source">SuggestedEditsFeedClient.kt</span></div><h1>SuggestedEditsFeedClient.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.suggestededits
+
+import android.content.Context
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.descriptions.DescriptionEditUtil
+import org.wikipedia.feed.dataclient.FeedClient
+import org.wikipedia.usercontrib.UserContribStats
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L18">class SuggestedEditsFeedClient(</span>
+<span class="nc" id="L19">    private val coroutineScope: CoroutineScope</span>
+) : FeedClient {
+
+    private lateinit var cb: FeedClient.Callback
+    private var age: Int = 0
+    private var clientJob: Job? = null
+
+    override fun request(context: Context, wiki: WikiSite, age: Int, cb: FeedClient.Callback) {
+<span class="nc bnc" id="L27" title="All 2 branches missed.">        clientJob?.cancel()</span>
+<span class="nc" id="L28">        this.age = age</span>
+<span class="nc" id="L29">        this.cb = cb</span>
+
+<span class="nc bnc" id="L31" title="All 4 branches missed.">        if (UserContribStats.isDisabled() || UserContribStats.maybePauseAndGetEndDate() != null) {</span>
+<span class="nc" id="L32">            cb.success(emptyList())</span>
+<span class="nc" id="L33">            return</span>
+        }
+
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        if (age == 0) {</span>
+<span class="nc" id="L37">            cardTypes.clear()</span>
+<span class="nc" id="L38">            clientJob = coroutineScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L39">                L.e(throwable)</span>
+<span class="nc" id="L40">                cb.error(throwable)</span>
+<span class="nc" id="L41">            }) {</span>
+<span class="nc" id="L42">                val homeSiteCall = ServiceFactory.get(WikipediaApp.instance.wikiSite).getUserContributions(AccountUtil.userName, 50, null, null)</span>
+<span class="nc bnc" id="L43" title="All 4 branches missed.">                val totalContributions = homeSiteCall.query?.userInfo?.editCount ?: 0</span>
+
+<span class="nc" id="L45">                val usesLocalDescriptions = DescriptionEditUtil.wikiUsesLocalDescriptions(WikipediaApp.instance.wikiSite.languageCode)</span>
+<span class="nc bnc" id="L46" title="All 4 branches missed.">                val sufficientContributionsForArticleDescription = totalContributions &gt; (if (usesLocalDescriptions) 50 else 3)</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">                if (sufficientContributionsForArticleDescription) {</span>
+<span class="nc" id="L48">                    cardTypes.add(DescriptionEditActivity.Action.ADD_DESCRIPTION)</span>
+                }
+<span class="nc" id="L50">                cardTypes.add(DescriptionEditActivity.Action.ADD_CAPTION)</span>
+<span class="nc" id="L51">                cardTypes.add(DescriptionEditActivity.Action.ADD_IMAGE_TAGS)</span>
+<span class="nc" id="L52">                cb.success(listOf(SuggestedEditsCard(cardTypes, wiki, age)))</span>
+<span class="nc" id="L53">            }</span>
+        } else {
+<span class="nc" id="L55">            cb.success(listOf(SuggestedEditsCard(cardTypes, wiki, age)))</span>
+        }
+<span class="nc" id="L57">    }</span>
+
+    override fun cancel() {
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        clientJob?.cancel()</span>
+<span class="nc" id="L61">    }</span>
+
+    companion object {
+<span class="nc" id="L64">        private val cardTypes = mutableListOf&lt;DescriptionEditActivity.Action&gt;()</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

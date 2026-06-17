@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingChallengeActions.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">ReadingChallengeActions.kt</span></div><h1>ReadingChallengeActions.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import android.content.Context
+import android.content.Intent
+import androidx.glance.GlanceId
+import androidx.glance.action.ActionParameters
+import androidx.glance.appwidget.action.ActionCallback
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.WikipediaApp
+import org.wikipedia.main.MainActivity
+import org.wikipedia.navtab.NavTab
+import org.wikipedia.random.RandomActivity
+import org.wikipedia.search.SearchActivity
+import org.wikipedia.settings.Prefs
+import org.wikipedia.widgets.WidgetTypes
+
+<span class="nc" id="L18">class JoinChallengeAction : ActionCallback {</span>
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+<span class="nc" id="L24">        Prefs.readingChallengeOnboardingShown = false</span>
+<span class="nc" id="L25">        context.startActivity(</span>
+<span class="nc" id="L26">            MainActivity.newIntent(context)</span>
+<span class="nc" id="L27">                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)</span>
+<span class="nc" id="L28">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, InvokeSource.WIDGET)</span>
+<span class="nc" id="L29">                .putExtra(Constants.INTENT_WIDGET_TYPE, WidgetTypes.READING_CHALLENGE.value)</span>
+<span class="nc" id="L30">                .putExtra(ReadingChallengeWidgetRepository.INTENT_EXTRA_READING_CHALLENGE_JOIN, true)</span>
+        )
+<span class="nc" id="L32">    }</span>
+}
+
+<span class="nc" id="L35">class SearchAction : ActionCallback {</span>
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+<span class="nc" id="L41">        context.startActivity(</span>
+<span class="nc" id="L42">            SearchActivity.newIntent(context, InvokeSource.WIDGET, null)</span>
+<span class="nc" id="L43">                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)</span>
+<span class="nc" id="L44">                .putExtra(Constants.INTENT_WIDGET_TYPE, WidgetTypes.READING_CHALLENGE.value)</span>
+        )
+<span class="nc" id="L46">    }</span>
+}
+
+<span class="nc" id="L49">class RandomizerAction : ActionCallback {</span>
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+<span class="nc" id="L55">        context.startActivity(</span>
+<span class="nc" id="L56">            RandomActivity.newIntent(context, WikipediaApp.instance.wikiSite, InvokeSource.WIDGET)</span>
+<span class="nc" id="L57">                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)</span>
+<span class="nc" id="L58">                .putExtra(Constants.INTENT_WIDGET_TYPE, WidgetTypes.READING_CHALLENGE.value)</span>
+        )
+<span class="nc" id="L60">    }</span>
+}
+
+<span class="nc" id="L63">class ChallengeRewardAction : ActionCallback {</span>
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+<span class="nc" id="L69">        context.startActivity(</span>
+<span class="nc" id="L70">            MainActivity.newIntent(context)</span>
+<span class="nc" id="L71">                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)</span>
+<span class="nc" id="L72">                .putExtra(Constants.INTENT_EXTRA_GO_TO_SE_TAB, NavTab.EDITS.code())</span>
+<span class="nc" id="L73">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, InvokeSource.WIDGET)</span>
+<span class="nc" id="L74">                .putExtra(Constants.INTENT_WIDGET_TYPE, WidgetTypes.READING_CHALLENGE.value)</span>
+<span class="nc" id="L75">                .putExtra(ReadingChallengeWidgetRepository.INTENT_EXTRA_READING_CHALLENGE_REWARD, true)</span>
+        )
+<span class="nc" id="L77">    }</span>
+}
+
+<span class="nc" id="L80">class HomeAction : ActionCallback {</span>
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+<span class="nc" id="L86">        context.startActivity(</span>
+<span class="nc" id="L87">            MainActivity.newIntent(context)</span>
+<span class="nc" id="L88">                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)</span>
+<span class="nc" id="L89">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, InvokeSource.WIDGET)</span>
+<span class="nc" id="L90">                .putExtra(Constants.INTENT_WIDGET_TYPE, WidgetTypes.READING_CHALLENGE.value)</span>
+        )
+<span class="nc" id="L92">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

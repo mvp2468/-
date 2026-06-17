@@ -70,4 +70,5 @@ class DiffTest : BaseTest<PageActivity>(
             .verifyDiffScreenVisible()
             .verifyArticleTitleVisible()
     }
+
 }

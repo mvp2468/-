@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingChallengeInstallWidgetDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">ReadingChallengeInstallWidgetDialog.kt</span></div><h1>ReadingChallengeInstallWidgetDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
+import org.wikipedia.R
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.compose.components.TwoButtonBottomBar
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.page.ExtendedBottomSheetDialogFragment
+import org.wikipedia.settings.Prefs
+import org.wikipedia.theme.Theme
+
+<span class="nc" id="L57">class ReadingChallengeInstallWidgetDialog : ExtendedBottomSheetDialogFragment(startExpanded = true) {</span>
+
+<span class="nc" id="L59">    private val instrument = TestKitchenAdapter.client.getInstrument(&quot;apps-widgetchallenge&quot;)</span>
+<span class="nc" id="L60">        .setDefaultActionSource(&quot;widget_challenge_install&quot;)</span>
+<span class="nc" id="L61">        .startFunnel(&quot;widget_challenge&quot;)</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+                              savedInstanceState: Bundle?): View {
+<span class="nc" id="L65">        instrument.submitInteraction(action = &quot;impression&quot;)</span>
+<span class="nc" id="L66">        Prefs.readingChallengeInstallPromptShown = true</span>
+
+<span class="nc" id="L68">        return ComposeView(requireContext()).apply {</span>
+<span class="nc" id="L69">            setContent {</span>
+<span class="nc" id="L70">                BaseTheme {</span>
+<span class="nc" id="L71">                    InstallWidgetScreen(</span>
+<span class="nc" id="L72">                        pinToWidgetSupported = pinWidgetSupported(),</span>
+<span class="nc" id="L73">                        onCloseClick = {</span>
+<span class="nc" id="L74">                            instrument.submitInteraction(</span>
+<span class="nc" id="L75">                                action = &quot;click&quot;,</span>
+<span class="nc" id="L76">                                elementId = &quot;install_close&quot;</span>
+                            )
+<span class="nc" id="L78">                            dismiss()</span>
+<span class="nc" id="L79">                        },</span>
+<span class="nc" id="L80">                        onGotItClick = {</span>
+<span class="nc" id="L81">                            instrument.submitInteraction(</span>
+<span class="nc" id="L82">                                action = &quot;click&quot;,</span>
+<span class="nc" id="L83">                                elementId = &quot;install_accept&quot;</span>
+                            )
+<span class="nc" id="L85">                            dismiss()</span>
+<span class="nc" id="L86">                        },</span>
+<span class="nc" id="L87">                        onAddClick = {</span>
+<span class="nc" id="L88">                            instrument.submitInteraction(</span>
+<span class="nc" id="L89">                                action = &quot;click&quot;,</span>
+<span class="nc" id="L90">                                elementId = &quot;install_add&quot;</span>
+                            )
+<span class="nc" id="L92">                            requestToPinWidget(requireContext())</span>
+<span class="nc" id="L93">                            dismiss()</span>
+<span class="nc" id="L94">                        }</span>
+                    )
+<span class="nc" id="L96">                }</span>
+<span class="nc" id="L97">            }</span>
+<span class="nc" id="L98">        }</span>
+    }
+
+    private fun pinWidgetSupported(): Boolean {
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        return Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.O &amp;&amp;</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                AppWidgetManager.getInstance(requireContext()).isRequestPinAppWidgetSupported</span>
+    }
+
+    private fun requestToPinWidget(context: Context) {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (pinWidgetSupported()) {</span>
+<span class="nc" id="L108">            val successCallback = PendingIntent.getBroadcast(</span>
+<span class="nc" id="L109">                context, 0,</span>
+<span class="nc" id="L110">                Intent(context, ReadingChallengeWidgetReceiver::class.java),</span>
+<span class="nc" id="L111">                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE</span>
+            )
+<span class="nc" id="L113">            AppWidgetManager.getInstance(context).requestPinAppWidget(ComponentName(context, ReadingChallengeWidgetReceiver::class.java), null, successCallback)</span>
+        }
+<span class="nc" id="L115">    }</span>
+
+    @Composable
+    fun InstallWidgetScreen(
+        pinToWidgetSupported: Boolean,
+        onCloseClick: () -&gt; Unit,
+        onGotItClick: () -&gt; Unit,
+        onAddClick: () -&gt; Unit
+<span class="nc" id="L123">    ) {</span>
+<span class="nc" id="L124">        Column(</span>
+<span class="nc" id="L125">            modifier = Modifier</span>
+<span class="nc" id="L126">                .navigationBarsPadding()</span>
+<span class="nc" id="L127">                .fillMaxWidth()</span>
+<span class="nc" id="L128">                .padding(start = 16.dp, end = 16.dp, top = 16.dp)</span>
+<span class="nc" id="L129">                .verticalScroll(rememberScrollState()),</span>
+        ) {
+<span class="nc" id="L131">            Row {</span>
+<span class="nc" id="L132">                Text(</span>
+<span class="nc" id="L133">                    modifier = Modifier</span>
+<span class="nc" id="L134">                        .weight(1f)</span>
+<span class="nc" id="L135">                        .padding(bottom = 16.dp),</span>
+<span class="nc" id="L136">                    text = stringResource(R.string.reading_challenge_install_prompt_title),</span>
+<span class="nc" id="L137">                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Medium),</span>
+<span class="nc" id="L138">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+
+<span class="nc" id="L141">                IconButton(</span>
+<span class="nc" id="L142">                    modifier = Modifier</span>
+<span class="nc" id="L143">                        .offset(x = 12.dp, y = (-6).dp),</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                    onClick = {</span>
+<span class="nc" id="L145">                        onCloseClick()</span>
+<span class="nc" id="L146">                    }</span>
+<span class="nc" id="L147">                ) {</span>
+<span class="nc" id="L148">                    Icon(</span>
+<span class="nc" id="L149">                        modifier = Modifier.size(24.dp),</span>
+<span class="nc" id="L150">                        painter = painterResource(R.drawable.ic_close_black_24dp),</span>
+<span class="nc" id="L151">                        contentDescription = stringResource(R.string.dialog_close_description),</span>
+<span class="nc" id="L152">                        tint = WikipediaTheme.colors.primaryColor</span>
+                    )
+<span class="nc" id="L154">                }</span>
+<span class="nc" id="L155">            }</span>
+
+<span class="nc" id="L157">            Text(</span>
+<span class="nc" id="L158">                modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L159">                text = stringResource(R.string.reading_challenge_install_prompt_message),</span>
+<span class="nc" id="L160">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L161">                color = WikipediaTheme.colors.secondaryColor</span>
+            )
+
+<span class="nc" id="L164">            Box(</span>
+<span class="nc" id="L165">                modifier = Modifier</span>
+<span class="nc" id="L166">                    .padding(vertical = 12.dp)</span>
+<span class="nc" id="L167">                    .height(190.dp)</span>
+<span class="nc" id="L168">                    .fillMaxWidth()</span>
+<span class="nc" id="L169">                    .clip(RoundedCornerShape(12.dp))</span>
+            ) {
+<span class="nc" id="L171">                Image(</span>
+<span class="nc" id="L172">                    modifier = Modifier</span>
+<span class="nc" id="L173">                        .fillMaxSize(),</span>
+<span class="nc" id="L174">                    contentScale = ContentScale.FillWidth,</span>
+<span class="nc" id="L175">                    painter = painterResource(id = R.drawable.reading_challenge_blur_background),</span>
+<span class="nc" id="L176">                    contentDescription = null</span>
+                )
+<span class="nc" id="L178">                Image(</span>
+<span class="nc" id="L179">                    modifier = Modifier</span>
+<span class="nc" id="L180">                        .align(Alignment.Center)</span>
+<span class="nc" id="L181">                        .padding(vertical = 24.dp)</span>
+<span class="nc" id="L182">                        .dropShadow(</span>
+<span class="nc" id="L183">                            shape = RoundedCornerShape(12.dp),</span>
+<span class="nc" id="L184">                            shadow = Shadow(</span>
+<span class="nc" id="L185">                                color = WikipediaTheme.colors.overlayColor,</span>
+<span class="nc" id="L186">                                radius = 12.dp,</span>
+<span class="nc" id="L187">                                offset = DpOffset(0.dp, 12.dp)</span>
+                            )
+                        ),
+<span class="nc" id="L190">                    painter = painterResource(id = R.drawable.reading_challenge_widget_example),</span>
+<span class="nc" id="L191">                    contentDescription = null</span>
+                )
+<span class="nc" id="L193">            }</span>
+
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            if (pinToWidgetSupported) {</span>
+<span class="nc" id="L196">                TwoButtonBottomBar(</span>
+<span class="nc" id="L197">                    modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L198">                    primaryButtonText = stringResource(R.string.reading_challenge_install_prompt_add),</span>
+<span class="nc" id="L199">                    secondaryButtonText = stringResource(R.string.reading_challenge_install_prompt_got_it),</span>
+<span class="nc" id="L200">                    onPrimaryOnClick = onAddClick,</span>
+<span class="nc" id="L201">                    onSecondaryOnClick = onGotItClick</span>
+                )
+            } else {
+<span class="nc" id="L204">                Button(</span>
+<span class="nc" id="L205">                    modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L206">                    colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L207">                        containerColor = WikipediaTheme.colors.progressiveColor</span>
+                    ),
+<span class="nc" id="L209">                    onClick = onGotItClick</span>
+<span class="nc" id="L210">                ) {</span>
+<span class="nc" id="L211">                    Text(</span>
+<span class="nc" id="L212">                        text = stringResource(R.string.reading_challenge_install_prompt_got_it),</span>
+<span class="nc" id="L213">                        style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L214">                        color = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L215">                        textAlign = TextAlign.Center</span>
+                    )
+<span class="nc" id="L217">                }</span>
+            }
+<span class="nc" id="L219">        }</span>
+<span class="nc" id="L220">    }</span>
+
+    @Preview(showBackground = true)
+    @Composable
+<span class="nc" id="L224">    private fun InstallWidgetScreenPreview() {</span>
+<span class="nc" id="L225">        BaseTheme(</span>
+<span class="nc" id="L226">            currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L227">        ) {</span>
+<span class="nc" id="L228">            InstallWidgetScreen(</span>
+<span class="nc" id="L229">                pinToWidgetSupported = false,</span>
+<span class="nc" id="L230">                onCloseClick = {},</span>
+<span class="nc" id="L231">                onAddClick = {},</span>
+<span class="nc" id="L232">                onGotItClick = {}</span>
+            )
+<span class="nc" id="L234">        }</span>
+<span class="nc" id="L235">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

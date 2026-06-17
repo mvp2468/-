@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListItemSkeletonLoader.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.compose.components</a> &gt; <span class="el_source">ListItemSkeletonLoader.kt</span></div><h1>ListItemSkeletonLoader.kt</h1><pre class="source lang-java linenums">package org.wikipedia.compose.components
+
+import androidx.compose.animation.core.InfiniteTransition
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import org.wikipedia.compose.extensions.shimmerEffect
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.search.semanticShimmerColors
+import org.wikipedia.theme.Theme
+
+@Composable
+fun ListItemSkeletonLoader(
+<span class="nc" id="L26">    modifier: Modifier = Modifier,</span>
+    shimmerColors: List&lt;Color&gt;,
+    transition: InfiniteTransition
+<span class="nc bnc" id="L29" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L30">    Row(</span>
+<span class="nc" id="L31">        modifier = modifier,</span>
+<span class="nc" id="L32">        horizontalArrangement = Arrangement.spacedBy(12.dp)</span>
+    ) {
+<span class="nc" id="L34">        Column(</span>
+<span class="nc" id="L35">            modifier = Modifier</span>
+<span class="nc" id="L36">                .weight(1f),</span>
+<span class="nc" id="L37">            verticalArrangement = Arrangement.spacedBy(16.dp),</span>
+        ) {
+<span class="nc" id="L39">            Box(</span>
+<span class="nc" id="L40">                modifier = Modifier</span>
+<span class="nc" id="L41">                    .height(16.dp)</span>
+<span class="nc" id="L42">                    .fillMaxWidth(0.5f)</span>
+<span class="nc" id="L43">                    .clip(RoundedCornerShape(4.dp))</span>
+<span class="nc" id="L44">                    .shimmerEffect(</span>
+<span class="nc" id="L45">                        shimmerColors = shimmerColors,</span>
+<span class="nc" id="L46">                        heightMultiplier = 0f,</span>
+<span class="nc" id="L47">                        transition = transition</span>
+                    )
+            )
+<span class="nc" id="L50">            Box(</span>
+<span class="nc" id="L51">                modifier = Modifier</span>
+<span class="nc" id="L52">                    .fillMaxWidth()</span>
+<span class="nc" id="L53">                    .height(16.dp)</span>
+<span class="nc" id="L54">                    .clip(RoundedCornerShape(4.dp))</span>
+<span class="nc" id="L55">                    .shimmerEffect(</span>
+<span class="nc" id="L56">                        shimmerColors = shimmerColors,</span>
+<span class="nc" id="L57">                        heightMultiplier = 0f,</span>
+<span class="nc" id="L58">                        transition = transition</span>
+                    )
+            )
+<span class="nc" id="L61">        }</span>
+<span class="nc" id="L62">        Box(</span>
+<span class="nc" id="L63">            modifier = Modifier</span>
+<span class="nc" id="L64">                .size(52.dp)</span>
+<span class="nc" id="L65">                .clip(RoundedCornerShape(8.dp))</span>
+<span class="nc" id="L66">                .shimmerEffect(</span>
+<span class="nc" id="L67">                    shimmerColors = shimmerColors,</span>
+<span class="nc" id="L68">                    heightMultiplier = 0f,</span>
+<span class="nc" id="L69">                    transition = transition</span>
+                )
+        )
+<span class="nc" id="L72">    }</span>
+<span class="nc" id="L73">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L77">private fun ListItemSkeletonLoaderPreview() {</span>
+<span class="nc" id="L78">    val shimmerColors = semanticShimmerColors()</span>
+<span class="nc" id="L79">    BaseTheme(</span>
+<span class="nc" id="L80">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L81">    ) {</span>
+<span class="nc" id="L82">        ListItemSkeletonLoader(</span>
+<span class="nc" id="L83">            shimmerColors = shimmerColors,</span>
+<span class="nc" id="L84">            transition = rememberInfiniteTransition()</span>
+        )
+<span class="nc" id="L86">    }</span>
+<span class="nc" id="L87">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PrefsIoUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">PrefsIoUtil.kt</span></div><h1>PrefsIoUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.content.SharedPreferences
+import androidx.annotation.StringRes
+import androidx.preference.PreferenceManager
+import org.wikipedia.WikipediaApp
+
+object PrefsIoUtil {
+
+    fun getString(@StringRes id: Int, defaultValue: String?): String? {
+<span class="fc" id="L11">        return getString(getKey(id), defaultValue)</span>
+    }
+
+    fun setString(@StringRes id: Int, value: String?) {
+<span class="fc" id="L15">        setString(getKey(id), value)</span>
+<span class="fc" id="L16">    }</span>
+
+    fun getLong(@StringRes id: Int, defaultValue: Long): Long {
+<span class="nc" id="L19">        return getLong(getKey(id), defaultValue)</span>
+    }
+
+    fun setLong(@StringRes id: Int, value: Long) {
+<span class="fc" id="L23">        setLong(getKey(id), value)</span>
+<span class="fc" id="L24">    }</span>
+
+    fun getInt(@StringRes id: Int, defaultValue: Int): Int {
+<span class="fc" id="L27">        return getInt(getKey(id), defaultValue)</span>
+    }
+
+    fun setInt(@StringRes id: Int, value: Int) {
+<span class="fc" id="L31">        setInt(getKey(id), value)</span>
+<span class="fc" id="L32">    }</span>
+
+    fun getBoolean(@StringRes id: Int, defaultValue: Boolean): Boolean {
+<span class="fc" id="L35">        return getBoolean(getKey(id), defaultValue)</span>
+    }
+
+    fun setBoolean(@StringRes id: Int, value: Boolean) {
+<span class="fc" id="L39">        setBoolean(getKey(id), value)</span>
+<span class="fc" id="L40">    }</span>
+
+    fun getString(key: String?, defaultValue: String?): String? {
+<span class="fc" id="L43">        return preferences.getString(key, defaultValue)</span>
+    }
+
+    fun setString(key: String?, value: String?) {
+<span class="fc" id="L47">        edit().putString(key, value).apply()</span>
+<span class="fc" id="L48">    }</span>
+
+    fun getLong(key: String?, defaultValue: Long): Long {
+<span class="fc" id="L51">        return preferences.getLong(key, defaultValue)</span>
+    }
+
+    fun setLong(key: String?, value: Long) {
+<span class="fc" id="L55">        edit().putLong(key, value).apply()</span>
+<span class="fc" id="L56">    }</span>
+
+    fun getInt(key: String?, defaultValue: Int): Int {
+<span class="fc" id="L59">        return preferences.getInt(key, defaultValue)</span>
+    }
+
+    fun setInt(key: String?, value: Int) {
+<span class="fc" id="L63">        edit().putInt(key, value).apply()</span>
+<span class="fc" id="L64">    }</span>
+
+    fun getBoolean(key: String?, defaultValue: Boolean): Boolean {
+<span class="fc" id="L67">        return preferences.getBoolean(key, defaultValue)</span>
+    }
+
+    fun setBoolean(key: String?, value: Boolean) {
+<span class="fc" id="L71">        edit().putBoolean(key, value).apply()</span>
+<span class="fc" id="L72">    }</span>
+
+    fun remove(@StringRes id: Int) {
+<span class="nc" id="L75">        remove(getKey(id))</span>
+<span class="nc" id="L76">    }</span>
+
+    fun remove(key: String?) {
+<span class="nc" id="L79">        edit().remove(key).apply()</span>
+<span class="nc" id="L80">    }</span>
+
+    fun contains(@StringRes id: Int): Boolean {
+<span class="fc" id="L83">        return preferences.contains(getKey(id))</span>
+    }
+
+    fun contains(key: String?): Boolean {
+<span class="nc" id="L87">        return preferences.contains(key)</span>
+    }
+
+    /** @return Key String resource from preference_keys.xml.
+     */
+    fun getKey(@StringRes id: Int, vararg formatArgs: Any?): String {
+<span class="fc" id="L93">        return WikipediaApp.instance.resources.getString(id, *formatArgs)</span>
+    }
+
+    private fun edit(): SharedPreferences.Editor {
+<span class="fc" id="L97">        return preferences.edit()</span>
+    }
+
+<span class="fc" id="L100">    private val preferences get() = PreferenceManager.getDefaultSharedPreferences(WikipediaApp.instance)</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

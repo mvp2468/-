@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Claims.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.wikidata</a> &gt; <span class="el_source">Claims.kt</span></div><h1>Claims.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.wikidata
+
+import android.location.Location
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.*
+import org.wikipedia.dataclient.mwapi.MwResponse
+import org.wikipedia.json.JsonUtil
+
+<span class="nc" id="L10">@Serializable</span>
+class Claims : MwResponse() {
+
+<span class="nc" id="L13">    val claims: Map&lt;String, List&lt;Claim&gt;&gt; = emptyMap()</span>
+
+<span class="nc" id="L15">    @Serializable</span>
+    class Claim {
+
+        private val type: String? = null
+        private val id: String? = null
+        private val rank: String? = null
+
+        @SerialName(&quot;mainsnak&quot;)
+<span class="nc" id="L23">        val mainSnak: MainSnak? = null</span>
+    }
+
+<span class="nc" id="L26">    @Serializable</span>
+    class MainSnak {
+
+        @SerialName(&quot;snaktype&quot;)
+        private val snakType: String? = null
+
+        @SerialName(&quot;datatype&quot;)
+        private val dataType: String? = null
+        private val property: String? = null
+        private val hash: String? = null
+
+        @SerialName(&quot;datavalue&quot;)
+<span class="nc" id="L38">        val dataValue: DataValue? = null</span>
+    }
+
+<span class="nc" id="L41">    @Serializable</span>
+    class DataValue {
+
+        private val value: JsonElement? = null
+        private val type: String? = null
+
+        fun value(): String {
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            if (value != null) {</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">                if (&quot;string&quot; == type) {</span>
+<span class="nc" id="L50">                    return value.toString()</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">                } else if (&quot;wikibase-entityid&quot; == type) {</span>
+<span class="nc" id="L52">                    return JsonUtil.json.decodeFromJsonElement&lt;EntityIdValue&gt;(value).id</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">                } else if (&quot;time&quot; == type) {</span>
+<span class="nc" id="L54">                    return JsonUtil.json.decodeFromJsonElement&lt;TimeValue&gt;(value).time</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">                } else if (&quot;monolingualtext&quot; == type) {</span>
+<span class="nc" id="L56">                    return JsonUtil.json.decodeFromJsonElement&lt;MonolingualTextValue&gt;(value).text</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                } else if (&quot;globecoordinate&quot; == type) {</span>
+<span class="nc" id="L58">                    return JsonUtil.json.decodeFromJsonElement&lt;GlobeCoordinateValue&gt;(value).location.toString()</span>
+                }
+            }
+<span class="nc" id="L61">            return &quot;&quot;</span>
+        }
+    }
+
+<span class="nc" id="L65">    @Serializable</span>
+    class EntityIdValue {
+
+<span class="nc" id="L68">        val id: String = &quot;&quot;</span>
+    }
+
+<span class="nc" id="L71">    @Serializable</span>
+    class TimeValue {
+
+        private val timezone = 0
+        private val before = 0
+        private val after = 0
+        private val precision = 0
+<span class="nc" id="L78">        val time: String = &quot;&quot;</span>
+    }
+
+<span class="nc" id="L81">    @Serializable</span>
+    class MonolingualTextValue {
+
+        private val language: String? = null
+<span class="nc" id="L85">        val text: String = &quot;&quot;</span>
+    }
+
+<span class="nc" id="L88">    @Serializable</span>
+    class GlobeCoordinateValue {
+
+        private val latitude = 0.0
+        private val longitude = 0.0
+        private val altitude = 0.0
+        private val precision = 0.0
+        val location: Location
+            get() {
+<span class="nc" id="L97">                val loc = Location(&quot;&quot;)</span>
+<span class="nc" id="L98">                loc.latitude = latitude</span>
+<span class="nc" id="L99">                loc.longitude = longitude</span>
+<span class="nc" id="L100">                loc.altitude = altitude</span>
+<span class="nc" id="L101">                return loc</span>
+            }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

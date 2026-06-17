@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">FileUtil.kt</span></div><h1>FileUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.content.ContentValues
+import android.content.Context
+import android.graphics.Bitmap
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+
+object FileUtil {
+    private const val JPEG_QUALITY = 85
+
+    fun writeToFile(bytes: ByteArrayOutputStream, destinationFile: File): File {
+<span class="nc" id="L18">        destinationFile.outputStream().use {</span>
+<span class="nc" id="L19">            it.write(bytes.toByteArray())</span>
+<span class="nc" id="L20">            it.flush()</span>
+<span class="nc" id="L21">        }</span>
+<span class="nc" id="L22">        return destinationFile</span>
+    }
+
+    fun createFileInDownloadsFolder(context: Context, filename: String, mimeType: String, data: String?) {
+<span class="nc" id="L26">        try {</span>
+<span class="nc bnc" id="L27" title="All 2 branches missed.">            if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.Q) {</span>
+<span class="nc" id="L28">                val contentResolver = context.contentResolver</span>
+<span class="nc" id="L29">                val contentValues = ContentValues()</span>
+<span class="nc" id="L30">                contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, filename)</span>
+<span class="nc" id="L31">                contentValues.put(MediaStore.MediaColumns.MIME_TYPE, mimeType)</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">                contentResolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), contentValues)?.let { uri -&gt;</span>
+<span class="nc bnc" id="L33" title="All 4 branches missed.">                    contentResolver.openOutputStream(uri)?.use { it.write(data?.toByteArray()) }</span>
+                }
+            } else {
+<span class="nc" id="L36">                val downloadsFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)</span>
+<span class="nc" id="L37">                val exportFile = File(downloadsFolder, filename)</span>
+<span class="nc" id="L38">                exportFile.delete() // To overwrite when file exists</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">                FileOutputStream(exportFile, true).bufferedWriter().use { it.write(data) }</span>
+            }
+<span class="nc" id="L41">        } catch (e: Exception) {</span>
+            // ignore
+        }
+<span class="nc" id="L44">    }</span>
+
+    fun compressBmpToJpg(bitmap: Bitmap): ByteArrayOutputStream {
+<span class="nc" id="L47">        val bytes = ByteArrayOutputStream()</span>
+<span class="nc" id="L48">        bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, bytes)</span>
+<span class="nc" id="L49">        return bytes</span>
+    }
+
+    fun readFile(inputStream: InputStream): String {
+<span class="nc" id="L53">        return inputStream.reader().readLines().joinToString(separator = &quot;\n&quot;)</span>
+    }
+
+    fun sanitizeFileName(fileName: String): String {
+<span class="nc" id="L57">        return fileName.replace(&quot;[:\\\\/*\&quot;?|&lt;&gt;']&quot;.toRegex(), &quot;_&quot;)</span>
+    }
+
+    fun isVideo(mimeType: String): Boolean {
+<span class="nc bnc" id="L61" title="All 4 branches missed.">        return mimeType.contains(&quot;ogg&quot;) || mimeType.contains(&quot;video&quot;)</span>
+    }
+
+    fun isAudio(mimeType: String): Boolean {
+<span class="nc" id="L65">        return mimeType.contains(&quot;audio&quot;)</span>
+    }
+
+    fun isImage(mimeType: String): Boolean {
+<span class="nc" id="L69">        return mimeType.contains(&quot;image&quot;)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

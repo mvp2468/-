@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RestService.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient</a> &gt; <span class="el_source">RestService.kt</span></div><h1>RestService.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient
+
+import okhttp3.ResponseBody
+import org.wikipedia.dataclient.okhttp.OfflineCacheInterceptor
+import org.wikipedia.dataclient.page.PageSummary
+import org.wikipedia.dataclient.page.TalkPage
+import org.wikipedia.dataclient.restbase.Metrics
+import org.wikipedia.dataclient.restbase.PageViews
+import org.wikipedia.dataclient.restbase.PreviewRequest
+import org.wikipedia.dataclient.restbase.RbDefinition
+import org.wikipedia.dataclient.restbase.UserEdits
+import org.wikipedia.feed.aggregated.AggregatedFeedContent
+import org.wikipedia.feed.announcement.AnnouncementList
+import org.wikipedia.feed.configure.FeedAvailability
+import org.wikipedia.feed.onthisday.OnThisDay
+import org.wikipedia.gallery.MediaList
+import org.wikipedia.readinglist.sync.SyncedReadingLists
+import org.wikipedia.readinglist.sync.SyncedReadingLists.RemoteIdResponse
+import org.wikipedia.readinglist.sync.SyncedReadingLists.RemoteIdResponseBatch
+import org.wikipedia.readinglist.sync.SyncedReadingLists.RemoteReadingList
+import org.wikipedia.readinglist.sync.SyncedReadingLists.RemoteReadingListEntry
+import org.wikipedia.readinglist.sync.SyncedReadingLists.RemoteReadingListEntryBatch
+import org.wikipedia.settings.RemoteConfig
+import retrofit2.Call
+import retrofit2.Response
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.Headers
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
+import retrofit2.http.Query
+
+interface RestService {
+
+    @Headers(&quot;x-analytics: preview=1&quot;, &quot;Accept: $ACCEPT_HEADER_SUMMARY&quot;)
+    @GET(&quot;page/summary/{title}&quot;)
+<span class="nc" id="L40">    suspend fun getPageSummary(</span>
+        @Path(&quot;title&quot;) title: String,
+<span class="nc" id="L42">        @Header(&quot;Referer&quot;) referrerUrl: String? = null,</span>
+<span class="nc" id="L43">        @Header(&quot;Cache-Control&quot;) cacheControl: String? = null,</span>
+<span class="nc" id="L44">        @Header(OfflineCacheInterceptor.SAVE_HEADER) saveHeader: String? = null,</span>
+<span class="nc" id="L45">        @Header(OfflineCacheInterceptor.LANG_HEADER) langHeader: String? = null,</span>
+<span class="nc" id="L46">        @Header(OfflineCacheInterceptor.TITLE_HEADER) titleHeader: String? = null</span>
+<span class="nc" id="L47">    ): PageSummary</span>
+
+    @Headers(&quot;x-analytics: preview=1&quot;, &quot;Accept: $ACCEPT_HEADER_SUMMARY&quot;)
+    @GET(&quot;page/summary/{title}&quot;)
+<span class="nc" id="L51">    suspend fun getSummaryResponse(</span>
+        @Path(&quot;title&quot;) title: String,
+<span class="nc" id="L53">        @Header(&quot;Referer&quot;) referrerUrl: String? = null,</span>
+<span class="nc" id="L54">        @Header(&quot;Cache-Control&quot;) cacheControl: String? = null,</span>
+<span class="nc" id="L55">        @Header(OfflineCacheInterceptor.SAVE_HEADER) saveHeader: String? = null,</span>
+<span class="nc" id="L56">        @Header(OfflineCacheInterceptor.LANG_HEADER) langHeader: String? = null,</span>
+<span class="nc" id="L57">        @Header(OfflineCacheInterceptor.TITLE_HEADER) titleHeader: String? = null</span>
+<span class="nc" id="L58">    ): Response&lt;PageSummary&gt;</span>
+
+    @Headers(&quot;Accept: $ACCEPT_HEADER_DEFINITION&quot;)
+    @GET(&quot;page/definition/{title}&quot;)
+    suspend fun getDefinition(@Path(&quot;title&quot;) title: String): Map&lt;String, List&lt;RbDefinition.Usage&gt;&gt;
+
+    @GET(&quot;page/random/summary&quot;)
+    @Headers(&quot;Accept: $ACCEPT_HEADER_SUMMARY&quot;)
+    suspend fun getRandomSummary(): PageSummary
+
+    @GET(&quot;page/media-list/{title}&quot;)
+<span class="nc" id="L69">    suspend fun getMediaList(</span>
+        @Path(&quot;title&quot;) title: String,
+<span class="nc" id="L71">        @Header(&quot;Cache-Control&quot;) cacheControl: String? = null,</span>
+<span class="nc" id="L72">        @Header(OfflineCacheInterceptor.SAVE_HEADER) saveHeader: String? = null,</span>
+<span class="nc" id="L73">        @Header(OfflineCacheInterceptor.LANG_HEADER) langHeader: String? = null,</span>
+<span class="nc" id="L74">        @Header(OfflineCacheInterceptor.TITLE_HEADER) titleHeader: String? = null</span>
+<span class="nc" id="L75">    ): MediaList</span>
+
+    @GET(&quot;page/media-list/{title}/{revision}&quot;)
+    suspend fun getMediaList(
+        @Path(&quot;title&quot;) title: String,
+        @Path(&quot;revision&quot;) revision: Long
+    ): MediaList
+
+    @GET(&quot;feed/onthisday/events/{mm}/{dd}&quot;)
+    suspend fun getOnThisDay(@Path(&quot;mm&quot;) month: Int,
+                             @Path(&quot;dd&quot;) day: Int): OnThisDay
+
+    // TODO: Remove this before next fundraising campaign in 2024
+    @GET(&quot;feed/announcements&quot;)
+    @Headers(&quot;Accept: &quot; + ACCEPT_HEADER_PREFIX + &quot;announcements/0.1.0\&quot;&quot;)
+    suspend fun getAnnouncements(): AnnouncementList
+
+    @Headers(&quot;Accept: &quot; + ACCEPT_HEADER_PREFIX + &quot;aggregated-feed/0.5.0\&quot;&quot;)
+    @GET(&quot;feed/featured/{year}/{month}/{day}&quot;)
+    suspend fun getFeedFeatured(
+        @Path(&quot;year&quot;) year: String?,
+        @Path(&quot;month&quot;) month: String?,
+        @Path(&quot;day&quot;) day: String?,
+        @Query(&quot;lang&quot;) lang: String?
+    ): AggregatedFeedContent
+
+    @GET(&quot;feed/availability&quot;)
+    suspend fun feedAvailability(): FeedAvailability
+
+    // ------- Reading lists -------
+    @POST(&quot;data/lists/setup&quot;)
+    fun setupReadingLists(@Query(&quot;csrf_token&quot;) token: String?): Call&lt;Unit&gt;
+
+    @POST(&quot;data/lists/teardown&quot;)
+    fun tearDownReadingLists(@Query(&quot;csrf_token&quot;) token: String?): Call&lt;Unit&gt;
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @GET(&quot;data/lists/&quot;)
+    fun getReadingLists(@Query(&quot;next&quot;) next: String?): Call&lt;SyncedReadingLists&gt;
+
+    @POST(&quot;data/lists/&quot;)
+    fun createReadingList(
+        @Query(&quot;csrf_token&quot;) token: String?,
+        @Body list: RemoteReadingList?
+    ): Call&lt;RemoteIdResponse&gt;
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @PUT(&quot;data/lists/{id}&quot;)
+    fun updateReadingList(
+        @Path(&quot;id&quot;) listId: Long, @Query(&quot;csrf_token&quot;) token: String?,
+        @Body list: RemoteReadingList?
+    ): Call&lt;Unit&gt;
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @DELETE(&quot;data/lists/{id}&quot;)
+    fun deleteReadingList(
+        @Path(&quot;id&quot;) listId: Long,
+        @Query(&quot;csrf_token&quot;) token: String?
+    ): Call&lt;Unit&gt;
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @GET(&quot;data/lists/changes/since/{date}&quot;)
+    fun getReadingListChangesSince(
+        @Path(&quot;date&quot;) iso8601Date: String?,
+        @Query(&quot;next&quot;) next: String?
+    ): Call&lt;SyncedReadingLists&gt;
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @GET(&quot;data/lists/pages/{project}/{title}&quot;)
+    fun getReadingListsContaining(
+        @Path(&quot;project&quot;) project: String?,
+        @Path(&quot;title&quot;) title: String?,
+        @Query(&quot;next&quot;) next: String?
+    ): Call&lt;SyncedReadingLists&gt;
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @GET(&quot;data/lists/{id}/entries/&quot;)
+    fun getReadingListEntries(
+        @Path(&quot;id&quot;) listId: Long,
+        @Query(&quot;next&quot;) next: String?
+    ): Call&lt;SyncedReadingLists&gt;
+
+    @POST(&quot;data/lists/{id}/entries/&quot;)
+    fun addEntryToReadingList(
+        @Path(&quot;id&quot;) listId: Long,
+        @Query(&quot;csrf_token&quot;) token: String?,
+        @Body entry: RemoteReadingListEntry?
+    ): Call&lt;RemoteIdResponse&gt;
+
+    @POST(&quot;data/lists/{id}/entries/batch&quot;)
+    fun addEntriesToReadingList(
+        @Path(&quot;id&quot;) listId: Long,
+        @Query(&quot;csrf_token&quot;) token: String?,
+        @Body batch: RemoteReadingListEntryBatch?
+    ): Call&lt;RemoteIdResponseBatch&gt;
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @DELETE(&quot;data/lists/{id}/entries/{entry_id}&quot;)
+    fun deleteEntryFromReadingList(
+        @Path(&quot;id&quot;) listId: Long, @Path(&quot;entry_id&quot;) entryId: Long,
+        @Query(&quot;csrf_token&quot;) token: String?
+    ): Call&lt;Unit&gt;
+
+    //  ------- Talk pages -------
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @GET(&quot;page/talk/{title}&quot;)
+    suspend fun getTalkPage(@Path(&quot;title&quot;) title: String?): TalkPage
+
+    @Headers(&quot;Cache-Control: no-cache&quot;)
+    @GET(&quot;metrics/edits/per-page/{wikiAuthority}/{title}/all-editor-types/monthly/{fromDate}/{toDate}&quot;)
+    suspend fun getArticleMetrics(
+        @Path(&quot;wikiAuthority&quot;) wikiAuthority: String,
+        @Path(&quot;title&quot;) title: String,
+        @Path(&quot;fromDate&quot;) fromDate: String,
+        @Path(&quot;toDate&quot;) toDate: String
+    ): Metrics
+
+    @GET(&quot;metrics/edits/v3/per_editor/{globalUserId}/all_page_types/monthly/{fromDate}/{toDate}&quot;)
+    suspend fun getEditsPerGlobalUserMonthly(
+        @Path(&quot;globalUserId&quot;) globalUserId: Int,
+        @Path(&quot;fromDate&quot;) fromDate: String,
+        @Path(&quot;toDate&quot;) toDate: String
+    ): UserEdits
+
+    @GET(&quot;metrics/edits/v3/per_editor/{globalUserId}/all_page_types/daily/{fromDate}/{toDate}&quot;)
+    suspend fun getEditsPerGlobalUserDaily(
+        @Path(&quot;globalUserId&quot;) globalUserId: Int,
+        @Path(&quot;fromDate&quot;) fromDate: String,
+        @Path(&quot;toDate&quot;) toDate: String
+    ): UserEdits
+
+    @GET(&quot;metrics/pageviews/v3/per_editor/{globalUserId}/daily/{fromDate}/{toDate}&quot;)
+    suspend fun getPageViewsForEditedPagesDaily(
+        @Path(&quot;globalUserId&quot;) globalUserId: Int,
+        @Path(&quot;fromDate&quot;) fromDate: String,
+        @Path(&quot;toDate&quot;) toDate: String
+    ): PageViews
+
+    @GET(&quot;metrics/pageviews/v3/top_pages_per_editor/{globalUserId}/monthly/{fromDate}/{toDate}&quot;)
+    suspend fun getMostViewedEditedPagesMonthly(
+        @Path(&quot;globalUserId&quot;) globalUserId: Int,
+        @Path(&quot;fromDate&quot;) fromDate: String,
+        @Path(&quot;toDate&quot;) toDate: String
+    ): PageViews
+
+    @POST(&quot;transform/wikitext/to/mobile-html/{title}&quot;)
+    suspend fun getHtmlPreviewFromWikitext(
+        @Path(&quot;title&quot;) title: String,
+        @Body body: PreviewRequest
+    ): ResponseBody
+
+    @GET(&quot;feed/configuration&quot;)
+    suspend fun getConfiguration(): RemoteConfig.RemoteConfigImpl
+
+    companion object {
+        const val REST_API_PREFIX = &quot;/api/rest_v1&quot;
+        const val ACCEPT_HEADER_PREFIX = &quot;application/json; charset=utf-8; profile=\&quot;https://www.mediawiki.org/wiki/Specs/&quot;
+        const val ACCEPT_HEADER_SUMMARY = ACCEPT_HEADER_PREFIX + &quot;Summary/1.2.0\&quot;&quot;
+        const val ACCEPT_HEADER_DEFINITION = ACCEPT_HEADER_PREFIX + &quot;definition/0.7.2\&quot;&quot;
+        const val ACCEPT_HEADER_MOBILE_HTML = ACCEPT_HEADER_PREFIX + &quot;Mobile-HTML/1.2.1\&quot;&quot;
+        const val PAGE_HTML_ENDPOINT = &quot;page/mobile-html/&quot;
+        const val PAGE_HTML_PREVIEW_ENDPOINT = &quot;transform/wikitext/to/mobile-html/&quot;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

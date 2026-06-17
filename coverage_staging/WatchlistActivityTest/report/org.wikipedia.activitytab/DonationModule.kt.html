@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DonationModule.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab</a> &gt; <span class="el_source">DonationModule.kt</span></div><h1>DonationModule.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import org.wikipedia.R
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.UiState
+
+@Composable
+fun DonationModule(
+<span class="nc bnc" id="L24" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    uiState: UiState&lt;String?&gt;,
+<span class="nc" id="L26">    onClick: (() -&gt; Unit)? = null</span>
+<span class="nc bnc" id="L27" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L28">    WikiCard(</span>
+<span class="nc" id="L29">        modifier = modifier,</span>
+<span class="nc" id="L30">        elevation = 0.dp,</span>
+<span class="nc" id="L31">        border = BorderStroke(</span>
+<span class="nc" id="L32">            width = 1.dp,</span>
+<span class="nc" id="L33">            color = WikipediaTheme.colors.borderColor</span>
+        ),
+<span class="nc" id="L35">        onClick = onClick</span>
+<span class="nc" id="L36">    ) {</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">        if (uiState == UiState.Loading) {</span>
+<span class="nc" id="L38">            ActivityTabShimmerView()</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">        } else if (uiState is UiState.Success) {</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">            val lastDonationTime = uiState.data ?: stringResource(R.string.activity_tab_donation_unknown)</span>
+<span class="nc" id="L41">            Column(</span>
+<span class="nc" id="L42">                modifier = Modifier.padding(16.dp)</span>
+            ) {
+<span class="nc" id="L44">                CommonCardHeader(</span>
+<span class="nc" id="L45">                    icon = painterResource(R.drawable.outline_credit_card_heart_24),</span>
+<span class="nc" id="L46">                    useHtmlText = true,</span>
+<span class="nc" id="L47">                    title = stringResource(R.string.activity_tab_donation_last_donation),</span>
+<span class="nc" id="L48">                    showChevron = true</span>
+                )
+<span class="nc" id="L50">                Text(</span>
+<span class="nc" id="L51">                    modifier = Modifier.padding(top = 16.dp),</span>
+<span class="nc" id="L52">                    text = lastDonationTime,</span>
+<span class="nc" id="L53">                    style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L54">                    color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L55">                    fontWeight = FontWeight.Medium</span>
+                )
+<span class="nc" id="L57">            }</span>
+<span class="nc" id="L58">        }</span>
+<span class="nc" id="L59">    }</span>
+<span class="nc" id="L60">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L64">private fun DonationModulePreview() {</span>
+<span class="nc" id="L65">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L66">        DonationModule(</span>
+<span class="nc" id="L67">            uiState = UiState.Success(&quot;5 days ago&quot;)</span>
+        )
+<span class="nc" id="L69">    }</span>
+<span class="nc" id="L70">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

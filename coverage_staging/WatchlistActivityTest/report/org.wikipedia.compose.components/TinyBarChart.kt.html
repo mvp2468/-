@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TinyBarChart.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.compose.components</a> &gt; <span class="el_source">TinyBarChart.kt</span></div><h1>TinyBarChart.kt</h1><pre class="source lang-java linenums">package org.wikipedia.compose.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.theme.Theme
+import kotlin.math.max
+
+@Composable
+fun TinyBarChart(
+    values: List&lt;Int&gt;,
+<span class="nc bnc" id="L22" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc bnc" id="L23" title="All 2 branches missed.">    minColor: Color = Color.Gray,</span>
+<span class="nc" id="L24">    maxColor: Color = Color.Green</span>
+<span class="nc bnc" id="L25" title="All 2 branches missed.">) {</span>
+<span class="nc bnc" id="L26" title="All 2 branches missed.">    val maxValue = values.maxOrNull() ?: 1</span>
+<span class="nc" id="L27">    val minValue = 0</span>
+<span class="nc" id="L28">    val valueRange = max(maxValue - minValue, 1)</span>
+
+<span class="nc" id="L30">    Canvas(</span>
+<span class="nc" id="L31">        modifier = modifier</span>
+<span class="nc bnc" id="L32" title="All 4 branches missed.">    ) {</span>
+<span class="nc" id="L33">        val canvasWidth = size.width</span>
+<span class="nc" id="L34">        val canvasHeight = size.height</span>
+<span class="nc" id="L35">        val spacing = 6.dp.toPx()</span>
+<span class="nc" id="L36">        val totalSpacing = spacing * (values.size - 1)</span>
+<span class="nc" id="L37">        val barWidth = (canvasWidth - totalSpacing) / values.size</span>
+
+<span class="nc" id="L39">        values.forEachIndexed { index, value -&gt;</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">            val barHeight = max(if (maxValue &gt; 0) {</span>
+<span class="nc" id="L41">                (value.toFloat() / maxValue.toFloat()) * canvasHeight</span>
+            } else {
+<span class="nc" id="L43">                0f</span>
+<span class="nc" id="L44">            }, 4.dp.toPx())</span>
+
+<span class="nc bnc" id="L46" title="All 2 branches missed.">            val colorProgress = if (valueRange &gt; 0) {</span>
+<span class="nc" id="L47">                (value - minValue).toFloat() / valueRange.toFloat()</span>
+            } else {
+<span class="nc" id="L49">                1f</span>
+            }
+
+<span class="nc" id="L52">            val barColor = Color(</span>
+<span class="nc" id="L53">                red = minColor.red + (maxColor.red - minColor.red) * colorProgress,</span>
+<span class="nc" id="L54">                green = minColor.green + (maxColor.green - minColor.green) * colorProgress,</span>
+<span class="nc" id="L55">                blue = minColor.blue + (maxColor.blue - minColor.blue) * colorProgress,</span>
+<span class="nc" id="L56">                alpha = minColor.alpha + (maxColor.alpha - minColor.alpha) * colorProgress</span>
+            )
+
+            // Draw the bar from bottom up
+<span class="nc" id="L60">            drawRoundRect(</span>
+<span class="nc" id="L61">                color = barColor,</span>
+<span class="nc" id="L62">                topLeft = Offset(x = index * (barWidth + spacing), y = canvasHeight - barHeight),</span>
+<span class="nc" id="L63">                size = Size(width = barWidth, height = barHeight),</span>
+<span class="nc" id="L64">                cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())</span>
+            )
+<span class="nc" id="L66">        }</span>
+<span class="nc" id="L67">    }</span>
+<span class="nc" id="L68">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L72">private fun TinyBarChartPreview() {</span>
+<span class="nc" id="L73">    BaseTheme(</span>
+<span class="nc" id="L74">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L75">    ) {</span>
+<span class="nc" id="L76">        Box(</span>
+<span class="nc" id="L77">            modifier = Modifier</span>
+<span class="nc" id="L78">                .fillMaxSize(),</span>
+<span class="nc" id="L79">            contentAlignment = Alignment.Center</span>
+        ) {
+<span class="nc" id="L81">            SearchEmptyView(</span>
+<span class="nc" id="L82">                emptyTexTitle = &quot;No languages found&quot;</span>
+            )
+<span class="nc" id="L84">        }</span>
+<span class="nc" id="L85">    }</span>
+<span class="nc" id="L86">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

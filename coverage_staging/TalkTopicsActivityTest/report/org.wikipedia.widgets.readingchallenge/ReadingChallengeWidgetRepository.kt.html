@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingChallengeWidgetRepository.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">ReadingChallengeWidgetRepository.kt</span></div><h1>ReadingChallengeWidgetRepository.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import androidx.glance.appwidget.updateAll
+import androidx.preference.PreferenceManager
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.settings.Prefs
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+
+<span class="nc" id="L21">class ReadingChallengeWidgetRepository(private val context: Context) {</span>
+    fun observeState(): Flow&lt;ReadingChallengeState&gt; {
+<span class="nc" id="L23">        val prefs = PreferenceManager.getDefaultSharedPreferences(context)</span>
+<span class="nc" id="L24">        val relevantKeys = setOf(</span>
+<span class="nc" id="L25">            context.getString(R.string.preference_key_reading_challenge_streak),</span>
+<span class="nc" id="L26">            context.getString(R.string.preference_key_reading_challenge_enrolled),</span>
+<span class="nc" id="L27">            context.getString(R.string.preference_key_reading_challenge_last_read_date)</span>
+        )
+<span class="nc" id="L29">        return callbackFlow {</span>
+<span class="nc" id="L30">            trySend(ReadingChallengeState.Loading) // initial loading state</span>
+            fun emit() {
+<span class="nc" id="L32">                trySend(getCurrentState())</span>
+<span class="nc" id="L33">            }</span>
+
+<span class="nc" id="L35">            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key -&gt;</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">                if (key in relevantKeys) {</span>
+<span class="nc" id="L37">                    emit()</span>
+                }
+<span class="nc" id="L39">            }</span>
+<span class="nc" id="L40">            prefs.registerOnSharedPreferenceChangeListener(listener)</span>
+<span class="nc" id="L41">            emit() // for daily updates and to emit initial value when flow is collected</span>
+<span class="nc" id="L42">            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }</span>
+<span class="nc" id="L43">        }.distinctUntilChanged()</span>
+    }
+
+    fun hasReadToday(currentDate: LocalDate): Boolean {
+<span class="nc" id="L47">        Prefs.readingChallengeLastReadDate.let {</span>
+<span class="nc bnc" id="L48" title="All 4 branches missed.">            return if (it.isNotEmpty()) {</span>
+<span class="nc" id="L49">                LocalDate.parse(it) == currentDate</span>
+            } else {
+<span class="nc" id="L51">                false</span>
+            }
+        }
+    }
+
+    fun resolveState(userData: ReadingChallengeUserData): ReadingChallengeState {
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        if (userData.currentDate.isAfter(REMOVE_DATE)) {</span>
+<span class="nc" id="L58">            return ReadingChallengeState.ChallengeRemoved</span>
+        }
+
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        if (userData.currentDate.isBefore(START_DATE)) {</span>
+<span class="nc" id="L62">            return ReadingChallengeState.NotLiveYet</span>
+        }
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (!userData.enabled) {</span>
+            // Past end date and never enrolled treat as concluded with no streak
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            if (userData.currentDate.isAfter(END_DATE)) {</span>
+<span class="nc" id="L68">                return ReadingChallengeState.ChallengeConcludedNoStreak</span>
+            }
+<span class="nc" id="L70">            return ReadingChallengeState.NotEnrolled</span>
+        }
+
+        // From this point onward, user is enrolled
+
+        // Success State, once user is enrolled we check immediately to bypass other conditions if they finish on time
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        if (userData.currentStreak &gt;= READING_STREAK_GOAL) {</span>
+<span class="nc" id="L77">            return ReadingChallengeState.ChallengeCompleted</span>
+        }
+
+        // Past end date with a broken streak — challenge is concluded and cannot restart.
+        // Active streaks past end date fall through and continue toward completion (buffer period)
+<span class="nc bnc" id="L82" title="All 4 branches missed.">        if (userData.currentDate.isAfter(END_DATE) &amp;&amp; !userData.hasActiveStreak) {</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            return if (userData.currentStreak &gt; 0) {</span>
+<span class="nc" id="L84">                ReadingChallengeState.ChallengeConcludedIncomplete(userData.currentStreak) // streak did not hit 25, but they did have a streak</span>
+            } else {
+<span class="nc" id="L86">                ReadingChallengeState.ChallengeConcludedNoStreak // no streak at all</span>
+            }
+        }
+
+        // no article read since enrollment
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (userData.currentStreak == 0) {</span>
+<span class="nc" id="L92">            return ReadingChallengeState.EnrolledNotStarted</span>
+        }
+
+        // Active streak
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        return if (userData.hasReadToday) {</span>
+<span class="nc" id="L97">            ReadingChallengeState.StreakOngoingReadToday(userData.currentStreak)</span>
+        } else {
+<span class="nc" id="L99">            ReadingChallengeState.StreakOngoingNeedsReading(userData.currentStreak)</span>
+        }
+    }
+
+<span class="nc" id="L103">    private fun getCurrentState(currentDate: LocalDate = LocalDate.now()): ReadingChallengeState {</span>
+<span class="nc" id="L104">        recalculateStreakIfNeeded(currentDate)</span>
+<span class="nc" id="L105">        return resolveState(</span>
+<span class="nc" id="L106">            ReadingChallengeUserData(</span>
+<span class="nc" id="L107">                currentDate = currentDate,</span>
+<span class="nc" id="L108">                enabled = Prefs.readingChallengeEnrolled,</span>
+<span class="nc" id="L109">                currentStreak = Prefs.readingChallengeStreak,</span>
+<span class="nc" id="L110">                hasReadToday = hasReadToday(currentDate),</span>
+<span class="nc" id="L111">                hasActiveStreak = hasActiveStreak(currentDate)</span>
+            )
+        )
+    }
+
+    fun hasActiveStreak(currentDate: LocalDate): Boolean {
+<span class="nc" id="L117">        val lastReadDateStr = Prefs.readingChallengeLastReadDate</span>
+<span class="nc bnc" id="L118" title="All 4 branches missed.">        return lastReadDateStr.isNotEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                ChronoUnit.DAYS.between(LocalDate.parse(lastReadDateStr), currentDate) &lt;= 1</span>
+    }
+
+    fun recalculateStreakIfNeeded(currentDate: LocalDate) {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (currentDate.isAfter(END_DATE)) return // will not reset after challenge ends</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (Prefs.readingChallengeStreak &gt;= READING_STREAK_GOAL) return</span>
+
+<span class="nc" id="L126">        val lastReadDateStr = Prefs.readingChallengeLastReadDate</span>
+<span class="nc bnc" id="L127" title="All 4 branches missed.">        if (lastReadDateStr.isNotEmpty()) {</span>
+<span class="nc" id="L128">            val lastReadDate = LocalDate.parse(lastReadDateStr)</span>
+<span class="nc" id="L129">            val daysBetween = ChronoUnit.DAYS.between(lastReadDate, currentDate)</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">            if (daysBetween &gt; 1) {</span>
+<span class="nc" id="L131">                Prefs.readingChallengeStreak = 0</span>
+            }
+        }
+<span class="nc" id="L134">    }</span>
+
+    suspend fun updateWidgetsAndSendAnalytics() {
+<span class="nc" id="L137">        ReadingChallengeAnalyticsHelper.sendHeartbeatEvent(getCurrentState())</span>
+<span class="nc" id="L138">        ReadingChallengeWidget().updateAll(context)</span>
+<span class="nc" id="L139">    }</span>
+    suspend fun updateOnArticleRead(currentDate: LocalDate) {
+<span class="nc bnc" id="L141" title="All 4 branches missed.">        if (currentDate.isBefore(START_DATE) || currentDate.isAfter(REMOVE_DATE)) return</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (Prefs.readingChallengeStreak &gt;= READING_STREAK_GOAL) return</span>
+
+        // after end date but streak is not active
+<span class="nc bnc" id="L145" title="All 4 branches missed.">        if (currentDate.isAfter(END_DATE) &amp;&amp; !hasActiveStreak(currentDate)) return</span>
+
+<span class="nc bnc" id="L147" title="All 4 branches missed.">        if (Prefs.readingChallengeEnrolled &amp;&amp; !hasReadToday(currentDate)) {</span>
+<span class="nc" id="L148">            Prefs.readingChallengeLastReadDate = currentDate.toString()</span>
+<span class="nc" id="L149">            Prefs.readingChallengeStreak += 1</span>
+<span class="nc" id="L150">            updateWidgetsAndSendAnalytics()</span>
+        }
+<span class="nc" id="L152">    }</span>
+
+    companion object {
+        const val READING_STREAK_GOAL = 25
+        const val INTENT_EXTRA_READING_CHALLENGE_JOIN = &quot;reading_challenge_join&quot;
+        const val INTENT_EXTRA_READING_CHALLENGE_REWARD = &quot;reading_challenge_reward&quot;
+        const val READING_CHALLENGE_END_DATE = &quot;2026-06-18&quot;
+        const val READING_CHALLENGE_START_DATE = &quot;2026-05-11&quot;
+<span class="nc bnc" id="L160" title="All 4 branches missed.">        val START_DATE get() = LocalDate.parse(Prefs.readingChallengeStartDate.ifEmpty { READING_CHALLENGE_START_DATE })</span>
+<span class="nc bnc" id="L161" title="All 4 branches missed.">        val END_DATE get() = LocalDate.parse(Prefs.readingChallengeEndDate.ifEmpty { READING_CHALLENGE_END_DATE })</span>
+<span class="fc" id="L162">        private val REMOVE_DATE = LocalDate.of(2026, 7, 27)</span>
+
+        private val isChallengeActive: Boolean
+<span class="nc bnc" id="L165" title="All 4 branches missed.">            get() = !LocalDate.now().isBefore(START_DATE) &amp;&amp; !LocalDate.now().isAfter(END_DATE)</span>
+
+        fun isWidgetInstalled(): Boolean {
+<span class="nc" id="L168">            val context = WikipediaApp.instance</span>
+<span class="nc" id="L169">            val ids = AppWidgetManager.getInstance(context).getAppWidgetIds(</span>
+<span class="nc" id="L170">                ComponentName(context, ReadingChallengeWidgetReceiver::class.java)</span>
+            )
+<span class="nc bnc" id="L172" title="All 4 branches missed.">            return ids.isNotEmpty()</span>
+        }
+
+        fun shouldShowOnboardingDialog(): Boolean {
+<span class="pc bpc" id="L176" title="3 of 4 branches missed.">            return !Prefs.readingChallengeOnboardingShown &amp;&amp; isChallengeActive</span>
+        }
+
+        fun shouldShowWidgetInstallDialog(): Boolean {
+<span class="nc bnc" id="L180" title="All 4 branches missed.">            return Prefs.readingChallengeOnboardingShown &amp;&amp; !Prefs.readingChallengeInstallPromptShown &amp;&amp;</span>
+<span class="nc bnc" id="L181" title="All 8 branches missed.">                    Prefs.readingChallengeEnrolled &amp;&amp; AccountUtil.isLoggedIn &amp;&amp; isChallengeActive &amp;&amp; !isWidgetInstalled()</span>
+        }
+
+        fun shouldShowReward(intent: Intent): Boolean {
+<span class="nc bnc" id="L185" title="All 4 branches missed.">            return intent.hasExtra(INTENT_EXTRA_READING_CHALLENGE_REWARD) &amp;&amp; AccountUtil.isLoggedIn</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

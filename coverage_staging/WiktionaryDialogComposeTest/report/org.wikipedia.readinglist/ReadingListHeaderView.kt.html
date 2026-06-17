@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingListHeaderView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">ReadingListHeaderView.kt</span></div><h1>ReadingListHeaderView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import org.wikipedia.R
+import org.wikipedia.databinding.ViewReadingListHeaderBinding
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.util.GradientUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.views.ViewUtil
+
+<span class="nc" id="L16">class ReadingListHeaderView(context: Context, attrs: AttributeSet? = null) : FrameLayout(context, attrs) {</span>
+
+<span class="nc" id="L18">    private val binding = ViewReadingListHeaderBinding.inflate(LayoutInflater.from(context), this)</span>
+<span class="nc" id="L19">    private var imageViews = listOf(binding.readingListHeaderImage0, binding.readingListHeaderImage1, binding.readingListHeaderImage2,</span>
+<span class="nc" id="L20">            binding.readingListHeaderImage3, binding.readingListHeaderImage4, binding.readingListHeaderImage5)</span>
+    private var readingList: ReadingList? = null
+
+<span class="nc" id="L23">    init {</span>
+<span class="nc bnc" id="L24" title="All 2 branches missed.">        if (!isInEditMode) {</span>
+<span class="nc" id="L25">            layoutParams = ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)</span>
+<span class="nc" id="L26">            binding.readingListHeaderImageGradient.background = GradientUtil.getPowerGradient(</span>
+<span class="nc" id="L27">                ResourceUtil.getThemedColor(context, R.attr.overlay_color), Gravity.TOP)</span>
+<span class="nc" id="L28">            clearThumbnails()</span>
+        }
+<span class="nc" id="L30">    }</span>
+
+    fun setReadingList(readingList: ReadingList) {
+<span class="nc" id="L33">        this.readingList = readingList</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">        if (readingList.pages.isEmpty()) {</span>
+<span class="nc" id="L35">            binding.readingListHeaderImageContainer.visibility = GONE</span>
+<span class="nc" id="L36">            binding.readingListHeaderEmptyImage.visibility = VISIBLE</span>
+        } else {
+<span class="nc" id="L38">            binding.readingListHeaderImageContainer.visibility = VISIBLE</span>
+<span class="nc" id="L39">            binding.readingListHeaderEmptyImage.visibility = GONE</span>
+<span class="nc" id="L40">            updateThumbnails()</span>
+        }
+<span class="nc" id="L42">    }</span>
+
+    private fun clearThumbnails() {
+<span class="nc" id="L45">        imageViews.forEach {</span>
+<span class="nc" id="L46">            ViewUtil.loadImage(it, null)</span>
+<span class="nc" id="L47">        }</span>
+<span class="nc" id="L48">    }</span>
+
+    private fun updateThumbnails() {
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        readingList?.let {</span>
+<span class="nc" id="L52">            clearThumbnails()</span>
+<span class="nc" id="L53">            val thumbUrls = it.pages.mapNotNull { page -&gt; page.thumbUrl }</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                .filterNot { url -&gt; url.isEmpty() }</span>
+<span class="nc" id="L55">            (imageViews zip thumbUrls).forEach { (imageView, url) -&gt;</span>
+<span class="nc" id="L56">                ViewUtil.loadImage(imageView, url)</span>
+<span class="nc" id="L57">            }</span>
+<span class="nc" id="L58">        }</span>
+<span class="nc" id="L59">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

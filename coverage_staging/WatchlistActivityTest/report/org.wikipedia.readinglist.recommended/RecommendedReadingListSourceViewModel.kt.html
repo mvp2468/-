@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListSourceViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.recommended</a> &gt; <span class="el_source">RecommendedReadingListSourceViewModel.kt</span></div><h1>RecommendedReadingListSourceViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.recommended
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.Resource
+
+<span class="nc" id="L15">class RecommendedReadingListSourceViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+
+<span class="nc" id="L17">    val fromSettings = savedStateHandle.get&lt;Boolean&gt;(RecommendedReadingListOnboardingActivity.EXTRA_FROM_SETTINGS) == true</span>
+<span class="nc" id="L18">    val availableSources = mutableListOf&lt;RecommendedReadingListSource&gt;()</span>
+
+<span class="nc" id="L20">    private val _uiSourceState = MutableStateFlow(Resource&lt;SourceSelectionUiState&gt;())</span>
+<span class="nc" id="L21">    val uiSourceState: StateFlow&lt;Resource&lt;SourceSelectionUiState&gt;&gt; = _uiSourceState.asStateFlow()</span>
+
+<span class="nc" id="L23">    init {</span>
+<span class="nc" id="L24">        setupSourceSelection()</span>
+<span class="nc" id="L25">    }</span>
+
+    fun setupSourceSelection() {
+<span class="nc" id="L28">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L29">            _uiSourceState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L30">        }) {</span>
+<span class="nc" id="L31">            _uiSourceState.value = Resource.Loading()</span>
+<span class="nc" id="L32">            availableSources.add(RecommendedReadingListSource.INTERESTS)</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">            val isSavedOptionEnabled = AppDatabase.instance.readingListPageDao().getPagesCount() &gt; 0</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            if (isSavedOptionEnabled) {</span>
+<span class="nc" id="L35">                availableSources.add(RecommendedReadingListSource.READING_LIST)</span>
+            }
+<span class="nc bnc" id="L37" title="All 2 branches missed.">            val isHistoryOptionEnabled = (AppDatabase.instance.historyEntryDao().getHistoryCount() &gt; 0)</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            if (isHistoryOptionEnabled) {</span>
+<span class="nc" id="L39">                availableSources.add(RecommendedReadingListSource.HISTORY)</span>
+            }
+<span class="nc" id="L41">            val selectedSource = Prefs.recommendedReadingListSource</span>
+<span class="nc" id="L42">            _uiSourceState.value = Resource.Success(</span>
+<span class="nc" id="L43">                SourceSelectionUiState(</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">                    isSavedOptionEnabled = isSavedOptionEnabled,</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">                    isHistoryOptionEnabled = isHistoryOptionEnabled,</span>
+<span class="nc" id="L46">                    selectedSource = selectedSource</span>
+                )
+            )
+<span class="nc" id="L49">        }</span>
+<span class="nc" id="L50">    }</span>
+
+    fun updateSourceSelection(newSource: RecommendedReadingListSource) {
+<span class="nc" id="L53">        val stateValue = _uiSourceState.value</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (stateValue is Resource.Success) {</span>
+<span class="nc" id="L55">            _uiSourceState.value = Resource.Success(</span>
+<span class="nc" id="L56">                SourceSelectionUiState(</span>
+<span class="nc" id="L57">                    isSavedOptionEnabled = stateValue.data.isSavedOptionEnabled,</span>
+<span class="nc" id="L58">                    isHistoryOptionEnabled = stateValue.data.isHistoryOptionEnabled,</span>
+<span class="nc" id="L59">                    selectedSource = newSource</span>
+                )
+            )
+        }
+<span class="nc" id="L63">    }</span>
+
+    fun saveSourceSelection(): Pair&lt;Boolean, RecommendedReadingListSource&gt; {
+<span class="nc" id="L66">        val stateValue = _uiSourceState.value</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (stateValue is Resource.Success) {</span>
+<span class="nc" id="L68">            val selectedSource = stateValue.data.selectedSource</span>
+<span class="nc" id="L69">            Prefs.recommendedReadingListSource = selectedSource</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            return Pair(selectedSource == RecommendedReadingListSource.INTERESTS, selectedSource)</span>
+        }
+<span class="nc" id="L72">        return Pair(false, RecommendedReadingListSource.INTERESTS)</span>
+    }
+
+<span class="nc" id="L75">    data class SourceSelectionUiState(</span>
+<span class="nc" id="L76">        val isSavedOptionEnabled: Boolean = false,</span>
+<span class="nc" id="L77">        val isHistoryOptionEnabled: Boolean = false,</span>
+<span class="nc" id="L78">        val selectedSource: RecommendedReadingListSource = Prefs.recommendedReadingListSource</span>
+<span class="nc" id="L79">    )</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

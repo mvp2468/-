@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HybridSearchViews.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">HybridSearchViews.kt</span></div><h1>HybridSearchViews.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.paging.compose.LazyPagingItems
+import org.wikipedia.R
+import org.wikipedia.compose.extensions.toAnnotatedStringWithBoldQuery
+import org.wikipedia.compose.theme.WikipediaTheme
+
+@Composable
+fun HybridSearchSuggestionListView(
+<span class="nc" id="L34">    modifier: Modifier = Modifier,</span>
+    searchResultsPage: LazyPagingItems&lt;SearchResult&gt;,
+    searchTerm: String?,
+    onTitleClick: (SearchResult) -&gt; Unit,
+    onSuggestionTitleClick: (String?) -&gt; Unit,
+<span class="nc bnc" id="L39" title="All 2 branches missed.">) {</span>
+
+<span class="nc" id="L41">    val hasAnyMatch by remember {</span>
+<span class="nc" id="L42">        derivedStateOf {</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">            val term = searchTerm.orEmpty()</span>
+<span class="nc bnc" id="L44" title="All 6 branches missed.">            if (term.isEmpty() || searchResultsPage.itemCount == 0) {</span>
+<span class="nc" id="L45">                false</span>
+            } else {
+<span class="nc" id="L47">                searchResultsPage.itemSnapshotList.items.any { item -&gt;</span>
+<span class="nc" id="L48">                    item.pageTitle.displayText.contains(term, ignoreCase = true)</span>
+                }
+<span class="nc" id="L50">            }</span>
+<span class="nc" id="L51">        }</span>
+    }
+
+<span class="nc" id="L54">    Box(</span>
+<span class="nc" id="L55">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L57">        LazyColumn(</span>
+<span class="nc" id="L58">            modifier = Modifier,</span>
+<span class="nc" id="L59">            contentPadding = PaddingValues(top = 16.dp, bottom = 64.dp)</span>
+<span class="nc bnc" id="L60" title="All 10 branches missed.">        ) {</span>
+<span class="nc" id="L61">            items(searchResultsPage.itemCount) { index -&gt;</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">                searchResultsPage[index]?.let {</span>
+<span class="nc" id="L63">                    SearchResultTitleOnly(</span>
+<span class="nc" id="L64">                        modifier = Modifier</span>
+<span class="nc" id="L65">                            .fillMaxWidth()</span>
+<span class="nc" id="L66">                            .clickable(onClick = {</span>
+<span class="nc" id="L67">                                onTitleClick(it)</span>
+<span class="nc" id="L68">                            })</span>
+<span class="nc" id="L69">                            .padding(horizontal = 16.dp, vertical = 8.dp),</span>
+<span class="nc" id="L70">                        searchResultPage = it,</span>
+<span class="nc" id="L71">                        searchTerm = searchTerm</span>
+                    )
+<span class="nc" id="L73">                }</span>
+<span class="nc" id="L74">            }</span>
+<span class="nc" id="L75">        }</span>
+
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (!hasAnyMatch) {</span>
+<span class="nc" id="L78">            SearchResultTitleOnlyBottomContent(</span>
+<span class="nc" id="L79">                modifier = Modifier</span>
+<span class="nc" id="L80">                    .fillMaxWidth()</span>
+<span class="nc" id="L81">                    .align(Alignment.BottomStart)</span>
+<span class="nc" id="L82">                    .background(WikipediaTheme.colors.paperColor)</span>
+<span class="nc" id="L83">                    .clickable(</span>
+<span class="nc bnc" id="L84" title="All 4 branches missed.">                        onClick = { onSuggestionTitleClick(searchTerm) }</span>
+                    ),
+<span class="nc" id="L86">                searchTerm = searchTerm</span>
+            )
+<span class="nc" id="L88">        }</span>
+<span class="nc" id="L89">    }</span>
+<span class="nc" id="L90">}</span>
+
+@Composable
+fun SearchResultTitleOnly(
+    searchResultPage: SearchResult,
+    searchTerm: String?,
+<span class="nc" id="L96">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L98">    val pageTitle = searchResultPage.pageTitle</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">    val boldenTitle = remember(pageTitle.displayText, searchTerm) {</span>
+<span class="nc" id="L100">        pageTitle.displayText.toAnnotatedStringWithBoldQuery(searchTerm)</span>
+    }
+<span class="nc" id="L102">    Box(</span>
+<span class="nc" id="L103">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L105">        Text(</span>
+<span class="nc" id="L106">            text = boldenTitle,</span>
+<span class="nc" id="L107">            color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L108">            style = MaterialTheme.typography.bodyLarge</span>
+        )
+<span class="nc" id="L110">    }</span>
+<span class="nc" id="L111">}</span>
+
+@Composable
+fun SearchResultTitleOnlyBottomContent(
+<span class="nc" id="L115">    modifier: Modifier = Modifier,</span>
+    searchTerm: String?
+<span class="nc bnc" id="L117" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L118">    val suggestionTitle = stringResource(R.string.hybrid_search_suggestion_title)</span>
+<span class="nc" id="L119">    Column(</span>
+<span class="nc" id="L120">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L122">        HorizontalDivider(</span>
+<span class="nc" id="L123">            modifier = Modifier</span>
+<span class="nc" id="L124">                .fillMaxWidth(),</span>
+<span class="nc" id="L125">            color = WikipediaTheme.colors.borderColor,</span>
+        )
+<span class="nc" id="L127">        Text(</span>
+<span class="nc" id="L128">            modifier = Modifier</span>
+<span class="nc" id="L129">                .fillMaxWidth()</span>
+<span class="nc" id="L130">                .padding(16.dp),</span>
+<span class="nc" id="L131">            text = buildAnnotatedString {</span>
+<span class="nc" id="L132">                append(suggestionTitle)</span>
+<span class="nc" id="L133">                withStyle(</span>
+<span class="nc" id="L134">                    style = SpanStyle(</span>
+<span class="nc" id="L135">                        color = WikipediaTheme.colors.progressiveColor</span>
+                    )
+                ) {
+<span class="nc" id="L138">                    append(&quot; &quot;)</span>
+<span class="nc" id="L139">                    append(searchTerm)</span>
+<span class="nc" id="L140">                }</span>
+<span class="nc" id="L141">            },</span>
+<span class="nc" id="L142">            style = MaterialTheme.typography.bodySmall.copy(</span>
+<span class="nc" id="L143">                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L144">                lineHeight = 18.sp</span>
+            ),
+<span class="nc" id="L146">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L148">    }</span>
+<span class="nc" id="L149">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

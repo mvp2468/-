@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HtmlText.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.compose.components</a> &gt; <span class="el_source">HtmlText.kt</span></div><h1>HtmlText.kt</h1><pre class="source lang-java linenums">package org.wikipedia.compose.components
+
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.LinkInteractionListener
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
+import org.wikipedia.WikipediaApp
+import org.wikipedia.compose.extensions.composeFromHtml
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.UriUtil
+
+@Composable
+<span class="nc bnc" id="L29" title="All 8 branches missed.">fun HtmlText(</span>
+    text: String,
+<span class="nc bnc" id="L31" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">    linkStyle: TextLinkStyles = TextLinkStyles(</span>
+<span class="nc" id="L33">        style = SpanStyle(</span>
+<span class="nc" id="L34">            color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L35">            fontSize = 14.sp</span>
+        )
+    ),
+<span class="nc bnc" id="L38" title="All 2 branches missed.">    style: TextStyle = TextStyle(</span>
+<span class="nc" id="L39">        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L40">        fontSize = 14.sp</span>
+    ),
+<span class="nc bnc" id="L42" title="All 2 branches missed.">    color: Color = Color.Unspecified,</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">    maxLines: Int = Int.MAX_VALUE,</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">    overflow: TextOverflow = TextOverflow.Ellipsis,</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">    lineHeight: TextUnit = 1.6.em,</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">    linkInteractionListener: LinkInteractionListener = defaultLinkInteractionListener(),</span>
+<span class="nc" id="L47">    textAlign: TextAlign = TextAlign.Start</span>
+<span class="nc bnc" id="L48" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L49">    Text(</span>
+<span class="nc" id="L50">        modifier = modifier,</span>
+<span class="nc" id="L51">        text = AnnotatedString.composeFromHtml(</span>
+<span class="nc" id="L52">            htmlString = text,</span>
+<span class="nc" id="L53">            linkStyles = linkStyle,</span>
+<span class="nc" id="L54">            linkInteractionListener = linkInteractionListener</span>
+        ),
+<span class="nc" id="L56">        lineHeight = lineHeight,</span>
+<span class="nc" id="L57">        style = style,</span>
+<span class="nc" id="L58">        color = color,</span>
+<span class="nc" id="L59">        maxLines = maxLines,</span>
+<span class="nc" id="L60">        overflow = overflow,</span>
+<span class="nc" id="L61">        textAlign = textAlign</span>
+    )
+<span class="nc" id="L63">}</span>
+
+/**
+ * Provides a default [LinkInteractionListener] that opens links in an external browser, and
+ * accounts for links that don't have an explicit protocol (links that start with &quot;//...&quot;).
+ * @param wikiSite Optional [WikiSite] to also handle fully relative URLs.
+ */
+<span class="nc" id="L70">fun defaultLinkInteractionListener(wikiSite: WikiSite? = null): LinkInteractionListener {</span>
+<span class="nc" id="L71">    return LinkInteractionListener { linkAnnotation -&gt;</span>
+<span class="nc bnc" id="L72" title="All 6 branches missed.">        (linkAnnotation as? LinkAnnotation.Url)?.url?.let { url -&gt;</span>
+<span class="nc" id="L73">            UriUtil.visitInExternalBrowser(WikipediaApp.instance,</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">                (if (wikiSite == null) UriUtil.resolveProtocolRelativeUrl(url) else</span>
+<span class="nc" id="L75">                    UriUtil.resolveProtocolRelativeUrl(wikiSite, url)).toUri()</span>
+            )
+<span class="nc" id="L77">        }</span>
+<span class="nc" id="L78">    }</span>
+}
+
+@Preview
+@Composable
+<span class="nc" id="L83">private fun HtmlTextPreview() {</span>
+<span class="nc" id="L84">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L85">        HtmlText(&quot;This is an &lt;em&gt;example&lt;/em&gt; of &lt;strong&gt;text&lt;/strong&gt;&lt;br /&gt;with &quot; +</span>
+                &quot;&lt;a href=\&quot;#foo\&quot;&gt;html&lt;/a&gt;, with nonstandard stuff&lt;br /&gt;like &lt;code&gt;monospace&lt;/code&gt;&quot; +
+                &quot; and &lt;sup&gt;superscript&lt;/sup&gt;, too!&quot;)
+<span class="nc" id="L88">    }</span>
+<span class="nc" id="L89">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

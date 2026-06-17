@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListSourceScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.recommended</a> &gt; <span class="el_source">RecommendedReadingListSourceScreen.kt</span></div><h1>RecommendedReadingListSourceScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.recommended
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.wikipedia.R
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.Resource
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SourceSelectionScreen(
+    uiState: Resource&lt;RecommendedReadingListSourceViewModel.SourceSelectionUiState&gt;,
+    fromSettings: Boolean,
+<span class="nc" id="L54">    wikiErrorClickEvents: WikiErrorClickEvents? = null,</span>
+    onCloseClick: () -&gt; Unit,
+    onNextClick: () -&gt; Unit,
+    onSourceClick: (RecommendedReadingListSource) -&gt; Unit
+<span class="nc bnc" id="L58" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L59">    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())</span>
+
+<span class="nc bnc" id="L61" title="All 2 branches missed.">    BackHandler {</span>
+<span class="nc" id="L62">        onCloseClick()</span>
+<span class="nc" id="L63">    }</span>
+<span class="nc" id="L64">    Scaffold(</span>
+<span class="nc" id="L65">        modifier = Modifier</span>
+<span class="nc" id="L66">            .fillMaxSize()</span>
+<span class="nc" id="L67">            .nestedScroll(scrollBehavior.nestedScrollConnection)</span>
+<span class="nc" id="L68">            .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L69">        topBar = {</span>
+<span class="nc" id="L70">            TopAppBar(</span>
+<span class="nc" id="L71">                title = {</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                    if (fromSettings) {</span>
+<span class="nc" id="L73">                        Text(</span>
+<span class="nc" id="L74">                            text = stringResource(id = R.string.recommended_reading_list_settings_updates_base_title),</span>
+<span class="nc" id="L75">                            color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L76">                            style = MaterialTheme.typography.headlineSmall.copy(</span>
+<span class="nc" id="L77">                                fontWeight = FontWeight.Bold,</span>
+<span class="nc" id="L78">                                lineHeight = 24.sp</span>
+                            )
+                        )
+<span class="nc" id="L81">                    }</span>
+<span class="nc" id="L82">                },</span>
+<span class="nc" id="L83">                navigationIcon = {</span>
+<span class="nc" id="L84">                    Icon(</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                        painter = painterResource(if (fromSettings) R.drawable.ic_arrow_back_black_24dp else R.drawable.ic_close_black_24dp),</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                        contentDescription = stringResource(id = if (fromSettings) R.string.search_back_button_content_description else R.string.table_close),</span>
+<span class="nc" id="L87">                        modifier = Modifier</span>
+<span class="nc" id="L88">                            .size(48.dp)</span>
+<span class="nc" id="L89">                            .clickable(onClick = {</span>
+<span class="nc" id="L90">                                onCloseClick()</span>
+<span class="nc" id="L91">                            })</span>
+<span class="nc" id="L92">                            .padding(12.dp),</span>
+<span class="nc" id="L93">                        tint = WikipediaTheme.colors.primaryColor</span>
+                    )
+<span class="nc" id="L95">                },</span>
+<span class="nc" id="L96">                colors = TopAppBarDefaults.topAppBarColors(</span>
+<span class="nc" id="L97">                    containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L98">                    scrolledContainerColor = WikipediaTheme.colors.paperColor</span>
+                ),
+<span class="nc" id="L100">                scrollBehavior = scrollBehavior</span>
+            )
+<span class="nc" id="L102">        },</span>
+<span class="nc" id="L103">        containerColor = WikipediaTheme.colors.paperColor</span>
+<span class="nc" id="L104">    ) { paddingValues -&gt;</span>
+<span class="nc" id="L105">        when (uiState) {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            is Resource.Loading -&gt; {</span>
+<span class="nc" id="L107">                Box(</span>
+<span class="nc" id="L108">                    modifier = Modifier</span>
+<span class="nc" id="L109">                        .fillMaxWidth()</span>
+<span class="nc" id="L110">                        .padding(paddingValues),</span>
+                ) {
+<span class="nc" id="L112">                    LinearProgressIndicator(</span>
+<span class="nc" id="L113">                        modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L114">                        color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L115">                        trackColor = WikipediaTheme.colors.borderColor</span>
+                    )
+<span class="nc" id="L117">                }</span>
+            }
+
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            is Resource.Error -&gt; {</span>
+<span class="nc" id="L121">                Box(</span>
+<span class="nc" id="L122">                    modifier = Modifier</span>
+<span class="nc" id="L123">                        .fillMaxSize()</span>
+<span class="nc" id="L124">                        .padding(paddingValues),</span>
+<span class="nc" id="L125">                    contentAlignment = Alignment.Center</span>
+                ) {
+<span class="nc" id="L127">                    WikiErrorView(</span>
+<span class="nc" id="L128">                        modifier = Modifier</span>
+<span class="nc" id="L129">                            .fillMaxWidth(),</span>
+<span class="nc" id="L130">                        caught = uiState.throwable,</span>
+<span class="nc" id="L131">                        errorClickEvents = wikiErrorClickEvents</span>
+                    )
+<span class="nc" id="L133">                }</span>
+            }
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            is Resource.Success -&gt; {</span>
+<span class="nc" id="L137">                Box(</span>
+<span class="nc" id="L138">                    modifier = Modifier</span>
+<span class="nc" id="L139">                        .fillMaxSize()</span>
+<span class="nc" id="L140">                        .padding(paddingValues)</span>
+                ) {
+<span class="nc" id="L142">                    SourceSelectionContent(</span>
+<span class="nc" id="L143">                        selectedSource = uiState.data.selectedSource,</span>
+<span class="nc" id="L144">                        isSavedOptionEnabled = uiState.data.isSavedOptionEnabled,</span>
+<span class="nc" id="L145">                        isHistoryOptionEnabled = uiState.data.isHistoryOptionEnabled,</span>
+<span class="nc" id="L146">                        fromSettings = fromSettings,</span>
+<span class="nc" id="L147">                        onSourceClick = {</span>
+<span class="nc" id="L148">                            onSourceClick(it)</span>
+<span class="nc" id="L149">                        },</span>
+<span class="nc" id="L150">                        onNextClick = {</span>
+<span class="nc" id="L151">                            onNextClick()</span>
+<span class="nc" id="L152">                        }</span>
+                    )
+<span class="nc" id="L154">                }</span>
+            }
+<span class="nc" id="L156">        }</span>
+<span class="nc" id="L157">    }</span>
+<span class="nc" id="L158">}</span>
+
+@Composable
+fun SourceSelectionContent(
+    onSourceClick: (RecommendedReadingListSource) -&gt; Unit,
+    onNextClick: () -&gt; Unit,
+    selectedSource: RecommendedReadingListSource,
+    isSavedOptionEnabled: Boolean,
+    isHistoryOptionEnabled: Boolean,
+    fromSettings: Boolean
+<span class="nc" id="L168">) {</span>
+<span class="nc" id="L169">    Column(</span>
+<span class="nc" id="L170">        modifier = Modifier</span>
+<span class="nc" id="L171">            .fillMaxSize()</span>
+<span class="nc" id="L172">            .verticalScroll(rememberScrollState()),</span>
+<span class="nc" id="L173">        horizontalAlignment = Alignment.CenterHorizontally</span>
+    ) {
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (!fromSettings) {</span>
+<span class="nc" id="L176">            Spacer(modifier = Modifier.weight(1f))</span>
+<span class="nc" id="L177">        } else {</span>
+<span class="nc" id="L178">            Spacer(modifier = Modifier.height(16.dp))</span>
+        }
+
+<span class="nc" id="L181">        Column(</span>
+<span class="nc" id="L182">            modifier = Modifier</span>
+<span class="nc" id="L183">                .fillMaxWidth(),</span>
+<span class="nc" id="L184">            horizontalAlignment = Alignment.CenterHorizontally,</span>
+<span class="nc" id="L185">            verticalArrangement = Arrangement.spacedBy(24.dp)</span>
+        ) {
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            if (!fromSettings) {</span>
+<span class="nc" id="L188">                Text(</span>
+<span class="nc" id="L189">                    modifier = Modifier.padding(horizontal = 16.dp),</span>
+<span class="nc" id="L190">                    text = stringResource(id = R.string.recommended_reading_list_interest_source_message),</span>
+<span class="nc" id="L191">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L192">                    fontSize = 22.sp,</span>
+<span class="nc" id="L193">                    textAlign = TextAlign.Center</span>
+                )
+<span class="nc" id="L195">            }</span>
+
+<span class="nc" id="L197">            SourceOptionCard(</span>
+<span class="nc" id="L198">                modifier = Modifier</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                    .clickable(onClick = {</span>
+<span class="nc" id="L200">                        onSourceClick(RecommendedReadingListSource.INTERESTS)</span>
+<span class="nc" id="L201">                    }),</span>
+<span class="nc" id="L202">                iconRes = R.drawable.outline_interests_24,</span>
+<span class="nc" id="L203">                textRes = R.string.recommended_reading_list_interest_source_interests,</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                isSelected = selectedSource == RecommendedReadingListSource.INTERESTS</span>
+            )
+
+<span class="nc bnc" id="L207" title="All 2 branches missed.">            if (isSavedOptionEnabled) {</span>
+<span class="nc" id="L208">                SourceOptionCard(</span>
+<span class="nc" id="L209">                    modifier = Modifier</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                        .clickable(onClick = {</span>
+<span class="nc" id="L211">                            onSourceClick(RecommendedReadingListSource.READING_LIST)</span>
+<span class="nc" id="L212">                        }),</span>
+<span class="nc" id="L213">                    iconRes = R.drawable.ic_bookmark_border_white_24dp,</span>
+<span class="nc" id="L214">                    textRes = R.string.recommended_reading_list_interest_source_saved,</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                    isSelected = selectedSource == RecommendedReadingListSource.READING_LIST</span>
+                )
+<span class="nc" id="L217">            }</span>
+
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            if (isHistoryOptionEnabled) {</span>
+<span class="nc" id="L220">                SourceOptionCard(</span>
+<span class="nc" id="L221">                    modifier = Modifier</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                        .clickable(onClick = {</span>
+<span class="nc" id="L223">                            onSourceClick(RecommendedReadingListSource.HISTORY)</span>
+<span class="nc" id="L224">                        }),</span>
+<span class="nc" id="L225">                    iconRes = R.drawable.ic_history_24,</span>
+<span class="nc" id="L226">                    textRes = R.string.recommended_reading_list_interest_source_history,</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                    isSelected = selectedSource == RecommendedReadingListSource.HISTORY</span>
+                )
+<span class="nc" id="L229">            }</span>
+<span class="nc" id="L230">        }</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        if (!fromSettings) {</span>
+<span class="nc" id="L233">            Spacer(modifier = Modifier.weight(1f))</span>
+<span class="nc" id="L234">            Box(</span>
+<span class="nc" id="L235">                modifier = Modifier</span>
+<span class="nc" id="L236">                    .fillMaxWidth()</span>
+<span class="nc" id="L237">                    .height(56.dp)</span>
+            ) {
+<span class="nc" id="L239">                Spacer(</span>
+<span class="nc" id="L240">                    modifier = Modifier</span>
+<span class="nc" id="L241">                        .fillMaxWidth()</span>
+<span class="nc" id="L242">                        .height(1.dp)</span>
+<span class="nc" id="L243">                        .background(WikipediaTheme.colors.borderColor)</span>
+                )
+<span class="nc" id="L245">                Icon(</span>
+<span class="nc" id="L246">                    painter = painterResource(R.drawable.ic_arrow_forward_black_24dp),</span>
+<span class="nc" id="L247">                    contentDescription = stringResource(R.string.nav_item_forward),</span>
+<span class="nc" id="L248">                    tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L249">                    modifier = Modifier</span>
+<span class="nc" id="L250">                        .size(48.dp)</span>
+<span class="nc" id="L251">                        .align(Alignment.CenterEnd)</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                        .clickable(onClick = {</span>
+<span class="nc" id="L253">                            onNextClick()</span>
+<span class="nc" id="L254">                        })</span>
+<span class="nc" id="L255">                        .padding(12.dp)</span>
+                )
+<span class="nc" id="L257">            }</span>
+<span class="nc" id="L258">        }</span>
+<span class="nc" id="L259">    }</span>
+<span class="nc" id="L260">}</span>
+
+@Composable
+fun SourceOptionCard(
+<span class="nc" id="L264">    isSelected: Boolean = false,</span>
+    modifier: Modifier,
+    iconRes: Int,
+    textRes: Int
+<span class="nc bnc" id="L268" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L269">    WikiCard(</span>
+<span class="nc" id="L270">        modifier = Modifier</span>
+<span class="nc" id="L271">            .fillMaxWidth()</span>
+<span class="nc" id="L272">            .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L273">        elevation = 0.dp,</span>
+<span class="nc" id="L274">        colors = CardDefaults.cardColors(</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">            containerColor = if (isSelected) WikipediaTheme.colors.additionColor else WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L277">        border = BorderStroke(</span>
+<span class="nc" id="L278">            width = 1.dp,</span>
+<span class="nc" id="L279">            color = WikipediaTheme.colors.borderColor</span>
+        )
+<span class="nc" id="L281">    ) {</span>
+<span class="nc" id="L282">        Row(</span>
+<span class="nc" id="L283">            modifier = modifier</span>
+<span class="nc" id="L284">                .fillMaxWidth()</span>
+<span class="nc" id="L285">                .padding(16.dp)</span>
+        ) {
+<span class="nc" id="L287">            Icon(</span>
+<span class="nc" id="L288">                modifier = Modifier</span>
+<span class="nc" id="L289">                    .size(24.dp),</span>
+<span class="nc" id="L290">                painter = painterResource(iconRes),</span>
+<span class="nc" id="L291">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L292">                contentDescription = stringResource(textRes)</span>
+            )
+<span class="nc" id="L294">            Text(</span>
+<span class="nc" id="L295">                modifier = Modifier.padding(horizontal = 16.dp),</span>
+<span class="nc" id="L296">                text = stringResource(textRes),</span>
+<span class="nc" id="L297">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,</span>
+<span class="nc" id="L299">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L301">        }</span>
+<span class="nc" id="L302">    }</span>
+<span class="nc" id="L303">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L307">fun DefaultPreviewSourceSelectionScreen() {</span>
+<span class="nc" id="L308">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L309">        SourceSelectionScreen(</span>
+<span class="nc" id="L310">            uiState = Resource.Success(</span>
+<span class="nc" id="L311">                RecommendedReadingListSourceViewModel.SourceSelectionUiState(</span>
+<span class="nc" id="L312">                    isSavedOptionEnabled = true,</span>
+<span class="nc" id="L313">                    isHistoryOptionEnabled = true,</span>
+<span class="nc" id="L314">                    selectedSource = RecommendedReadingListSource.INTERESTS</span>
+                )
+            ),
+<span class="nc" id="L317">            fromSettings = false,</span>
+<span class="nc" id="L318">            onSourceClick = {},</span>
+<span class="nc" id="L319">            onCloseClick = {},</span>
+<span class="nc" id="L320">            onNextClick = {}</span>
+        )
+<span class="nc" id="L322">    }</span>
+<span class="nc" id="L323">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

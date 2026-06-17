@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GalleryItemFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.gallery</a> &gt; <span class="el_source">GalleryItemFragment.kt</span></div><h1>GalleryItemFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.gallery
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.os.Build
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.widget.MediaController
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.core.os.bundleOf
+import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.databinding.FragmentGalleryItemBinding
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.views.imageservice.ImageLoadListener
+import org.wikipedia.views.imageservice.ImageService
+import kotlin.math.abs
+
+<span class="nc" id="L47">class GalleryItemFragment : Fragment(), MenuProvider {</span>
+    interface Callback {
+        fun onDownload(item: GalleryItemFragment)
+        fun onShare(item: GalleryItemFragment, bitmap: Bitmap?, subject: String, title: PageTitle)
+        fun onError(throwable: Throwable)
+    }
+
+    private var _binding: FragmentGalleryItemBinding? = null
+<span class="nc" id="L55">    private val binding get() = _binding!!</span>
+
+<span class="nc" id="L57">    private val viewModel: GalleryItemViewModel by viewModels()</span>
+<span class="nc" id="L58">    private val activityViewModel: GalleryViewModel by activityViewModels()</span>
+
+    private var mediaController: MediaController? = null
+
+<span class="nc" id="L62">    val imageTitle get() = viewModel.imageTitle</span>
+<span class="nc" id="L63">    val mediaPage get() = viewModel.mediaPage</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">    val mediaInfo get() = viewModel.mediaPage?.imageInfo()</span>
+
+<span class="nc" id="L66">    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean -&gt;</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (isGranted) {</span>
+<span class="nc" id="L68">            saveImage()</span>
+        } else {
+<span class="nc" id="L70">            FeedbackUtil.showMessage(requireActivity(), R.string.gallery_save_image_write_permission_rationale)</span>
+        }
+<span class="nc" id="L72">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L75">        _binding = FragmentGalleryItemBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L76">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+
+<span class="nc" id="L78">        binding.imageView.setOnClickListener {</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L80">                return@setOnClickListener</span>
+            }
+<span class="nc" id="L82">            (requireActivity() as GalleryActivity).toggleControls()</span>
+<span class="nc" id="L83">        }</span>
+<span class="nc" id="L84">        binding.imageView.setOnMatrixChangeListener {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            if (isAdded) {</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                binding.imageView.setAllowParentInterceptOnEdge(abs(binding.imageView.scale - 1f) &lt; 0.01f)</span>
+            }
+<span class="nc" id="L88">        }</span>
+<span class="nc" id="L89">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L93">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L94">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L95">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L96">                launch {</span>
+<span class="nc" id="L97">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L98">                        when (it) {</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading(true)</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                            is Resource.Success -&gt; onSuccess(it.data)</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                            is Resource.Error -&gt; onError(it.throwable)</span>
+                        }
+<span class="nc" id="L103">                    }</span>
+                }
+<span class="nc" id="L105">            }</span>
+<span class="nc" id="L106">        }</span>
+<span class="nc" id="L107">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L110">        binding.imageView.setOnMatrixChangeListener(null)</span>
+<span class="nc" id="L111">        binding.imageView.setOnClickListener(null)</span>
+<span class="nc" id="L112">        binding.videoThumbnail.setOnClickListener(null)</span>
+<span class="nc" id="L113">        _binding = null</span>
+<span class="nc" id="L114">        super.onDestroyView()</span>
+<span class="nc" id="L115">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L118">        super.onPause()</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        mediaController?.let {</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (binding.videoView.isPlaying) {</span>
+<span class="nc" id="L121">                binding.videoView.pause()</span>
+            }
+<span class="nc" id="L123">            it.hide()</span>
+<span class="nc" id="L124">        }</span>
+<span class="nc" id="L125">    }</span>
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+<span class="nc" id="L128">        menuInflater.inflate(R.menu.menu_gallery, menu)</span>
+<span class="nc" id="L129">    }</span>
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L133">            return</span>
+        }
+<span class="nc bnc" id="L135" title="All 12 branches missed.">        val enableShareAndSave = mediaInfo?.thumbUrl?.isNotEmpty() == true &amp;&amp; binding.imageView.drawable != null</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        menu.findItem(R.id.menu_gallery_visit_image_page).isEnabled = mediaInfo != null</span>
+<span class="nc" id="L137">        menu.findItem(R.id.menu_gallery_share).isEnabled = enableShareAndSave</span>
+<span class="nc" id="L138">        menu.findItem(R.id.menu_gallery_save).isEnabled = enableShareAndSave</span>
+<span class="nc" id="L139">    }</span>
+
+    override fun onMenuItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L142">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            R.id.menu_gallery_visit_image_page -&gt; {</span>
+<span class="nc" id="L144">                startActivity(FilePageActivity.newIntent(requireContext(), imageTitle))</span>
+<span class="nc" id="L145">                true</span>
+            }
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            R.id.menu_gallery_save -&gt; {</span>
+<span class="nc" id="L148">                handleImageSaveRequest()</span>
+<span class="nc" id="L149">                true</span>
+            }
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            R.id.menu_gallery_share -&gt; {</span>
+<span class="nc" id="L152">                shareImage()</span>
+<span class="nc" id="L153">                true</span>
+            }
+<span class="nc" id="L155">            else -&gt; false</span>
+        }
+    }
+
+    private fun handleImageSaveRequest() {
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.TIRAMISU ||</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {</span>
+<span class="nc" id="L162">            saveImage()</span>
+        } else {
+<span class="nc" id="L164">            requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)</span>
+        }
+<span class="nc" id="L166">    }</span>
+
+    private fun onLoading(visible: Boolean) {
+<span class="nc" id="L169">        binding.progressBar.isVisible = visible</span>
+<span class="nc" id="L170">    }</span>
+
+    private fun onSuccess(isVideo: Boolean) {
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (isVideo) {</span>
+<span class="nc" id="L174">            loadVideo()</span>
+        } else {
+<span class="nc bnc" id="L176" title="All 4 branches missed.">            var url = ImageUrlUtil.getUrlForPreferredSize(mediaInfo?.thumbUrl.orEmpty(), Constants.PREFERRED_GALLERY_IMAGE_SIZE)</span>
+<span class="nc bnc" id="L177" title="All 16 branches missed.">            if (mediaInfo?.mime?.contains(&quot;svg&quot;) == true &amp;&amp; mediaInfo?.getMetadataTranslations()?.contains(activityViewModel.wikiSite.languageCode) == true) {</span>
+                // SVG thumbnails can be rendered with language-specific translations, so let's
+                // get the correct URL that points to the appropriate language.
+<span class="nc" id="L180">                url = ImageUrlUtil.insertLangIntoThumbUrl(url, activityViewModel.wikiSite.languageCode)</span>
+<span class="nc bnc" id="L181" title="All 8 branches missed.">            } else if (mediaInfo?.mime?.contains(&quot;gif&quot;) == true) {</span>
+                // In the case of GIF files, just use the original url, since differently-scaled
+                // sizes of the image are not always guaranteed to be animated.
+<span class="nc bnc" id="L184" title="All 4 branches missed.">                url = mediaInfo?.originalUrl ?: url</span>
+            }
+<span class="nc" id="L186">            loadImage(url)</span>
+        }
+<span class="nc" id="L188">        onLoading(false)</span>
+<span class="nc" id="L189">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L190">        (requireActivity() as GalleryActivity).fetchGalleryDescription(this)</span>
+<span class="nc" id="L191">    }</span>
+
+    private fun onError(throwable: Throwable) {
+<span class="nc" id="L194">        FeedbackUtil.showMessage(requireActivity(), R.string.gallery_error_draw_failed)</span>
+<span class="nc" id="L195">        L.d(throwable)</span>
+<span class="nc" id="L196">    }</span>
+
+<span class="nc" id="L198">    private val videoThumbnailClickListener: View.OnClickListener = object : View.OnClickListener {</span>
+        private var loading = false
+        override fun onClick(v: View) {
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            if (loading) {</span>
+<span class="nc" id="L202">                return</span>
+            }
+<span class="nc bnc" id="L204" title="All 8 branches missed.">            val bestUrl = mediaInfo?.getBestDerivativeForSize(Constants.PREFERRED_GALLERY_IMAGE_SIZE)?.src ?: mediaInfo?.originalUrl ?: return</span>
+<span class="nc" id="L205">            loading = true</span>
+<span class="nc" id="L206">            L.d(&quot;Loading video from url: $bestUrl&quot;)</span>
+<span class="nc" id="L207">            binding.videoView.visibility = View.VISIBLE</span>
+<span class="nc" id="L208">            mediaController = MediaController(requireActivity())</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            if (!DeviceUtil.isNavigationBarShowing) {</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                mediaController?.setPadding(0, 0, 0,</span>
+<span class="nc" id="L211">                    DimenUtil.dpToPx(DimenUtil.getNavigationBarHeight(requireContext())).toInt())</span>
+            }
+<span class="nc" id="L213">            onLoading(true)</span>
+<span class="nc" id="L214">            binding.videoView.setMediaController(mediaController)</span>
+<span class="nc" id="L215">            binding.videoView.setOnPreparedListener {</span>
+<span class="nc" id="L216">                onLoading(false)</span>
+                // ...update the parent activity, which will trigger us to start playing!
+<span class="nc" id="L218">                (requireActivity() as GalleryActivity).fetchGalleryDescription(this@GalleryItemFragment)</span>
+                // hide the video thumbnail, since we're about to start playback
+<span class="nc" id="L220">                binding.videoThumbnail.visibility = View.GONE</span>
+<span class="nc" id="L221">                binding.videoPlayButton.visibility = View.GONE</span>
+                // and start!
+<span class="nc" id="L223">                binding.videoView.start()</span>
+<span class="nc" id="L224">                loading = false</span>
+<span class="nc" id="L225">            }</span>
+<span class="nc" id="L226">            binding.videoView.setOnErrorListener { _, _, _ -&gt;</span>
+<span class="nc" id="L227">                onLoading(false)</span>
+<span class="nc" id="L228">                FeedbackUtil.showMessage(activity!!, R.string.gallery_error_video_failed)</span>
+<span class="nc" id="L229">                binding.videoView.visibility = View.GONE</span>
+<span class="nc" id="L230">                binding.videoThumbnail.visibility = View.VISIBLE</span>
+<span class="nc" id="L231">                binding.videoPlayButton.visibility = View.VISIBLE</span>
+<span class="nc" id="L232">                loading = false</span>
+<span class="nc" id="L233">                true</span>
+            }
+<span class="nc" id="L235">            binding.videoView.setVideoURI(bestUrl.toUri(),</span>
+<span class="nc" id="L236">                mapOf(&quot;User-Agent&quot; to WikipediaApp.instance.userAgent))</span>
+<span class="nc" id="L237">        }</span>
+    }
+
+    private fun loadVideo() {
+<span class="nc" id="L241">        binding.videoContainer.visibility = View.VISIBLE</span>
+<span class="nc" id="L242">        binding.videoPlayButton.visibility = View.VISIBLE</span>
+<span class="nc" id="L243">        binding.videoView.visibility = View.GONE</span>
+<span class="nc bnc" id="L244" title="All 10 branches missed.">        if (mediaInfo?.thumbUrl?.isNotEmpty() != true) {</span>
+<span class="nc" id="L245">            binding.videoThumbnail.visibility = View.GONE</span>
+        } else {
+            // show the video thumbnail while the video loads...
+<span class="nc" id="L248">            binding.videoThumbnail.visibility = View.VISIBLE</span>
+<span class="nc" id="L249">            ViewUtil.loadImage(binding.videoThumbnail, mediaInfo!!.thumbUrl, force = true, listener = GalleryItemImageLoadListener(binding.videoThumbnail))</span>
+        }
+<span class="nc" id="L251">        binding.videoThumbnail.setOnClickListener(videoThumbnailClickListener)</span>
+<span class="nc" id="L252">    }</span>
+
+    private fun loadImage(url: String) {
+<span class="nc" id="L255">        binding.imageView.visibility = View.INVISIBLE</span>
+<span class="nc" id="L256">        onLoading(true)</span>
+<span class="nc" id="L257">        ViewUtil.loadImage(binding.imageView, url, force = true, listener = GalleryItemImageLoadListener(binding.imageView))</span>
+<span class="nc" id="L258">    }</span>
+
+    private fun shareImage() {
+<span class="nc bnc" id="L261" title="All 2 branches missed.">        mediaInfo?.let {</span>
+<span class="nc" id="L262">            val imageUrl = ImageUrlUtil.getUrlForPreferredSize(it.thumbUrl, Constants.PREFERRED_GALLERY_IMAGE_SIZE)</span>
+<span class="nc" id="L263">            ImageService.loadImage(requireContext(), imageUrl, onSuccess = { bitmap -&gt;</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                if (!isAdded) {</span>
+<span class="nc" id="L265">                    return@loadImage</span>
+                }
+<span class="nc bnc" id="L267" title="All 2 branches missed.">                callback()?.onShare(this@GalleryItemFragment, bitmap,</span>
+<span class="nc" id="L268">                    StringUtil.removeHTMLTags(viewModel.imageTitle.displayText), imageTitle)</span>
+<span class="nc" id="L269">            })</span>
+<span class="nc" id="L270">        }</span>
+<span class="nc" id="L271">    }</span>
+
+    private fun saveImage() {
+<span class="nc bnc" id="L274" title="All 4 branches missed.">        mediaInfo?.let { callback()?.onDownload(this) }</span>
+<span class="nc" id="L275">    }</span>
+
+    private fun callback(): Callback? {
+<span class="nc" id="L278">        return FragmentUtil.getCallback(this, Callback::class.java)</span>
+    }
+
+<span class="nc" id="L281">    private inner class GalleryItemImageLoadListener(val view: View) : ImageLoadListener {</span>
+        override fun onSuccess(image: Any, width: Int, height: Int) {
+<span class="nc bnc" id="L283" title="All 2 branches missed.">            if (view.id == binding.imageView.id) {</span>
+<span class="nc" id="L284">                binding.imageView.visibility = View.VISIBLE</span>
+<span class="nc" id="L285">                (requireActivity() as GalleryActivity).onMediaLoaded()</span>
+            }
+<span class="nc" id="L287">        }</span>
+
+        override fun onError(error: Throwable) {
+<span class="nc bnc" id="L290" title="All 4 branches missed.">            callback()?.onError(error.fillInStackTrace() ?: Throwable(getString(R.string.error_message_generic)))</span>
+<span class="nc" id="L291">        }</span>
+    }
+
+    companion object {
+        const val ARG_GALLERY_ITEM = &quot;galleryItem&quot;
+
+        fun newInstance(pageTitle: PageTitle?, item: MediaListItem): GalleryItemFragment {
+<span class="nc" id="L298">            return GalleryItemFragment().apply {</span>
+<span class="nc" id="L299">                arguments = bundleOf(Constants.ARG_TITLE to pageTitle, ARG_GALLERY_ITEM to item)</span>
+<span class="nc" id="L300">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

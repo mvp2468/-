@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LanguageItemAdapter.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.configure</a> &gt; <span class="el_source">LanguageItemAdapter.kt</span></div><h1>LanguageItemAdapter.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.configure
+
+import android.content.Context
+import android.view.ViewGroup
+import android.view.ViewGroup.MarginLayoutParams
+import androidx.recyclerview.widget.RecyclerView
+import org.wikipedia.WikipediaApp
+import org.wikipedia.feed.FeedContentType
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.views.LangCodeView
+
+<span class="nc" id="L12">class LanguageItemAdapter(private val context: Context,</span>
+<span class="nc" id="L13">                          private val contentType: FeedContentType) : RecyclerView.Adapter&lt;LanguageItemHolder&gt;() {</span>
+<span class="nc" id="L14">    val langList = mutableListOf&lt;String&gt;()</span>
+
+<span class="nc" id="L16">    init {</span>
+<span class="nc bnc" id="L17" title="All 2 branches missed.">        if (contentType.langCodesSupported.isEmpty()) {</span>
+            // all languages supported
+<span class="nc" id="L19">            langList.addAll(WikipediaApp.instance.languageState.appLanguageCodes)</span>
+        } else {
+            // take the intersection of the supported languages and the available app languages
+<span class="nc" id="L22">            langList.addAll(WikipediaApp.instance.languageState.appLanguageCodes.filter { contentType.langCodesSupported.contains(it) })</span>
+        }
+<span class="nc" id="L24">    }</span>
+
+    override fun getItemCount(): Int {
+<span class="nc" id="L27">        return langList.size</span>
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, type: Int): LanguageItemHolder {
+<span class="nc" id="L31">        val view = LangCodeView(context)</span>
+<span class="nc" id="L32">        val params = MarginLayoutParams(DimenUtil.roundedDpToPx(24f), ViewGroup.LayoutParams.WRAP_CONTENT)</span>
+<span class="nc" id="L33">        params.rightMargin = DimenUtil.roundedDpToPx(2f)</span>
+<span class="nc" id="L34">        view.layoutParams = params</span>
+<span class="nc" id="L35">        return LanguageItemHolder(context, view)</span>
+    }
+
+    override fun onBindViewHolder(holder: LanguageItemHolder, pos: Int) {
+<span class="nc bnc" id="L39" title="All 2 branches missed.">        holder.bindItem(langList[pos], !contentType.langCodesDisabled.contains(langList[pos]))</span>
+<span class="nc" id="L40">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

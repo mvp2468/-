@@ -1,0 +1,476 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsImageRecsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsImageRecsFragment.kt</span></div><h1>SuggestedEditsImageRecsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.content.pm.ActivityInfo
+import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.MotionEvent
+import android.view.View
+import android.view.View.OnClickListener
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.core.os.bundleOf
+import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
+import androidx.core.widget.NestedScrollView
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.palette.graphics.Palette
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.analytics.eventplatform.EditAttemptStepEvent
+import org.wikipedia.analytics.eventplatform.ImageRecommendationsEvent
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.databinding.FragmentSuggestedEditsImageRecsItemBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.diff.ArticleEditDetailsActivity
+import org.wikipedia.edit.EditHandler
+import org.wikipedia.edit.EditSectionActivity
+import org.wikipedia.edit.insertmedia.InsertMediaActivity
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ImageZoomHelper
+import org.wikipedia.views.imageservice.ImageLoadListener
+import org.wikipedia.views.imageservice.ImageService
+
+<span class="nc" id="L61">class SuggestedEditsImageRecsFragment : SuggestedEditsItemFragment(), MenuProvider, SuggestedEditsImageRecsDialog.Callback {</span>
+    private var _binding: FragmentSuggestedEditsImageRecsItemBinding? = null
+<span class="nc" id="L63">    private val binding get() = _binding!!</span>
+
+<span class="nc" id="L65">    private val viewModel: SuggestedEditsImageRecsFragmentViewModel by viewModels()</span>
+
+    private var infoClicked = false
+    private var scrolled = false
+    private var resumedMillis = 0L
+    private var isVisibleToUser = false
+    private var isImpressionLogged = false
+    private var isLoaded = false
+
+    private lateinit var bottomSheetBehavior: BottomSheetBehavior&lt;CoordinatorLayout&gt;
+
+<span class="nc" id="L76">    private val requestEdit = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result -&gt;</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (result.resultCode == EditHandler.RESULT_REFRESH_PAGE) {</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            val revId = result.data?.getLongExtra(EditSectionActivity.EXTRA_REV_ID, 0) ?: 0</span>
+<span class="nc" id="L79">            FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.edit_saved_successfully))</span>
+<span class="nc" id="L80">                .setAction(R.string.edit_published_view) {</span>
+<span class="nc" id="L81">                    startActivity(ArticleEditDetailsActivity.newIntent(requireContext(), viewModel.pageTitle, revId))</span>
+<span class="nc" id="L82">                }</span>
+<span class="nc" id="L83">                .setAnchorView(binding.acceptButton)</span>
+<span class="nc" id="L84">                .show()</span>
+<span class="nc" id="L85">            ImageRecommendationsEvent.logAction(&quot;editsummary_success_confirm&quot;, &quot;editsummary_dialog&quot;,</span>
+<span class="nc" id="L86">                getActionStringForAnalytics(acceptanceState = &quot;accepted&quot;, revisionId = revId, addTimeSpent = true), viewModel.langCode)</span>
+<span class="nc" id="L87">            EditAttemptStepEvent.logSaveSuccess(viewModel.pageTitle)</span>
+<span class="nc" id="L88">            viewModel.acceptRecommendation(null, revId)</span>
+<span class="nc" id="L89">            callback().nextPage(this)</span>
+        }
+<span class="nc" id="L91">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L94">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L95">        _binding = FragmentSuggestedEditsImageRecsItemBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L96">        return binding.root</span>
+    }
+
+    fun logImpression() {
+<span class="nc" id="L100">        isVisibleToUser = true</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">        if (isLoaded &amp;&amp; !isImpressionLogged) {</span>
+<span class="nc" id="L102">            ImageRecommendationsEvent.logImpression(&quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L103">                getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L104">            isImpressionLogged = true</span>
+        }
+<span class="nc" id="L106">    }</span>
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L109">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L110">        requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT</span>
+
+<span class="nc" id="L112">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+
+<span class="nc" id="L114">        binding.cardItemErrorView.backClickListener = OnClickListener { requireActivity().finish() }</span>
+<span class="nc" id="L115">        binding.cardItemErrorView.retryClickListener = OnClickListener {</span>
+<span class="nc" id="L116">            viewModel.fetchRecommendation()</span>
+<span class="nc" id="L117">        }</span>
+<span class="nc" id="L118">        binding.cardItemErrorView.nextClickListener = OnClickListener { callback().nextPage(this) }</span>
+
+<span class="nc" id="L120">        binding.imageCard.elevation = 0f</span>
+<span class="nc" id="L121">        binding.imageCard.strokeColor = ResourceUtil.getThemedColor(requireContext(), R.attr.border_color)</span>
+<span class="nc" id="L122">        binding.imageCard.strokeWidth = DimenUtil.roundedDpToPx(0.5f)</span>
+
+<span class="nc" id="L124">        binding.imageRecommendationsDepletedText.text = StringUtil.fromHtml(getString(R.string.image_recommendation_depleted))</span>
+<span class="nc" id="L125">        binding.imageRecommendationsDepletedText.movementMethod = LinkMovementMethodExt(</span>
+            LinkMovementMethodExt.UrlHandler {
+<span class="nc" id="L127">                ImageRecommendationsEvent.logAction(&quot;suggested_edit_return&quot;, &quot;nosuggestions_dialog&quot;,</span>
+<span class="nc" id="L128">                    getActionStringForAnalytics(acceptanceState = &quot;accepted&quot;), viewModel.langCode)</span>
+<span class="nc" id="L129">                requireActivity().finish() })</span>
+
+<span class="nc" id="L131">        binding.acceptButton.setOnClickListener {</span>
+<span class="nc" id="L132">            ImageRecommendationsEvent.logAction(&quot;suggestion_accept&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L133">                getActionStringForAnalytics(acceptanceState = &quot;accepted&quot;), viewModel.langCode)</span>
+<span class="nc" id="L134">            EditAttemptStepEvent.logInit(viewModel.pageTitle)</span>
+<span class="nc" id="L135">            doPublish()</span>
+<span class="nc" id="L136">        }</span>
+
+<span class="nc" id="L138">        binding.rejectButton.setOnClickListener {</span>
+<span class="nc" id="L139">            ImageRecommendationsEvent.logAction(&quot;suggestion_reject&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L140">                getActionStringForAnalytics(acceptanceState = &quot;rejected&quot;), viewModel.langCode)</span>
+<span class="nc" id="L141">            SuggestedEditsImageRecsDialog.newInstance(0).show(childFragmentManager, null)</span>
+<span class="nc" id="L142">        }</span>
+
+<span class="nc" id="L144">        binding.notSureButton.setOnClickListener {</span>
+<span class="nc" id="L145">            ImageRecommendationsEvent.logAction(&quot;suggestion_skip&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L146">                getActionStringForAnalytics(acceptanceState = &quot;undecided&quot;), viewModel.langCode)</span>
+<span class="nc" id="L147">            publish()</span>
+<span class="nc" id="L148">        }</span>
+
+<span class="nc" id="L150">        binding.imageCard.setOnClickListener {</span>
+<span class="nc" id="L151">            ImageRecommendationsEvent.logAction(&quot;image_detail_view&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L152">                getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L153">            startActivity(FilePageActivity.newIntent(requireActivity(), PageTitle(&quot;File:&quot; + viewModel.recommendation.images[0].image, WikiSite.forLanguageCode(viewModel.langCode)), false))</span>
+<span class="nc" id="L154">        }</span>
+
+<span class="nc" id="L156">        binding.imageCard.setOnLongClickListener {</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">            if (ImageZoomHelper.isZooming) {</span>
+                // Dispatch a fake CANCEL event to the container view, so that the long-press ripple is cancelled.
+<span class="nc" id="L159">                binding.imageCard.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 0f, 0f, 0))</span>
+            }
+<span class="nc" id="L161">            false</span>
+        }
+
+<span class="nc" id="L164">        binding.articleContentContainer.setOnScrollChangeListener(NestedScrollView.OnScrollChangeListener { _, _, _, _, _ -&gt;</span>
+<span class="nc" id="L165">            scrolled = true</span>
+<span class="nc" id="L166">        })</span>
+
+<span class="nc" id="L168">        binding.readMoreButton.setOnClickListener {</span>
+<span class="nc" id="L169">            ImageRecommendationsEvent.logAction(&quot;read_more&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L170">                getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L171">            startActivity(PageActivity.newIntentForNewTab(requireActivity(), HistoryEntry(viewModel.pageTitle, HistoryEntry.SOURCE_SUGGESTED_EDITS), viewModel.pageTitle))</span>
+<span class="nc" id="L172">        }</span>
+
+<span class="nc" id="L174">        ImageZoomHelper.setViewZoomable(binding.imageView)</span>
+
+<span class="nc" id="L176">        bottomSheetBehavior = BottomSheetBehavior.from(binding.bottomSheetCoordinatorLayout).apply {</span>
+<span class="nc" id="L177">            state = BottomSheetBehavior.STATE_EXPANDED</span>
+<span class="nc" id="L178">        }</span>
+
+<span class="nc" id="L180">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L181">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L182">                viewModel.uiState.collect {</span>
+<span class="nc" id="L183">                    when (it) {</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                        is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                        is Resource.Success -&gt; onLoadSuccess()</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                        is SuggestedEditsImageRecsFragmentViewModel.Depleted -&gt; onDepletedState()</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                        is Resource.Error -&gt; onError(it.throwable)</span>
+                    }
+<span class="nc" id="L189">                }</span>
+            }
+<span class="nc" id="L191">        }</span>
+<span class="nc" id="L192">    }</span>
+
+    override fun onStart() {
+<span class="nc" id="L195">        super.onStart()</span>
+<span class="nc" id="L196">        callback().updateActionButton()</span>
+<span class="nc" id="L197">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L200">        super.onDestroyView()</span>
+<span class="nc" id="L201">        _binding = null</span>
+<span class="nc" id="L202">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L205">        super.onResume()</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (resumedMillis == 0L) {</span>
+<span class="nc" id="L207">            resumedMillis = System.currentTimeMillis()</span>
+        }
+<span class="nc" id="L209">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L212">        binding.cardItemProgressBar.isVisible = true</span>
+<span class="nc" id="L213">        binding.cardItemErrorView.isVisible = false</span>
+<span class="nc" id="L214">        binding.bottomSheetCoordinatorLayout.isVisible = false</span>
+<span class="nc" id="L215">        binding.articleContentContainer.isVisible = false</span>
+<span class="nc" id="L216">        binding.imageRecommendationsDepletedContainer.isVisible = false</span>
+<span class="nc" id="L217">    }</span>
+
+    private fun onError(throwable: Throwable) {
+<span class="nc" id="L220">        L.e(throwable)</span>
+<span class="nc" id="L221">        binding.cardItemProgressBar.isVisible = false</span>
+<span class="nc" id="L222">        binding.bottomSheetCoordinatorLayout.isVisible = false</span>
+<span class="nc" id="L223">        binding.articleContentContainer.isVisible = false</span>
+<span class="nc" id="L224">        binding.imageRecommendationsDepletedContainer.isVisible = false</span>
+<span class="nc" id="L225">        binding.cardItemErrorView.isVisible = true</span>
+<span class="nc" id="L226">        binding.cardItemErrorView.setError(throwable)</span>
+<span class="nc" id="L227">    }</span>
+
+    private fun onLoadSuccess() {
+<span class="nc" id="L230">        isLoaded = true</span>
+<span class="nc bnc" id="L231" title="All 4 branches missed.">        if (isVisibleToUser &amp;&amp; !isImpressionLogged) {</span>
+<span class="nc" id="L232">            ImageRecommendationsEvent.logImpression(&quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L233">                getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L234">            isImpressionLogged = true</span>
+        }
+<span class="nc" id="L236">        binding.cardItemProgressBar.isVisible = false</span>
+<span class="nc" id="L237">        binding.cardItemErrorView.isVisible = false</span>
+<span class="nc" id="L238">        binding.bottomSheetCoordinatorLayout.isVisible = true</span>
+<span class="nc" id="L239">        binding.articleContentContainer.isVisible = true</span>
+
+<span class="nc" id="L241">        binding.articleTitle.text = StringUtil.fromHtml(viewModel.summary.displayTitle)</span>
+<span class="nc" id="L242">        binding.articleDescription.text = viewModel.summary.description</span>
+<span class="nc" id="L243">        binding.articleExtract.text = StringUtil.fromHtml(viewModel.summary.extractHtml).trim()</span>
+
+<span class="nc" id="L245">        val thumbUrl = UriUtil.resolveProtocolRelativeUrl(ImageUrlUtil.getUrlForPreferredSize(viewModel.recommendation.images[0].metadata!!.thumbUrl, Constants.PREFERRED_CARD_THUMBNAIL_SIZE))</span>
+
+<span class="nc" id="L247">        binding.imageView.loadImage(thumbUrl.toUri(),</span>
+<span class="nc" id="L248">            listener = object : ImageLoadListener {</span>
+                override fun onSuccess(image: Any, width: Int, height: Int) {
+<span class="nc bnc" id="L250" title="All 2 branches missed.">                    if (isAdded) {</span>
+<span class="nc" id="L251">                        val palette = Palette.from(ImageService.getBitmap(image)).generate()</span>
+<span class="nc" id="L252">                        var color1 = palette.getLightVibrantColor(ContextCompat.getColor(requireContext(), R.color.gray600))</span>
+<span class="nc" id="L253">                        var color2 = palette.getLightMutedColor(ContextCompat.getColor(requireContext(), R.color.gray300))</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                        if (WikipediaApp.instance.currentTheme.isDark) {</span>
+<span class="nc" id="L255">                            color1 = ResourceUtil.darkenColor(color1)</span>
+<span class="nc" id="L256">                            color2 = ResourceUtil.darkenColor(color2)</span>
+                        }
+
+<span class="nc" id="L259">                        val gradientDrawable = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, arrayOf(color1, color2).toIntArray())</span>
+<span class="nc" id="L260">                        binding.imageViewContainer.background = gradientDrawable</span>
+
+<span class="nc" id="L262">                        val params = binding.imageInfoButton.layoutParams as FrameLayout.LayoutParams</span>
+<span class="nc" id="L263">                        val containerAspect = binding.imageViewContainer.width.toFloat() / binding.imageViewContainer.height.toFloat()</span>
+<span class="nc" id="L264">                        val bmpAspect = width.toFloat() / height.toFloat()</span>
+
+<span class="nc bnc" id="L266" title="All 2 branches missed.">                        if (bmpAspect &gt; containerAspect) {</span>
+<span class="nc" id="L267">                            params.marginEnd = DimenUtil.roundedDpToPx(8f)</span>
+                        } else {
+<span class="nc" id="L269">                            val containerWidth = binding.imageViewContainer.height.toFloat() * bmpAspect</span>
+<span class="nc" id="L270">                            params.marginEnd = DimenUtil.roundedDpToPx(8f) + (binding.imageViewContainer.width / 2 - containerWidth.toInt() / 2)</span>
+                        }
+<span class="nc" id="L272">                        binding.imageInfoButton.layoutParams = params</span>
+                    }
+<span class="nc" id="L274">                }</span>
+
+<span class="nc" id="L276">                override fun onError(error: Throwable) {}</span>
+            })
+
+<span class="nc bnc" id="L279" title="All 4 branches missed.">        binding.imageCaptionText.text = viewModel.recommendation.images.first().metadata?.caption.orEmpty().trim()</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        binding.imageCaptionText.isVisible = binding.imageCaptionText.text.isNotEmpty()</span>
+
+<span class="nc" id="L282">        binding.articleScrollSpacer.post {</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">            if (isAdded) {</span>
+<span class="nc" id="L284">                binding.articleScrollSpacer.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, bottomSheetBehavior.peekHeight)</span>
+            }
+<span class="nc" id="L286">        }</span>
+
+<span class="nc" id="L288">        binding.imageFileNameText.text = viewModel.recommendation.images.first().displayFilename</span>
+
+<span class="nc bnc" id="L290" title="All 2 branches missed.">        binding.imageSuggestionReason.text = viewModel.recommendation.images.first().metadata?.reason</span>
+
+<span class="nc" id="L292">        binding.imageSuggestionContainer.isVisible = true</span>
+<span class="nc" id="L293">        requireActivity().invalidateOptionsMenu()</span>
+
+<span class="nc bnc" id="L295" title="All 2 branches missed.">        if (!Prefs.suggestedEditsImageRecsOnboardingShown) {</span>
+<span class="nc" id="L296">            showTooltipSequence()</span>
+        }
+
+<span class="nc" id="L299">        callback().updateActionButton()</span>
+<span class="nc" id="L300">    }</span>
+
+    private fun onDepletedState() {
+<span class="nc" id="L303">        ImageRecommendationsEvent.logImpression(&quot;nosuggestions_dialog&quot;,</span>
+<span class="nc" id="L304">            getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L305">        binding.bottomSheetCoordinatorLayout.isVisible = false</span>
+<span class="nc" id="L306">        binding.articleContentContainer.isVisible = false</span>
+<span class="nc" id="L307">        binding.cardItemProgressBar.isVisible = false</span>
+<span class="nc" id="L308">        binding.cardItemErrorView.isVisible = false</span>
+<span class="nc" id="L309">        binding.imageRecommendationsDepletedContainer.isVisible = true</span>
+<span class="nc" id="L310">    }</span>
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+<span class="nc" id="L313">        menuInflater.inflate(R.menu.menu_image_recommendations, menu)</span>
+<span class="nc" id="L314">    }</span>
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc" id="L317">        super.onPrepareMenu(menu)</span>
+<span class="nc" id="L318">        menu.findItem(R.id.menu_tutorial).isVisible = viewModel.uiState.value is Resource.Success</span>
+<span class="nc" id="L319">    }</span>
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+<span class="nc" id="L322">        return when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">            R.id.menu_tutorial -&gt; {</span>
+<span class="nc" id="L324">                ImageRecommendationsEvent.logAction(&quot;more_view_tutorial&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L325">                    getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L326">                bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED</span>
+<span class="nc" id="L327">                showTooltipSequence()</span>
+<span class="nc" id="L328">                true</span>
+            }
+<span class="nc bnc" id="L330" title="All 2 branches missed.">            R.id.menu_learn_more -&gt; {</span>
+<span class="nc" id="L331">                ImageRecommendationsEvent.logAction(&quot;more_view_help&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L332">                    getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L333">                FeedbackUtil.showAndroidAppEditingFAQ(requireContext())</span>
+<span class="nc" id="L334">                true</span>
+            }
+<span class="nc bnc" id="L336" title="All 2 branches missed.">            R.id.menu_report_feature -&gt; {</span>
+<span class="nc" id="L337">                ImageRecommendationsEvent.logAction(&quot;report_problem&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L338">                    getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L339">                FeedbackUtil.composeEmail(requireContext(),</span>
+<span class="nc" id="L340">                    subject = getString(R.string.email_report_image_recommendations_subject),</span>
+<span class="nc" id="L341">                    body = getString(R.string.email_report_image_recommendations_body))</span>
+<span class="nc" id="L342">                true</span>
+            }
+<span class="nc" id="L344">            else -&gt; false</span>
+        }
+    }
+
+    private fun showTooltipSequence() {
+<span class="nc" id="L349">        binding.root.post {</span>
+<span class="nc bnc" id="L350" title="All 4 branches missed.">            if (!isResumed || !isAdded) {</span>
+<span class="nc" id="L351">                return@post</span>
+            }
+
+<span class="nc" id="L354">            val balloon1 = FeedbackUtil.getTooltip(requireContext(), getString(R.string.image_recommendation_tooltip_1), autoDismiss = true,</span>
+<span class="nc" id="L355">                showDismissButton = true, dismissButtonText = R.string.image_recommendation_tooltip_next, countNum = 1, countTotal = 3).apply {</span>
+<span class="nc" id="L356">                setOnBalloonInitializedListener {</span>
+<span class="nc" id="L357">                    ImageRecommendationsEvent.logImpression(&quot;onboarding_step_2_dialog&quot;,</span>
+<span class="nc" id="L358">                        getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L359">                }</span>
+<span class="nc" id="L360">                setOnBalloonDismissListener {</span>
+<span class="nc" id="L361">                    ImageRecommendationsEvent.logAction(&quot;next&quot;, &quot;onboarding_step_2_dialog&quot;,</span>
+<span class="nc" id="L362">                        getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L363">                }</span>
+<span class="nc" id="L364">            }</span>
+
+<span class="nc" id="L366">            val balloon2 = FeedbackUtil.getTooltip(requireContext(), getString(R.string.image_recommendation_tooltip_2), autoDismiss = true,</span>
+<span class="nc" id="L367">                showDismissButton = true, dismissButtonText = R.string.image_recommendation_tooltip_next, countNum = 2, countTotal = 3).apply {</span>
+<span class="nc" id="L368">                setOnBalloonInitializedListener {</span>
+<span class="nc" id="L369">                    ImageRecommendationsEvent.logImpression(&quot;onboarding_step_3_dialog&quot;,</span>
+<span class="nc" id="L370">                        getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L371">                }</span>
+<span class="nc" id="L372">                setOnBalloonDismissListener {</span>
+<span class="nc" id="L373">                    ImageRecommendationsEvent.logAction(&quot;next&quot;, &quot;onboarding_step_3_dialog&quot;,</span>
+<span class="nc" id="L374">                        getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L375">                }</span>
+<span class="nc" id="L376">            }</span>
+
+<span class="nc" id="L378">            val balloon3 = FeedbackUtil.getTooltip(requireContext(), getString(R.string.image_recommendation_tooltip_3), autoDismiss = true,</span>
+<span class="nc" id="L379">                showDismissButton = true, countNum = 3, countTotal = 3).apply {</span>
+<span class="nc" id="L380">                setOnBalloonInitializedListener {</span>
+<span class="nc" id="L381">                    ImageRecommendationsEvent.logImpression(&quot;onboarding_step_4_dialog&quot;,</span>
+<span class="nc" id="L382">                        getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L383">                }</span>
+<span class="nc" id="L384">                setOnBalloonDismissListener {</span>
+<span class="nc" id="L385">                    ImageRecommendationsEvent.logAction(&quot;get_started&quot;, &quot;onboarding_step_4_dialog&quot;,</span>
+<span class="nc" id="L386">                        getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L387">                    Prefs.suggestedEditsImageRecsOnboardingShown = true</span>
+<span class="nc" id="L388">                }</span>
+<span class="nc" id="L389">            }</span>
+
+<span class="nc bnc" id="L391" title="All 2 branches missed.">            balloon1.showAlignBottom(if (binding.articleDescription.isVisible) binding.articleDescription else binding.articleTitle)</span>
+<span class="nc" id="L392">            balloon1.relayShowAlignTop(balloon2, binding.instructionText, 0, DimenUtil.roundedDpToPx(12f)).relayShowAlignBottom(balloon3, binding.acceptButton)</span>
+<span class="nc" id="L393">        }</span>
+<span class="nc" id="L394">    }</span>
+
+    override fun publish() {
+        // the &quot;Publish&quot; button in our case is actually the &quot;skip&quot; button.
+<span class="nc" id="L398">        callback().nextPage(this)</span>
+<span class="nc" id="L399">    }</span>
+
+    private fun doPublish() {
+<span class="nc bnc" id="L402" title="All 2 branches missed.">        if (System.currentTimeMillis() - resumedMillis &lt; MIN_TIME_WARNING_MILLIS) {</span>
+<span class="nc" id="L403">            ImageRecommendationsEvent.logAction(&quot;warning&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L404">                getActionStringForAnalytics(), viewModel.langCode)</span>
+<span class="nc" id="L405">            FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.image_recommendation_tooltip_warning))</span>
+<span class="nc" id="L406">                .setAnchorView(binding.acceptButton)</span>
+<span class="nc" id="L407">                .show()</span>
+<span class="nc" id="L408">            return</span>
+        }
+
+<span class="nc" id="L411">        requestEdit.launch(EditSectionActivity.newIntent(requireContext(), 0, null,</span>
+<span class="nc" id="L412">            viewModel.pageTitle, Constants.InvokeSource.EDIT_ADD_IMAGE, null, viewModel.recommendedImageTitle,</span>
+<span class="nc" id="L413">            viewModel.recommendation.images[0].source, viewModel.recommendation.images[0].projects.toString())</span>
+<span class="nc" id="L414">            .putExtra(InsertMediaActivity.EXTRA_ATTEMPT_INSERT_INTO_INFOBOX, viewModel.attemptInsertInfobox))</span>
+<span class="nc" id="L415">    }</span>
+
+    override fun publishEnabled(): Boolean {
+<span class="nc" id="L418">        return true</span>
+    }
+
+    override fun publishOutlined(): Boolean {
+<span class="nc" id="L422">        return false</span>
+    }
+
+    private fun callback(): Callback {
+<span class="nc" id="L426">        return FragmentUtil.getCallback(this, Callback::class.java)!!</span>
+    }
+
+    fun onInfoClicked() {
+<span class="nc" id="L430">        infoClicked = true</span>
+<span class="nc" id="L431">    }</span>
+
+    override fun onDialogSubmit(response: Int, selectedItems: List&lt;Int&gt;) {
+<span class="nc" id="L434">        viewModel.rejectRecommendation(null, selectedItems)</span>
+<span class="nc" id="L435">        ImageRecommendationsEvent.logAction(&quot;reject_submit&quot;, &quot;rejection_dialog&quot;,</span>
+<span class="nc" id="L436">            getActionStringForAnalytics(rejectionReasons = selectedItems.map { ImageRecommendationsEvent.reasons.getOrNull(it) }.toString(),</span>
+<span class="nc" id="L437">            acceptanceState = &quot;rejected&quot;), viewModel.langCode)</span>
+<span class="nc" id="L438">        publish()</span>
+<span class="nc" id="L439">    }</span>
+
+<span class="nc" id="L441">    private fun getActionStringForAnalytics(</span>
+<span class="nc" id="L442">        acceptanceState: String? = null, rejectionReasons: String? = null,</span>
+<span class="nc" id="L443">        revisionId: Long? = null, addTimeSpent: Boolean = false,</span>
+    ): String {
+<span class="nc bnc" id="L445" title="All 2 branches missed.">        val recommendedImage = if (viewModel.uiState.value is Resource.Success) viewModel.recommendation.images[0] else null</span>
+<span class="nc bnc" id="L446" title="All 2 branches missed.">        return ImageRecommendationsEvent.getActionDataString(filename = recommendedImage?.image,</span>
+<span class="nc bnc" id="L447" title="All 2 branches missed.">            recommendationSource = recommendedImage?.source,</span>
+<span class="nc bnc" id="L448" title="All 2 branches missed.">            recommendationSourceProjects = recommendedImage?.projects.toString(),</span>
+<span class="nc" id="L449">            acceptanceState = acceptanceState, rejectionReasons = rejectionReasons,</span>
+<span class="nc" id="L450">            revisionId = revisionId, addTimeSpent = addTimeSpent)</span>
+    }
+
+    override fun onBackPressed(): Boolean {
+<span class="nc bnc" id="L454" title="All 2 branches missed.">        if (binding.imageRecommendationsDepletedContainer.isVisible) {</span>
+<span class="nc" id="L455">            ImageRecommendationsEvent.logAction(</span>
+<span class="nc" id="L456">                &quot;back&quot;, &quot;nosuggestions_dialog&quot;, getActionStringForAnalytics(), viewModel.langCode</span>
+            )
+        } else {
+<span class="nc" id="L459">            ImageRecommendationsEvent.logAction(&quot;back&quot;, &quot;recommendedimagetoolbar&quot;,</span>
+<span class="nc" id="L460">                getActionStringForAnalytics(), viewModel.langCode)</span>
+        }
+<span class="nc" id="L462">        return super.onBackPressed()</span>
+    }
+
+    companion object {
+        const val ARG_LANG = &quot;lang&quot;
+        const val MIN_TIME_WARNING_MILLIS = 5000
+
+        fun newInstance(): SuggestedEditsItemFragment {
+<span class="nc" id="L470">            return SuggestedEditsImageRecsFragment().apply {</span>
+<span class="nc" id="L471">                arguments = bundleOf(ARG_LANG to WikipediaApp.instance.appOrSystemLanguageCode)</span>
+<span class="nc" id="L472">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

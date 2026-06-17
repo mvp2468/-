@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScoreView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.onthisday</a> &gt; <span class="el_source">ScoreView.kt</span></div><h1>ScoreView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.onthisday
+
+import android.content.Context
+import android.content.res.ColorStateList
+import android.util.AttributeSet
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.LinearLayout
+import com.google.android.material.imageview.ShapeableImageView
+import com.google.android.material.shape.ShapeAppearanceModel
+import org.wikipedia.R
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L15">class ScoreView(context: Context, attrs: AttributeSet? = null) : LinearLayout(context, attrs) {</span>
+
+<span class="nc" id="L17">    private val scoreViews = mutableListOf&lt;ShapeableImageView&gt;()</span>
+
+<span class="nc" id="L19">    init {</span>
+<span class="nc" id="L20">        orientation = HORIZONTAL</span>
+<span class="nc" id="L21">        layoutParams = ViewGroup.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)</span>
+<span class="nc" id="L22">    }</span>
+
+    fun generateViews(size: Int) {
+<span class="nc" id="L25">        removeAllViews()</span>
+<span class="nc" id="L26">        scoreViews.clear()</span>
+
+<span class="nc bnc" id="L28" title="All 2 branches missed.">        repeat(size) {</span>
+<span class="nc" id="L29">            val scoreView = createImageView()</span>
+<span class="nc" id="L30">            scoreViews.add(scoreView)</span>
+<span class="nc" id="L31">            addView(scoreView)</span>
+<span class="nc" id="L32">        }</span>
+<span class="nc" id="L33">    }</span>
+
+    fun updateScores(answerState: List&lt;Boolean&gt;, currentQuestionIndex: Int, goToNext: Boolean) {
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        for (i in answerState.indices) {</span>
+            // Question is answered if:
+            // 1. It's before the current question (i &lt; currentQuestionIndex), OR
+            // 2. It's the current question AND user has submitted answer (goToNext)
+<span class="nc bnc" id="L40" title="All 6 branches missed.">            val isAnswered = i &lt; currentQuestionIndex || (i == currentQuestionIndex &amp;&amp; goToNext)</span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">            val isCorrect = isAnswered &amp;&amp; answerState[i]</span>
+<span class="nc" id="L42">            updateScoreViewAppearance(scoreViews[i], isCorrect, isAnswered)</span>
+        }
+<span class="nc" id="L44">    }</span>
+
+    private fun updateScoreViewAppearance(
+        scoreView: ImageView,
+        isCorrect: Boolean,
+        isAnswered: Boolean
+    ) {
+<span class="nc" id="L51">        val imageResource = when (isAnswered) {</span>
+<span class="nc bnc" id="L52" title="All 4 branches missed.">            true -&gt; if (isCorrect) R.drawable.ic_check_circle_black_24dp else R.drawable.ic_cancel_24px</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            false -&gt; R.drawable.shape_circle</span>
+        }
+<span class="nc" id="L55">        val colorResource = when (isAnswered) {</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">            true -&gt; if (isCorrect) R.attr.success_color else R.attr.destructive_color</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            false -&gt; R.attr.paper_color</span>
+        }
+<span class="nc" id="L59">        scoreView.setImageResource(imageResource)</span>
+<span class="nc" id="L60">        scoreView.imageTintList = ColorStateList.valueOf(</span>
+<span class="nc" id="L61">            ResourceUtil.getThemedColor(context, colorResource)</span>
+        )
+<span class="nc" id="L63">    }</span>
+
+    private fun createImageView(): ShapeableImageView {
+<span class="nc" id="L66">        val imageView = ShapeableImageView(context)</span>
+
+<span class="nc" id="L68">        val size = DimenUtil.roundedDpToPx(22f)</span>
+<span class="nc" id="L69">        val marginSize = DimenUtil.roundedDpToPx(2f)</span>
+<span class="nc" id="L70">        val layoutParams = LayoutParams(size, size)</span>
+<span class="nc" id="L71">        val paddingSize = 2</span>
+<span class="nc" id="L72">        layoutParams.marginStart = marginSize</span>
+<span class="nc" id="L73">        layoutParams.marginEnd = marginSize</span>
+
+<span class="nc" id="L75">        imageView.layoutParams = layoutParams</span>
+<span class="nc" id="L76">        imageView.setBackgroundColor(ResourceUtil.getThemedColor(context, R.attr.paper_color))</span>
+<span class="nc" id="L77">        imageView.strokeWidth = 1f</span>
+<span class="nc" id="L78">        imageView.strokeColor = ColorStateList.valueOf(</span>
+<span class="nc" id="L79">            ResourceUtil.getThemedColor(context, R.attr.paper_color)</span>
+        )
+<span class="nc" id="L81">        imageView.setPadding(paddingSize, paddingSize, paddingSize, paddingSize)</span>
+<span class="nc" id="L82">        imageView.shapeAppearanceModel = ShapeAppearanceModel.builder(</span>
+<span class="nc" id="L83">            context,</span>
+<span class="nc" id="L84">            0,</span>
+<span class="nc" id="L85">            R.style.CircularImageView</span>
+<span class="nc" id="L86">        ).build()</span>
+<span class="nc" id="L87">        return imageView</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

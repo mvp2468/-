@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>YearInReviewDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.yearinreview</a> &gt; <span class="el_source">YearInReviewDialog.kt</span></div><h1>YearInReviewDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.yearinreview
+
+import android.app.Activity
+import android.widget.ScrollView
+import androidx.core.view.isVisible
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.YearInReviewEvent
+import org.wikipedia.databinding.DialogFeedbackOptionsBinding
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.FeedbackUtil
+
+object YearInReviewDialog {
+    fun maybeShowYearInReviewFeedbackDialog(activity: Activity) {
+<span class="nc bnc" id="L15" title="All 2 branches missed.">        if (Prefs.yearInReviewSurveyState != YearInReviewSurveyState.SHOULD_SHOW) {</span>
+<span class="nc" id="L16">            return</span>
+        }
+<span class="nc" id="L18">        YearInReviewEvent.submit(action = &quot;impression&quot;, slide = &quot;feedback_choice&quot;)</span>
+<span class="nc" id="L19">        val binding = DialogFeedbackOptionsBinding.inflate(activity.layoutInflater)</span>
+<span class="nc" id="L20">        binding.titleText.text = activity.getString(R.string.year_in_review_survey_title)</span>
+<span class="nc" id="L21">        binding.messageText.text = activity.getString(R.string.year_in_review_survey_subtitle)</span>
+<span class="nc" id="L22">        binding.feedbackInputContainer.isVisible = true</span>
+<span class="nc" id="L23">        binding.optionVerySatisfied.isVisible = true</span>
+<span class="nc" id="L24">        binding.optionVeryUnsatisfied.isVisible = true</span>
+<span class="nc" id="L25">        binding.feedbackInputContainer.hint =</span>
+<span class="nc" id="L26">            activity.getString(R.string.year_in_review_survey_placeholder_text)</span>
+
+<span class="nc" id="L28">        val dialog = MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L29">            .setView(binding.root)</span>
+<span class="nc" id="L30">            .setCancelable(false)</span>
+<span class="nc" id="L31">            .create()</span>
+
+<span class="nc" id="L33">        binding.cancelButton.setOnClickListener {</span>
+<span class="nc" id="L34">            YearInReviewEvent.submit(action = &quot;close_click&quot;, slide = &quot;feedback_choice&quot;)</span>
+<span class="nc" id="L35">            dialog.dismiss()</span>
+<span class="nc" id="L36">        }</span>
+<span class="nc" id="L37">        binding.submitButton.setOnClickListener {</span>
+<span class="nc" id="L38">            val selectedOption = getSelectedOption(binding)</span>
+<span class="nc" id="L39">            val feedbackText = binding.feedbackInput.text.toString()</span>
+<span class="nc" id="L40">            YearInReviewEvent.submit(</span>
+<span class="nc" id="L41">                action = &quot;feedback_submit_click&quot;,</span>
+<span class="nc" id="L42">                slide = &quot;feedback_choice&quot;,</span>
+<span class="nc" id="L43">                feedbackSelect = selectedOption,</span>
+<span class="nc" id="L44">                feedbackText = feedbackText</span>
+            )
+<span class="nc" id="L46">            FeedbackUtil.showMessage(activity, R.string.survey_dialog_submitted_snackbar)</span>
+<span class="nc" id="L47">            dialog.dismiss()</span>
+<span class="nc" id="L48">        }</span>
+
+<span class="nc" id="L50">        binding.feedbackInput.setOnFocusChangeListener { _, hasFocus -&gt;</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            if (hasFocus) {</span>
+<span class="nc" id="L52">                binding.dialogContainer.postDelayed({</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">                    if (!activity.isDestroyed) {</span>
+<span class="nc" id="L54">                        binding.dialogContainer.fullScroll(ScrollView.FOCUS_DOWN)</span>
+                    }
+<span class="nc" id="L56">                }, 200)</span>
+            }
+<span class="nc" id="L58">        }</span>
+<span class="nc" id="L59">        dialog.show()</span>
+<span class="nc" id="L60">        Prefs.yearInReviewSurveyState = YearInReviewSurveyState.SHOWN</span>
+<span class="nc" id="L61">    }</span>
+
+    private fun getSelectedOption(binding: DialogFeedbackOptionsBinding): Int? {
+<span class="nc" id="L64">        val selectedId = binding.feedbackRadioGroup.checkedRadioButtonId</span>
+<span class="nc" id="L65">        return when (selectedId) {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            R.id.optionVerySatisfied -&gt; 1</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            R.id.optionSatisfied -&gt; 2</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">            R.id.optionNeutral -&gt; 3</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            R.id.optionUnsatisfied -&gt; 4</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            R.id.optionVeryUnsatisfied -&gt; 5</span>
+<span class="nc" id="L71">            else -&gt; null</span>
+        }
+    }
+
+    fun resetYearInReviewSurveyState() {
+<span class="nc" id="L76">        Prefs.yearInReviewSurveyState = YearInReviewSurveyState.NOT_TRIGGERED</span>
+<span class="nc" id="L77">    }</span>
+}
+
+enum class YearInReviewSurveyState {
+<span class="nc" id="L81">    NOT_TRIGGERED,</span>
+<span class="nc" id="L82">    SHOULD_SHOW,</span>
+<span class="nc" id="L83">    SHOWN</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

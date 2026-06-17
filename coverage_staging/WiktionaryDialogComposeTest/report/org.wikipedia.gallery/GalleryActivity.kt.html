@@ -1,0 +1,673 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GalleryActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.gallery</a> &gt; <span class="el_source">GalleryActivity.kt</span></div><h1>GalleryActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.gallery
+
+import android.app.assist.AssistContent
+import android.content.Context
+import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.os.Bundle
+import android.view.Gravity
+import android.view.View
+import android.widget.FrameLayout
+import androidx.activity.addCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.ImageEditType
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.bridge.JavaScriptActionHandler
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.databinding.ActivityGalleryBinding
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.wikidata.Entities
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.page.linkpreview.LinkPreviewDialog
+import org.wikipedia.richtext.RichTextUtil
+import org.wikipedia.suggestededits.PageSummaryForEdit
+import org.wikipedia.suggestededits.SuggestedEditsImageTagEditActivity
+import org.wikipedia.suggestededits.SuggestedEditsSnackbars
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.GradientUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.PositionAwareFragmentStateAdapter
+import org.wikipedia.views.ViewAnimations
+import org.wikipedia.views.ViewUtil
+import java.io.File
+
+<span class="nc" id="L69">class GalleryActivity : BaseActivity(), LinkPreviewDialog.LoadPageCallback, GalleryItemFragment.Callback {</span>
+
+    private lateinit var binding: ActivityGalleryBinding
+    private lateinit var galleryAdapter: GalleryItemAdapter
+<span class="nc" id="L73">    private val viewModel: GalleryViewModel by viewModels()</span>
+<span class="nc" id="L74">    private var pageChangeListener = GalleryPageChangeListener()</span>
+    private var imageEditType: ImageEditType? = null
+<span class="nc" id="L76">    private var controlsShowing = true</span>
+<span class="nc" id="L77">    private var initialImageIndex = -1</span>
+    private var targetLanguageCode: String? = null
+
+<span class="nc" id="L80">    private val downloadReceiver = MediaDownloadReceiver()</span>
+<span class="nc" id="L81">    private val downloadReceiverCallback = MediaDownloadReceiverCallback()</span>
+<span class="nc" id="L82">    private val currentItem get() = galleryAdapter.getFragmentAt(binding.pager.currentItem) as GalleryItemFragment?</span>
+
+<span class="nc" id="L84">    private val requestAddCaptionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">            val action = it.data?.getSerializableExtra(Constants.INTENT_EXTRA_ACTION) as DescriptionEditActivity.Action?</span>
+<span class="nc" id="L87">            SuggestedEditsSnackbars.show(this, action, true, targetLanguageCode, false)</span>
+<span class="nc" id="L88">            fetchGalleryDescription(currentItem)</span>
+<span class="nc" id="L89">            setResult(ACTIVITY_RESULT_IMAGE_CAPTION_ADDED)</span>
+        }
+<span class="nc" id="L91">    }</span>
+
+<span class="nc" id="L93">    private val requestAddImageTagsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L95">            val action = DescriptionEditActivity.Action.ADD_IMAGE_TAGS</span>
+<span class="nc" id="L96">            SuggestedEditsSnackbars.show(this, action, true, targetLanguageCode, true) {</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                currentItem?.let {</span>
+<span class="nc" id="L98">                    startActivity(FilePageActivity.newIntent(this@GalleryActivity, it.imageTitle))</span>
+<span class="nc" id="L99">                }</span>
+<span class="nc" id="L100">            }</span>
+<span class="nc" id="L101">            fetchGalleryDescription(currentItem)</span>
+<span class="nc" id="L102">            setResult(ACTIVITY_RESULT_IMAGE_TAGS_ADDED)</span>
+        }
+<span class="nc" id="L104">    }</span>
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+<span class="nc" id="L107">        super.onConfigurationChanged(newConfig)</span>
+        // ViewPager2 bug, will likely be fixed in the future
+        // https://issuetracker.google.com/issues/175796502
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {</span>
+<span class="nc" id="L111">            val currentPosition = binding.pager.currentItem</span>
+<span class="nc" id="L112">            val previousPosition = maxOf(currentPosition - 1, 0)</span>
+            // Move to previous position without smoothScroll
+<span class="nc" id="L114">            binding.pager.setCurrentItem(previousPosition, false)</span>
+            // move back to the original position without smoothScroll
+<span class="nc" id="L116">            binding.pager.setCurrentItem(currentPosition, false)</span>
+        }
+<span class="nc" id="L118">    }</span>
+
+    public override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L121">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L122">        binding = ActivityGalleryBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L123">        setContentView(binding.root)</span>
+<span class="nc" id="L124">        setSupportActionBar(binding.toolbar)</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        supportActionBar?.title = &quot;&quot;</span>
+<span class="nc" id="L127">        setNavigationBarColor(Color.BLACK)</span>
+
+<span class="nc" id="L129">        onBackPressedDispatcher.addCallback(this) {</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">            if (TRANSITION_INFO != null) {</span>
+<span class="nc" id="L131">                showTransitionReceiver()</span>
+            }
+<span class="nc" id="L133">            this.isEnabled = false</span>
+<span class="nc" id="L134">            onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L135">        }</span>
+
+<span class="nc" id="L137">        binding.toolbarGradient.background = GradientUtil.getPowerGradient(ResourceUtil.getThemedColor(this, R.attr.overlay_color), Gravity.TOP)</span>
+<span class="nc" id="L138">        binding.infoGradient.background = GradientUtil.getPowerGradient(ResourceUtil.getThemedColor(this, R.attr.overlay_color), Gravity.BOTTOM)</span>
+<span class="nc" id="L139">        binding.descriptionText.movementMethod = linkMovementMethod</span>
+<span class="nc" id="L140">        binding.creditText.movementMethod = linkMovementMethod</span>
+<span class="nc" id="L141">        binding.errorView.setIconColorFilter(ContextCompat.getColor(this, R.color.gray300))</span>
+<span class="nc" id="L142">        binding.errorView.setErrorTextColor(ContextCompat.getColor(this, R.color.gray300))</span>
+<span class="nc" id="L143">        binding.errorView.backClickListener = View.OnClickListener { onBackPressedDispatcher.onBackPressed() }</span>
+<span class="nc" id="L144">        binding.errorView.retryClickListener = View.OnClickListener {</span>
+<span class="nc" id="L145">            binding.errorView.visibility = View.GONE</span>
+<span class="nc" id="L146">            viewModel.fetchGalleryItems()</span>
+<span class="nc" id="L147">        }</span>
+<span class="nc" id="L148">        galleryAdapter = GalleryItemAdapter(this@GalleryActivity)</span>
+<span class="nc" id="L149">        binding.pager.adapter = galleryAdapter</span>
+<span class="nc" id="L150">        binding.pager.registerOnPageChangeCallback(pageChangeListener)</span>
+<span class="nc" id="L151">        binding.pager.offscreenPageLimit = 2</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (savedInstanceState != null) {</span>
+<span class="nc" id="L153">            controlsShowing = savedInstanceState.getBoolean(KEY_CONTROLS_SHOWING)</span>
+<span class="nc" id="L154">            initialImageIndex = savedInstanceState.getInt(KEY_PAGER_INDEX)</span>
+            // if we have a savedInstanceState, then the initial index overrides
+            // the initial Title from our intent.
+<span class="nc" id="L157">            viewModel.initialFilename = null</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            if (supportFragmentManager.backStackEntryCount &gt; 0) {</span>
+<span class="nc" id="L159">                val ft = supportFragmentManager.beginTransaction()</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                for (i in 0 until supportFragmentManager.backStackEntryCount) {</span>
+<span class="nc" id="L161">                    val fragment = supportFragmentManager.findFragmentById(supportFragmentManager.getBackStackEntryAt(i).id)</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                    if (fragment is GalleryItemFragment) {</span>
+<span class="nc" id="L163">                        ft.remove(fragment)</span>
+                    }
+                }
+<span class="nc" id="L166">                ft.commitAllowingStateLoss()</span>
+            }
+        }
+<span class="nc" id="L169">        binding.toolbarContainer.post {</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">            if (isDestroyed) {</span>
+<span class="nc" id="L171">                return@post</span>
+            }
+<span class="nc" id="L173">            setControlsShowing(controlsShowing)</span>
+<span class="nc" id="L174">        }</span>
+<span class="nc bnc" id="L175" title="All 6 branches missed.">        if (TRANSITION_INFO != null &amp;&amp; TRANSITION_INFO!!.width &gt; 0 &amp;&amp; TRANSITION_INFO!!.height &gt; 0) {</span>
+<span class="nc" id="L176">            val aspect = TRANSITION_INFO!!.height / TRANSITION_INFO!!.width</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">            val params = if (DimenUtil.displayWidthPx &lt; DimenUtil.displayHeightPx) FrameLayout.LayoutParams(DimenUtil.displayWidthPx, (DimenUtil.displayWidthPx * aspect).toInt())</span>
+<span class="nc" id="L178">            else FrameLayout.LayoutParams((DimenUtil.displayHeightPx / aspect).toInt(), DimenUtil.displayHeightPx)</span>
+<span class="nc" id="L179">            params.gravity = Gravity.CENTER</span>
+<span class="nc" id="L180">            binding.transitionReceiver.layoutParams = params</span>
+<span class="nc" id="L181">            binding.transitionReceiver.visibility = View.VISIBLE</span>
+<span class="nc" id="L182">            ViewUtil.loadImage(binding.transitionReceiver, TRANSITION_INFO!!.src)</span>
+<span class="nc" id="L183">            val transitionMillis = 500</span>
+<span class="nc" id="L184">            binding.transitionReceiver.postDelayed({</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                if (isDestroyed) {</span>
+<span class="nc" id="L186">                    return@postDelayed</span>
+                }
+<span class="nc" id="L188">                viewModel.fetchGalleryItems()</span>
+<span class="nc" id="L189">            }, transitionMillis.toLong())</span>
+        } else {
+<span class="nc" id="L191">            TRANSITION_INFO = null</span>
+<span class="nc" id="L192">            binding.transitionReceiver.visibility = View.GONE</span>
+<span class="nc" id="L193">            viewModel.fetchGalleryItems()</span>
+        }
+<span class="nc" id="L195">        binding.captionEditButton.setOnClickListener { onEditClick(it) }</span>
+<span class="nc" id="L196">        binding.ctaButton.setOnClickListener { onTranslateClick() }</span>
+<span class="nc" id="L197">        binding.licenseContainer.setOnClickListener { onLicenseClick() }</span>
+<span class="nc" id="L198">        binding.licenseContainer.setOnLongClickListener { onLicenseLongClick() }</span>
+
+<span class="nc" id="L200">        lifecycleScope.launch {</span>
+<span class="nc" id="L201">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L202">                launch {</span>
+<span class="nc" id="L203">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L204">                        when (it) {</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                            is Resource.Success -&gt; onGallerySuccess(it.data.getItems(&quot;image&quot;, &quot;video&quot;))</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                            is Resource.Error -&gt; onError(it.throwable)</span>
+                        }
+<span class="nc" id="L209">                    }</span>
+                }
+
+<span class="nc" id="L212">                launch {</span>
+<span class="nc" id="L213">                    viewModel.descriptionState.collect {</span>
+<span class="nc" id="L214">                        when (it) {</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">                            is Resource.Success -&gt; onDescriptionSuccess(it.data.first, it.data.second)</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">                            is Resource.Error -&gt; onDescriptionError(it.throwable)</span>
+                        }
+<span class="nc" id="L219">                    }</span>
+                }
+<span class="nc" id="L221">            }</span>
+<span class="nc" id="L222">        }</span>
+<span class="nc" id="L223">    }</span>
+
+    public override fun onDestroy() {
+<span class="nc" id="L226">        binding.pager.unregisterOnPageChangeCallback(pageChangeListener)</span>
+<span class="nc" id="L227">        TRANSITION_INFO = null</span>
+<span class="nc" id="L228">        super.onDestroy()</span>
+<span class="nc" id="L229">    }</span>
+
+    public override fun onResume() {
+<span class="nc" id="L232">        super.onResume()</span>
+<span class="nc" id="L233">        downloadReceiver.register(this, downloadReceiverCallback)</span>
+<span class="nc" id="L234">    }</span>
+
+    public override fun onPause() {
+<span class="nc" id="L237">        super.onPause()</span>
+<span class="nc" id="L238">        downloadReceiver.unregister(this)</span>
+<span class="nc" id="L239">    }</span>
+
+    override fun onDownload(item: GalleryItemFragment) {
+<span class="nc bnc" id="L242" title="All 2 branches missed.">        item.mediaInfo?.let {</span>
+<span class="nc" id="L243">            downloadReceiver.download(this, item.imageTitle, it)</span>
+<span class="nc" id="L244">            FeedbackUtil.showMessage(this, R.string.gallery_save_progress)</span>
+<span class="nc" id="L245">        } ?: run {</span>
+<span class="nc" id="L246">            FeedbackUtil.showMessage(this, R.string.err_cannot_save_file)</span>
+<span class="nc" id="L247">        }</span>
+<span class="nc" id="L248">    }</span>
+
+    override fun onShare(item: GalleryItemFragment, bitmap: Bitmap?, subject: String, title: PageTitle) {
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        if (bitmap != null) {</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">            item.mediaInfo?.let {</span>
+<span class="nc" id="L253">                ShareUtil.shareImage(lifecycleScope, this, bitmap,</span>
+<span class="nc" id="L254">                    File(ImageUrlUtil.getUrlForPreferredSize(it.thumbUrl, Constants.PREFERRED_GALLERY_IMAGE_SIZE)).name, subject, title.uri)</span>
+<span class="nc" id="L255">            }</span>
+        } else {
+<span class="nc" id="L257">            ShareUtil.shareText(this, title)</span>
+        }
+<span class="nc" id="L259">    }</span>
+
+    override fun onError(throwable: Throwable) {
+<span class="nc" id="L262">        binding.errorView.setError(throwable)</span>
+<span class="nc" id="L263">        binding.errorView.visibility = View.VISIBLE</span>
+<span class="nc" id="L264">    }</span>
+
+    override fun setTheme() {
+<span class="nc" id="L267">        setTheme(Theme.DARK.resourceId)</span>
+<span class="nc" id="L268">    }</span>
+
+    private fun onEditClick(v: View) {
+<span class="nc" id="L271">        val item = currentItem</span>
+<span class="nc bnc" id="L272" title="All 8 branches missed.">        if (item?.imageTitle == null || item.mediaInfo?.metadata == null) {</span>
+<span class="nc" id="L273">            return</span>
+        }
+
+<span class="nc" id="L276">        val isProtected = v.tag as Boolean</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        if (isProtected) {</span>
+<span class="nc" id="L278">            MaterialAlertDialogBuilder(this)</span>
+<span class="nc" id="L279">                .setCancelable(false)</span>
+<span class="nc" id="L280">                .setTitle(R.string.page_protected_can_not_edit_title)</span>
+<span class="nc" id="L281">                .setMessage(R.string.page_protected_can_not_edit)</span>
+<span class="nc" id="L282">                .setPositiveButton(R.string.protected_page_warning_dialog_ok_button_text, null)</span>
+<span class="nc" id="L283">                .show()</span>
+<span class="nc" id="L284">            return</span>
+        }
+<span class="nc" id="L286">        startCaptionEdit(item)</span>
+<span class="nc" id="L287">    }</span>
+
+    private fun startCaptionEdit(item: GalleryItemFragment) {
+<span class="nc bnc" id="L290" title="All 2 branches missed.">        item.mediaInfo?.let {</span>
+<span class="nc" id="L291">            val title = PageTitle(item.imageTitle.prefixedText,</span>
+<span class="nc" id="L292">                WikiSite(Service.COMMONS_URL, viewModel.wikiSite.languageCode))</span>
+<span class="nc" id="L293">            title.description = it.captions[viewModel.wikiSite.languageCode]</span>
+<span class="nc" id="L294">            val summary = PageSummaryForEdit(title.prefixedText, viewModel.wikiSite.languageCode, title,</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">                title.displayText, RichTextUtil.stripHtml(it.metadata?.imageDescription()), it.thumbUrl)</span>
+<span class="nc" id="L296">            requestAddCaptionLauncher.launch(DescriptionEditActivity.newIntent(this, title, null, summary, null,</span>
+<span class="nc" id="L297">                DescriptionEditActivity.Action.ADD_CAPTION, InvokeSource.GALLERY_ACTIVITY))</span>
+<span class="nc" id="L298">        }</span>
+<span class="nc" id="L299">    }</span>
+
+    private fun onTranslateClick() {
+<span class="nc" id="L302">        val item = currentItem</span>
+<span class="nc bnc" id="L303" title="All 8 branches missed.">        if (item?.mediaInfo?.metadata == null || imageEditType == null) {</span>
+<span class="nc" id="L304">            return</span>
+        }
+<span class="nc bnc" id="L306" title="All 3 branches missed.">        when (imageEditType) {</span>
+<span class="nc" id="L307">            ImageEditType.ADD_TAGS -&gt; startTagsEdit(item)</span>
+<span class="nc" id="L308">            ImageEditType.ADD_CAPTION_TRANSLATION -&gt; startCaptionTranslation(item)</span>
+<span class="nc" id="L309">            else -&gt; startCaptionEdit(item)</span>
+        }
+<span class="nc" id="L311">    }</span>
+
+    private fun startTagsEdit(item: GalleryItemFragment) {
+<span class="nc bnc" id="L314" title="All 2 branches missed.">        item.mediaPage?.let {</span>
+<span class="nc" id="L315">            requestAddImageTagsLauncher.launch(SuggestedEditsImageTagEditActivity.newIntent(this, it, InvokeSource.GALLERY_ACTIVITY))</span>
+<span class="nc" id="L316">        }</span>
+<span class="nc" id="L317">    }</span>
+
+    private fun startCaptionTranslation(item: GalleryItemFragment) {
+<span class="nc bnc" id="L320" title="All 2 branches missed.">        item.mediaInfo?.let {</span>
+<span class="nc" id="L321">            val sourceTitle = PageTitle(item.imageTitle.prefixedText, WikiSite(Service.COMMONS_URL, viewModel.wikiSite.languageCode))</span>
+<span class="nc" id="L322">            val targetTitle = PageTitle(item.imageTitle.prefixedText, WikiSite(Service.COMMONS_URL,</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">                targetLanguageCode ?: WikipediaApp.instance.languageState.appLanguageCodes[1]))</span>
+<span class="nc bnc" id="L324" title="All 6 branches missed.">            val currentCaption = it.captions[viewModel.wikiSite.languageCode].orEmpty().ifEmpty {</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">                RichTextUtil.stripHtml(it.metadata?.imageDescription())</span>
+            }
+<span class="nc" id="L327">            val sourceSummary = PageSummaryForEdit(sourceTitle.prefixedText, sourceTitle.wikiSite.languageCode,</span>
+<span class="nc" id="L328">                sourceTitle, sourceTitle.displayText, currentCaption, it.thumbUrl)</span>
+<span class="nc" id="L329">            val targetSummary = PageSummaryForEdit(targetTitle.prefixedText, targetTitle.wikiSite.languageCode,</span>
+<span class="nc" id="L330">                targetTitle, targetTitle.displayText, null, it.thumbUrl)</span>
+<span class="nc" id="L331">            requestAddCaptionLauncher.launch(DescriptionEditActivity.newIntent(this, targetTitle, null, sourceSummary,</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                targetSummary, if (sourceSummary.lang == targetSummary.lang) DescriptionEditActivity.Action.ADD_CAPTION</span>
+<span class="nc" id="L333">                else DescriptionEditActivity.Action.TRANSLATE_CAPTION, InvokeSource.GALLERY_ACTIVITY))</span>
+<span class="nc" id="L334">        }</span>
+<span class="nc" id="L335">    }</span>
+
+    private fun onLicenseClick() {
+<span class="nc bnc" id="L338" title="All 2 branches missed.">        binding.licenseIcon.contentDescription?.let {</span>
+<span class="nc" id="L339">            FeedbackUtil.showMessageAsPlainText(this, it)</span>
+<span class="nc" id="L340">        }</span>
+<span class="nc" id="L341">    }</span>
+
+    private fun onLicenseLongClick(): Boolean {
+<span class="nc bnc" id="L344" title="All 2 branches missed.">        val licenseUrl = binding.licenseIcon.tag as? String</span>
+<span class="nc bnc" id="L345" title="All 6 branches missed.">        if (!licenseUrl.isNullOrEmpty()) {</span>
+<span class="nc" id="L346">            UriUtil.handleExternalLink(this@GalleryActivity,</span>
+<span class="nc" id="L347">                UriUtil.resolveProtocolRelativeUrl(licenseUrl).toUri())</span>
+        }
+<span class="nc" id="L349">        return true</span>
+    }
+
+<span class="nc" id="L352">    private inner class GalleryPageChangeListener : OnPageChangeCallback() {</span>
+<span class="nc" id="L353">        private var currentPosition = -1</span>
+        override fun onPageSelected(position: Int) {
+            // the pager has settled on a new position
+<span class="nc bnc" id="L356" title="All 2 branches missed.">            currentItem?.let { item -&gt;</span>
+<span class="nc" id="L357">                fetchGalleryDescription(item)</span>
+<span class="nc" id="L358">            }</span>
+<span class="nc" id="L359">            currentPosition = position</span>
+<span class="nc" id="L360">        }</span>
+
+        override fun onPageScrollStateChanged(state: Int) {
+<span class="nc" id="L363">            hideTransitionReceiver(false)</span>
+<span class="nc" id="L364">        }</span>
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+<span class="nc" id="L368">        super.onSaveInstanceState(outState)</span>
+<span class="nc" id="L369">        outState.putBoolean(KEY_CONTROLS_SHOWING, controlsShowing)</span>
+<span class="nc" id="L370">        outState.putInt(KEY_PAGER_INDEX, binding.pager.currentItem)</span>
+<span class="nc" id="L371">    }</span>
+
+    fun onMediaLoaded() {
+<span class="nc" id="L374">        hideTransitionReceiver(true)</span>
+<span class="nc" id="L375">    }</span>
+
+    private fun showTransitionReceiver() {
+<span class="nc" id="L378">        binding.transitionReceiver.visibility = View.VISIBLE</span>
+<span class="nc" id="L379">    }</span>
+
+    private fun hideTransitionReceiver(delay: Boolean) {
+<span class="nc bnc" id="L382" title="All 2 branches missed.">        if (binding.transitionReceiver.isGone) {</span>
+<span class="nc" id="L383">            return</span>
+        }
+<span class="nc bnc" id="L385" title="All 2 branches missed.">        if (delay) {</span>
+<span class="nc" id="L386">            val hideDelayMillis = 250L</span>
+<span class="nc" id="L387">            binding.transitionReceiver.postDelayed({</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">                if (isDestroyed) {</span>
+<span class="nc" id="L389">                    return@postDelayed</span>
+                }
+<span class="nc" id="L391">                binding.transitionReceiver.visibility = View.GONE</span>
+<span class="nc" id="L392">            }, hideDelayMillis)</span>
+        } else {
+<span class="nc" id="L394">            binding.transitionReceiver.visibility = View.GONE</span>
+        }
+<span class="nc" id="L396">    }</span>
+
+    private fun setControlsShowing(showing: Boolean) {
+<span class="nc" id="L399">        controlsShowing = showing</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">        if (controlsShowing) {</span>
+<span class="nc" id="L401">            ViewAnimations.ensureTranslationY(binding.toolbarContainer, 0)</span>
+<span class="nc" id="L402">            ViewAnimations.ensureTranslationY(binding.infoContainer, 0)</span>
+<span class="nc" id="L403">            binding.infoContainer.isVisible = true</span>
+        } else {
+<span class="nc" id="L405">            ViewAnimations.ensureTranslationY(binding.toolbarContainer, -binding.toolbarContainer.height)</span>
+<span class="nc" id="L406">            ViewAnimations.ensureTranslationY(binding.infoContainer, binding.infoContainer.height) {</span>
+<span class="nc" id="L407">                binding.infoContainer.isVisible = false</span>
+<span class="nc" id="L408">            }</span>
+        }
+<span class="nc" id="L410">        binding.descriptionText.setTextIsSelectable(controlsShowing)</span>
+<span class="nc" id="L411">    }</span>
+
+    fun toggleControls() {
+<span class="nc bnc" id="L414" title="All 2 branches missed.">        setControlsShowing(!controlsShowing)</span>
+<span class="nc" id="L415">    }</span>
+
+    private fun showLinkPreview(title: PageTitle) {
+<span class="nc" id="L418">        ExclusiveBottomSheetPresenter.show(supportFragmentManager,</span>
+<span class="nc" id="L419">            LinkPreviewDialog.newInstance(HistoryEntry(title, HistoryEntry.SOURCE_GALLERY)))</span>
+<span class="nc" id="L420">    }</span>
+
+<span class="nc" id="L422">    private val linkMovementMethod = LinkMovementMethodExt { urlStr -&gt;</span>
+<span class="nc" id="L423">        L.v(&quot;Link clicked was $urlStr&quot;)</span>
+<span class="nc" id="L424">        var url = UriUtil.resolveProtocolRelativeUrl(urlStr)</span>
+<span class="nc bnc" id="L425" title="All 2 branches missed.">        if (url.startsWith(&quot;/wiki/&quot;)) {</span>
+<span class="nc" id="L426">            val title = PageTitle.titleForInternalLink(url, WikipediaApp.instance.wikiSite)</span>
+<span class="nc" id="L427">            showLinkPreview(title)</span>
+        } else {
+<span class="nc" id="L429">            val uri = url.toUri()</span>
+<span class="nc" id="L430">            val authority = uri.authority</span>
+<span class="nc bnc" id="L431" title="All 10 branches missed.">            if (authority != null &amp;&amp; WikiSite.supportedAuthority(authority) &amp;&amp; uri.path?.startsWith(&quot;/wiki/&quot;) == true) {</span>
+<span class="nc" id="L432">                val title = PageTitle.titleForUri(uri, WikiSite(uri))</span>
+<span class="nc" id="L433">                showLinkPreview(title)</span>
+            } else {
+                // if it's a /w/ URI, turn it into a full URI and go external
+<span class="nc bnc" id="L436" title="All 2 branches missed.">                if (url.startsWith(&quot;/w/&quot;)) {</span>
+<span class="nc" id="L437">                    url = String.format(&quot;%1\$s://%2\$s&quot;, WikipediaApp.instance.wikiSite.scheme(),</span>
+<span class="nc" id="L438">                        WikipediaApp.instance.wikiSite.authority()) + url</span>
+                }
+<span class="nc" id="L440">                UriUtil.handleExternalLink(this@GalleryActivity, url.toUri())</span>
+            }
+        }
+<span class="nc" id="L443">    }</span>
+
+<span class="nc" id="L445">    private fun finishWithPageResult(resultTitle: PageTitle, historyEntry: HistoryEntry = HistoryEntry(resultTitle, HistoryEntry.SOURCE_GALLERY)) {</span>
+<span class="nc" id="L446">        val intent = PageActivity.newIntentForCurrentTab(this@GalleryActivity, historyEntry, resultTitle, false)</span>
+<span class="nc" id="L447">        setResult(ACTIVITY_RESULT_PAGE_SELECTED, intent)</span>
+<span class="nc" id="L448">        finish()</span>
+<span class="nc" id="L449">    }</span>
+
+    override fun onLinkPreviewLoadPage(title: PageTitle, entry: HistoryEntry, inNewTab: Boolean) {
+<span class="nc" id="L452">        finishWithPageResult(title, entry)</span>
+<span class="nc" id="L453">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L456">        binding.progressBar.isVisible = true</span>
+<span class="nc" id="L457">    }</span>
+
+    private fun onGallerySuccess(mediaListItems: MutableList&lt;MediaListItem&gt;) {
+<span class="nc" id="L460">        binding.progressBar.isVisible = false</span>
+        // first, verify that the collection contains the item that the user
+        // initially requested, if we have one...
+<span class="nc" id="L463">        var initialImagePos = -1</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">        viewModel.initialFilename?.let {</span>
+<span class="nc bnc" id="L465" title="All 2 branches missed.">            for (item in mediaListItems) {</span>
+                // the namespace of a file could be in a different language than English.
+<span class="nc bnc" id="L467" title="All 2 branches missed.">                if (StringUtil.removeNamespace(item.title) == StringUtil.removeNamespace(it)) {</span>
+<span class="nc" id="L468">                    initialImagePos = mediaListItems.indexOf(item)</span>
+<span class="nc" id="L469">                    break</span>
+                }
+            }
+<span class="nc bnc" id="L472" title="All 2 branches missed.">            if (initialImagePos == -1) {</span>
+                // the requested image is not present in the gallery collection, so add it manually.
+                // (this can happen if the user clicked on an SVG file, since we hide SVGs
+                // by default in the gallery; or lead image in the PageHeader or in the info box)
+<span class="nc" id="L476">                initialImagePos = 0</span>
+<span class="nc" id="L477">                mediaListItems.add(initialImagePos, MediaListItem(it))</span>
+            }
+<span class="nc" id="L479">        }</span>
+
+        // pass the collection to the adapter!
+<span class="nc" id="L482">        galleryAdapter.setList(mediaListItems)</span>
+<span class="nc bnc" id="L483" title="All 2 branches missed.">        if (initialImagePos != -1) {</span>
+            // if we have a target image to jump to, then do it!
+<span class="nc" id="L485">            binding.pager.setCurrentItem(initialImagePos, false)</span>
+<span class="nc bnc" id="L486" title="All 4 branches missed.">        } else if (initialImageIndex &gt;= 0 &amp;&amp; initialImageIndex &lt; galleryAdapter.itemCount) {</span>
+            // if we have a target image index to jump to, then do it!
+<span class="nc" id="L488">            binding.pager.setCurrentItem(initialImageIndex, false)</span>
+        }
+<span class="nc" id="L490">    }</span>
+
+    private fun onDescriptionSuccess(isProtected: Boolean, entity: Entities.Entity?) {
+<span class="nc" id="L493">        binding.progressBar.isVisible = false</span>
+<span class="nc bnc" id="L494" title="All 4 branches missed.">        currentItem?.mediaInfo?.captions = viewModel.getCaptions(entity)</span>
+<span class="nc" id="L495">        updateGalleryDescription(isProtected, viewModel.getDepicts(entity).size)</span>
+<span class="nc" id="L496">    }</span>
+
+    private fun onDescriptionError(throwable: Throwable) {
+<span class="nc" id="L499">        L.e(throwable)</span>
+<span class="nc" id="L500">        updateGalleryDescription(false, 0)</span>
+<span class="nc" id="L501">    }</span>
+
+    fun fetchGalleryDescription(callingFragment: GalleryItemFragment?) {
+<span class="nc" id="L504">        val item = currentItem</span>
+<span class="nc bnc" id="L505" title="All 4 branches missed.">        if (item != callingFragment || item == null) {</span>
+<span class="nc" id="L506">            return</span>
+        }
+<span class="nc bnc" id="L508" title="All 4 branches missed.">        if (item.mediaInfo?.metadata == null) {</span>
+<span class="nc" id="L509">            binding.infoContainer.isVisible = false</span>
+<span class="nc" id="L510">            return</span>
+        }
+
+<span class="nc" id="L513">        viewModel.fetchGalleryDescription(item.imageTitle)</span>
+<span class="nc" id="L514">    }</span>
+
+    private fun updateGalleryDescription(isProtected: Boolean, tagsCount: Int) {
+<span class="nc" id="L517">        val item = currentItem</span>
+<span class="nc bnc" id="L518" title="All 6 branches missed.">        if (item?.mediaInfo?.metadata == null) {</span>
+<span class="nc" id="L519">            binding.infoContainer.isVisible = false</span>
+<span class="nc" id="L520">            return</span>
+        }
+<span class="nc" id="L522">        displayApplicableDescription(item)</span>
+
+        // Display the Caption Edit button based on whether the image is hosted on Commons,
+        // and not the local Wikipedia.
+<span class="nc bnc" id="L526" title="All 4 branches missed.">        var captionEditable = AccountUtil.isLoggedIn &amp;&amp; item.mediaInfo!!.thumbUrl.contains(Service.URL_FRAGMENT_FROM_COMMONS)</span>
+<span class="nc bnc" id="L527" title="All 2 branches missed.">        binding.captionEditButton.visibility = if (captionEditable) View.VISIBLE else View.GONE</span>
+<span class="nc" id="L528">        binding.captionEditButton.setImageResource(R.drawable.ic_mode_edit_white_24dp)</span>
+<span class="nc" id="L529">        binding.captionEditButton.tag = isProtected</span>
+<span class="nc bnc" id="L530" title="All 2 branches missed.">        if (isProtected) {</span>
+<span class="nc" id="L531">            binding.captionEditButton.setImageResource(R.drawable.ic_edit_pencil_locked)</span>
+<span class="nc" id="L532">            captionEditable = false</span>
+        }
+<span class="nc bnc" id="L534" title="All 2 branches missed.">        if (captionEditable) {</span>
+<span class="nc" id="L535">            binding.ctaContainer.visibility = View.VISIBLE</span>
+<span class="nc" id="L536">            decideImageEditType(item, tagsCount)</span>
+        } else {
+<span class="nc" id="L538">            binding.ctaContainer.visibility = View.GONE</span>
+        }
+
+<span class="nc" id="L541">        setLicenseInfo(item)</span>
+<span class="nc" id="L542">    }</span>
+
+    private fun decideImageEditType(item: GalleryItemFragment, tagsCount: Int) {
+<span class="nc bnc" id="L545" title="All 2 branches missed.">        item.mediaInfo?.let { mediaInfo -&gt;</span>
+<span class="nc" id="L546">            imageEditType = null</span>
+<span class="nc bnc" id="L547" title="All 2 branches missed.">            if (!mediaInfo.captions.containsKey(viewModel.wikiSite.languageCode)) {</span>
+<span class="nc" id="L548">                imageEditType = ImageEditType.ADD_CAPTION</span>
+<span class="nc" id="L549">                targetLanguageCode = viewModel.wikiSite.languageCode</span>
+<span class="nc" id="L550">                binding.ctaButtonText.text = getString(R.string.gallery_add_image_caption_button)</span>
+<span class="nc" id="L551">                return</span>
+            }
+<span class="nc bnc" id="L553" title="All 2 branches missed.">            if (tagsCount == 0) {</span>
+<span class="nc" id="L554">                imageEditType = ImageEditType.ADD_TAGS</span>
+<span class="nc" id="L555">                binding.ctaButtonText.text = getString(R.string.suggested_edits_feed_card_add_image_tags)</span>
+<span class="nc" id="L556">                return</span>
+            }
+
+            // and if we have another language in which the caption doesn't exist, then offer
+            // it to be translatable.
+<span class="nc" id="L561">            val languageState = WikipediaApp.instance.languageState</span>
+<span class="nc bnc" id="L562" title="All 2 branches missed.">            if (languageState.appLanguageCodes.size &gt; 1) {</span>
+<span class="nc bnc" id="L563" title="All 4 branches missed.">                languageState.appLanguageCodes.firstOrNull { !mediaInfo.captions.containsKey(it) }?.let {</span>
+<span class="nc" id="L564">                    targetLanguageCode = it</span>
+<span class="nc" id="L565">                    imageEditType = ImageEditType.ADD_CAPTION_TRANSLATION</span>
+<span class="nc" id="L566">                    binding.ctaButtonText.text = getString(R.string.gallery_add_image_caption_in_language_button,</span>
+<span class="nc" id="L567">                        WikipediaApp.instance.languageState.getAppLanguageLocalizedName(targetLanguageCode))</span>
+<span class="nc" id="L568">                }</span>
+            }
+<span class="nc bnc" id="L570" title="All 2 branches missed.">            binding.ctaContainer.isVisible = imageEditType != null</span>
+<span class="nc" id="L571">        }</span>
+<span class="nc" id="L572">    }</span>
+
+    private fun displayApplicableDescription(item: GalleryItemFragment) {
+        // If we have a structured caption in our current language, then display that instead
+        // of the unstructured description, and make it editable.
+<span class="nc bnc" id="L577" title="All 6 branches missed.">        val descriptionStr = item.mediaInfo?.captions?.getOrElse(viewModel.wikiSite.languageCode) {</span>
+<span class="nc bnc" id="L578" title="All 4 branches missed.">            StringUtil.fromHtml(item.mediaInfo?.metadata?.imageDescription())</span>
+        }
+
+<span class="nc bnc" id="L581" title="All 6 branches missed.">        if (!descriptionStr.isNullOrEmpty()) {</span>
+<span class="nc" id="L582">            binding.descriptionContainer.visibility = View.VISIBLE</span>
+<span class="nc" id="L583">            binding.descriptionText.text = descriptionStr.trim()</span>
+        } else {
+<span class="nc" id="L585">            binding.descriptionContainer.visibility = View.GONE</span>
+        }
+<span class="nc" id="L587">    }</span>
+
+    private fun setLicenseInfo(item: GalleryItemFragment) {
+<span class="nc" id="L590">        val metadata = item.mediaInfo!!.metadata!!</span>
+<span class="nc" id="L591">        val license = ImageLicense(metadata.license(), metadata.licenseShortName(), metadata.licenseUrl())</span>
+
+        // determine which icon to display...
+<span class="nc bnc" id="L594" title="All 2 branches missed.">        if (license.licenseIcon() == R.drawable.ic_license_by) {</span>
+<span class="nc" id="L595">            binding.licenseIcon.setImageResource(R.drawable.ic_license_cc)</span>
+<span class="nc" id="L596">            binding.licenseIconBy.setImageResource(R.drawable.ic_license_by)</span>
+<span class="nc" id="L597">            binding.licenseIconBy.visibility = View.VISIBLE</span>
+<span class="nc" id="L598">            binding.licenseIconSa.setImageResource(R.drawable.ic_license_sharealike)</span>
+<span class="nc" id="L599">            binding.licenseIconSa.visibility = View.VISIBLE</span>
+        } else {
+<span class="nc" id="L601">            binding.licenseIcon.setImageResource(license.licenseIcon())</span>
+<span class="nc" id="L602">            binding.licenseIconBy.visibility = View.GONE</span>
+<span class="nc" id="L603">            binding.licenseIconSa.visibility = View.GONE</span>
+        }
+
+        // Set the icon's content description to the UsageTerms property.
+        // (if UsageTerms is not present, then default to Fair Use)
+<span class="nc bnc" id="L608" title="All 2 branches missed.">        binding.licenseIcon.contentDescription = metadata.licenseShortName().ifBlank {</span>
+<span class="nc" id="L609">            getString(R.string.gallery_fair_use_license)</span>
+        }
+        // Give the license URL to the icon, to be received by the click handler (may be null).
+<span class="nc" id="L612">        binding.licenseIcon.tag = metadata.licenseUrl()</span>
+<span class="nc" id="L613">        DeviceUtil.setContextClickAsLongClick(binding.licenseContainer)</span>
+<span class="nc bnc" id="L614" title="All 4 branches missed.">        val creditStr = metadata.artist().ifEmpty { metadata.credit() }</span>
+
+        // if we couldn't find an attribution string, then default to unknown
+<span class="nc bnc" id="L617" title="All 2 branches missed.">        binding.creditText.text = StringUtil.fromHtml(creditStr.ifBlank { getString(R.string.gallery_uploader_unknown) })</span>
+<span class="nc" id="L618">    }</span>
+
+    override fun onProvideAssistContent(outContent: AssistContent) {
+<span class="nc" id="L621">        super.onProvideAssistContent(outContent)</span>
+<span class="nc bnc" id="L622" title="All 6 branches missed.">        currentItem?.mediaInfo?.commonsUrl?.let {</span>
+<span class="nc" id="L623">            outContent.webUri = it.toUri()</span>
+<span class="nc" id="L624">        }</span>
+<span class="nc" id="L625">    }</span>
+
+<span class="nc" id="L627">    private inner class GalleryItemAdapter(activity: AppCompatActivity) : PositionAwareFragmentStateAdapter(activity) {</span>
+<span class="nc" id="L628">        private val list = mutableListOf&lt;MediaListItem&gt;()</span>
+        fun setList(list: List&lt;MediaListItem&gt;) {
+<span class="nc" id="L630">            this.list.clear()</span>
+<span class="nc" id="L631">            this.list.addAll(list)</span>
+<span class="nc" id="L632">            notifyDataSetChanged()</span>
+<span class="nc" id="L633">        }</span>
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L636">            return list.size</span>
+        }
+
+        override fun createFragment(position: Int): Fragment {
+<span class="nc" id="L640">            return GalleryItemFragment.newInstance(viewModel.pageTitle, list[position])</span>
+        }
+    }
+
+<span class="nc" id="L644">    private inner class MediaDownloadReceiverCallback : MediaDownloadReceiver.Callback {</span>
+        override fun onSuccess() {
+<span class="nc" id="L646">            FeedbackUtil.showMessage(this@GalleryActivity, R.string.gallery_save_success)</span>
+<span class="nc" id="L647">        }</span>
+    }
+
+    companion object {
+        private const val KEY_CONTROLS_SHOWING = &quot;controlsShowing&quot;
+        private const val KEY_PAGER_INDEX = &quot;pagerIndex&quot;
+        private var TRANSITION_INFO: JavaScriptActionHandler.ImageHitInfo? = null
+        const val ACTIVITY_RESULT_PAGE_SELECTED = 1
+        const val ACTIVITY_RESULT_IMAGE_CAPTION_ADDED = 2
+        const val ACTIVITY_RESULT_IMAGE_TAGS_ADDED = 3
+        const val EXTRA_FILENAME = &quot;filename&quot;
+        const val EXTRA_REVISION = &quot;revision&quot;
+
+<span class="nc" id="L660">        fun newIntent(context: Context, pageTitle: PageTitle?, filename: String, wiki: WikiSite, revision: Long? = null): Intent {</span>
+<span class="nc" id="L661">            return Intent(context, GalleryActivity::class.java)</span>
+<span class="nc" id="L662">                .putExtra(Constants.ARG_WIKISITE, wiki)</span>
+<span class="nc" id="L663">                .putExtra(Constants.ARG_TITLE, pageTitle)</span>
+<span class="nc" id="L664">                .putExtra(EXTRA_FILENAME, filename)</span>
+<span class="nc" id="L665">                .putExtra(EXTRA_REVISION, revision)</span>
+        }
+
+        fun setTransitionInfo(hitInfo: JavaScriptActionHandler.ImageHitInfo) {
+<span class="nc" id="L669">            TRANSITION_INFO = hitInfo</span>
+<span class="nc" id="L670">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

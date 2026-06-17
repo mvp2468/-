@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SettingsPreferenceLoader.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">SettingsPreferenceLoader.kt</span></div><h1>SettingsPreferenceLoader.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.content.DialogInterface
+import android.content.Intent
+import android.os.Build
+import androidx.preference.Preference
+import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.BuildConfig
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.DonorExperienceEvent
+import org.wikipedia.analytics.eventplatform.RecommendedReadingListEvent
+import org.wikipedia.analytics.eventplatform.YearInReviewEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.donate.DonateUtil
+import org.wikipedia.donate.donationreminder.DonationReminderActivity
+import org.wikipedia.donate.donationreminder.DonationReminderHelper
+import org.wikipedia.feed.configure.ConfigureActivity
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.readinglist.recommended.RecommendedReadingListOnboardingActivity
+import org.wikipedia.readinglist.recommended.RecommendedReadingListSettingsActivity
+import org.wikipedia.readinglist.recommended.RecommendedReadingListSource
+import org.wikipedia.readinglist.sync.ReadingListSyncAdapter
+import org.wikipedia.settings.languages.WikipediaLanguagesActivity
+import org.wikipedia.theme.ThemeFittingRoomActivity
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.yearinreview.YearInReviewViewModel
+
+<span class="nc" id="L33">internal class SettingsPreferenceLoader(fragment: PreferenceFragmentCompat) : BasePreferenceLoader(fragment) {</span>
+    override fun loadPreferences() {
+<span class="nc" id="L35">        loadPreferences(R.xml.preferences)</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        if (RemoteConfig.config.disableReadingListSync) {</span>
+<span class="nc" id="L37">            findPreference(R.string.preference_category_sync).isVisible = false</span>
+<span class="nc" id="L38">            findPreference(R.string.preference_key_sync_reading_lists).isVisible = false</span>
+        }
+<span class="nc" id="L40">        findPreference(R.string.preference_key_sync_reading_lists).onPreferenceChangeListener = SyncReadingListsListener()</span>
+<span class="nc" id="L41">        loadPreferences(R.xml.preferences_about)</span>
+<span class="nc" id="L42">        updateLanguagePrefSummary()</span>
+<span class="nc" id="L43">        findPreference(R.string.preference_key_language).onPreferenceClickListener = Preference.OnPreferenceClickListener {</span>
+<span class="nc" id="L44">            activity.startActivityForResult(WikipediaLanguagesActivity.newIntent(activity, Constants.InvokeSource.SETTINGS),</span>
+<span class="nc" id="L45">                    Constants.ACTIVITY_REQUEST_ADD_A_LANGUAGE)</span>
+<span class="nc" id="L46">            true</span>
+        }
+<span class="nc" id="L48">        findPreference(R.string.preference_key_customize_explore_feed).onPreferenceClickListener = Preference.OnPreferenceClickListener {</span>
+<span class="nc" id="L49">             activity.startActivityForResult(</span>
+<span class="nc" id="L50">                 ConfigureActivity.newIntent(activity, Constants.InvokeSource.NAV_MENU.ordinal),</span>
+<span class="nc" id="L51">                    Constants.ACTIVITY_REQUEST_FEED_CONFIGURE)</span>
+<span class="nc" id="L52">            true</span>
+        }
+<span class="nc" id="L54">        findPreference(R.string.preference_key_color_theme).let {</span>
+<span class="nc" id="L55">            it.setSummary(WikipediaApp.instance.currentTheme.nameId)</span>
+<span class="nc" id="L56">            it.onPreferenceClickListener = Preference.OnPreferenceClickListener {</span>
+<span class="nc" id="L57">                activity.startActivity(ThemeFittingRoomActivity.newIntent(activity))</span>
+<span class="nc" id="L58">                true</span>
+            }
+<span class="nc" id="L60">        }</span>
+
+<span class="nc" id="L62">        findPreference(R.string.preference_key_selected_app_icon).let {</span>
+<span class="nc" id="L63">            it.isVisible = YearInReviewViewModel.isCustomIconAllowed</span>
+<span class="nc" id="L64">            it.summary = fragment.getString(R.string.settings_app_icon_preference_subtitle, YearInReviewViewModel.YIR_YEAR)</span>
+<span class="nc" id="L65">            it.onPreferenceClickListener = Preference.OnPreferenceClickListener {</span>
+<span class="nc" id="L66">                ExclusiveBottomSheetPresenter.show(fragment.parentFragmentManager, AppIconDialog())</span>
+<span class="nc" id="L67">                true</span>
+            }
+<span class="nc" id="L69">        }</span>
+
+<span class="nc" id="L71">        findPreference(R.string.preference_key_year_in_review_is_enabled).let {</span>
+<span class="nc" id="L72">            it.isVisible = YearInReviewViewModel.isAccessible</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            if (it.isVisible) {</span>
+<span class="nc" id="L74">                YearInReviewEvent.submit(action = &quot;impression&quot;, slide = &quot;setting&quot;)</span>
+            }
+<span class="nc" id="L76">            it.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue -&gt;</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                if (newValue as Boolean) {</span>
+<span class="nc" id="L78">                    YearInReviewEvent.submit(action = &quot;yir_on_click&quot;, slide = &quot;setting&quot;)</span>
+<span class="nc" id="L79">                    return@OnPreferenceChangeListener true</span>
+                }
+<span class="nc" id="L81">                YearInReviewEvent.submit(action = &quot;yir_off_click&quot;, slide = &quot;setting&quot;)</span>
+<span class="nc" id="L82">                MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L83">                    .setTitle(R.string.year_in_review_disable_title)</span>
+<span class="nc" id="L84">                    .setMessage(R.string.year_in_review_setting_subtitle)</span>
+<span class="nc" id="L85">                    .setPositiveButton(R.string.year_in_review_disable_positive_button) { _, _ -&gt;</span>
+<span class="nc" id="L86">                        YearInReviewEvent.submit(action = &quot;yir_off_confirm_click&quot;, slide = &quot;setting&quot;)</span>
+<span class="nc" id="L87">                        Prefs.yearInReviewModelData = emptyMap()</span>
+<span class="nc" id="L88">                        (preference as SwitchPreferenceCompat).isChecked = false</span>
+<span class="nc" id="L89">                    }</span>
+<span class="nc" id="L90">                    .setNegativeButton(R.string.year_in_review_disable_negative_button) { _, _ -&gt;</span>
+<span class="nc" id="L91">                        YearInReviewEvent.submit(action = &quot;yir_off_cancel_click&quot;, slide = &quot;setting&quot;)</span>
+<span class="nc" id="L92">                    }</span>
+<span class="nc" id="L93">                    .show()</span>
+<span class="nc" id="L94">                false</span>
+            }
+<span class="nc" id="L96">        }</span>
+
+<span class="nc" id="L98">        findPreference(R.string.preference_key_about_wikipedia_app).onPreferenceClickListener = Preference.OnPreferenceClickListener {</span>
+<span class="nc" id="L99">            activity.startActivity(Intent(activity, AboutActivity::class.java))</span>
+<span class="nc" id="L100">            true</span>
+        }
+<span class="nc" id="L102">        findPreference(R.string.preference_key_send_feedback).onPreferenceClickListener =</span>
+            Preference.OnPreferenceClickListener {
+<span class="nc" id="L104">                FeedbackUtil.composeEmail(</span>
+<span class="nc" id="L105">                    activity,</span>
+<span class="nc" id="L106">                    subject = &quot;Android App ${BuildConfig.VERSION_NAME} Feedback&quot;,</span>
+<span class="nc" id="L107">                    body = deviceInformation()</span>
+                )
+<span class="nc" id="L109">                true</span>
+        }
+<span class="nc" id="L111">        findPreference(R.string.preference_key_recommended_reading_list_enabled).onPreferenceClickListener = Preference.OnPreferenceClickListener {</span>
+<span class="nc" id="L112">            RecommendedReadingListEvent.submit(&quot;discover_click&quot;, &quot;global_settings&quot;)</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            if (Prefs.recommendedReadingListInterests.isEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                Prefs.recommendedReadingListSource == RecommendedReadingListSource.INTERESTS) {</span>
+<span class="nc" id="L115">                activity.startActivity(RecommendedReadingListOnboardingActivity.newIntent(activity))</span>
+            } else {
+<span class="nc" id="L117">                activity.startActivity(RecommendedReadingListSettingsActivity.newIntent(activity))</span>
+            }
+<span class="nc" id="L119">            true</span>
+        }
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L123">            loadPreferences(R.xml.preferences_account)</span>
+<span class="nc" id="L124">            (findPreference(R.string.preference_key_logout) as LogoutPreference).activity = activity</span>
+        }
+
+<span class="nc" id="L127">        findPreference(R.string.preference_key_donation_reminders).apply {</span>
+<span class="nc" id="L128">            isVisible = DonationReminderHelper.isEnabled</span>
+<span class="nc" id="L129">            onPreferenceClickListener =</span>
+                Preference.OnPreferenceClickListener {
+<span class="nc" id="L131">                    activity.startActivity(DonationReminderActivity.newIntent(activity, isFromSettings = true))</span>
+<span class="nc" id="L132">                    true</span>
+                }
+<span class="nc" id="L134">        }</span>
+<span class="nc" id="L135">        findPreference(R.string.preference_key_delete_local_donation_history).onPreferenceClickListener = Preference.OnPreferenceClickListener {</span>
+<span class="nc" id="L136">            DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L137">                activeInterface = &quot;global_setting&quot;,</span>
+<span class="nc" id="L138">                action = &quot;clear_donation_hist_click&quot;</span>
+            )
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            val hasDonations = Prefs.donationResults.isNotEmpty()</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            if (hasDonations) {</span>
+<span class="nc" id="L143">                Prefs.donationResults = emptyList()</span>
+            }
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">            val messageResId = if (hasDonations) {</span>
+<span class="nc" id="L147">                R.string.donation_history_deleted_message_snackbar</span>
+<span class="nc" id="L148">            } else R.string.donation_history_no_history_message_snackbar</span>
+<span class="nc" id="L149">            FeedbackUtil.showMessage(activity, activity.resources.getString(messageResId))</span>
+<span class="nc" id="L150">            true</span>
+        }
+<span class="nc" id="L152">    }</span>
+
+    private fun deviceInformation(): String {
+<span class="nc" id="L155">        return &quot;\n\nVersion: ${BuildConfig.VERSION_NAME} \nDevice: ${Build.BRAND} ${Build.MODEL} (SDK: ${Build.VERSION.SDK_INT})\n&quot;</span>
+    }
+
+    fun updateLanguagePrefSummary() {
+        // TODO: resolve RTL vs LTR with multiple languages (e.g. list contains English and Hebrew)
+<span class="nc" id="L160">        findPreference(R.string.preference_key_language).summary = WikipediaApp.instance.languageState.appLanguageLocalizedNames</span>
+<span class="nc" id="L161">    }</span>
+
+    fun updateRecommendedReadingListSummary() {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        val summary = if (Prefs.isRecommendedReadingListEnabled) {</span>
+<span class="nc" id="L165">            R.string.recommended_reading_list_settings_toggle_enable_message</span>
+<span class="nc" id="L166">        } else R.string.recommended_reading_list_settings_toggle_disable_message</span>
+<span class="nc" id="L167">        findPreference(R.string.preference_key_recommended_reading_list_enabled).summary = activity.getString(summary)</span>
+<span class="nc" id="L168">    }</span>
+
+    fun updateDonationRemindersDescription() {
+<span class="nc" id="L171">        val articleFrequency = activity.resources.getQuantityString(R.plurals.donation_reminders_text_articles, Prefs.donationReminderConfig.articleFrequency, Prefs.donationReminderConfig.articleFrequency)</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        val description = if (Prefs.donationReminderConfig.userEnabled) activity.getString(R.string.donation_reminders_settings_description_on,</span>
+<span class="nc" id="L173">            DonateUtil.currencyFormat.format(Prefs.donationReminderConfig.donateAmount), articleFrequency) else</span>
+<span class="nc" id="L174">                activity.getString(R.string.donation_reminders_settings_description_off)</span>
+<span class="nc" id="L175">        findPreference(R.string.preference_key_donation_reminders).summary = description</span>
+<span class="nc" id="L176">    }</span>
+
+<span class="nc" id="L178">    private inner class SyncReadingListsListener : Preference.OnPreferenceChangeListener {</span>
+        override fun onPreferenceChange(preference: Preference, newValue: Any): Boolean {
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            if (AccountUtil.isLoggedIn) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">                if (newValue as Boolean) {</span>
+<span class="nc" id="L182">                    (preference as SwitchPreferenceCompat).isChecked = true</span>
+<span class="nc" id="L183">                    ReadingListSyncAdapter.setSyncEnabledWithSetup()</span>
+                } else {
+<span class="nc" id="L185">                    MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L186">                            .setTitle(activity.getString(R.string.preference_dialog_of_turning_off_reading_list_sync_title, AccountUtil.userName))</span>
+<span class="nc" id="L187">                            .setMessage(activity.getString(R.string.preference_dialog_of_turning_off_reading_list_sync_text, AccountUtil.userName))</span>
+<span class="nc" id="L188">                            .setPositiveButton(R.string.reading_lists_confirm_remote_delete_yes, DeleteRemoteListsYesListener(preference))</span>
+<span class="nc" id="L189">                            .setNegativeButton(R.string.reading_lists_confirm_remote_delete_no, null)</span>
+<span class="nc" id="L190">                            .show()</span>
+                }
+            } else {
+<span class="nc" id="L193">                MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L194">                        .setTitle(R.string.reading_list_preference_login_to_enable_sync_dialog_title)</span>
+<span class="nc" id="L195">                        .setMessage(R.string.reading_list_preference_login_to_enable_sync_dialog_text)</span>
+<span class="nc" id="L196">                        .setPositiveButton(R.string.reading_list_preference_login_to_enable_sync_dialog_login</span>
+                        ) { _: DialogInterface, _: Int -&gt;
+<span class="nc" id="L198">                            val loginIntent = LoginActivity.newIntent(activity,</span>
+<span class="nc" id="L199">                                    LoginActivity.SOURCE_SETTINGS)</span>
+<span class="nc" id="L200">                            activity.startActivity(loginIntent)</span>
+<span class="nc" id="L201">                        }</span>
+<span class="nc" id="L202">                        .setNegativeButton(R.string.reading_list_preference_login_to_enable_sync_dialog_cancel, null)</span>
+<span class="nc" id="L203">                        .show()</span>
+            }
+            // clicks are handled and preferences updated accordingly; don't pass the result through
+<span class="nc" id="L206">            return false</span>
+        }
+    }
+
+    fun updateSyncReadingListsPrefSummary() {
+<span class="nc" id="L211">        findPreference(R.string.preference_key_sync_reading_lists).let {</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L213">                it.summary = activity.getString(R.string.preference_summary_sync_reading_lists_from_account, AccountUtil.userName)</span>
+            } else {
+<span class="nc" id="L215">                it.setSummary(R.string.preference_summary_sync_reading_lists)</span>
+            }
+<span class="nc" id="L217">        }</span>
+<span class="nc" id="L218">    }</span>
+
+<span class="nc" id="L220">    private class DeleteRemoteListsYesListener(private val preference: Preference) : DialogInterface.OnClickListener {</span>
+        override fun onClick(dialog: DialogInterface, which: Int) {
+<span class="nc" id="L222">            (preference as SwitchPreferenceCompat).isChecked = false</span>
+<span class="nc" id="L223">            Prefs.isReadingListSyncEnabled = false</span>
+<span class="nc" id="L224">            Prefs.isReadingListsRemoteSetupPending = false</span>
+<span class="nc" id="L225">            Prefs.isReadingListsRemoteDeletePending = true</span>
+<span class="nc" id="L226">            ReadingListSyncAdapter.manualSync()</span>
+<span class="nc" id="L227">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

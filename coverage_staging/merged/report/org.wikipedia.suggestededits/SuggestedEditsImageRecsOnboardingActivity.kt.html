@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsImageRecsOnboardingActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsImageRecsOnboardingActivity.kt</span></div><h1>SuggestedEditsImageRecsOnboardingActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.eventplatform.ImageRecommendationsEvent
+import org.wikipedia.onboarding.OnboardingPageView
+
+<span class="nc" id="L12">class SuggestedEditsImageRecsOnboardingActivity : BaseActivity() {</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L15">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L16">        setContentView(R.layout.activity_suggested_edits_image_recs_onboarding)</span>
+<span class="nc" id="L17">        ImageRecommendationsEvent.logImpression(&quot;onboarding_step_1_dialog&quot;)</span>
+<span class="nc" id="L18">        val onboardingView = findViewById&lt;OnboardingPageView&gt;(R.id.onboarding_view)</span>
+<span class="nc" id="L19">        onboardingView.setSecondaryText(getString(R.string.image_recommendation_onboarding_2) +</span>
+<span class="nc" id="L20">                &quot;\n\n&quot; + getString(R.string.image_recommendation_onboarding_3))</span>
+
+<span class="nc" id="L22">        findViewById&lt;View&gt;(R.id.onboarding_done_button).setOnClickListener {</span>
+<span class="nc" id="L23">            ImageRecommendationsEvent.logAction(&quot;next&quot;, &quot;onboarding_step_1_dialog&quot;)</span>
+<span class="nc" id="L24">            setResult(RESULT_OK)</span>
+<span class="nc" id="L25">            finish()</span>
+<span class="nc" id="L26">        }</span>
+<span class="nc" id="L27">    }</span>
+
+    companion object {
+        fun newIntent(context: Context): Intent {
+<span class="nc" id="L31">            return Intent(context, SuggestedEditsImageRecsOnboardingActivity::class.java)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

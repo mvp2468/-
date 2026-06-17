@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NearbyPage.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.page</a> &gt; <span class="el_source">NearbyPage.kt</span></div><h1>NearbyPage.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.page
+
+import android.graphics.Bitmap
+import android.location.Location
+import org.maplibre.android.plugins.annotation.Symbol
+import org.wikipedia.page.PageTitle
+
+<span class="nc" id="L8">class NearbyPage(</span>
+<span class="nc" id="L9">    val pageId: Int,</span>
+<span class="nc" id="L10">    val pageTitle: PageTitle,</span>
+<span class="nc" id="L11">    val latitude: Double,</span>
+<span class="nc" id="L12">    val longitude: Double,</span>
+<span class="nc" id="L13">    var annotation: Symbol? = null,</span>
+<span class="nc" id="L14">    var bitmap: Bitmap? = null</span>
+<span class="nc" id="L15">) {</span>
+<span class="nc" id="L16">    val location get() = Location(&quot;&quot;).apply {</span>
+<span class="nc" id="L17">        latitude = this@NearbyPage.latitude</span>
+<span class="nc" id="L18">        longitude = this@NearbyPage.longitude</span>
+<span class="nc" id="L19">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

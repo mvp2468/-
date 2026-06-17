@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EditSummaryFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.edit.summaries</a> &gt; <span class="el_source">EditSummaryFragment.kt</span></div><h1>EditSummaryFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.edit.summaries
+
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.res.ColorStateList
+import android.net.Uri
+import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.text.method.LinkMovementMethod
+import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.isVisible
+import androidx.core.widget.TextViewCompat
+import androidx.core.widget.addTextChangedListener
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.chip.Chip
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.ImageRecommendationsEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.databinding.FragmentPreviewSummaryBinding
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.edit.EditSectionActivity
+import org.wikipedia.edit.EditSectionViewModel
+import org.wikipedia.edit.insertmedia.InsertMediaActivity
+import org.wikipedia.extensions.getStrings
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ViewAnimations
+
+<span class="nc" id="L47">class EditSummaryFragment : Fragment() {</span>
+    private var _binding: FragmentPreviewSummaryBinding? = null
+<span class="nc" id="L49">    private val binding get() = _binding!!</span>
+
+    private lateinit var editSummaryHandler: EditSummaryHandler
+<span class="nc" id="L52">    lateinit var title: PageTitle</span>
+
+<span class="nc" id="L54">    val summaryText get() = binding.editSummaryText</span>
+<span class="nc" id="L55">    val summary get() = binding.editSummaryText.text.toString()</span>
+<span class="nc" id="L56">    val isMinorEdit get() = binding.minorEditCheckBox.isChecked</span>
+<span class="nc" id="L57">    val watchThisPage get() = binding.watchPageCheckBox.isChecked</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">    val isActive get() = binding.root.visibility == View.VISIBLE</span>
+
+<span class="nc" id="L60">    private val viewModel: EditSectionViewModel by activityViewModels()</span>
+
+<span class="nc" id="L62">    private val voiceSearchLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        val voiceSearchResult = it.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)</span>
+<span class="nc bnc" id="L64" title="All 4 branches missed.">        if (it.resultCode == Activity.RESULT_OK &amp;&amp; voiceSearchResult != null) {</span>
+<span class="nc" id="L65">            val text = voiceSearchResult.first()</span>
+<span class="nc" id="L66">            binding.editSummaryText.setText(text)</span>
+        }
+<span class="nc" id="L68">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L71">        _binding = FragmentPreviewSummaryBinding.inflate(layoutInflater, container, false)</span>
+
+        // Explicitly enable standard dictionary autocompletion in the edit summary box
+        // We should be able to do this in the XML, but doing it there doesn't work. Thanks Android!
+<span class="nc" id="L75">        binding.editSummaryText.inputType = binding.editSummaryText.inputType and EditorInfo.TYPE_TEXT_FLAG_AUTO_COMPLETE.inv()</span>
+
+        // ...so that clicking the &quot;Done&quot; button on the keyboard will have the effect of
+        // clicking the &quot;Next&quot; button in the actionbar:
+<span class="nc" id="L79">        binding.editSummaryText.setOnEditorActionListener { _, actionId, keyEvent -&gt;</span>
+<span class="nc bnc" id="L80" title="All 6 branches missed.">            if ((keyEvent != null &amp;&amp; keyEvent.keyCode == KeyEvent.KEYCODE_ENTER) || actionId == EditorInfo.IME_ACTION_DONE) {</span>
+<span class="nc" id="L81">                (requireActivity() as EditSectionActivity).clickNextButton()</span>
+            }
+<span class="nc" id="L83">            false</span>
+        }
+
+<span class="nc" id="L86">        binding.editSummaryText.addTextChangedListener {</span>
+<span class="nc" id="L87">            if (!requireActivity().isDestroyed) {</span>
+<span class="nc" id="L88">                requireActivity().invalidateOptionsMenu()</span>
+            }
+<span class="nc" id="L90">        }</span>
+
+<span class="nc" id="L92">        binding.editSummaryTextLayout.setEndIconOnClickListener {</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            if (invokeSource() == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc" id="L94">                ImageRecommendationsEvent.logAction(&quot;tts_open&quot;, &quot;editsummary_dialog&quot;, getActionDataStringForData())</span>
+            }
+<span class="nc" id="L96">            launchVoiceInput()</span>
+<span class="nc" id="L97">        }</span>
+
+<span class="nc" id="L99">        binding.learnMoreButton.setOnClickListener {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (invokeSource() == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc" id="L101">                ImageRecommendationsEvent.logAction(&quot;view_help&quot;, &quot;editsummary_dialog&quot;, getActionDataStringForData())</span>
+            }
+<span class="nc" id="L103">            UriUtil.visitInExternalBrowser(requireContext(), Uri.parse(getString(R.string.meta_edit_summary_url)))</span>
+<span class="nc" id="L104">        }</span>
+
+<span class="nc" id="L106">        binding.minorEditHelpButton.setOnClickListener {</span>
+<span class="nc" id="L107">            UriUtil.visitInExternalBrowser(requireContext(), Uri.parse(getString(R.string.meta_minor_edit_url)))</span>
+<span class="nc" id="L108">        }</span>
+
+<span class="nc" id="L110">        binding.watchPageHelpButton.setOnClickListener {</span>
+<span class="nc" id="L111">            UriUtil.visitInExternalBrowser(requireContext(), Uri.parse(getString(R.string.meta_watching_pages_url)))</span>
+<span class="nc" id="L112">        }</span>
+
+<span class="nc" id="L114">        binding.watchPageCheckBox.setOnCheckedChangeListener { _, isChecked -&gt;</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            if (invokeSource() == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">                ImageRecommendationsEvent.logAction(if (isChecked) &quot;add_watchlist&quot; else &quot;remove_watchlist&quot;, &quot;editsummary_dialog&quot;, getActionDataStringForData())</span>
+            }
+<span class="nc" id="L118">        }</span>
+
+<span class="nc" id="L120">        getWatchedStatus()</span>
+
+<span class="nc" id="L122">        addEditSummaries()</span>
+
+<span class="nc" id="L124">        return binding.root</span>
+    }
+
+    private fun getActionDataStringForData(): String {
+<span class="nc bnc" id="L128" title="All 4 branches missed.">        val addImageTitle = activity?.intent?.parcelableExtra&lt;PageTitle&gt;(InsertMediaActivity.EXTRA_IMAGE_TITLE)</span>
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        val addImageSource = activity?.intent?.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE)</span>
+<span class="nc bnc" id="L130" title="All 4 branches missed.">        val addImageSourceProjects = activity?.intent?.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE_PROJECTS)</span>
+<span class="nc bnc" id="L131" title="All 4 branches missed.">        return ImageRecommendationsEvent.getActionDataString(filename = addImageTitle?.prefixedText.orEmpty(),</span>
+<span class="nc" id="L132">            recommendationSource = addImageSource, recommendationSourceProjects = addImageSourceProjects,</span>
+<span class="nc bnc" id="L133" title="All 10 branches missed.">            acceptanceState = &quot;accepted&quot;, captionAdd = !activity?.intent?.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION).isNullOrEmpty(),</span>
+<span class="nc bnc" id="L134" title="All 10 branches missed.">            altTextAdd = !activity?.intent?.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT).isNullOrEmpty())</span>
+    }
+
+    override fun onStart() {
+<span class="nc" id="L138">        super.onStart()</span>
+<span class="nc" id="L139">        editSummaryHandler = EditSummaryHandler(lifecycleScope, binding.root, binding.editSummaryText, title)</span>
+<span class="nc" id="L140">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L143">        _binding = null</span>
+<span class="nc" id="L144">        super.onDestroyView()</span>
+<span class="nc" id="L145">    }</span>
+
+    private fun launchVoiceInput() {
+<span class="nc" id="L148">        try {</span>
+<span class="nc" id="L149">            voiceSearchLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)</span>
+<span class="nc" id="L150">                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))</span>
+<span class="nc" id="L151">        } catch (a: ActivityNotFoundException) {</span>
+<span class="nc" id="L152">            FeedbackUtil.showMessage(requireActivity(), R.string.error_voice_search_not_available)</span>
+        }
+<span class="nc" id="L154">    }</span>
+
+    private fun getWatchedStatus() {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L158">            lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L159">                L.e(throwable)</span>
+<span class="nc" id="L160">            }) {</span>
+<span class="nc" id="L161">                val query = ServiceFactory.get(title.wikiSite)</span>
+<span class="nc" id="L162">                    .getWatchedStatusWithUserOptions(title.prefixedText).query!!</span>
+<span class="nc bnc" id="L163" title="All 10 branches missed.">                binding.watchPageCheckBox.isChecked = query.firstPage()!!.watched || query.userInfo?.options?.watchEditedPagesByDefault == true</span>
+<span class="nc" id="L164">            }</span>
+        } else {
+<span class="nc" id="L166">            binding.watchPageCheckBox.isEnabled = false</span>
+<span class="nc" id="L167">            binding.watchPageCheckBox.alpha = 0.5f</span>
+        }
+<span class="nc" id="L169">    }</span>
+
+    private fun addEditSummaries() {
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        val summaryTagStrings = if (invokeSource() == Constants.InvokeSource.EDIT_ADD_IMAGE)</span>
+<span class="nc" id="L173">            intArrayOf(R.string.edit_summary_added_image_and_caption, R.string.edit_summary_added_image)</span>
+        else
+<span class="nc" id="L175">            intArrayOf(R.string.edit_summary_tag_typo, R.string.edit_summary_tag_grammar, R.string.edit_summary_tag_links)</span>
+
+<span class="nc" id="L177">        val localizedSummaries = requireContext().getStrings(title, summaryTagStrings)</span>
+<span class="nc" id="L178">        summaryTagStrings.forEach {</span>
+<span class="nc" id="L179">            addChip(localizedSummaries[it])</span>
+<span class="nc" id="L180">        }</span>
+<span class="nc" id="L181">    }</span>
+
+    private fun addChip(editSummary: String): Chip {
+<span class="nc" id="L184">        val chip = Chip(requireContext())</span>
+<span class="nc" id="L185">        chip.text = editSummary</span>
+<span class="nc" id="L186">        TextViewCompat.setTextAppearance(chip, R.style.Chip_Accessible)</span>
+<span class="nc" id="L187">        chip.setChipBackgroundColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.background_color))</span>
+<span class="nc" id="L188">        chip.chipStrokeWidth = DimenUtil.dpToPx(1f)</span>
+<span class="nc" id="L189">        chip.chipStrokeColor = ColorStateList.valueOf(ResourceUtil.getThemedColor(requireContext(), R.attr.border_color))</span>
+<span class="nc" id="L190">        chip.shapeAppearanceModel = chip.shapeAppearanceModel.withCornerSize(DimenUtil.dpToPx(8f))</span>
+<span class="nc" id="L191">        chip.setCheckedIconResource(R.drawable.ic_chip_check_24px)</span>
+<span class="nc" id="L192">        chip.setOnClickListener {</span>
+            // Clear the text field and insert the text
+<span class="nc" id="L194">            binding.editSummaryText.setText(editSummary)</span>
+<span class="nc" id="L195">            binding.editSummaryText.setSelection(editSummary.length)</span>
+<span class="nc" id="L196">        }</span>
+
+        // add some padding to the Chip, since our container view doesn't support item spacing yet.
+<span class="nc" id="L199">        val params = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)</span>
+<span class="nc" id="L200">        val margin = DimenUtil.roundedDpToPx(4f)</span>
+<span class="nc" id="L201">        params.setMargins(margin, 0, margin, 0)</span>
+<span class="nc" id="L202">        chip.layoutParams = params</span>
+
+<span class="nc" id="L204">        binding.editSummaryTagsContainer.addView(chip)</span>
+<span class="nc" id="L205">        return chip</span>
+    }
+
+<span class="nc" id="L208">    private fun invokeSource() = (requireActivity() as EditSectionActivity).getInvokeSource()</span>
+
+    fun show() {
+<span class="nc bnc" id="L211" title="All 4 branches missed.">        if (!AccountUtil.isLoggedIn || AccountUtil.isTemporaryAccount) {</span>
+<span class="nc" id="L212">            binding.footerContainer.tempAccountInfoContainer.isVisible = true</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            binding.footerContainer.tempAccountInfoIcon.setImageResource(if (AccountUtil.isTemporaryAccount) R.drawable.ic_temp_account else R.drawable.ic_anon_account)</span>
+<span class="nc" id="L214">            binding.footerContainer.tempAccountInfoText.movementMethod = LinkMovementMethod.getInstance()</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">            binding.footerContainer.tempAccountInfoText.text = StringUtil.fromHtml(if (AccountUtil.isTemporaryAccount) getString(R.string.temp_account_edit_status, AccountUtil.getUserNameFromCookie(), getString(R.string.temp_accounts_help_url))</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            else getString(if (viewModel.tempAccountsEnabled) R.string.temp_account_anon_edit_status else R.string.temp_account_anon_ip_edit_status, getString(R.string.temp_accounts_help_url)))</span>
+        } else {
+<span class="nc" id="L218">            binding.footerContainer.tempAccountInfoContainer.isVisible = false</span>
+        }
+<span class="nc" id="L220">        ViewAnimations.fadeIn(binding.root) {</span>
+<span class="nc" id="L221">            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L222">            binding.editSummaryText.requestFocus()</span>
+<span class="nc" id="L223">            DeviceUtil.showSoftKeyboard(binding.editSummaryText)</span>
+<span class="nc" id="L224">        }</span>
+<span class="nc" id="L225">    }</span>
+
+    fun hide() {
+<span class="nc" id="L228">        ViewAnimations.fadeOut(binding.root) {</span>
+<span class="nc" id="L229">            DeviceUtil.hideSoftKeyboard(requireActivity())</span>
+<span class="nc" id="L230">            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L231">        }</span>
+<span class="nc" id="L232">    }</span>
+
+    fun handleBackPressed(): Boolean {
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        if (isActive) {</span>
+<span class="nc" id="L236">            hide()</span>
+<span class="nc" id="L237">            return editSummaryHandler.handleBackPressed()</span>
+        }
+<span class="nc" id="L239">        return false</span>
+    }
+
+    fun saveSummary() {
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        if (binding.editSummaryText.length() &gt; 0) {</span>
+<span class="nc" id="L244">            editSummaryHandler.persistSummary()</span>
+        }
+<span class="nc" id="L246">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

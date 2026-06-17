@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EditingSuggestionsProvider.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits.provider</a> &gt; <span class="el_source">EditingSuggestionsProvider.kt</span></div><h1>EditingSuggestionsProvider.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits.provider
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
+import org.wikipedia.Constants
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.MwException
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.dataclient.mwapi.MwQueryResult
+import org.wikipedia.dataclient.page.PageSummary
+import org.wikipedia.dataclient.wikidata.Entities
+import org.wikipedia.descriptions.DescriptionEditUtil
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.PageTitle
+import org.wikipedia.suggestededits.SuggestedEditsRecentEditsViewModel
+import org.wikipedia.util.log.L
+import java.time.Instant
+import java.util.concurrent.Semaphore
+import kotlin.math.abs
+
+object EditingSuggestionsProvider {
+<span class="nc" id="L25">    private val mutex: Semaphore = Semaphore(1)</span>
+
+<span class="nc" id="L27">    private val articlesWithMissingDescriptionCache = ArrayDeque&lt;String&gt;()</span>
+<span class="nc" id="L28">    private var articlesWithMissingDescriptionCacheLang: String = &quot;&quot;</span>
+<span class="nc" id="L29">    private val articlesWithTranslatableDescriptionCache = ArrayDeque&lt;Pair&lt;PageTitle, PageTitle&gt;&gt;()</span>
+<span class="nc" id="L30">    private var articlesWithTranslatableDescriptionCacheFromLang: String = &quot;&quot;</span>
+<span class="nc" id="L31">    private var articlesWithTranslatableDescriptionCacheToLang: String = &quot;&quot;</span>
+
+<span class="nc" id="L33">    private val imagesWithMissingCaptionsCache = ArrayDeque&lt;String&gt;()</span>
+<span class="nc" id="L34">    private var imagesWithMissingCaptionsCacheLang: String = &quot;&quot;</span>
+<span class="nc" id="L35">    private val imagesWithTranslatableCaptionCache = ArrayDeque&lt;Pair&lt;String, String&gt;&gt;()</span>
+<span class="nc" id="L36">    private var imagesWithTranslatableCaptionCacheFromLang: String = &quot;&quot;</span>
+<span class="nc" id="L37">    private var imagesWithTranslatableCaptionCacheToLang: String = &quot;&quot;</span>
+
+<span class="nc" id="L39">    private val imagesWithMissingTagsCache = ArrayDeque&lt;MwQueryPage&gt;()</span>
+
+<span class="nc" id="L41">    private val articlesWithImageRecommendationsCache = ArrayDeque&lt;MwQueryPage&gt;()</span>
+<span class="nc" id="L42">    private var articlesWithImageRecommendationsCacheLang: String = &quot;&quot;</span>
+    private var articlesWithImageRecommendationsLastMillis: Long = 0
+
+<span class="nc" id="L45">    private var revertCandidateLang: String = &quot;&quot;</span>
+<span class="nc" id="L46">    private val revertCandidateCache: ArrayDeque&lt;MwQueryResult.RecentChange&gt; = ArrayDeque()</span>
+    private var revertCandidateLastRevId = 0L
+<span class="nc" id="L48">    private var revertCandidateLastTimeStamp = Instant.now()</span>
+
+    private const val MAX_RETRY_LIMIT: Long = 20
+
+<span class="nc" id="L52">    suspend fun getNextArticleWithMissingDescription(wiki: WikiSite, retryLimit: Long = MAX_RETRY_LIMIT): PageSummary {</span>
+<span class="nc" id="L53">        var pageSummary: PageSummary</span>
+<span class="nc" id="L54">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L55">            mutex.acquire()</span>
+<span class="nc" id="L56">            try {</span>
+<span class="nc" id="L57">                var title = &quot;&quot;</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                if (articlesWithMissingDescriptionCacheLang != wiki.languageCode) {</span>
+                    // evict the cache if the language has changed.
+<span class="nc" id="L60">                    articlesWithMissingDescriptionCache.clear()</span>
+                }
+<span class="nc bnc" id="L62" title="All 2 branches missed.">                if (!articlesWithMissingDescriptionCache.isEmpty()) {</span>
+<span class="nc" id="L63">                    title = articlesWithMissingDescriptionCache.removeFirst()</span>
+                }
+
+<span class="nc" id="L66">                var tries = 0</span>
+<span class="nc bnc" id="L67" title="All 6 branches missed.">                while (tries++ &lt;= retryLimit &amp;&amp; title.isEmpty()) {</span>
+                    // Fetch a batch of random articles, and get the ones that have no description.
+<span class="nc" id="L69">                    val resultsWithNoDescription = fetchArticlesWithNullDescription(wiki)</span>
+
+<span class="nc" id="L71">                    articlesWithMissingDescriptionCacheLang = wiki.languageCode</span>
+
+<span class="nc bnc" id="L73" title="All 4 branches missed.">                    if (resultsWithNoDescription.isEmpty() || DescriptionEditUtil.wikiUsesLocalDescriptions(wiki.languageCode)) {</span>
+<span class="nc" id="L74">                        resultsWithNoDescription.forEach {</span>
+<span class="nc" id="L75">                            articlesWithMissingDescriptionCache.addFirst(it.title)</span>
+<span class="nc" id="L76">                        }</span>
+                    } else {
+                        // If the wiki uses Wikidata descriptions, check protection status of the Wikidata items.
+<span class="nc bnc" id="L79" title="All 8 branches missed.">                        val qNums = resultsWithNoDescription.mapNotNull { it.pageProps?.wikiBaseItem.orEmpty().ifEmpty { null } }</span>
+<span class="nc" id="L80">                        val wdResponse = ServiceFactory.get(Constants.wikidataWikiSite).getProtection(qNums.joinToString(&quot;|&quot;))</span>
+<span class="nc bnc" id="L81" title="All 4 branches missed.">                        val unprotectedQNums = wdResponse.query?.pages?.filter { it.protection.isEmpty() }?.map { it.title }</span>
+
+<span class="nc" id="L83">                        resultsWithNoDescription.forEach {</span>
+<span class="nc bnc" id="L84" title="All 8 branches missed.">                            if (unprotectedQNums?.contains(it.pageProps?.wikiBaseItem) == true) {</span>
+<span class="nc" id="L85">                                articlesWithMissingDescriptionCache.addFirst(it.title)</span>
+                            }
+<span class="nc" id="L87">                        }</span>
+                    }
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                    if (!articlesWithMissingDescriptionCache.isEmpty()) {</span>
+<span class="nc" id="L91">                        title = articlesWithMissingDescriptionCache.removeFirst()</span>
+                    }
+                }
+
+<span class="nc" id="L95">                pageSummary = ServiceFactory.getRest(wiki).getPageSummary(title)</span>
+            } finally {
+<span class="nc" id="L97">                mutex.release()</span>
+            }
+<span class="nc" id="L99">        }</span>
+<span class="nc" id="L100">        return pageSummary</span>
+    }
+
+<span class="nc" id="L103">    suspend fun getNextArticleWithMissingDescription(sourceWiki: WikiSite, targetLang: String, retryLimit: Long = MAX_RETRY_LIMIT): Pair&lt;PageSummary, PageSummary&gt; {</span>
+<span class="nc" id="L104">        var pair = Pair(PageSummary(), PageSummary())</span>
+<span class="nc" id="L105">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L106">            mutex.acquire()</span>
+<span class="nc" id="L107">            try {</span>
+<span class="nc" id="L108">                val targetWiki = WikiSite.forLanguageCode(targetLang)</span>
+<span class="nc" id="L109">                var titles: Pair&lt;PageTitle, PageTitle&gt;? = null</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                if (articlesWithTranslatableDescriptionCacheFromLang != sourceWiki.languageCode ||</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                    articlesWithTranslatableDescriptionCacheToLang != targetLang) {</span>
+                    // evict the cache if the language has changed.
+<span class="nc" id="L113">                    articlesWithTranslatableDescriptionCache.clear()</span>
+                }
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                if (!articlesWithTranslatableDescriptionCache.isEmpty()) {</span>
+<span class="nc" id="L116">                    titles = articlesWithTranslatableDescriptionCache.removeFirst()</span>
+                }
+<span class="nc" id="L118">                var tries = 0</span>
+<span class="nc bnc" id="L119" title="All 4 branches missed.">                while (tries++ &lt;= retryLimit &amp;&amp; titles == null) {</span>
+                    // Fetch a batch of random articles from the target language wiki, and get ones that have no description.
+<span class="nc" id="L121">                    val resultsWithNoDescription = fetchArticlesWithNullDescription(targetWiki)</span>
+
+<span class="nc" id="L123">                    articlesWithTranslatableDescriptionCacheFromLang = sourceWiki.languageCode</span>
+<span class="nc" id="L124">                    articlesWithTranslatableDescriptionCacheToLang = targetLang</span>
+
+                    // Get the Wikidata entities for the articles, to see if they have descriptions in the source language.
+<span class="nc bnc" id="L127" title="All 8 branches missed.">                    val qNums = resultsWithNoDescription.mapNotNull { it.pageProps?.wikiBaseItem.orEmpty().ifEmpty { null } }</span>
+<span class="nc" id="L128">                    val wdResponse = ServiceFactory.get(Constants.wikidataWikiSite).getWikidataLabelsAndDescriptions(</span>
+<span class="nc" id="L129">                        qNums.joinToString(&quot;|&quot;),</span>
+<span class="nc" id="L130">                        WikiSite.normalizeLanguageCode(sourceWiki.languageCode) + &quot;|&quot; + WikiSite.normalizeLanguageCode(targetLang),</span>
+<span class="nc" id="L131">                        sourceWiki.dbName() + &quot;|&quot; + targetWiki.dbName())</span>
+
+                    // Get the Q numbers for which the source language description exists
+<span class="nc" id="L134">                    val sourceLangEntities = wdResponse.entities.filter {</span>
+<span class="nc bnc" id="L135" title="All 8 branches missed.">                        it.value.getDescriptions()[sourceWiki.languageCode]?.value.orEmpty().isNotEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L136" title="All 8 branches missed.">                                it.value.getSiteLinks()[sourceWiki.dbName()]?.title.orEmpty().isNotEmpty() }</span>
+
+<span class="nc" id="L138">                    sourceLangEntities.values.forEach { entity -&gt;</span>
+<span class="nc" id="L139">                        val sourceTitle = PageTitle(entity.getSiteLinks()[sourceWiki.dbName()]!!.title, sourceWiki).apply {</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                            description = entity.getDescriptions()[sourceWiki.languageCode]?.value</span>
+<span class="nc" id="L141">                        }</span>
+<span class="nc" id="L142">                        val targetTitle = PageTitle(entity.getSiteLinks()[targetWiki.dbName()]!!.title, targetWiki)</span>
+<span class="nc" id="L143">                        articlesWithTranslatableDescriptionCache.addFirst(sourceTitle to targetTitle)</span>
+<span class="nc" id="L144">                    }</span>
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                    if (!articlesWithTranslatableDescriptionCache.isEmpty()) {</span>
+<span class="nc" id="L147">                        titles = articlesWithTranslatableDescriptionCache.removeFirst()</span>
+                    }
+                }
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                titles?.let {</span>
+<span class="nc" id="L152">                    val sourcePageSummary = async {</span>
+<span class="nc" id="L153">                        ServiceFactory.getRest(it.first.wikiSite).getPageSummary(it.first.prefixedText).apply {</span>
+<span class="nc bnc" id="L154" title="All 6 branches missed.">                            if (description.isNullOrEmpty()) {</span>
+<span class="nc" id="L155">                                description = it.first.description</span>
+                            }
+<span class="nc" id="L157">                        }</span>
+                    }
+<span class="nc" id="L159">                    val targetPageSummary = async {</span>
+<span class="nc" id="L160">                        ServiceFactory.getRest(it.second.wikiSite).getPageSummary(it.second.prefixedText)</span>
+                    }
+<span class="nc" id="L162">                    pair = sourcePageSummary.await() to targetPageSummary.await()</span>
+<span class="nc" id="L163">                }</span>
+            } finally {
+<span class="nc" id="L165">                mutex.release()</span>
+<span class="nc" id="L166">            }</span>
+        }
+<span class="nc" id="L168">        return pair</span>
+    }
+
+    private suspend fun fetchArticlesWithNullDescription(targetWiki: WikiSite): List&lt;MwQueryPage&gt; {
+<span class="nc bnc" id="L172" title="All 4 branches missed.">        return ServiceFactory.get(targetWiki).getRandomPages().query?.pages?.filter {</span>
+            // Important: we only want pages where the description is specifically null,
+            // instead of an empty string. An empty string implies the description is set
+            // to &quot;none&quot;, which means the editors don't want a description added.
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            it.description == null</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        }.orEmpty()</span>
+    }
+
+<span class="nc" id="L180">    suspend fun getNextImageWithMissingCaption(lang: String, retryLimit: Long = MAX_RETRY_LIMIT): String {</span>
+<span class="nc" id="L181">        var title = &quot;&quot;</span>
+<span class="nc" id="L182">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L183">            mutex.acquire()</span>
+<span class="nc" id="L184">            try {</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                if (imagesWithMissingCaptionsCacheLang != lang) {</span>
+                    // evict the cache if the language has changed.
+<span class="nc" id="L187">                    imagesWithMissingCaptionsCache.clear()</span>
+                }
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                if (!imagesWithMissingCaptionsCache.isEmpty()) {</span>
+<span class="nc" id="L190">                    title = imagesWithMissingCaptionsCache.removeFirst()</span>
+                }
+<span class="nc" id="L192">                imagesWithMissingCaptionsCacheLang = lang</span>
+<span class="nc" id="L193">                var tries = 0</span>
+<span class="nc bnc" id="L194" title="All 6 branches missed.">                while (tries++ &lt;= retryLimit &amp;&amp; title.isEmpty()) {</span>
+<span class="nc" id="L195">                    try {</span>
+<span class="nc" id="L196">                        val candidates = ServiceFactory.get(Constants.commonsWikiSite).getRandomImages()</span>
+<span class="nc bnc" id="L197" title="All 4 branches missed.">                            .query?.pages?.filter {</span>
+<span class="nc bnc" id="L198" title="All 6 branches missed.">                                it.imageInfo()?.mime.orEmpty().startsWith(&quot;image&quot;) &amp;&amp;</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                                        it.protection.isEmpty()</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                            }.orEmpty()</span>
+
+<span class="nc" id="L202">                        candidates.forEach { candidate -&gt;</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                            val entityJson = candidate.revisions.firstOrNull()?.getContentFromSlot(&quot;mediainfo&quot;)</span>
+<span class="nc bnc" id="L204" title="All 6 branches missed.">                            if (entityJson.isNullOrEmpty()) {</span>
+<span class="nc" id="L205">                                return@forEach</span>
+                            }
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                            JsonUtil.decodeFromString&lt;Entities.Entity&gt;(entityJson)?.let { entity -&gt;</span>
+<span class="nc bnc" id="L208" title="All 8 branches missed.">                                if (entity.getLabels()[WikiSite.normalizeLanguageCode(lang)]?.value.isNullOrEmpty()) {</span>
+<span class="nc" id="L209">                                    imagesWithMissingCaptionsCache.addFirst(candidate.title)</span>
+                                }
+<span class="nc" id="L211">                            }</span>
+<span class="nc" id="L212">                        }</span>
+
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                        if (!imagesWithMissingCaptionsCache.isEmpty()) {</span>
+<span class="nc" id="L215">                            title = imagesWithMissingCaptionsCache.removeFirst()</span>
+                        }
+<span class="nc" id="L217">                    } catch (e: MwException) {</span>
+<span class="nc" id="L218">                        L.w(e)</span>
+                    }
+                }
+            } finally {
+<span class="nc" id="L222">                mutex.release()</span>
+            }
+<span class="nc" id="L224">        }</span>
+<span class="nc" id="L225">        return title</span>
+    }
+
+<span class="nc" id="L228">    suspend fun getNextImageWithMissingCaption(sourceLang: String, targetLang: String,</span>
+<span class="nc" id="L229">                                               retryLimit: Long = MAX_RETRY_LIMIT): Pair&lt;String, String&gt; {</span>
+<span class="nc" id="L230">        var pair = Pair(&quot;&quot;, &quot;&quot;)</span>
+<span class="nc" id="L231">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L232">            mutex.acquire()</span>
+<span class="nc" id="L233">            try {</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                if (imagesWithTranslatableCaptionCacheFromLang != sourceLang ||</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                    imagesWithTranslatableCaptionCacheToLang != targetLang</span>
+                ) {
+                    // evict the cache if the language has changed.
+<span class="nc" id="L238">                    imagesWithTranslatableCaptionCache.clear()</span>
+                }
+<span class="nc bnc" id="L240" title="All 2 branches missed.">                if (!imagesWithTranslatableCaptionCache.isEmpty()) {</span>
+<span class="nc" id="L241">                    pair = imagesWithTranslatableCaptionCache.removeFirst()</span>
+                }
+<span class="nc" id="L243">                imagesWithTranslatableCaptionCacheFromLang = sourceLang</span>
+<span class="nc" id="L244">                imagesWithTranslatableCaptionCacheToLang = targetLang</span>
+<span class="nc" id="L245">                var tries = 0</span>
+<span class="nc bnc" id="L246" title="All 10 branches missed.">                while (tries++ &lt;= retryLimit &amp;&amp; (pair.first.isEmpty() || pair.second.isEmpty())) {</span>
+<span class="nc" id="L247">                    try {</span>
+<span class="nc" id="L248">                        val candidates = ServiceFactory.get(Constants.commonsWikiSite).getRandomImages(50)</span>
+<span class="nc bnc" id="L249" title="All 4 branches missed.">                            .query?.pages?.filter {</span>
+<span class="nc bnc" id="L250" title="All 6 branches missed.">                                it.imageInfo()?.mime.orEmpty().startsWith(&quot;image&quot;) &amp;&amp;</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">                                        it.protection.isEmpty()</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                            }.orEmpty()</span>
+
+<span class="nc" id="L254">                        candidates.forEach { candidate -&gt;</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">                            val entityJson = candidate.revisions.firstOrNull()?.getContentFromSlot(&quot;mediainfo&quot;)</span>
+<span class="nc bnc" id="L256" title="All 6 branches missed.">                            if (entityJson.isNullOrEmpty()) {</span>
+<span class="nc" id="L257">                                return@forEach</span>
+                            }
+<span class="nc bnc" id="L259" title="All 2 branches missed.">                            JsonUtil.decodeFromString&lt;Entities.Entity&gt;(entityJson)?.let { entity -&gt;</span>
+<span class="nc" id="L260">                                val labels = entity.getLabels()</span>
+<span class="nc bnc" id="L261" title="All 8 branches missed.">                                if (labels[WikiSite.normalizeLanguageCode(sourceLang)]?.value.orEmpty().isNotEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L262" title="All 8 branches missed.">                                    labels[WikiSite.normalizeLanguageCode(targetLang)]?.value.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L263" title="All 4 branches missed.">                                    imagesWithTranslatableCaptionCache.addFirst(labels[sourceLang]?.value.orEmpty() to candidate.title)</span>
+                                }
+<span class="nc" id="L265">                            }</span>
+<span class="nc" id="L266">                        }</span>
+<span class="nc" id="L267">                    } catch (e: MwException) {</span>
+<span class="nc" id="L268">                        L.w(e)</span>
+                    }
+
+<span class="nc bnc" id="L271" title="All 2 branches missed.">                    if (!imagesWithTranslatableCaptionCache.isEmpty()) {</span>
+<span class="nc" id="L272">                        pair = imagesWithTranslatableCaptionCache.removeFirst()</span>
+                    }
+                }
+            } finally {
+<span class="nc" id="L276">                mutex.release()</span>
+            }
+<span class="nc" id="L278">        }</span>
+<span class="nc" id="L279">        return pair</span>
+    }
+
+<span class="nc" id="L282">    suspend fun getNextImageWithMissingTags(retryLimit: Long = MAX_RETRY_LIMIT): MwQueryPage {</span>
+<span class="nc" id="L283">        var page: MwQueryPage</span>
+<span class="nc" id="L284">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L285">            mutex.acquire()</span>
+<span class="nc" id="L286">            try {</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">                if (!imagesWithMissingTagsCache.isEmpty()) {</span>
+<span class="nc" id="L288">                    page = imagesWithMissingTagsCache.removeFirst()</span>
+                }
+<span class="nc" id="L290">                var tries = 0</span>
+                do {
+<span class="nc" id="L292">                    val response = ServiceFactory.get(Constants.commonsWikiSite).getRandomImages()</span>
+<span class="nc bnc" id="L293" title="All 6 branches missed.">                    response.query?.pages?.filter { it.imageInfo()?.mime == &quot;image/jpeg&quot; }?.forEach { page -&gt;</span>
+<span class="nc bnc" id="L294" title="All 2 branches missed.">                        if (page.revisions.none { &quot;P180&quot; in it.getContentFromSlot(&quot;mediainfo&quot;) }) {</span>
+<span class="nc" id="L295">                            imagesWithMissingTagsCache.addFirst(page)</span>
+                        }
+<span class="nc" id="L297">                    }</span>
+<span class="nc bnc" id="L298" title="All 4 branches missed.">                } while (tries++ &lt; retryLimit &amp;&amp; imagesWithMissingTagsCache.isEmpty())</span>
+<span class="nc" id="L299">                page = imagesWithMissingTagsCache.removeFirst()</span>
+            } finally {
+<span class="nc" id="L301">                mutex.release()</span>
+            }
+<span class="nc" id="L303">        }</span>
+<span class="nc" id="L304">        return page</span>
+    }
+
+<span class="nc" id="L307">    suspend fun getNextArticleWithImageRecommendation(lang: String, retryLimit: Long = MAX_RETRY_LIMIT): MwQueryPage? {</span>
+<span class="nc" id="L308">        var page: MwQueryPage?</span>
+<span class="nc" id="L309">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L310">            mutex.acquire()</span>
+<span class="nc" id="L311">            try {</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                if (articlesWithImageRecommendationsCacheLang != lang) {</span>
+                    // evict the cache if the language has changed.
+<span class="nc" id="L314">                    articlesWithImageRecommendationsCache.clear()</span>
+                }
+<span class="nc" id="L316">                articlesWithImageRecommendationsCacheLang = lang</span>
+
+                // Wait at least 5 seconds before serving up the next recommendation.
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                while (abs(System.currentTimeMillis() - articlesWithImageRecommendationsLastMillis) &lt; 5000) {</span>
+<span class="nc" id="L320">                    Thread.sleep(1000)</span>
+                }
+<span class="nc" id="L322">                articlesWithImageRecommendationsLastMillis = System.currentTimeMillis()</span>
+
+<span class="nc" id="L324">                var tries = 0</span>
+                do {
+<span class="nc bnc" id="L326" title="All 2 branches missed.">                    if (articlesWithImageRecommendationsCache.isEmpty()) {</span>
+<span class="nc" id="L327">                        val response = ServiceFactory.get(WikiSite.forLanguageCode(articlesWithImageRecommendationsCacheLang))</span>
+<span class="nc" id="L328">                            .getPagesWithImageRecommendations(10)</span>
+                        // TODO: make use of continuation parameter?
+<span class="nc bnc" id="L330" title="All 4 branches missed.">                        response.query?.pages?.forEach { page -&gt;</span>
+<span class="nc bnc" id="L331" title="All 14 branches missed.">                            if (page.thumbUrl().isNullOrEmpty() &amp;&amp; page.growthimagesuggestiondata?.get(0)?.images?.get(0) != null) {</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                                if (articlesWithImageRecommendationsCacheLang == &quot;de&quot;) {</span>
+                                    // In the case of dewiki, make sure the image is CC-licensed:
+<span class="nc bnc" id="L334" title="All 6 branches missed.">                                    if (page.growthimagesuggestiondata[0].images[0].metadata?.license.orEmpty().lowercase().contains(&quot;cc&quot;)) {</span>
+<span class="nc" id="L335">                                        articlesWithImageRecommendationsCache.addFirst(page)</span>
+                                    }
+                                } else {
+<span class="nc" id="L338">                                    articlesWithImageRecommendationsCache.addFirst(page)</span>
+                                }
+                            }
+<span class="nc" id="L341">                        }</span>
+                    }
+<span class="nc bnc" id="L343" title="All 4 branches missed.">                } while (tries++ &lt; retryLimit &amp;&amp; articlesWithImageRecommendationsCache.isEmpty())</span>
+
+<span class="nc" id="L345">                page = articlesWithImageRecommendationsCache.removeFirstOrNull()</span>
+            } finally {
+<span class="nc" id="L347">                mutex.release()</span>
+            }
+<span class="nc" id="L349">        }</span>
+<span class="nc" id="L350">        return page</span>
+    }
+
+    fun populateRevertCandidateCache(lang: String, recentChanges: List&lt;MwQueryResult.RecentChange&gt;) {
+<span class="nc" id="L354">        revertCandidateLang = lang</span>
+<span class="nc" id="L355">        revertCandidateCache.clear()</span>
+<span class="nc" id="L356">        revertCandidateLastRevId = 0L</span>
+<span class="nc" id="L357">        recentChanges.forEach {</span>
+<span class="nc" id="L358">            revertCandidateCache.addFirst(it)</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">            if (it.curRev &gt; revertCandidateLastRevId) {</span>
+<span class="nc" id="L360">                revertCandidateLastRevId = it.curRev</span>
+<span class="nc" id="L361">                revertCandidateLastTimeStamp = it.parsedInstant</span>
+            }
+<span class="nc" id="L363">        }</span>
+<span class="nc" id="L364">    }</span>
+
+    @Suppress(&quot;KotlinConstantConditions&quot;)
+    suspend fun getNextRevertCandidate(lang: String): MwQueryResult.RecentChange {
+<span class="nc" id="L368">        return withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L369">            try {</span>
+<span class="nc" id="L370">                mutex.acquire()</span>
+<span class="nc" id="L371">                var cachedItem: MwQueryResult.RecentChange? = null</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">                if (revertCandidateLang != lang) {</span>
+                    // evict the cache if the language has changed.
+<span class="nc" id="L374">                    revertCandidateCache.clear()</span>
+<span class="nc" id="L375">                    revertCandidateLastRevId = 0L</span>
+                }
+<span class="nc" id="L377">                revertCandidateLang = lang</span>
+<span class="nc bnc" id="L378" title="All 2 branches missed.">                if (!revertCandidateCache.isEmpty()) {</span>
+<span class="nc" id="L379">                    cachedItem = revertCandidateCache.removeFirst()</span>
+                }
+
+<span class="nc bnc" id="L382" title="All 2 branches missed.">                if (cachedItem == null) {</span>
+<span class="nc" id="L383">                    val wikiSite = WikiSite.forLanguageCode(lang)</span>
+<span class="nc bnc" id="L384" title="All 2 branches missed.">                    while (this.coroutineContext.isActive) {</span>
+<span class="nc" id="L385">                        try {</span>
+                            // If we have been reset, then fetch a few *older* changes, so that the user
+                            // has a few changes to flip through. Otherwise, start fetching *newer* changes,
+                            // starting from the last recorded timestamp.
+<span class="nc bnc" id="L389" title="All 2 branches missed.">                            val triple = if (revertCandidateLastRevId == 0L)</span>
+<span class="nc" id="L390">                                SuggestedEditsRecentEditsViewModel.getRecentEditsCall(wikiSite)</span>
+                            else
+<span class="nc" id="L392">                                SuggestedEditsRecentEditsViewModel.getRecentEditsCall(wikiSite,</span>
+<span class="nc" id="L393">                                    startTimeStamp = revertCandidateLastTimeStamp, direction = &quot;newer&quot;)</span>
+
+                            // Retrieve the list of filtered changes from our filter, but *also* get
+                            // the list of total changes so that we can update our maxRevId and latest
+                            // timestamp, to ensure that our next call will start at the correct point.
+<span class="nc" id="L398">                            val filteredChanges = triple.first.sortedBy { it.curRev }</span>
+<span class="nc" id="L399">                            val allChanges = triple.second</span>
+
+<span class="nc" id="L401">                            var maxRevId = 0L</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">                            for (candidate in allChanges) {</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">                                if (candidate.curRev &gt; maxRevId) {</span>
+<span class="nc" id="L404">                                    maxRevId = candidate.curRev</span>
+                                }
+<span class="nc bnc" id="L406" title="All 2 branches missed.">                                if (candidate.parsedInstant &gt; revertCandidateLastTimeStamp) {</span>
+<span class="nc" id="L407">                                    revertCandidateLastTimeStamp = candidate.parsedInstant</span>
+                                }
+                            }
+<span class="nc bnc" id="L410" title="All 2 branches missed.">                            for (candidate in filteredChanges) {</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">                                if (candidate.curRev &gt; revertCandidateLastRevId) {</span>
+<span class="nc" id="L412">                                    revertCandidateCache.addLast(candidate)</span>
+                                }
+                            }
+<span class="nc bnc" id="L415" title="All 2 branches missed.">                            if (maxRevId &gt; revertCandidateLastRevId) {</span>
+<span class="nc" id="L416">                                revertCandidateLastRevId = maxRevId</span>
+                            }
+<span class="nc bnc" id="L418" title="All 2 branches missed.">                            if (!revertCandidateCache.isEmpty()) {</span>
+<span class="nc" id="L419">                                cachedItem = revertCandidateCache.removeFirst()</span>
+                            }
+<span class="nc bnc" id="L421" title="All 2 branches missed.">                            if (cachedItem == null) {</span>
+<span class="nc" id="L422">                                throw ListEmptyException()</span>
+                            }
+<span class="nc" id="L424">                            break</span>
+<span class="nc" id="L425">                        } catch (e: ListEmptyException) {</span>
+                            // continue indefinitely until new data comes in.
+<span class="nc" id="L427">                            Thread.sleep(3000)</span>
+                        }
+                    }
+                }
+<span class="nc" id="L431">                cachedItem!!</span>
+            } finally {
+<span class="nc" id="L433">                mutex.release()</span>
+<span class="nc" id="L434">            }</span>
+        }
+    }
+
+<span class="nc" id="L438">    class ListEmptyException : RuntimeException()</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

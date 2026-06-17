@@ -1,0 +1,923 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Prefs.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">Prefs.kt</span></div><h1>Prefs.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.location.Location
+import okhttp3.Cookie
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.logging.HttpLoggingInterceptor
+import org.wikimedia.testkitchen.config.StreamConfig
+import org.wikipedia.BuildConfig
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activitytab.ActivityTabModules
+import org.wikipedia.analytics.SessionData
+import org.wikipedia.analytics.eventplatform.AppSessionEvent
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.donate.DonationResult
+import org.wikipedia.donate.donationreminder.DonationReminderConfig
+import org.wikipedia.games.onthisday.OnThisDayGameNotificationState
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.PageTitle
+import org.wikipedia.page.action.PageActionItem
+import org.wikipedia.page.tabs.Tab
+import org.wikipedia.readinglist.recommended.RecommendedReadingListSource
+import org.wikipedia.readinglist.recommended.RecommendedReadingListUpdateFrequency
+import org.wikipedia.readinglist.recommended.SourceWithOffset
+import org.wikipedia.suggestededits.SuggestedEditsRecentEditsFilterTypes
+import org.wikipedia.theme.Theme.Companion.fallback
+import org.wikipedia.util.DateUtil.dbDateFormat
+import org.wikipedia.util.DateUtil.dbDateParse
+import org.wikipedia.util.ReleaseUtil.isDevRelease
+import org.wikipedia.util.StringUtil
+import org.wikipedia.watchlist.WatchlistFilterTypes
+import org.wikipedia.widgets.readingchallenge.ReadingChallengeWidgetRepository
+import org.wikipedia.yearinreview.YearInReviewModel
+import org.wikipedia.yearinreview.YearInReviewSurveyState
+import java.util.Date
+
+/** Shared preferences utility for convenient POJO access.  */
+object Prefs {
+
+    var appChannel
+<span class="fc" id="L41">        get() = PrefsIoUtil.getString(R.string.preference_key_app_channel, null)</span>
+<span class="fc" id="L42">        set(channel) = PrefsIoUtil.setString(R.string.preference_key_app_channel, channel)</span>
+
+    val appChannelKey
+<span class="fc" id="L45">        get() = PrefsIoUtil.getKey(R.string.preference_key_app_channel)</span>
+
+    // The app install ID uses readingAppInstallID for backwards compatibility with analytics.
+    var appInstallId
+<span class="fc" id="L49">        get() = PrefsIoUtil.getString(R.string.preference_key_reading_app_install_id, null)</span>
+<span class="fc" id="L50">        set(id) = PrefsIoUtil.setString(R.string.preference_key_reading_app_install_id, id)</span>
+
+    var currentThemeId
+<span class="fc" id="L53">        get() = PrefsIoUtil.getInt(R.string.preference_key_color_theme, fallback.marshallingId)</span>
+<span class="nc" id="L54">        set(theme) = PrefsIoUtil.setInt(R.string.preference_key_color_theme, theme)</span>
+
+    var previousThemeId
+<span class="nc" id="L57">        get() = PrefsIoUtil.getInt(R.string.preference_key_previous_color_theme, fallback.marshallingId)</span>
+<span class="nc" id="L58">        set(theme) = PrefsIoUtil.setInt(R.string.preference_key_previous_color_theme, theme)</span>
+
+    var readingFocusModeEnabled
+<span class="nc" id="L61">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_focus_mode, false)</span>
+<span class="nc" id="L62">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_focus_mode, value)</span>
+
+    var fontFamily
+<span class="nc bnc" id="L65" title="All 6 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_font_family, &quot;&quot;).orEmpty().ifEmpty { &quot;sans-serif&quot; }</span>
+<span class="nc" id="L66">        set(fontFamily) = PrefsIoUtil.setString(R.string.preference_key_font_family, fontFamily)</span>
+
+    var cookies: Map&lt;String, MutableList&lt;Cookie&gt;&gt;
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        get() = if (!PrefsIoUtil.contains(R.string.preference_key_cookie_map)) {</span>
+<span class="fc" id="L70">            emptyMap()</span>
+        } else {
+<span class="nc" id="L72">            val map = JsonUtil.decodeFromString&lt;Map&lt;String, MutableList&lt;String&gt;&gt;&gt;(PrefsIoUtil</span>
+<span class="nc bnc" id="L73" title="All 4 branches missed.">                .getString(R.string.preference_key_cookie_map, &quot;&quot;).orEmpty()).orEmpty()</span>
+<span class="nc" id="L74">            map.mapValues { (key, values) -&gt;</span>
+<span class="nc" id="L75">                val url = &quot;${WikiSite.DEFAULT_SCHEME}://$key&quot;.toHttpUrlOrNull()</span>
+<span class="nc bnc" id="L76" title="All 4 branches missed.">                url?.let { values.mapNotNull { value -&gt; Cookie.parse(url, value) } }.orEmpty().toMutableList()</span>
+            }
+<span class="fc" id="L78">        }</span>
+        set(cookieMap) {
+<span class="fc" id="L80">            val map = cookieMap.mapValues { (_, cookies) -&gt; cookies.map { it.toString() } }</span>
+<span class="fc" id="L81">            PrefsIoUtil.setString(R.string.preference_key_cookie_map, JsonUtil.encodeToString(map))</span>
+<span class="fc" id="L82">        }</span>
+
+    var isShowDeveloperSettingsEnabled
+<span class="fc" id="L85">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_developer_settings, isDevRelease)</span>
+<span class="nc" id="L86">        set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_show_developer_settings, enabled)</span>
+
+    var mruLanguageCodeList
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        get() = StringUtil.csvToList(PrefsIoUtil.getString(R.string.preference_key_language_mru, null).orEmpty())</span>
+<span class="nc" id="L90">        set(value) = PrefsIoUtil.setString(R.string.preference_key_language_mru, StringUtil.listToCsv(value))</span>
+
+    var appLanguageCodeList
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        get() = StringUtil.csvToList(PrefsIoUtil.getString(R.string.preference_key_language_app, null).orEmpty())</span>
+<span class="fc" id="L94">        set(value) = PrefsIoUtil.setString(R.string.preference_key_language_app, StringUtil.listToCsv(value))</span>
+
+    var remoteConfigJson
+<span class="nc bnc" id="L97" title="All 6 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_remote_config, &quot;&quot;).orEmpty().ifEmpty { &quot;{}&quot; }</span>
+<span class="fc" id="L98">        set(json) = PrefsIoUtil.setString(R.string.preference_key_remote_config, json)</span>
+
+    var tabs
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;List&lt;Tab&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_tabs, null))</span>
+<span class="nc" id="L102">            ?: emptyList()</span>
+<span class="nc" id="L103">        set(tabs) = PrefsIoUtil.setString(R.string.preference_key_tabs, JsonUtil.encodeToString(tabs))</span>
+
+<span class="fc" id="L105">    val hasTabs get() = PrefsIoUtil.contains(R.string.preference_key_tabs)</span>
+
+    fun clearTabs() {
+<span class="nc" id="L108">        PrefsIoUtil.remove(R.string.preference_key_tabs)</span>
+<span class="nc" id="L109">    }</span>
+
+    var hiddenCards: Set&lt;String&gt;
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_feed_hidden_cards, null))</span>
+<span class="nc" id="L113">            ?: emptySet()</span>
+<span class="nc" id="L114">        set(cards) = PrefsIoUtil.setString(R.string.preference_key_feed_hidden_cards, JsonUtil.encodeToString(cards))</span>
+
+    var sessionData
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;SessionData&gt;(PrefsIoUtil.getString(R.string.preference_key_session_data, null))</span>
+<span class="fc" id="L118">            ?: SessionData()</span>
+<span class="fc" id="L119">        set(data) = PrefsIoUtil.setString(R.string.preference_key_session_data, JsonUtil.encodeToString(data))</span>
+
+    // return the timeout, but don't let it be less than the minimum
+    val sessionTimeout
+<span class="fc" id="L123">        get() = PrefsIoUtil.getInt(</span>
+<span class="fc" id="L124">            R.string.preference_key_session_timeout,</span>
+<span class="fc" id="L125">            AppSessionEvent.DEFAULT_SESSION_TIMEOUT</span>
+<span class="fc" id="L126">        ).coerceAtLeast(AppSessionEvent.MIN_SESSION_TIMEOUT)</span>
+
+    var textSizeMultiplier
+<span class="nc" id="L129">        get() = PrefsIoUtil.getInt(R.string.preference_key_text_size_multiplier, 0)</span>
+<span class="nc" id="L130">        set(multiplier) = PrefsIoUtil.setInt(R.string.preference_key_text_size_multiplier, multiplier)</span>
+
+    var editingTextSizeMultiplier
+<span class="nc" id="L133">        get() = PrefsIoUtil.getInt(R.string.preference_key_editing_text_size_multiplier, 0)</span>
+<span class="nc" id="L134">        set(multiplier) = PrefsIoUtil.setInt(R.string.preference_key_editing_text_size_multiplier, multiplier)</span>
+
+    val geoIPCountryOverride
+<span class="nc" id="L137">        get() = PrefsIoUtil.getString(R.string.preference_key_announcement_country_override, null)</span>
+
+    val ignoreDateForAnnouncements
+<span class="nc" id="L140">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_announcement_ignore_date, false)</span>
+
+    var announcementPauseTime
+<span class="nc" id="L143">        get() = PrefsIoUtil.getLong(R.string.preference_key_announcement_pause_time, 0)</span>
+<span class="fc" id="L144">        set(time) = PrefsIoUtil.setLong(R.string.preference_key_announcement_pause_time, time)</span>
+
+    val announcementDebugUrl
+<span class="nc" id="L147">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_announcement_debug_url, false)</span>
+
+    val announcementCustomTabTestUrl
+<span class="nc" id="L150">        get() = PrefsIoUtil.getString(R.string.preference_key_announcement_custom_tab_test_url, null)</span>
+
+    val announcementsVersionCode
+<span class="nc" id="L153">        get() = PrefsIoUtil.getInt(R.string.preference_key_announcement_version_code, 0)</span>
+
+    val retrofitLogLevel: HttpLoggingInterceptor.Level
+        get() {
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">            val prefValue = PrefsIoUtil.getString(R.string.preference_key_retrofit_log_level, null)</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">                ?: return if (isDevRelease) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE</span>
+<span class="nc bnc" id="L159" title="All 13 branches missed.">            return when (prefValue) {</span>
+<span class="nc" id="L160">                &quot;BASIC&quot; -&gt; HttpLoggingInterceptor.Level.BASIC</span>
+<span class="nc" id="L161">                &quot;HEADERS&quot; -&gt; HttpLoggingInterceptor.Level.HEADERS</span>
+<span class="nc" id="L162">                &quot;BODY&quot; -&gt; HttpLoggingInterceptor.Level.BODY</span>
+<span class="nc" id="L163">                &quot;NONE&quot; -&gt; HttpLoggingInterceptor.Level.NONE</span>
+<span class="nc" id="L164">                else -&gt; HttpLoggingInterceptor.Level.NONE</span>
+            }
+        }
+
+    val restbaseUriFormat
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_restbase_uri_format, null)</span>
+<span class="pc bpc" id="L170" title="2 of 4 branches missed.">            .orEmpty().ifEmpty { BuildConfig.DEFAULT_RESTBASE_URI_FORMAT }</span>
+
+    val mediaWikiBaseUrl
+<span class="fc" id="L173">        get() = PrefsIoUtil.getString(R.string.preference_key_mediawiki_base_uri, &quot;&quot;)!!</span>
+
+    val mediaWikiBaseUriSupportsLangCode
+<span class="fc" id="L176">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_mediawiki_base_uri_supports_lang_code, true)</span>
+
+    var eventPlatformIntakeUriOverride
+<span class="fc" id="L179">        get() = PrefsIoUtil.getString(R.string.preference_key_event_platform_intake_base_uri, &quot;&quot;)</span>
+<span class="nc" id="L180">        set(value) = PrefsIoUtil.setString(R.string.preference_key_event_platform_intake_base_uri, value)</span>
+
+    fun getLastRunTime(task: String): Long {
+<span class="fc" id="L183">        return PrefsIoUtil.getLong(getLastRunTimeKey(task), 0)</span>
+    }
+
+    fun setLastRunTime(task: String, time: Long) {
+<span class="fc" id="L187">        PrefsIoUtil.setLong(getLastRunTimeKey(task), time)</span>
+<span class="fc" id="L188">    }</span>
+
+    private fun getLastRunTimeKey(task: String): String {
+<span class="fc" id="L191">        return PrefsIoUtil.getKey(R.string.preference_key_last_run_time_format, task)</span>
+    }
+
+    var pageLastShown
+<span class="nc" id="L195">        get() = PrefsIoUtil.getLong(R.string.preference_key_page_last_shown, 0)</span>
+<span class="nc" id="L196">        set(value) = PrefsIoUtil.setLong(R.string.preference_key_page_last_shown, value)</span>
+
+    val isImageDownloadEnabled
+<span class="nc" id="L199">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_images, true)</span>
+
+    val isDownloadOnlyOverWiFiEnabled
+<span class="nc" id="L202">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_download_only_over_wifi, false)</span>
+
+    val isDownloadingReadingListArticlesEnabled
+<span class="nc" id="L205">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_download_reading_list_articles, true)</span>
+
+    val isLinkPreviewEnabled
+<span class="nc" id="L208">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_link_previews, true)</span>
+
+    val isCollapseTablesEnabled
+<span class="nc" id="L211">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_collapse_tables, true)</span>
+
+    fun getReadingListSortMode(defaultValue: Int): Int {
+<span class="nc" id="L214">        return PrefsIoUtil.getInt(R.string.preference_key_reading_list_sort_mode, defaultValue)</span>
+    }
+
+    fun setReadingListSortMode(sortMode: Int) {
+<span class="nc" id="L218">        PrefsIoUtil.setInt(R.string.preference_key_reading_list_sort_mode, sortMode)</span>
+<span class="nc" id="L219">    }</span>
+
+    var readingListsPageSaveCount
+<span class="nc" id="L222">        get() = PrefsIoUtil.getInt(R.string.preference_key_save_count_reading_lists, 0)</span>
+<span class="nc" id="L223">        set(saveCount) = PrefsIoUtil.setInt(R.string.preference_key_save_count_reading_lists, saveCount)</span>
+
+    fun getReadingListPageSortMode(defaultValue: Int): Int {
+<span class="nc" id="L226">        return PrefsIoUtil.getInt(R.string.preference_key_reading_list_page_sort_mode, defaultValue)</span>
+    }
+
+    fun setReadingListPageSortMode(sortMode: Int) {
+<span class="nc" id="L230">        PrefsIoUtil.setInt(R.string.preference_key_reading_list_page_sort_mode, sortMode)</span>
+<span class="nc" id="L231">    }</span>
+
+    var loginForceEmailAuth
+<span class="nc" id="L234">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_login_force_email_auth, false)</span>
+<span class="nc" id="L235">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_login_force_email_auth, value)</span>
+
+    var lastBackgroundLoginDateTime
+<span class="nc" id="L238">        get() = PrefsIoUtil.getString(R.string.preference_key_last_background_login_date_time, &quot;&quot;)</span>
+<span class="nc" id="L239">        set(value) = PrefsIoUtil.setString(R.string.preference_key_last_background_login_date_time, value)</span>
+
+    val isMemoryLeakTestEnabled
+<span class="fc" id="L242">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_memory_leak_test, false)</span>
+
+    var isDescriptionEditTutorialEnabled
+<span class="nc" id="L245">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_description_edit_tutorial_enabled, true)</span>
+<span class="nc" id="L246">        set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_description_edit_tutorial_enabled, enabled)</span>
+
+    var lastDescriptionEditTime
+<span class="nc" id="L249">        get() = PrefsIoUtil.getLong(R.string.preference_key_last_description_edit_time, 0)</span>
+<span class="nc" id="L250">        set(time) = PrefsIoUtil.setLong(R.string.preference_key_last_description_edit_time, time)</span>
+
+    val totalAnonDescriptionsEdited
+<span class="nc" id="L253">        get() = PrefsIoUtil.getInt(R.string.preference_key_total_anon_descriptions_edited, 0)</span>
+
+    fun incrementTotalAnonDescriptionsEdited() {
+<span class="nc" id="L256">        PrefsIoUtil.setInt(R.string.preference_key_total_anon_descriptions_edited, totalAnonDescriptionsEdited + 1)</span>
+<span class="nc" id="L257">    }</span>
+
+    var isReadingListSyncEnabled
+<span class="nc" id="L260">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_sync_reading_lists, false)</span>
+<span class="nc" id="L261">        set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_sync_reading_lists, enabled)</span>
+
+    var isReadingListSyncReminderEnabled
+<span class="nc" id="L264">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_list_sync_reminder_enabled, true)</span>
+<span class="nc" id="L265">        set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_list_sync_reminder_enabled, enabled)</span>
+
+    var isReadingListLoginReminderEnabled
+<span class="nc" id="L268">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_list_login_reminder_enabled, true)</span>
+<span class="nc" id="L269">        set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_list_login_reminder_enabled, enabled)</span>
+
+    var isReadingListsRemoteDeletePending
+<span class="nc" id="L272">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_lists_remote_delete_pending, false)</span>
+<span class="nc" id="L273">        set(pending) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_lists_remote_delete_pending, pending)</span>
+
+    var isReadingListsRemoteSetupPending
+<span class="nc" id="L276">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_lists_remote_setup_pending, false)</span>
+<span class="nc" id="L277">        set(pending) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_lists_remote_setup_pending, pending)</span>
+
+    var isInitialOnboardingEnabled
+<span class="fc" id="L280">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_initial_onboarding_enabled, true)</span>
+<span class="fc" id="L281">        set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_initial_onboarding_enabled, enabled)</span>
+
+    fun askedForPermissionOnce(permission: String): Boolean {
+<span class="nc" id="L284">        return PrefsIoUtil.getBoolean(R.string.preference_key_permission_asked.toString() + permission, false)</span>
+    }
+
+    fun setAskedForPermissionOnce(permission: String) {
+<span class="nc" id="L288">        PrefsIoUtil.setBoolean(R.string.preference_key_permission_asked.toString() + permission, true)</span>
+<span class="nc" id="L289">    }</span>
+
+    var dimDarkModeImages
+<span class="nc" id="L292">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_dim_dark_mode_images, true)</span>
+<span class="nc" id="L293">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_dim_dark_mode_images, value)</span>
+
+    var notificationUnreadCount
+<span class="nc" id="L296">        get() = PrefsIoUtil.getInt(R.string.preference_key_notification_unread_count, 0)</span>
+<span class="nc" id="L297">        set(count) = PrefsIoUtil.setInt(R.string.preference_key_notification_unread_count, count)</span>
+
+    var hasAnonymousNotification
+<span class="nc" id="L300">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_anon_user_has_notification, false)</span>
+<span class="fc" id="L301">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_anon_user_has_notification, value)</span>
+
+    var lastAnonUserWithMessages
+<span class="nc" id="L304">        get() = PrefsIoUtil.getString(R.string.preference_key_last_anon_user_with_messages, &quot;&quot;)</span>
+<span class="nc" id="L305">        set(value) = PrefsIoUtil.setString(R.string.preference_key_last_anon_user_with_messages, value)</span>
+
+    var lastAnonEditTime
+<span class="nc" id="L308">        get() = PrefsIoUtil.getLong(R.string.preference_key_last_anon_edit_time, 0)</span>
+<span class="nc" id="L309">        set(value) = PrefsIoUtil.setLong(R.string.preference_key_last_anon_edit_time, value)</span>
+
+    var lastAnonNotificationTime
+<span class="nc" id="L312">        get() = PrefsIoUtil.getLong(R.string.preference_key_last_anon_notification_time, 0)</span>
+<span class="nc" id="L313">        set(value) = PrefsIoUtil.setLong(R.string.preference_key_last_anon_notification_time, value)</span>
+
+    var lastAnonNotificationLang
+<span class="nc" id="L316">        get() = PrefsIoUtil.getString(R.string.preference_key_last_anon_notification_lang, &quot;&quot;)</span>
+<span class="nc" id="L317">        set(value) = PrefsIoUtil.setString(R.string.preference_key_last_anon_notification_lang, value)</span>
+
+    fun preferOfflineContent(): Boolean {
+<span class="fc" id="L320">        return PrefsIoUtil.getBoolean(R.string.preference_key_prefer_offline_content, false)</span>
+    }
+
+    var feedCardsEnabled
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;List&lt;Boolean&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_feed_cards_enabled, null))</span>
+<span class="nc" id="L325">            ?: emptyList()</span>
+<span class="nc" id="L326">        set(enabledList) = PrefsIoUtil.setString(R.string.preference_key_feed_cards_enabled, JsonUtil.encodeToString(enabledList))</span>
+
+    var feedCardsOrder
+<span class="nc bnc" id="L329" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;List&lt;Int&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_feed_cards_order, null))</span>
+<span class="nc" id="L330">            ?: emptyList()</span>
+<span class="nc" id="L331">        set(orderList) = PrefsIoUtil.setString(R.string.preference_key_feed_cards_order, JsonUtil.encodeToString(orderList))</span>
+
+    var feedCardsLangSupported
+<span class="nc bnc" id="L334" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Map&lt;Int, List&lt;String&gt;&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_feed_cards_lang_supported, null))</span>
+<span class="nc" id="L335">            ?: emptyMap()</span>
+<span class="nc" id="L336">        set(langSupportedMap) = PrefsIoUtil.setString(R.string.preference_key_feed_cards_lang_supported, JsonUtil.encodeToString(langSupportedMap))</span>
+
+    var feedCardsLangDisabled
+<span class="nc bnc" id="L339" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Map&lt;Int, List&lt;String&gt;&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_feed_cards_lang_disabled, null))</span>
+<span class="nc" id="L340">            ?: emptyMap()</span>
+<span class="nc" id="L341">        set(langDisabledMap) = PrefsIoUtil.setString(R.string.preference_key_feed_cards_lang_disabled, JsonUtil.encodeToString(langDisabledMap))</span>
+
+    fun resetFeedCustomizations() {
+<span class="nc" id="L344">        PrefsIoUtil.remove(R.string.preference_key_feed_hidden_cards)</span>
+<span class="nc" id="L345">        PrefsIoUtil.remove(R.string.preference_key_feed_cards_enabled)</span>
+<span class="nc" id="L346">        PrefsIoUtil.remove(R.string.preference_key_feed_cards_order)</span>
+<span class="nc" id="L347">        PrefsIoUtil.remove(R.string.preference_key_feed_cards_lang_disabled)</span>
+<span class="nc" id="L348">    }</span>
+
+    var readingListsLastSyncTime
+<span class="nc" id="L351">        get() = PrefsIoUtil.getString(R.string.preference_key_reading_lists_last_sync_time, &quot;&quot;)</span>
+<span class="nc" id="L352">        set(timeStr) = PrefsIoUtil.setString(R.string.preference_key_reading_lists_last_sync_time, timeStr)</span>
+
+    var readingListsDeletedIds
+<span class="nc bnc" id="L355" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;Long&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_reading_lists_deleted_ids, null))</span>
+<span class="nc" id="L356">            ?: emptySet()</span>
+<span class="nc" id="L357">        set(set) = PrefsIoUtil.setString(R.string.preference_key_reading_lists_deleted_ids, JsonUtil.encodeToString(set))</span>
+
+    fun addReadingListsDeletedIds(set: Set&lt;Long&gt;) {
+<span class="nc" id="L360">        val maxStoredIds = 256</span>
+<span class="nc" id="L361">        val currentSet = readingListsDeletedIds.toMutableSet()</span>
+<span class="nc" id="L362">        currentSet.addAll(set)</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">        readingListsDeletedIds = if (currentSet.size &lt; maxStoredIds) currentSet else set</span>
+<span class="nc" id="L364">    }</span>
+
+    var readingListPagesDeletedIds
+<span class="nc bnc" id="L367" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_reading_list_pages_deleted_ids, null))</span>
+<span class="nc" id="L368">            ?: emptySet()</span>
+<span class="nc" id="L369">        set(set) = PrefsIoUtil.setString(R.string.preference_key_reading_list_pages_deleted_ids, JsonUtil.encodeToString(set))</span>
+
+    fun addReadingListPagesDeletedIds(set: Set&lt;String&gt;) {
+<span class="nc" id="L372">        val maxStoredIds = 256</span>
+<span class="nc" id="L373">        val currentSet = readingListPagesDeletedIds.toMutableSet()</span>
+<span class="nc" id="L374">        currentSet.addAll(set)</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">        readingListPagesDeletedIds = if (currentSet.size &lt; maxStoredIds) currentSet else set</span>
+<span class="nc" id="L376">    }</span>
+
+    var showReadingListSyncEnablePrompt
+<span class="nc" id="L379">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_reading_lists_sync_prompt, true)</span>
+<span class="fc" id="L380">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_show_reading_lists_sync_prompt, value)</span>
+
+    var isReadingListsFirstTimeSync
+<span class="fc" id="L383">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_lists_first_time_sync, true)</span>
+<span class="nc" id="L384">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_lists_first_time_sync, value)</span>
+
+    var remoteNotificationsSeenTime
+<span class="nc bnc" id="L387" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_remote_notifications_seen_time, &quot;&quot;).orEmpty()</span>
+<span class="nc" id="L388">        set(seenTime) = PrefsIoUtil.setString(R.string.preference_key_remote_notifications_seen_time, seenTime)</span>
+
+    var showHistoryOfflineArticlesToast
+<span class="nc" id="L391">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_history_offline_articles_toast, true)</span>
+<span class="nc" id="L392">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_history_offline_articles_toast, value)</span>
+
+    var loggedOutInBackground
+<span class="fc" id="L395">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_logged_out_in_background, false)</span>
+<span class="fc" id="L396">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_logged_out_in_background, value)</span>
+
+    var showDescriptionEditSuccessPrompt
+<span class="nc" id="L399">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_description_edit_success_prompt, true)</span>
+<span class="nc" id="L400">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_show_description_edit_success_prompt, value)</span>
+
+    var hasVisitedArticlePage
+<span class="nc" id="L403">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_visited_article_page, false)</span>
+<span class="fc" id="L404">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_visited_article_page, value)</span>
+
+    var announcementShownDialogs
+<span class="nc bnc" id="L407" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_announcement_shown_dialogs, null))</span>
+<span class="nc" id="L408">            ?: emptySet()</span>
+        set(newAnnouncementIds) {
+<span class="nc" id="L410">            val announcementIds = announcementShownDialogs.toMutableSet()</span>
+<span class="nc" id="L411">            announcementIds.addAll(newAnnouncementIds)</span>
+<span class="nc" id="L412">            PrefsIoUtil.setString(R.string.preference_key_announcement_shown_dialogs, JsonUtil.encodeToString(announcementIds))</span>
+<span class="nc" id="L413">        }</span>
+
+    fun resetAnnouncementShownDialogs() {
+<span class="nc" id="L416">        PrefsIoUtil.remove(R.string.preference_key_announcement_shown_dialogs)</span>
+<span class="nc" id="L417">    }</span>
+
+    var shouldMatchSystemTheme
+<span class="fc" id="L420">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_match_system_theme, true)</span>
+<span class="nc" id="L421">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_match_system_theme, value)</span>
+
+    var suggestedEditsPauseDate: Date
+        get() {
+<span class="nc" id="L425">            val pref = PrefsIoUtil.getString(R.string.preference_key_suggested_edits_pause_date, &quot;&quot;)</span>
+<span class="nc bnc" id="L426" title="All 6 branches missed.">            return if (!pref.isNullOrEmpty()) { dbDateParse(pref) } else Date(0)</span>
+        }
+<span class="nc" id="L428">        set(date) = PrefsIoUtil.setString(R.string.preference_key_suggested_edits_pause_date, dbDateFormat(date))</span>
+
+    var suggestedEditsPauseReverts
+<span class="nc" id="L431">        get() = PrefsIoUtil.getInt(R.string.preference_key_suggested_edits_pause_reverts, 0)</span>
+<span class="nc" id="L432">        set(count) = PrefsIoUtil.setInt(R.string.preference_key_suggested_edits_pause_reverts, count)</span>
+
+    fun shouldOverrideSuggestedEditCounts(): Boolean {
+<span class="nc" id="L435">        return PrefsIoUtil.getBoolean(R.string.preference_key_suggested_edits_override_counts, false)</span>
+    }
+
+    val overrideSuggestedEditCount
+<span class="nc" id="L439">        get() = PrefsIoUtil.getInt(R.string.preference_key_suggested_edits_override_edits, 0)</span>
+
+    var overrideSuggestedEditContribution
+<span class="nc" id="L442">        get() = PrefsIoUtil.getInt(R.string.preference_key_suggested_edits_override_contribution, 0)</span>
+<span class="nc" id="L443">        set(value) = PrefsIoUtil.setInt(R.string.preference_key_suggested_edits_override_contribution, value)</span>
+
+    val overrideSuggestedRevertCount
+<span class="nc" id="L446">        get() = PrefsIoUtil.getInt(R.string.preference_key_suggested_edits_override_reverts, 0)</span>
+
+    var installReferrerAttempts
+<span class="fc" id="L449">        get() = PrefsIoUtil.getInt(R.string.preference_key_install_referrer_attempts, 0)</span>
+<span class="fc" id="L450">        set(attempts) = PrefsIoUtil.setInt(R.string.preference_key_install_referrer_attempts, attempts)</span>
+
+    var showImageTagsOnboarding
+<span class="nc" id="L453">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_image_tags_onboarding_shown, true)</span>
+<span class="nc" id="L454">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_image_tags_onboarding_shown, value)</span>
+
+    var showImageZoomTooltip
+<span class="nc" id="L457">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_image_zoom_tooltip_shown, true)</span>
+<span class="nc" id="L458">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_image_zoom_tooltip_shown, value)</span>
+
+    var isSuggestedEditsReactivationPassStageOne
+<span class="nc" id="L461">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_suggested_edits_reactivation_pass_stage_one, true)</span>
+<span class="nc" id="L462">        set(pass) = PrefsIoUtil.setBoolean(R.string.preference_key_suggested_edits_reactivation_pass_stage_one, pass)</span>
+
+    var temporaryWikitext
+<span class="nc" id="L465">        get() = PrefsIoUtil.getString(R.string.preference_key_temporary_wikitext_storage, &quot;&quot;)</span>
+<span class="nc" id="L466">        set(value) = PrefsIoUtil.setString(R.string.preference_key_temporary_wikitext_storage, value)</span>
+
+    var pushNotificationToken
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_push_notification_token, &quot;&quot;).orEmpty()</span>
+<span class="fc" id="L470">        set(token) = PrefsIoUtil.setString(R.string.preference_key_push_notification_token, token)</span>
+
+    var pushNotificationTokenOld
+<span class="nc bnc" id="L473" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_push_notification_token_old, &quot;&quot;).orEmpty()</span>
+<span class="fc" id="L474">        set(token) = PrefsIoUtil.setString(R.string.preference_key_push_notification_token_old, token)</span>
+
+    var isPushNotificationTokenSubscribed
+<span class="nc" id="L477">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_push_notification_token_subscribed, false)</span>
+<span class="fc" id="L478">        set(subscribed) = PrefsIoUtil.setBoolean(R.string.preference_key_push_notification_token_subscribed, subscribed)</span>
+
+    val isSuggestedEditsReactivationTestEnabled
+<span class="fc" id="L481">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_suggested_edits_reactivation_test, false)</span>
+
+    var isSuggestedEditsHighestPriorityEnabled
+<span class="nc" id="L484">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_suggested_edits_highest_priority_enabled, false)</span>
+<span class="fc" id="L485">        set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_suggested_edits_highest_priority_enabled, enabled)</span>
+
+    fun incrementExploreFeedVisitCount() {
+<span class="nc" id="L488">        PrefsIoUtil.setInt(R.string.preference_key_explore_feed_visit_count, exploreFeedVisitCount + 1)</span>
+<span class="nc" id="L489">    }</span>
+
+    val exploreFeedVisitCount
+<span class="nc" id="L492">        get() = PrefsIoUtil.getInt(R.string.preference_key_explore_feed_visit_count, 0)</span>
+
+    var selectedLanguagePositionInSearch
+<span class="nc" id="L495">        get() = PrefsIoUtil.getInt(R.string.preference_key_selected_language_position_in_search, 0)</span>
+<span class="nc" id="L496">        set(position) = PrefsIoUtil.setInt(R.string.preference_key_selected_language_position_in_search, position)</span>
+
+    var showSearchTabTooltip
+<span class="nc" id="L499">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_search_tab_tooltip, true)</span>
+<span class="fc" id="L500">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_show_search_tab_tooltip, value)</span>
+
+    var eventPlatformSessionId
+<span class="fc" id="L503">        get() = PrefsIoUtil.getString(R.string.preference_key_event_platform_session_id, null)</span>
+<span class="fc" id="L504">        set(sessionId) = PrefsIoUtil.setString(R.string.preference_key_event_platform_session_id, sessionId)</span>
+
+    var notificationExcludedWikiCodes
+<span class="nc bnc" id="L507" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_excluded_wiki_codes_notification, null))</span>
+<span class="nc" id="L508">            ?: emptySet()</span>
+<span class="nc" id="L509">        set(wikis) = PrefsIoUtil.setString(R.string.preference_key_excluded_wiki_codes_notification, JsonUtil.encodeToString(wikis))</span>
+
+    var notificationExcludedTypeCodes
+<span class="nc bnc" id="L512" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_excluded_type_codes_notification, null))</span>
+<span class="nc" id="L513">            ?: emptySet()</span>
+<span class="nc" id="L514">        set(types) = PrefsIoUtil.setString(R.string.preference_key_excluded_type_codes_notification, JsonUtil.encodeToString(types))</span>
+
+    var streamConfigs
+<span class="pc bpc" id="L517" title="1 of 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Map&lt;String, StreamConfig&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_event_platform_stored_stream_configs, null))</span>
+<span class="fc" id="L518">            ?: emptyMap()</span>
+<span class="fc" id="L519">        set(value) = PrefsIoUtil.setString(R.string.preference_key_event_platform_stored_stream_configs, JsonUtil.encodeToString(value))</span>
+
+    var localClassName
+<span class="nc" id="L522">        get() = PrefsIoUtil.getString(R.string.preference_key_crash_report_local_class_name, &quot;&quot;)</span>
+<span class="fc" id="L523">        set(className) = PrefsIoUtil.setString(R.string.preference_key_crash_report_local_class_name, className)</span>
+
+    var autoShowEditNotices
+<span class="nc" id="L526">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_auto_show_edit_notices, true)</span>
+<span class="nc" id="L527">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_auto_show_edit_notices, value)</span>
+
+    var isEditNoticesTooltipShown
+<span class="nc" id="L530">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_edit_notices_tooltip_shown, false)</span>
+<span class="nc" id="L531">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_edit_notices_tooltip_shown, value)</span>
+
+    val hideReadNotificationsEnabled
+<span class="nc" id="L534">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_notification_hide_read, false)</span>
+
+    var customizeToolbarOrder
+<span class="nc bnc" id="L537" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;List&lt;Int&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_customize_toolbar_order, null))</span>
+<span class="nc" id="L538">            ?: PageActionItem.DEFAULT_TOOLBAR_LIST</span>
+<span class="nc" id="L539">        set(orderList) = PrefsIoUtil.setString(R.string.preference_key_customize_toolbar_order, JsonUtil.encodeToString(orderList))</span>
+
+    var customizeToolbarMenuOrder: List&lt;Int&gt;
+        get() {
+<span class="nc" id="L543">            val notInToolbarList = PageActionItem.entries.map { it.code() }.subtract(customizeToolbarOrder.toSet())</span>
+<span class="nc bnc" id="L544" title="All 2 branches missed.">            val currentList = JsonUtil.decodeFromString&lt;List&lt;Int&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_customize_toolbar_menu_order, null)) ?: PageActionItem.DEFAULT_OVERFLOW_MENU_LIST</span>
+<span class="nc" id="L545">            return currentList.union(notInToolbarList).toList()</span>
+        }
+<span class="nc" id="L547">        set(orderList) = PrefsIoUtil.setString(R.string.preference_key_customize_toolbar_menu_order, JsonUtil.encodeToString(orderList))</span>
+
+    fun resetToolbarAndMenuOrder() {
+<span class="nc" id="L550">        PrefsIoUtil.remove(R.string.preference_key_customize_toolbar_order)</span>
+<span class="nc" id="L551">        PrefsIoUtil.remove(R.string.preference_key_customize_toolbar_menu_order)</span>
+<span class="nc" id="L552">    }</span>
+
+    var showOneTimeCustomizeToolbarTooltip
+<span class="nc" id="L555">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_customize_toolbar_tooltip, true)</span>
+<span class="fc" id="L556">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_customize_toolbar_tooltip, value)</span>
+
+    var showEditTalkPageSourcePrompt
+<span class="nc" id="L559">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_edit_talk_page_source_prompt, true)</span>
+<span class="nc" id="L560">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_show_edit_talk_page_source_prompt, value)</span>
+
+    var talkTopicsSortMode
+<span class="fc" id="L563">        get() = PrefsIoUtil.getInt(R.string.preference_key_talk_topics_sort_mode, 0)</span>
+<span class="nc" id="L564">        set(value) = PrefsIoUtil.setInt(R.string.preference_key_talk_topics_sort_mode, value)</span>
+
+    var editHistoryFilterType
+<span class="nc bnc" id="L567" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_edit_history_filter_type, null).orEmpty()</span>
+<span class="nc" id="L568">        set(value) = PrefsIoUtil.setString(R.string.preference_key_edit_history_filter_type, value)</span>
+
+    var talkTopicExpandOrCollapseByDefault
+<span class="nc" id="L571">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_talk_topic_expand_all, true)</span>
+<span class="nc" id="L572">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_talk_topic_expand_all, value)</span>
+
+    var userContribFilterExcludedNs
+<span class="nc bnc" id="L575" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;Int&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_user_contrib_filter_excluded_ns, null))</span>
+<span class="nc" id="L576">                ?: emptySet()</span>
+<span class="nc" id="L577">        set(value) = PrefsIoUtil.setString(R.string.preference_key_user_contrib_filter_excluded_ns, JsonUtil.encodeToString(value))</span>
+
+    var userContribFilterLangCode
+<span class="nc" id="L580">        get() = PrefsIoUtil.getString(R.string.preference_key_user_contrib_filter_lang_code, WikipediaApp.instance.appOrSystemLanguageCode)!!</span>
+<span class="nc" id="L581">        set(value) = PrefsIoUtil.setString(R.string.preference_key_user_contrib_filter_lang_code, value)</span>
+
+    var donationBannerOptIn
+<span class="nc" id="L584">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_donation_banner_opt_in, true)</span>
+<span class="nc" id="L585">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_donation_banner_opt_in, value)</span>
+
+    var importReadingListsNewInstallDialogShown
+<span class="nc" id="L588">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_import_reading_lists_new_install_dialog_shown, true)</span>
+<span class="nc" id="L589">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_import_reading_lists_new_install_dialog_shown, value)</span>
+
+    var importReadingListsDialogShown
+<span class="nc" id="L592">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_import_reading_lists_dialog_shown, true)</span>
+<span class="nc" id="L593">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_import_reading_lists_dialog_shown, value)</span>
+
+    var receiveReadingListsData
+<span class="nc" id="L596">        get() = PrefsIoUtil.getString(R.string.preference_key_receive_reading_lists_data, null)</span>
+<span class="nc" id="L597">        set(value) = PrefsIoUtil.setString(R.string.preference_key_receive_reading_lists_data, value)</span>
+
+    var editSyntaxHighlightEnabled
+<span class="nc" id="L600">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_edit_syntax_highlight, true)</span>
+<span class="nc" id="L601">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_edit_syntax_highlight, value)</span>
+
+    var editMonoSpaceFontEnabled
+<span class="nc" id="L604">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_edit_monospace_font, false)</span>
+<span class="nc" id="L605">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_edit_monospace_font, value)</span>
+
+    var editLineNumbersEnabled
+<span class="nc" id="L608">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_edit_line_numbers, false)</span>
+<span class="nc" id="L609">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_edit_line_numbers, value)</span>
+
+    var editTypingSuggestionsEnabled
+<span class="nc" id="L612">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_edit_typing_suggestions, true)</span>
+<span class="nc" id="L613">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_edit_typing_suggestions, value)</span>
+
+    val useUrlShortenerForSharing
+<span class="nc" id="L616">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_lists_share_url_shorten, false)</span>
+
+    var tempAccountWelcomeShown
+<span class="nc" id="L619">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_temp_account_welcome_shown, false)</span>
+<span class="nc" id="L620">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_temp_account_welcome_shown, value)</span>
+
+    var tempAccountDialogShown
+<span class="nc" id="L623">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_temp_account_dialog_shown, false)</span>
+<span class="nc" id="L624">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_temp_account_dialog_shown, value)</span>
+
+    var tempAccountCreateDay
+<span class="nc" id="L627">        get() = PrefsIoUtil.getLong(R.string.preference_key_temp_account_create_day, 0)</span>
+<span class="nc" id="L628">        set(value) = PrefsIoUtil.setLong(R.string.preference_key_temp_account_create_day, value)</span>
+
+    var readingListShareTooltipShown
+<span class="nc" id="L631">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_lists_share_tooltip_shown, false)</span>
+<span class="fc" id="L632">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_lists_share_tooltip_shown, value)</span>
+
+    var readingListRecentReceivedId
+<span class="nc" id="L635">        get() = PrefsIoUtil.getLong(R.string.preference_key_reading_lists_recent_receive_id, -1)</span>
+<span class="nc" id="L636">        set(value) = PrefsIoUtil.setLong(R.string.preference_key_reading_lists_recent_receive_id, value)</span>
+
+    var suggestedEditsImageRecsOnboardingShown
+<span class="nc" id="L639">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_se_image_recs_onboarding_shown, false)</span>
+<span class="nc" id="L640">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_se_image_recs_onboarding_shown, value)</span>
+
+    var suggestedEditsMachineGeneratedDescriptionTooltipShown
+<span class="nc" id="L643">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_se_machine_generated_descriptions_tooltip_shown, false)</span>
+<span class="nc" id="L644">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_se_machine_generated_descriptions_tooltip_shown, value)</span>
+
+    var watchlistExcludedWikiCodes
+<span class="nc bnc" id="L647" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_excluded_wiki_codes_watchlist, null))</span>
+<span class="nc" id="L648">            ?: emptySet()</span>
+<span class="nc" id="L649">        set(wikis) = PrefsIoUtil.setString(R.string.preference_key_excluded_wiki_codes_watchlist, JsonUtil.encodeToString(wikis))</span>
+
+    var watchlistIncludedTypeCodes
+<span class="nc bnc" id="L652" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_included_type_codes_watchlist, null))</span>
+<span class="nc" id="L653">            ?: WatchlistFilterTypes.DEFAULT_FILTER_TYPE_SET.map { it.id }</span>
+<span class="nc" id="L654">        set(types) = PrefsIoUtil.setString(R.string.preference_key_included_type_codes_watchlist, JsonUtil.encodeToString(types))</span>
+
+    var analyticsQueueSize
+<span class="fc" id="L657">        get() = PrefsIoUtil.getInt(R.string.preference_key_event_platform_queue_size, 128)</span>
+<span class="nc" id="L658">        set(value) = PrefsIoUtil.setInt(R.string.preference_key_event_platform_queue_size, value)</span>
+
+    var recentEditsWikiCode
+<span class="nc bnc" id="L661" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_recent_edits_wiki_code, WikipediaApp.instance.appOrSystemLanguageCode).orEmpty()</span>
+<span class="nc" id="L662">        set(value) = PrefsIoUtil.setString(R.string.preference_key_recent_edits_wiki_code, value)</span>
+
+    var recentEditsIncludedTypeCodes
+<span class="nc bnc" id="L665" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_recent_edits_included_type_codes, null))</span>
+<span class="nc" id="L666">            ?: SuggestedEditsRecentEditsFilterTypes.DEFAULT_FILTER_TYPE_SET.map { it.id }</span>
+<span class="nc" id="L667">        set(types) = PrefsIoUtil.setString(R.string.preference_key_recent_edits_included_type_codes, JsonUtil.encodeToString(types))</span>
+
+    var recentEditsOnboardingShown
+<span class="nc" id="L670">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_recent_edits_onboarding_shown, false)</span>
+<span class="nc" id="L671">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_recent_edits_onboarding_shown, value)</span>
+
+    var showOneTimeSequentialRecentEditsDiffTooltip
+<span class="nc" id="L674">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_sequential_recent_edits_diff_tooltip, true)</span>
+<span class="nc" id="L675">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_show_sequential_recent_edits_diff_tooltip, value)</span>
+
+    var showOneTimeRecentEditsFeedbackForm
+<span class="nc" id="L678">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_show_recent_edits_feedback_form, true)</span>
+<span class="nc" id="L679">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_show_recent_edits_feedback_form, value)</span>
+
+    var placesWikiCode
+<span class="nc bnc" id="L682" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_places_wiki_code, WikipediaApp.instance.appOrSystemLanguageCode).orEmpty()</span>
+<span class="nc" id="L683">        set(value) = PrefsIoUtil.setString(R.string.preference_key_places_wiki_code, value)</span>
+
+    var placesDefaultLocationLatLng
+        get(): String? {
+<span class="nc" id="L687">            val lanLng = PrefsIoUtil.getString(R.string.preference_key_default_places_location_latlng, null)</span>
+<span class="nc bnc" id="L688" title="All 6 branches missed.">            return if (lanLng.isNullOrEmpty()) null else lanLng</span>
+        }
+<span class="nc" id="L690">        set(set) = PrefsIoUtil.setString(R.string.preference_key_default_places_location_latlng, set)</span>
+
+    var placesLastLocationAndZoomLevel: Pair&lt;Location, Double&gt;?
+        get() {
+            // latitude|longitude|zoomLevel
+<span class="nc bnc" id="L695" title="All 4 branches missed.">            val infoList = PrefsIoUtil.getString(R.string.preference_key_places_last_location_and_zoom_level, null)?.split(&quot;|&quot;)?.map { it.toDouble() }</span>
+<span class="nc bnc" id="L696" title="All 2 branches missed.">            return infoList?.let {</span>
+<span class="nc" id="L697">                val location = Location(&quot;&quot;).apply {</span>
+<span class="nc" id="L698">                    latitude = infoList[0]</span>
+<span class="nc" id="L699">                    longitude = infoList[1]</span>
+<span class="nc" id="L700">                }</span>
+<span class="nc" id="L701">                val zoomLevel = infoList[2]</span>
+<span class="nc" id="L702">                Pair(location, zoomLevel)</span>
+            }
+        }
+        set(pair) {
+<span class="nc" id="L706">            var locationAndZoomLevelString: String? = null</span>
+<span class="nc bnc" id="L707" title="All 2 branches missed.">            pair?.let {</span>
+<span class="nc" id="L708">                locationAndZoomLevelString = &quot;${pair.first.latitude}|${pair.first.longitude}|${pair.second}&quot;</span>
+<span class="nc" id="L709">            }</span>
+<span class="nc" id="L710">            PrefsIoUtil.setString(R.string.preference_key_places_last_location_and_zoom_level, locationAndZoomLevelString)</span>
+<span class="nc" id="L711">        }</span>
+
+    var recentUsedTemplates
+<span class="nc bnc" id="L714" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Set&lt;PageTitle&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_recent_used_templates, null)) ?: emptySet()</span>
+<span class="nc" id="L715">        set(set) = PrefsIoUtil.setString(R.string.preference_key_recent_used_templates, JsonUtil.encodeToString(set))</span>
+
+    fun addRecentUsedTemplates(set: Set&lt;PageTitle&gt;) {
+<span class="nc" id="L718">        val maxStoredIds = 100</span>
+<span class="nc" id="L719">        val currentSet = recentUsedTemplates.toMutableSet()</span>
+<span class="nc" id="L720">        currentSet.addAll(set)</span>
+<span class="nc bnc" id="L721" title="All 2 branches missed.">        recentUsedTemplates = if (currentSet.size &lt; maxStoredIds) currentSet else set</span>
+<span class="nc" id="L722">    }</span>
+
+    var paymentMethodsLastQueryTime
+<span class="nc" id="L725">        get() = PrefsIoUtil.getLong(R.string.preference_key_payment_methods_last_query_time, 0)</span>
+<span class="nc" id="L726">        set(value) = PrefsIoUtil.setLong(R.string.preference_key_payment_methods_last_query_time, value)</span>
+
+    var paymentMethodsMerchantId
+<span class="nc bnc" id="L729" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_payment_methods_merchant_id, null).orEmpty()</span>
+<span class="nc" id="L730">        set(value) = PrefsIoUtil.setString(R.string.preference_key_payment_methods_merchant_id, value)</span>
+
+    var paymentMethodsGatewayId
+<span class="nc bnc" id="L733" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_payment_methods_gateway_id, null).orEmpty()</span>
+<span class="nc" id="L734">        set(value) = PrefsIoUtil.setString(R.string.preference_key_payment_methods_gateway_id, value)</span>
+
+    var isDonationTestEnvironment
+<span class="nc" id="L737">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_donation_test_env, false)</span>
+<span class="nc" id="L738">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_donation_test_env, value)</span>
+
+    var donationResults
+<span class="nc bnc" id="L741" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;List&lt;DonationResult&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_donation_results, null)).orEmpty()</span>
+<span class="nc" id="L742">        set(value) = PrefsIoUtil.setString(R.string.preference_key_donation_results, JsonUtil.encodeToString(value))</span>
+
+    var lastOtdGameDateOverride
+<span class="nc bnc" id="L745" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_otd_game_date_override, null).orEmpty()</span>
+<span class="nc" id="L746">        set(value) = PrefsIoUtil.setString(R.string.preference_key_otd_game_date_override, value)</span>
+
+    var otdGameState
+<span class="nc bnc" id="L749" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_otd_game_state, null).orEmpty()</span>
+<span class="nc" id="L750">        set(value) = PrefsIoUtil.setString(R.string.preference_key_otd_game_state, value)</span>
+
+    var otdGameHistory
+<span class="nc bnc" id="L753" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_otd_game_history, null).orEmpty()</span>
+<span class="nc" id="L754">        set(value) = PrefsIoUtil.setString(R.string.preference_key_otd_game_history, value)</span>
+
+    var otdLastPlayedDate
+<span class="nc bnc" id="L757" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_otd_last_played_date, null).orEmpty()</span>
+<span class="nc" id="L758">        set(value) = PrefsIoUtil.setString(R.string.preference_key_otd_last_played_date, value)</span>
+
+    var otdGameQuestionsPerDay
+<span class="nc" id="L761">        get() = PrefsIoUtil.getInt(R.string.preference_key_otd_game_num_questions, 5)</span>
+<span class="nc" id="L762">        set(value) = PrefsIoUtil.setInt(R.string.preference_key_otd_game_num_questions, value)</span>
+
+    var otdEntryDialogShown
+<span class="nc" id="L765">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_otd_entry_dialog_shown, false)</span>
+<span class="fc" id="L766">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_otd_entry_dialog_shown, value)</span>
+
+    var otdGameFirstPlayedShown
+<span class="nc" id="L769">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_otd_game_first_played_shown, false)</span>
+<span class="nc" id="L770">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_otd_game_first_played_shown, value)</span>
+
+    var otdNotificationState: OnThisDayGameNotificationState
+<span class="nc bnc" id="L773" title="All 4 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_otd_notification_state, null)?.let {</span>
+<span class="nc" id="L774">            OnThisDayGameNotificationState.valueOf(it)</span>
+<span class="nc" id="L775">        } ?: OnThisDayGameNotificationState.NO_INTERACTED</span>
+<span class="nc" id="L776">        set(value) = PrefsIoUtil.setString(R.string.preference_key_otd_notification_state, value.name)</span>
+
+    var isOtdSoundOn
+<span class="nc" id="L779">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_otd_sound_on, true)</span>
+<span class="nc" id="L780">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_otd_sound_on, value)</span>
+
+    var isYearInReviewEnabled: Boolean
+<span class="fc" id="L783">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_year_in_review_is_enabled, true)</span>
+<span class="fc" id="L784">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_year_in_review_is_enabled, value)</span>
+
+    var yearInReviewVisited: Boolean
+<span class="nc" id="L787">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_year_in_review_visited, false)</span>
+<span class="fc" id="L788">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_year_in_review_visited, value)</span>
+
+    var yearInReviewSurveyState: YearInReviewSurveyState
+<span class="nc bnc" id="L791" title="All 4 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_yir_survey_state, null)?.let {</span>
+<span class="nc" id="L792">            YearInReviewSurveyState.valueOf(it)</span>
+<span class="nc" id="L793">        } ?: YearInReviewSurveyState.NOT_TRIGGERED</span>
+<span class="nc" id="L794">        set(value) = PrefsIoUtil.setString(R.string.preference_key_yir_survey_state, value.name)</span>
+
+    var isRecommendedReadingListEnabled
+<span class="nc" id="L797">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_recommended_reading_list_enabled, false)</span>
+<span class="nc" id="L798">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_recommended_reading_list_enabled, value)</span>
+
+    var recommendedReadingListArticlesNumber
+<span class="nc" id="L801">        get() = PrefsIoUtil.getInt(R.string.preference_key_recommended_reading_list_articles_number, 5)</span>
+<span class="nc" id="L802">        set(value) = PrefsIoUtil.setInt(R.string.preference_key_recommended_reading_list_articles_number, value)</span>
+
+    var recommendedReadingListUpdateFrequency: RecommendedReadingListUpdateFrequency
+<span class="pc bpc" id="L805" title="2 of 4 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_recommended_reading_list_update_frequency, null)?.let {</span>
+<span class="nc" id="L806">            RecommendedReadingListUpdateFrequency.valueOf(it)</span>
+<span class="fc" id="L807">        } ?: RecommendedReadingListUpdateFrequency.WEEKLY</span>
+<span class="nc" id="L808">        set(value) = PrefsIoUtil.setString(R.string.preference_key_recommended_reading_list_update_frequency, value.name)</span>
+
+    var recommendedReadingListSource: RecommendedReadingListSource
+<span class="nc bnc" id="L811" title="All 4 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_recommended_reading_list_source, null)?.let {</span>
+<span class="nc" id="L812">            RecommendedReadingListSource.valueOf(it)</span>
+<span class="nc" id="L813">        } ?: RecommendedReadingListSource.INTERESTS</span>
+<span class="nc" id="L814">        set(value) = PrefsIoUtil.setString(R.string.preference_key_recommended_reading_list_source, value.name)</span>
+
+    var recommendedReadingListInterests
+<span class="nc bnc" id="L817" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;List&lt;PageTitle&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_recommended_reading_list_interests, null)) ?: emptyList()</span>
+<span class="nc" id="L818">        set(types) = PrefsIoUtil.setString(R.string.preference_key_recommended_reading_list_interests, JsonUtil.encodeToString(types))</span>
+
+    var isRecommendedReadingListNotificationEnabled
+<span class="nc" id="L821">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_recommended_reading_list_notification_enabled, false)</span>
+<span class="nc" id="L822">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_recommended_reading_list_notification_enabled, value)</span>
+
+    var recommendedReadingListSourceTitlesWithOffset
+<span class="nc bnc" id="L825" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;List&lt;SourceWithOffset&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_recommended_reading_list_titles_with_offset, null)) ?: emptyList()</span>
+<span class="nc" id="L826">        set(types) = PrefsIoUtil.setString(R.string.preference_key_recommended_reading_list_titles_with_offset, JsonUtil.encodeToString(types))</span>
+
+    var isRecommendedReadingListOnboardingShown
+<span class="nc" id="L829">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_recommended_reading_list_onboarding_shown, false)</span>
+<span class="fc" id="L830">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_recommended_reading_list_onboarding_shown, value)</span>
+
+    var isNewRecommendedReadingListGenerated
+<span class="nc" id="L833">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_recommended_reading_list_new_list_generated, false)</span>
+<span class="nc" id="L834">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_recommended_reading_list_new_list_generated, value)</span>
+
+    var resetRecommendedReadingList
+<span class="nc" id="L837">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_recommended_reading_list_reset, false)</span>
+<span class="nc" id="L838">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_recommended_reading_list_reset, value)</span>
+
+    var impactLastQueryTime
+<span class="nc" id="L841">        get() = PrefsIoUtil.getLong(R.string.preference_key_impact_last_query_time, 0)</span>
+<span class="nc" id="L842">        set(value) = PrefsIoUtil.setLong(R.string.preference_key_impact_last_query_time, value)</span>
+
+    var impactLastResponseBody
+<span class="nc bnc" id="L845" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Map&lt;String, String&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_impact_last_response_body, null))</span>
+<span class="nc" id="L846">            ?: emptyMap()</span>
+<span class="nc" id="L847">        set(langSupportedMap) = PrefsIoUtil.setString(R.string.preference_key_impact_last_response_body, JsonUtil.encodeToString(langSupportedMap))</span>
+
+    var donationReminderConfig
+<span class="fc bfc" id="L850" title="All 2 branches covered.">        get() = JsonUtil.decodeFromString&lt;DonationReminderConfig&gt;(</span>
+<span class="fc" id="L851">            PrefsIoUtil.getString(R.string.preference_key_donation_reminder_config, null)</span>
+<span class="fc" id="L852">        ) ?: DonationReminderConfig()</span>
+<span class="fc" id="L853">        set(types) = PrefsIoUtil.setString(R.string.preference_key_donation_reminder_config, JsonUtil.encodeToString(types))</span>
+
+    var activityTabModules: ActivityTabModules
+<span class="nc bnc" id="L856" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;ActivityTabModules&gt;(PrefsIoUtil.getString(R.string.preference_key_activity_tab_modules, null))</span>
+<span class="nc" id="L857">            ?: ActivityTabModules()</span>
+<span class="nc" id="L858">        set(modules) = PrefsIoUtil.setString(R.string.preference_key_activity_tab_modules, JsonUtil.encodeToString(modules))</span>
+
+    var isActivityTabOnboardingShown
+<span class="nc" id="L861">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_activity_tab_onboarding_shown, false)</span>
+<span class="fc" id="L862">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_activity_tab_onboarding_shown, value)</span>
+
+    var yearInReviewModelData
+<span class="nc bnc" id="L865" title="All 2 branches missed.">        get() = JsonUtil.decodeFromString&lt;Map&lt;Int, YearInReviewModel&gt;&gt;(PrefsIoUtil.getString(R.string.preference_key_yir_model_data, null))</span>
+<span class="nc" id="L866">            ?: emptyMap()</span>
+<span class="nc" id="L867">        set(modelDataWithYear) = PrefsIoUtil.setString(R.string.preference_key_yir_model_data, JsonUtil.encodeToString(modelDataWithYear))</span>
+
+    var selectedAppIcon
+<span class="nc" id="L870">        get() = PrefsIoUtil.getString(R.string.preference_key_selected_app_icon, LauncherIcon.DEFAULT.key)</span>
+<span class="nc" id="L871">        set(value) = PrefsIoUtil.setString(R.string.preference_key_selected_app_icon, value)</span>
+
+    var isHybridSearchOnboardingShown
+<span class="nc" id="L874">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_hybrid_search_onboarding_shown, false)</span>
+<span class="nc" id="L875">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_hybrid_search_onboarding_shown, value)</span>
+
+    var isHybridSearchEnabled
+<span class="nc" id="L878">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_hybrid_search_enabled, false)</span>
+<span class="nc" id="L879">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_hybrid_search_enabled, value)</span>
+
+    var isGameStatsUnavailableSnackbarShown
+<span class="nc" id="L882">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_game_stats_snackbar_shown, false)</span>
+<span class="nc" id="L883">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_game_stats_snackbar_shown, value)</span>
+
+    var readingChallengeStreak
+<span class="nc" id="L886">        get() = PrefsIoUtil.getInt(R.string.preference_key_reading_challenge_streak, 0)</span>
+<span class="nc" id="L887">        set(value) = PrefsIoUtil.setInt(R.string.preference_key_reading_challenge_streak, value)</span>
+
+    var readingChallengeEnrolled
+<span class="nc" id="L890">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_challenge_enrolled, false)</span>
+<span class="nc" id="L891">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_challenge_enrolled, value)</span>
+
+    var readingChallengeLastReadDate
+<span class="nc bnc" id="L894" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_reading_challenge_last_read_date, &quot;&quot;).orEmpty()</span>
+<span class="nc" id="L895">        set(value) = PrefsIoUtil.setString(R.string.preference_key_reading_challenge_last_read_date, value)</span>
+
+    var readingChallengeOnboardingShown
+<span class="fc" id="L898">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_challenge_onboarding_shown, false)</span>
+<span class="fc" id="L899">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_challenge_onboarding_shown, value)</span>
+
+    var readingChallengeInstallPromptShown
+<span class="nc" id="L902">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_challenge_install_prompt_shown, false)</span>
+<span class="fc" id="L903">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_challenge_install_prompt_shown, value)</span>
+
+    var readingChallengeEnrollmentDate
+<span class="nc bnc" id="L906" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_reading_challenge_enrollment_date, &quot;&quot;).orEmpty()</span>
+<span class="nc" id="L907">        set(value) = PrefsIoUtil.setString(R.string.preference_key_reading_challenge_enrollment_date, value)</span>
+
+    var readingChallengeEndDate
+<span class="nc bnc" id="L910" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_reading_challenge_end_date,</span>
+<span class="nc" id="L911">            ReadingChallengeWidgetRepository.READING_CHALLENGE_END_DATE).orEmpty()</span>
+<span class="nc" id="L912">        set(value) = PrefsIoUtil.setString(R.string.preference_key_reading_challenge_end_date, value)</span>
+
+    var readingChallengeStartDate
+<span class="nc bnc" id="L915" title="All 2 branches missed.">        get() = PrefsIoUtil.getString(R.string.preference_key_reading_challenge_start_date,</span>
+<span class="nc" id="L916">            ReadingChallengeWidgetRepository.READING_CHALLENGE_START_DATE).orEmpty()</span>
+<span class="nc" id="L917">        set(value) = PrefsIoUtil.setString(R.string.preference_key_reading_challenge_start_date, value)</span>
+
+    var readingChallengeWidgetFastCycle
+<span class="nc" id="L920">        get() = PrefsIoUtil.getBoolean(R.string.preference_key_reading_challenge_widget_fast_cycle, false)</span>
+<span class="nc" id="L921">        set(value) = PrefsIoUtil.setBoolean(R.string.preference_key_reading_challenge_widget_fast_cycle, value)</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

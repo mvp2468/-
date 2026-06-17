@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StreakProgressBar.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">StreakProgressBar.kt</span></div><h1>StreakProgressBar.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.coerceAtLeast
+import androidx.compose.ui.unit.dp
+import androidx.glance.ColorFilter
+import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.LocalSize
+import androidx.glance.appwidget.cornerRadius
+import androidx.glance.background
+import androidx.glance.color.ColorProvider
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
+import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.height
+import androidx.glance.layout.size
+import androidx.glance.layout.width
+import org.wikipedia.R
+
+@Composable
+fun StreakProgressBar(
+    currentStreak: Int,
+    totalDays: Int,
+    dynamicWidth: Dp,
+<span class="nc" id="L32">    modifier: GlanceModifier = GlanceModifier,</span>
+    progressColor: Color,
+    progressBarColor: Color
+<span class="nc bnc" id="L35" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L36">    Row(</span>
+<span class="nc" id="L37">        modifier = modifier,</span>
+<span class="nc" id="L38">        verticalAlignment = Alignment.CenterVertically</span>
+<span class="nc" id="L39">    ) {</span>
+<span class="nc bnc" id="L40" title="All 6 branches missed.">        if (currentStreak !in 1..&lt;totalDays) {</span>
+            // 100% completed state - show full progress bar
+<span class="nc" id="L42">            Box(modifier = GlanceModifier</span>
+<span class="nc" id="L43">                .height(24.dp)</span>
+<span class="nc" id="L44">                .width(dynamicWidth)</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">                .background(if (currentStreak &gt;= totalDays) progressColor else progressBarColor)</span>
+<span class="nc" id="L46">                .cornerRadius(12.dp)</span>
+<span class="nc" id="L47">            ) { }</span>
+<span class="nc" id="L48">        } else {</span>
+            // progressed math
+<span class="nc" id="L50">            val progressPercent = (currentStreak.toFloat() / totalDays.toFloat()).coerceIn(0f, 1f)</span>
+
+            // the max allowable width for the completed segment minus the dot and space
+<span class="nc" id="L53">            val completedWidth = dynamicWidth * progressPercent</span>
+
+            // Completed portion
+<span class="nc" id="L56">            Box(</span>
+<span class="nc" id="L57">                modifier = GlanceModifier</span>
+<span class="nc" id="L58">                    .height(24.dp)</span>
+<span class="nc" id="L59">                    .width(completedWidth)</span>
+<span class="nc" id="L60">            ) {</span>
+<span class="nc" id="L61">                Image(</span>
+<span class="nc" id="L62">                    provider = ImageProvider(R.drawable.progress_bar_start_bg),</span>
+<span class="nc" id="L63">                    contentDescription = null,</span>
+<span class="nc" id="L64">                    modifier = GlanceModifier.fillMaxSize(),</span>
+<span class="nc" id="L65">                    colorFilter = ColorFilter.tint(ColorProvider(day = progressColor, night = progressColor))</span>
+                )
+<span class="nc" id="L67">            }</span>
+
+<span class="nc" id="L69">            Spacer(modifier = GlanceModifier.width(4.dp))</span>
+
+            // Current position dot
+<span class="nc" id="L72">            Box(</span>
+<span class="nc" id="L73">                modifier = GlanceModifier</span>
+<span class="nc" id="L74">                    .size(24.dp)</span>
+<span class="nc" id="L75">            ) {</span>
+<span class="nc" id="L76">                Image(</span>
+<span class="nc" id="L77">                    provider = ImageProvider(R.drawable.widget_shape_12dp_corner_radius),</span>
+<span class="nc" id="L78">                    contentDescription = null,</span>
+<span class="nc" id="L79">                    modifier = GlanceModifier.fillMaxSize(),</span>
+<span class="nc" id="L80">                    colorFilter = ColorFilter.tint(ColorProvider(day = progressColor, night = progressColor))</span>
+                )
+<span class="nc" id="L82">            }</span>
+
+<span class="nc" id="L84">            Spacer(modifier = GlanceModifier.width(4.dp))</span>
+
+            // Remaining portion
+<span class="nc" id="L87">            val remainingWidth = (dynamicWidth - completedWidth).coerceAtLeast(0.dp)</span>
+<span class="nc" id="L88">            Box(</span>
+<span class="nc" id="L89">                modifier = GlanceModifier</span>
+<span class="nc" id="L90">                    .height(24.dp)</span>
+<span class="nc" id="L91">                    .width(remainingWidth)</span>
+<span class="nc" id="L92">            ) {</span>
+<span class="nc" id="L93">                Image(</span>
+<span class="nc" id="L94">                    provider = ImageProvider(R.drawable.progress_bar_end_bg),</span>
+<span class="nc" id="L95">                    contentDescription = null,</span>
+<span class="nc" id="L96">                    modifier = GlanceModifier.fillMaxSize(),</span>
+<span class="nc" id="L97">                    colorFilter = ColorFilter.tint(ColorProvider(day = progressBarColor, night = progressBarColor))</span>
+                )
+<span class="nc" id="L99">            }</span>
+        }
+<span class="nc" id="L101">    }</span>
+<span class="nc" id="L102">}</span>
+
+@Composable
+fun BoxedStreakProgressBar(
+<span class="nc" id="L106">    modifier: GlanceModifier = GlanceModifier,</span>
+    currentStreak: Int,
+    totalDays: Int,
+    startIconResId: Int,
+    backgroundColor: Color,
+    endIconResId: Int,
+    progressColor: Color,
+    progressBarColor: Color
+<span class="nc bnc" id="L114" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L115">    Box {</span>
+        // base background color for widget
+<span class="nc" id="L117">        Image(</span>
+<span class="nc" id="L118">            provider = ImageProvider(R.drawable.widget_shape_inner),</span>
+<span class="nc" id="L119">            contentDescription = null,</span>
+<span class="nc" id="L120">            modifier = GlanceModifier</span>
+<span class="nc" id="L121">                .fillMaxWidth()</span>
+<span class="nc" id="L122">                .height(48.dp),</span>
+<span class="nc" id="L123">            colorFilter = ColorFilter.tint(</span>
+<span class="nc" id="L124">                ColorProvider(day = backgroundColor, night = backgroundColor)</span>
+            )
+        )
+
+<span class="nc" id="L128">        Row(</span>
+<span class="nc" id="L129">            modifier = modifier,</span>
+<span class="nc" id="L130">            verticalAlignment = Alignment.CenterVertically</span>
+<span class="nc" id="L131">        ) {</span>
+            // Calendar icon 1
+<span class="nc" id="L133">            Image(</span>
+<span class="nc" id="L134">                provider = ImageProvider(startIconResId),</span>
+<span class="nc" id="L135">                contentDescription = null,</span>
+<span class="nc" id="L136">                modifier = GlanceModifier.size(24.dp),</span>
+<span class="nc" id="L137">                colorFilter = ColorFilter.tint(</span>
+<span class="nc" id="L138">                    ColorProvider(</span>
+<span class="nc" id="L139">                        day = Color.White,</span>
+<span class="nc" id="L140">                        night = Color.White</span>
+                    )
+                )
+            )
+
+<span class="nc" id="L145">            Spacer(modifier = GlanceModifier.width(12.dp))</span>
+
+            // Calculate precise DP width depending on current widget boundaries
+            // TODO: optimization finding a better way to calculate this instead of manual summation of all the fixed widths and spacers
+<span class="nc" id="L149">            val paddingBuffer = 176.dp</span>
+<span class="nc" id="L150">            val dynamicWidth = (LocalSize.current.width - paddingBuffer).coerceAtLeast(0.dp)</span>
+
+<span class="nc" id="L152">            StreakProgressBar(</span>
+<span class="nc" id="L153">                currentStreak = currentStreak,</span>
+<span class="nc" id="L154">                totalDays = totalDays,</span>
+<span class="nc" id="L155">                dynamicWidth = dynamicWidth,</span>
+<span class="nc" id="L156">                progressColor = progressColor,</span>
+<span class="nc" id="L157">                progressBarColor = progressBarColor</span>
+            )
+
+<span class="nc" id="L160">            Spacer(modifier = GlanceModifier.width(12.dp))</span>
+
+            // Calendar icon 25
+<span class="nc" id="L163">            Image(</span>
+<span class="nc" id="L164">                provider = ImageProvider(endIconResId),</span>
+<span class="nc" id="L165">                contentDescription = null,</span>
+<span class="nc" id="L166">                modifier = GlanceModifier.size(24.dp),</span>
+<span class="nc" id="L167">                colorFilter = ColorFilter.tint(</span>
+<span class="nc" id="L168">                    ColorProvider(</span>
+<span class="nc" id="L169">                        day = Color.White,</span>
+<span class="nc" id="L170">                        night = Color.White</span>
+                    )
+                )
+            )
+<span class="nc" id="L174">        }</span>
+<span class="nc" id="L175">    }</span>
+<span class="nc" id="L176">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlacesFilterActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.places</a> &gt; <span class="el_source">PlacesFilterActivity.kt</span></div><h1>PlacesFilterActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.places
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.eventplatform.PlacesEvent
+import org.wikipedia.databinding.ActivityPlacesFiltersBinding
+import org.wikipedia.databinding.ViewPlacesFilterItemBinding
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.languages.WikipediaLanguagesActivity
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.views.DefaultViewHolder
+
+<span class="nc" id="L25">class PlacesFilterActivity : BaseActivity() {</span>
+
+    private lateinit var binding: ActivityPlacesFiltersBinding
+<span class="nc" id="L28">    private var initLanguage: String = Prefs.placesWikiCode</span>
+<span class="nc" id="L29">    private var filtersList = mutableListOf&lt;String&gt;()</span>
+
+<span class="nc" id="L31">    val addLanguageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+        // Check if places wiki language code was deleted
+<span class="nc bnc" id="L33" title="All 2 branches missed.">        if (!WikipediaApp.instance.languageState.appLanguageCodes.contains(Prefs.placesWikiCode)) {</span>
+<span class="nc" id="L34">            Prefs.placesWikiCode = WikipediaApp.instance.appOrSystemLanguageCode</span>
+        }
+<span class="nc" id="L36">        setUpRecyclerView()</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">        binding.placesFiltersRecyclerView.adapter?.notifyDataSetChanged()</span>
+<span class="nc" id="L38">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L41">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L42">        binding = ActivityPlacesFiltersBinding.inflate(layoutInflater)</span>
+
+<span class="nc" id="L44">        setUpRecyclerView()</span>
+<span class="nc" id="L45">        setStatusBarColor(ResourceUtil.getThemedColor(this, R.attr.background_color))</span>
+<span class="nc" id="L46">        setNavigationBarColor(ResourceUtil.getThemedColor(this, R.attr.background_color))</span>
+<span class="nc" id="L47">        setSupportActionBar(binding.toolbar)</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+<span class="nc" id="L49">        setContentView(binding.root)</span>
+<span class="nc" id="L50">    }</span>
+
+    override fun finish() {
+<span class="nc" id="L53">        setResult(RESULT_OK, Intent()</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            .putExtra(EXTRA_LANG_CHANGED, initLanguage != Prefs.placesWikiCode))</span>
+<span class="nc" id="L55">        super.finish()</span>
+<span class="nc" id="L56">    }</span>
+
+    private fun setUpRecyclerView() {
+<span class="nc" id="L59">        filtersList.clear()</span>
+<span class="nc" id="L60">        filtersList.add(HEADER)</span>
+<span class="nc" id="L61">        filtersList.addAll(WikipediaApp.instance.languageState.appLanguageCodes)</span>
+<span class="nc" id="L62">        filtersList.add(FOOTER)</span>
+<span class="nc" id="L63">        binding.placesFiltersRecyclerView.layoutManager = LinearLayoutManager(this)</span>
+<span class="nc" id="L64">        binding.placesFiltersRecyclerView.adapter = PlacesLangListFilterAdapter(this)</span>
+<span class="nc" id="L65">    }</span>
+
+<span class="nc" id="L67">    private inner class PlacesLangListFilterAdapter(val context: Context) :</span>
+        RecyclerView.Adapter&lt;DefaultViewHolder&lt;*&gt;&gt;(), PlacesFilterItemViewHolder.Callback {
+
+        override fun onCreateViewHolder(parent: ViewGroup, type: Int): DefaultViewHolder&lt;*&gt; {
+<span class="nc bnc" id="L71" title="All 3 branches missed.">            return when (type) {</span>
+                VIEW_TYPE_HEADER -&gt; {
+<span class="nc" id="L73">                    PlacesFilterHeaderViewHolder(layoutInflater.inflate(R.layout.view_watchlist_filter_header, parent, false))</span>
+                }
+                VIEW_TYPE_FOOTER -&gt; {
+<span class="nc" id="L76">                    PlacesFilterFooterViewHolder(layoutInflater.inflate(R.layout.view_places_filters_footer, parent, false))</span>
+                }
+                else -&gt; {
+<span class="nc" id="L79">                    PlacesFilterItemViewHolder(ViewPlacesFilterItemBinding.inflate(layoutInflater), this)</span>
+                }
+            }
+        }
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L85">            return filtersList.size</span>
+        }
+
+        override fun getItemViewType(position: Int): Int {
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            return if (filtersList[position] == HEADER) VIEW_TYPE_HEADER</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            else if (filtersList[position] == FOOTER) VIEW_TYPE_FOOTER</span>
+<span class="nc" id="L91">            else VIEW_TYPE_ITEM</span>
+        }
+
+        override fun onBindViewHolder(holder: DefaultViewHolder&lt;*&gt;, position: Int) {
+<span class="nc" id="L95">            when (holder) {</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                is PlacesFilterHeaderViewHolder -&gt; holder.bindItem(getString(R.string.watchlist_filter_wiki_filter_header))</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                is PlacesFilterFooterViewHolder -&gt; holder.bindItem()</span>
+<span class="nc" id="L98">                else -&gt; (holder as PlacesFilterItemViewHolder).bindItem(filtersList[position])</span>
+            }
+<span class="nc" id="L100">        }</span>
+
+        override fun onLangSelected() {
+<span class="nc" id="L103">            notifyDataSetChanged()</span>
+<span class="nc" id="L104">        }</span>
+    }
+
+<span class="nc" id="L107">    inner class PlacesFilterHeaderViewHolder(itemView: View) : DefaultViewHolder&lt;View&gt;(itemView) {</span>
+<span class="nc" id="L108">        private val headerText = itemView.findViewById&lt;TextView&gt;(R.id.filter_header_title)!!</span>
+
+        fun bindItem(filterHeader: String) {
+<span class="nc" id="L111">            headerText.setTextColor(ResourceUtil.getThemedColor(this@PlacesFilterActivity, R.attr.primary_color))</span>
+<span class="nc" id="L112">            headerText.text = filterHeader</span>
+<span class="nc" id="L113">        }</span>
+    }
+<span class="nc" id="L115">    inner class PlacesFilterFooterViewHolder(itemView: View) : DefaultViewHolder&lt;View&gt;(itemView) {</span>
+        fun bindItem() {
+<span class="nc" id="L117">            itemView.setOnClickListener {</span>
+<span class="nc" id="L118">                addLanguageLauncher.launch(WikipediaLanguagesActivity.newIntent(itemView.context,</span>
+<span class="nc" id="L119">                    Constants.InvokeSource.PLACES))</span>
+<span class="nc" id="L120">            }</span>
+<span class="nc" id="L121">        }</span>
+    }
+<span class="nc" id="L123">    class PlacesFilterItemViewHolder(private val itemViewBinding: ViewPlacesFilterItemBinding, val callback: Callback) : DefaultViewHolder&lt;View&gt;(itemViewBinding.root) {</span>
+        interface Callback {
+            fun onLangSelected()
+        }
+
+        fun bindItem(languageCode: String) {
+<span class="nc" id="L129">            itemViewBinding.placesFilterTitle.text = WikipediaApp.instance.languageState.getAppLanguageLocalizedName(languageCode)</span>
+<span class="nc" id="L130">            itemViewBinding.placesFilterLangCode.setLangCode(languageCode)</span>
+<span class="nc" id="L131">            itemViewBinding.placesFilterRadio.isVisible = languageCode == Prefs.placesWikiCode</span>
+<span class="nc" id="L132">            itemViewBinding.root.setOnClickListener {</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                if (languageCode != Prefs.placesWikiCode) {</span>
+<span class="nc" id="L134">                    PlacesEvent.logAction(&quot;filter_change_save&quot;, &quot;filter_view&quot;)</span>
+                }
+<span class="nc" id="L136">                Prefs.placesWikiCode = languageCode</span>
+<span class="nc" id="L137">                callback.onLangSelected()</span>
+<span class="nc" id="L138">            }</span>
+<span class="nc" id="L139">        }</span>
+    }
+    companion object {
+        private const val VIEW_TYPE_HEADER = 0
+        private const val VIEW_TYPE_FOOTER = 1
+        private const val VIEW_TYPE_ITEM = 2
+        private const val HEADER = &quot;header&quot;
+        private const val FOOTER = &quot;footer&quot;
+        const val EXTRA_LANG_CHANGED = &quot;langChanged&quot;
+        fun newIntent(context: Context): Intent {
+<span class="nc" id="L149">            return Intent(context, PlacesFilterActivity::class.java)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

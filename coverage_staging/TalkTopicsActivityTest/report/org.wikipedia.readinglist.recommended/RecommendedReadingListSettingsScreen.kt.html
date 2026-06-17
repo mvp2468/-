@@ -1,0 +1,706 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListSettingsScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.recommended</a> &gt; <span class="el_source">RecommendedReadingListSettingsScreen.kt</span></div><h1>RecommendedReadingListSettingsScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.recommended
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.RecommendedReadingListEvent
+import org.wikipedia.compose.components.WikiTopAppBar
+import org.wikipedia.compose.components.WikipediaAlertDialog
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.extensions.noRippleClickable
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.Resource
+
+@Composable
+fun RecommendedReadingListSettingsScreen(
+<span class="nc bnc" id="L62" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    uiState: RecommendedReadingListSettingsState,
+    resetUiState: Resource&lt;Boolean&gt;,
+    onBackButtonClick: () -&gt; Unit,
+    onRecommendedReadingListSourceClick: () -&gt; Unit,
+    onInterestClick: () -&gt; Unit,
+    onRecommendedReadingListSwitchClick: (Boolean) -&gt; Unit,
+    onNotificationStateChanged: (Boolean) -&gt; Unit,
+    onArticleNumberChanged: (Int) -&gt; Unit,
+    onUpdateFrequency: (RecommendedReadingListUpdateFrequency) -&gt; Unit,
+    onListGenerated: () -&gt; Unit,
+<span class="nc" id="L73">    wikiErrorClickEvents: WikiErrorClickEvents? = null,</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L75">    var showAlertDialog by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L76">    val isRecommendedReadingListEnabled = uiState.isRecommendedReadingListEnabled</span>
+
+<span class="nc" id="L78">    Scaffold(</span>
+<span class="nc" id="L79">        modifier = modifier,</span>
+<span class="nc" id="L80">        topBar = {</span>
+<span class="nc" id="L81">            WikiTopAppBar(</span>
+<span class="nc" id="L82">                title = stringResource(R.string.recommended_reading_list_settings_title),</span>
+<span class="nc" id="L83">                onNavigationClick = onBackButtonClick</span>
+            )
+<span class="nc" id="L85">        },</span>
+<span class="nc" id="L86">        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L87">    ) { paddingValues -&gt;</span>
+
+<span class="nc" id="L89">        when (resetUiState) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            is Resource.Loading -&gt; {</span>
+<span class="nc" id="L91">                Box(</span>
+<span class="nc" id="L92">                    modifier = Modifier</span>
+<span class="nc" id="L93">                        .fillMaxWidth()</span>
+<span class="nc" id="L94">                        .padding(paddingValues),</span>
+                ) {
+<span class="nc" id="L96">                    LinearProgressIndicator(</span>
+<span class="nc" id="L97">                        modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L98">                        color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L99">                        trackColor = WikipediaTheme.colors.borderColor</span>
+                    )
+<span class="nc" id="L101">                }</span>
+<span class="nc" id="L102">                return@Scaffold</span>
+            }
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            is Resource.Error -&gt; {</span>
+<span class="nc" id="L106">                Box(</span>
+<span class="nc" id="L107">                    modifier = Modifier</span>
+<span class="nc" id="L108">                        .fillMaxSize()</span>
+<span class="nc" id="L109">                        .padding(paddingValues),</span>
+<span class="nc" id="L110">                    contentAlignment = Alignment.Center</span>
+                ) {
+<span class="nc" id="L112">                    WikiErrorView(</span>
+<span class="nc" id="L113">                        modifier = Modifier</span>
+<span class="nc" id="L114">                            .fillMaxWidth(),</span>
+<span class="nc" id="L115">                        caught = resetUiState.throwable,</span>
+<span class="nc" id="L116">                        errorClickEvents = wikiErrorClickEvents</span>
+                    )
+<span class="nc" id="L118">                }</span>
+<span class="nc" id="L119">                return@Scaffold</span>
+            }
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            is Resource.Success -&gt; {</span>
+<span class="nc" id="L123">                onListGenerated()</span>
+<span class="nc" id="L124">                return@Scaffold</span>
+            }
+<span class="nc" id="L126">        }</span>
+
+<span class="nc" id="L128">        Column(</span>
+<span class="nc" id="L129">            modifier = Modifier</span>
+<span class="nc" id="L130">                .padding(paddingValues)</span>
+        ) {
+<span class="nc" id="L132">            RecommendedReadingListSwitch(</span>
+<span class="nc" id="L133">                modifier = Modifier</span>
+<span class="nc" id="L134">                    .noRippleClickable {</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                        if (isRecommendedReadingListEnabled) {</span>
+<span class="nc" id="L136">                            showAlertDialog = true</span>
+<span class="nc" id="L137">                            return@noRippleClickable</span>
+                        }
+<span class="nc" id="L139">                        onRecommendedReadingListSwitchClick(true)</span>
+<span class="nc" id="L140">                    }</span>
+<span class="nc" id="L141">                    .padding(16.dp),</span>
+<span class="nc" id="L142">                isRecommendedReadingListEnabled = isRecommendedReadingListEnabled,</span>
+<span class="nc" id="L143">                onCheckedChange = {</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                    if (isRecommendedReadingListEnabled) {</span>
+<span class="nc" id="L145">                        showAlertDialog = true</span>
+<span class="nc" id="L146">                        return@RecommendedReadingListSwitch</span>
+                    }
+<span class="nc" id="L148">                    onRecommendedReadingListSwitchClick(it)</span>
+<span class="nc" id="L149">                }</span>
+            )
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            if (!uiState.isRecommendedReadingListEnabled) {</span>
+<span class="nc" id="L152">                DisabledState(</span>
+<span class="nc" id="L153">                    modifier = Modifier.padding(16.dp)</span>
+                )
+            } else {
+<span class="nc" id="L156">                EnabledState(</span>
+<span class="nc" id="L157">                    articlesNumber = uiState.articlesNumber,</span>
+<span class="nc" id="L158">                    selectedFrequency = uiState.updateFrequency,</span>
+<span class="nc" id="L159">                    discoverSource = uiState.recommendedReadingListSource,</span>
+<span class="nc" id="L160">                    isNotificationEnabled = uiState.isRecommendedReadingListNotificationEnabled,</span>
+<span class="nc" id="L161">                    onArticleNumberChanged = onArticleNumberChanged,</span>
+<span class="nc" id="L162">                    onUpdateFrequency = onUpdateFrequency,</span>
+<span class="nc" id="L163">                    onRecommendedReadingListSourceClick = onRecommendedReadingListSourceClick,</span>
+<span class="nc" id="L164">                    onInterestClick = onInterestClick,</span>
+<span class="nc" id="L165">                    onNotificationStateChanged = onNotificationStateChanged</span>
+                )
+            }
+<span class="nc" id="L168">        }</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (showAlertDialog) {</span>
+<span class="nc" id="L171">            WikipediaAlertDialog(</span>
+<span class="nc" id="L172">                title = stringResource(R.string.recommended_reading_list_settings_turn_off_dialog_title),</span>
+<span class="nc" id="L173">                message = stringResource(R.string.recommended_reading_list_settings_turn_off_dialog_message, uiState.updateFrequency.name.lowercase()),</span>
+<span class="nc" id="L174">                confirmButtonText = stringResource(R.string.recommended_reading_list_settings_turn_off_dialog_negative_button),</span>
+<span class="nc" id="L175">                dismissButtonText = stringResource(R.string.recommended_reading_list_settings_turn_off_dialog_positive_button),</span>
+<span class="nc" id="L176">                onDismissRequest = {</span>
+<span class="nc" id="L177">                    showAlertDialog = false</span>
+<span class="nc" id="L178">                },</span>
+<span class="nc" id="L179">                onConfirmButtonClick = {</span>
+<span class="nc" id="L180">                    RecommendedReadingListEvent.submit(&quot;discover_on_confirm&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L181">                    showAlertDialog = false</span>
+<span class="nc" id="L182">                    onRecommendedReadingListSwitchClick(true)</span>
+<span class="nc" id="L183">                },</span>
+<span class="nc" id="L184">                onDismissButtonClick = {</span>
+<span class="nc" id="L185">                    RecommendedReadingListEvent.submit(&quot;discover_off_confirm&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L186">                    showAlertDialog = false</span>
+<span class="nc" id="L187">                    onRecommendedReadingListSwitchClick(false)</span>
+<span class="nc" id="L188">                }</span>
+            )
+<span class="nc" id="L190">        }</span>
+<span class="nc" id="L191">    }</span>
+<span class="nc" id="L192">}</span>
+
+@Composable
+private fun DisabledState(
+<span class="nc" id="L196">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L198">    Column(</span>
+<span class="nc" id="L199">        modifier = modifier,</span>
+<span class="nc" id="L200">        verticalArrangement = Arrangement.spacedBy(16.dp)</span>
+    ) {
+<span class="nc" id="L202">        Text(</span>
+<span class="nc" id="L203">            text = stringResource(R.string.recommended_reading_list_settings_toggle_disable_message),</span>
+<span class="nc" id="L204">            style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L205">            color = WikipediaTheme.colors.secondaryColor</span>
+        )
+<span class="nc" id="L207">    }</span>
+<span class="nc" id="L208">}</span>
+
+@Composable
+private fun EnabledState(
+    articlesNumber: Int,
+    selectedFrequency: RecommendedReadingListUpdateFrequency,
+    discoverSource: RecommendedReadingListSource,
+    isNotificationEnabled: Boolean,
+    onUpdateFrequency: (RecommendedReadingListUpdateFrequency) -&gt; Unit,
+    onArticleNumberChanged: (Int) -&gt; Unit,
+    onRecommendedReadingListSourceClick: () -&gt; Unit,
+    onInterestClick: () -&gt; Unit,
+    onNotificationStateChanged: (Boolean) -&gt; Unit,
+<span class="nc" id="L221">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L223">    Column(</span>
+<span class="nc" id="L224">        modifier = modifier</span>
+<span class="nc" id="L225">            .verticalScroll(rememberScrollState()),</span>
+    ) {
+<span class="nc" id="L227">        SettingsSection {</span>
+<span class="nc" id="L228">            ArticlesNumberView(</span>
+<span class="nc" id="L229">                articlesNumber = articlesNumber,</span>
+<span class="nc" id="L230">                onArticleNumberChanged = onArticleNumberChanged</span>
+            )
+<span class="nc" id="L232">            UpdatesFrequencyView(</span>
+<span class="nc" id="L233">                selectedFrequency = selectedFrequency,</span>
+<span class="nc" id="L234">                onUpdateFrequency = onUpdateFrequency</span>
+            )
+<span class="nc" id="L236">        }</span>
+
+<span class="nc" id="L238">        SettingsSection {</span>
+<span class="nc" id="L239">            SourceView(</span>
+<span class="nc" id="L240">                modifier = Modifier</span>
+<span class="nc" id="L241">                    .clickable {</span>
+<span class="nc" id="L242">                        onRecommendedReadingListSourceClick()</span>
+<span class="nc" id="L243">                    }</span>
+<span class="nc" id="L244">                    .padding(vertical = 8.dp),</span>
+<span class="nc" id="L245">                source = discoverSource</span>
+            )
+<span class="nc" id="L247">        }</span>
+
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        if (discoverSource == RecommendedReadingListSource.INTERESTS) {</span>
+<span class="nc" id="L250">            SettingsSection {</span>
+<span class="nc" id="L251">                InterestsView(</span>
+<span class="nc" id="L252">                    modifier = Modifier</span>
+<span class="nc" id="L253">                        .clickable {</span>
+<span class="nc" id="L254">                            onInterestClick()</span>
+<span class="nc" id="L255">                        }</span>
+<span class="nc" id="L256">                        .padding(vertical = 8.dp)</span>
+                )
+<span class="nc" id="L258">            }</span>
+<span class="nc" id="L259">        }</span>
+
+<span class="nc" id="L261">        SettingsSection(</span>
+<span class="nc" id="L262">            canShowDivider = false</span>
+<span class="nc" id="L263">        ) {</span>
+<span class="nc" id="L264">            NotificationView(</span>
+<span class="nc" id="L265">                modifier = Modifier</span>
+<span class="nc" id="L266">                    .padding(top = 12.dp),</span>
+<span class="nc" id="L267">                isNotificationEnabled = isNotificationEnabled,</span>
+<span class="nc" id="L268">                onNotificationStateChanged = onNotificationStateChanged</span>
+            )
+<span class="nc" id="L270">        }</span>
+<span class="nc" id="L271">    }</span>
+<span class="nc" id="L272">}</span>
+
+@Composable
+private fun ArticlesNumberView(
+    articlesNumber: Int,
+    onArticleNumberChanged: (Int) -&gt; Unit,
+<span class="nc bnc" id="L278" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">    maxArticleNumber: Int = 20,</span>
+<span class="nc" id="L280">    minArticleNumber: Int = 1,</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L282">    var textFieldInput by remember { mutableStateOf(articlesNumber.toString()) }</span>
+<span class="nc" id="L283">    var hasUserEdited by remember { mutableStateOf(false) }</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">    if (!hasUserEdited) {</span>
+<span class="nc" id="L285">        hasUserEdited = true</span>
+<span class="nc" id="L286">        textFieldInput = &quot;&quot;</span>
+    }
+
+<span class="nc" id="L289">    ListItem(</span>
+<span class="nc" id="L290">        modifier = modifier,</span>
+<span class="nc" id="L291">        colors = ListItemDefaults.colors(</span>
+<span class="nc" id="L292">            containerColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L294">        leadingContent = {</span>
+<span class="nc" id="L295">            Icon(</span>
+<span class="nc" id="L296">                modifier = Modifier,</span>
+<span class="nc" id="L297">                painter = painterResource(R.drawable.newsstand_24dp),</span>
+<span class="nc" id="L298">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L299">                contentDescription = stringResource(R.string.recommended_reading_list_settings_articles)</span>
+            )
+<span class="nc" id="L301">        },</span>
+<span class="nc" id="L302">        headlineContent = {</span>
+<span class="nc" id="L303">            Row(</span>
+<span class="nc" id="L304">                verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L305">                horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+            ) {
+<span class="nc" id="L307">                OutlinedTextField(</span>
+<span class="nc" id="L308">                    modifier = Modifier</span>
+<span class="nc" id="L309">                        .size(width = 56.dp, height = 56.dp),</span>
+<span class="nc" id="L310">                    value = textFieldInput,</span>
+<span class="nc" id="L311">                    singleLine = true,</span>
+<span class="nc" id="L312">                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),</span>
+<span class="nc" id="L313">                    onValueChange = { newValue -&gt;</span>
+<span class="nc" id="L314">                        val intValue = newValue.toIntOrNull()</span>
+<span class="nc" id="L315">                        when {</span>
+<span class="nc bnc" id="L316" title="All 4 branches missed.">                            newValue.isEmpty() -&gt; {</span>
+<span class="nc" id="L317">                                textFieldInput = newValue</span>
+<span class="nc" id="L318">                                onArticleNumberChanged(minArticleNumber)</span>
+                            }
+<span class="nc bnc" id="L320" title="All 4 branches missed.">                            intValue != null &amp;&amp; intValue &lt; minArticleNumber -&gt; {</span>
+<span class="nc" id="L321">                                textFieldInput = minArticleNumber.toString()</span>
+<span class="nc" id="L322">                                onArticleNumberChanged(minArticleNumber)</span>
+                            }
+<span class="nc bnc" id="L324" title="All 4 branches missed.">                            intValue != null &amp;&amp; intValue &gt; maxArticleNumber -&gt; {</span>
+<span class="nc" id="L325">                                textFieldInput = maxArticleNumber.toString()</span>
+<span class="nc" id="L326">                                onArticleNumberChanged(maxArticleNumber)</span>
+                            }
+<span class="nc bnc" id="L328" title="All 2 branches missed.">                            intValue != null -&gt; { // valid range</span>
+<span class="nc" id="L329">                                textFieldInput = newValue</span>
+<span class="nc" id="L330">                                onArticleNumberChanged(intValue)</span>
+                            }
+                        }
+<span class="nc" id="L333">                    },</span>
+<span class="nc" id="L334">                    colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L335">                        focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L336">                        focusedBorderColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L337">                        unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,</span>
+<span class="nc" id="L338">                        unfocusedBorderColor = MaterialTheme.colorScheme.outline</span>
+                    ),
+<span class="nc" id="L340">                    placeholder = {</span>
+<span class="nc" id="L341">                        Text(</span>
+<span class="nc" id="L342">                            text = articlesNumber.toString(),</span>
+<span class="nc" id="L343">                            color = WikipediaTheme.colors.primaryColor</span>
+                        )
+<span class="nc" id="L345">                    }</span>
+                )
+<span class="nc" id="L347">                Text(</span>
+<span class="nc" id="L348">                    text = stringResource(R.string.recommended_reading_list_settings_articles),</span>
+<span class="nc" id="L349">                    style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L350">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L352">            }</span>
+<span class="nc" id="L353">        }</span>
+    )
+<span class="nc" id="L355">}</span>
+
+@Composable
+private fun UpdatesFrequencyView(
+    selectedFrequency: RecommendedReadingListUpdateFrequency,
+    onUpdateFrequency: (RecommendedReadingListUpdateFrequency) -&gt; Unit,
+<span class="nc" id="L361">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L363">    var showDialog by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L364">    val frequencies = RecommendedReadingListUpdateFrequency.entries.toTypedArray()</span>
+<span class="nc" id="L365">    val dialogOptions = frequencies.map { stringResource(it.dialogStringRes) }</span>
+<span class="nc" id="L366">    val selectedDialogOption = stringResource(selectedFrequency.dialogStringRes)</span>
+<span class="nc" id="L367">    val updateFrequencyString = stringResource(</span>
+<span class="nc" id="L368">        R.string.recommended_reading_list_settings_updates_frequency,</span>
+<span class="nc" id="L369">        stringResource(selectedFrequency.displayStringRes)</span>
+    )
+<span class="nc" id="L371">    val stringToFrequency = remember(dialogOptions, frequencies) {</span>
+<span class="nc" id="L372">        dialogOptions.zip(frequencies).toMap()</span>
+    }
+<span class="nc" id="L374">    ListItem(</span>
+<span class="nc" id="L375">        modifier = modifier</span>
+<span class="nc" id="L376">            .clickable(</span>
+<span class="nc" id="L377">                onClick = {</span>
+<span class="nc" id="L378">                    RecommendedReadingListEvent.submit(&quot;updates_click&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L379">                    showDialog = true</span>
+<span class="nc" id="L380">                }</span>
+            )
+<span class="nc" id="L382">            .padding(bottom = 16.dp),</span>
+<span class="nc" id="L383">        colors = ListItemDefaults.colors(</span>
+<span class="nc" id="L384">            containerColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L386">        leadingContent = {</span>
+<span class="nc" id="L387">            Icon(</span>
+<span class="nc" id="L388">                modifier = Modifier,</span>
+<span class="nc" id="L389">                painter = painterResource(R.drawable.refresh_24dp),</span>
+<span class="nc" id="L390">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L391">                contentDescription = stringResource(R.string.recommended_reading_list_settings_articles)</span>
+            )
+<span class="nc" id="L393">        },</span>
+<span class="nc" id="L394">        headlineContent = {</span>
+<span class="nc" id="L395">            Text(</span>
+<span class="nc" id="L396">                text = updateFrequencyString,</span>
+<span class="nc" id="L397">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L398">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L400">        }</span>
+    )
+
+<span class="nc bnc" id="L403" title="All 2 branches missed.">    if (showDialog) {</span>
+<span class="nc" id="L404">        RadioListDialog(</span>
+<span class="nc" id="L405">            options = dialogOptions,</span>
+<span class="nc" id="L406">            selectedOption = selectedDialogOption,</span>
+<span class="nc" id="L407">            onDismissRequest = { showDialog = false },</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">            onOptionSelected = { selectedOptionString -&gt;</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">                val newSelectedFrequency = stringToFrequency[selectedOptionString] ?: RecommendedReadingListUpdateFrequency.DAILY</span>
+<span class="nc" id="L410">                onUpdateFrequency(newSelectedFrequency)</span>
+<span class="nc" id="L411">            }</span>
+        )
+<span class="nc" id="L413">    }</span>
+<span class="nc" id="L414">}</span>
+
+@Composable
+private fun RecommendedReadingListSwitch(
+    isRecommendedReadingListEnabled: Boolean,
+    onCheckedChange: ((Boolean) -&gt; Unit),
+<span class="nc" id="L420">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L422">    ListItem(</span>
+<span class="nc" id="L423">        modifier = modifier</span>
+<span class="nc" id="L424">            .clip(RoundedCornerShape(16.dp)),</span>
+<span class="nc" id="L425">        colors = ListItemDefaults.colors(</span>
+<span class="nc" id="L426">            containerColor = WikipediaTheme.colors.backgroundColor</span>
+        ),
+<span class="nc" id="L428">        headlineContent = {</span>
+<span class="nc" id="L429">            Text(</span>
+<span class="nc" id="L430">                text = stringResource(R.string.recommended_reading_list_settings_toggle),</span>
+<span class="nc" id="L431">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L432">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L434">        },</span>
+<span class="nc" id="L435">        trailingContent = {</span>
+<span class="nc" id="L436">            Switch(</span>
+<span class="nc" id="L437">                checked = isRecommendedReadingListEnabled,</span>
+<span class="nc" id="L438">                onCheckedChange = {</span>
+<span class="nc" id="L439">                    onCheckedChange(it)</span>
+<span class="nc" id="L440">                },</span>
+<span class="nc" id="L441">                colors = SwitchDefaults.colors(</span>
+<span class="nc" id="L442">                    uncheckedTrackColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L443">                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L444">                    uncheckedBorderColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L445">                    checkedTrackColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L446">                    checkedThumbColor = WikipediaTheme.colors.paperColor</span>
+                )
+            )
+<span class="nc" id="L449">        }</span>
+    )
+<span class="nc" id="L451">}</span>
+
+@Composable
+private fun SourceView(
+    source: RecommendedReadingListSource,
+<span class="nc" id="L456">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L457" title="All 2 branches missed.">) {</span>
+<span class="nc bnc" id="L458" title="All 3 branches missed.">    val subtitle = when (source) {</span>
+<span class="nc" id="L459">        RecommendedReadingListSource.INTERESTS -&gt; R.string.recommended_reading_list_settings_updates_base_subtitle_interests</span>
+<span class="nc" id="L460">        RecommendedReadingListSource.READING_LIST -&gt; R.string.recommended_reading_list_settings_updates_base_subtitle_saved</span>
+<span class="nc" id="L461">        RecommendedReadingListSource.HISTORY -&gt; R.string.recommended_reading_list_settings_updates_base_subtitle_history</span>
+    }
+<span class="nc" id="L463">    ListItem(</span>
+<span class="nc" id="L464">        modifier = modifier,</span>
+<span class="nc" id="L465">        colors = ListItemDefaults.colors(</span>
+<span class="nc" id="L466">            containerColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L468">        leadingContent = {</span>
+<span class="nc" id="L469">            Icon(</span>
+<span class="nc" id="L470">                modifier = Modifier,</span>
+<span class="nc" id="L471">                painter = painterResource(R.drawable.build_24dp),</span>
+<span class="nc" id="L472">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L473">                contentDescription = stringResource(R.string.recommended_reading_list_settings_updates_base_title)</span>
+            )
+<span class="nc" id="L475">        },</span>
+<span class="nc" id="L476">        headlineContent = {</span>
+<span class="nc" id="L477">            Text(</span>
+<span class="nc" id="L478">                text = stringResource(R.string.recommended_reading_list_settings_updates_base_title),</span>
+<span class="nc" id="L479">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L480">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L482">        },</span>
+<span class="nc" id="L483">        supportingContent = {</span>
+<span class="nc" id="L484">            Text(</span>
+<span class="nc" id="L485">                modifier = Modifier</span>
+<span class="nc" id="L486">                    .padding(top = 4.dp),</span>
+<span class="nc" id="L487">                text = stringResource(subtitle),</span>
+<span class="nc" id="L488">                style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L489">                color = WikipediaTheme.colors.secondaryColor</span>
+            )
+<span class="nc" id="L491">        }</span>
+    )
+<span class="nc" id="L493">}</span>
+
+@Composable
+private fun InterestsView(
+<span class="nc" id="L497">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L498" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L499">    ListItem(</span>
+<span class="nc" id="L500">        modifier = modifier,</span>
+<span class="nc" id="L501">        colors = ListItemDefaults.colors(</span>
+<span class="nc" id="L502">            containerColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L504">        leadingContent = {</span>
+<span class="nc" id="L505">            Icon(</span>
+<span class="nc" id="L506">                modifier = Modifier</span>
+<span class="nc" id="L507">                    .size(24.dp),</span>
+<span class="nc" id="L508">                painter = painterResource(R.drawable.interests_24dp),</span>
+<span class="nc" id="L509">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L510">                contentDescription = stringResource(R.string.recommended_reading_list_settings_updates_base_title)</span>
+            )
+<span class="nc" id="L512">        },</span>
+<span class="nc" id="L513">        headlineContent = {</span>
+<span class="nc" id="L514">            Text(</span>
+<span class="nc" id="L515">                text = stringResource(R.string.recommended_reading_list_settings_interests),</span>
+<span class="nc" id="L516">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L517">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L519">        }</span>
+    )
+<span class="nc" id="L521">}</span>
+
+@Composable
+private fun NotificationView(
+<span class="nc" id="L525">    modifier: Modifier = Modifier,</span>
+    isNotificationEnabled: Boolean,
+    onNotificationStateChanged: (Boolean) -&gt; Unit,
+<span class="nc bnc" id="L528" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L529">    var showAlertDialog by remember { mutableStateOf(false) }</span>
+<span class="nc bnc" id="L530" title="All 2 branches missed.">    val subtitle = if (isNotificationEnabled) stringResource(R.string.recommended_reading_list_settings_notification_subtitle_enable)</span>
+<span class="nc" id="L531">    else stringResource(R.string.recommended_reading_list_settings_notifications_subtitle_disable)</span>
+<span class="nc" id="L532">    ListItem(</span>
+<span class="nc" id="L533">        modifier = modifier</span>
+<span class="nc bnc" id="L534" title="All 4 branches missed.">            .noRippleClickable {</span>
+<span class="nc bnc" id="L535" title="All 2 branches missed.">                if (isNotificationEnabled) {</span>
+<span class="nc" id="L536">                    showAlertDialog = true</span>
+                } else
+<span class="nc" id="L538">                    onNotificationStateChanged(true)</span>
+<span class="nc" id="L539">            },</span>
+<span class="nc" id="L540">        colors = ListItemDefaults.colors(</span>
+<span class="nc" id="L541">            containerColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L543">        leadingContent = {</span>
+<span class="nc" id="L544">            Icon(</span>
+<span class="nc" id="L545">                modifier = Modifier</span>
+<span class="nc" id="L546">                    .size(24.dp),</span>
+<span class="nc" id="L547">                painter = painterResource(R.drawable.notifications_24dp),</span>
+<span class="nc" id="L548">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L549">                contentDescription = stringResource(R.string.recommended_reading_list_settings_updates_base_title)</span>
+            )
+<span class="nc" id="L551">        },</span>
+<span class="nc" id="L552">        headlineContent = {</span>
+<span class="nc" id="L553">            Text(</span>
+<span class="nc" id="L554">                text = stringResource(R.string.recommended_reading_list_settings_notifications_title),</span>
+<span class="nc" id="L555">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L556">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L558">        },</span>
+<span class="nc" id="L559">        supportingContent = {</span>
+<span class="nc" id="L560">            Text(</span>
+<span class="nc" id="L561">                modifier = Modifier</span>
+<span class="nc" id="L562">                    .padding(top = 4.dp),</span>
+<span class="nc" id="L563">                text = subtitle,</span>
+<span class="nc" id="L564">                style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L565">                color = WikipediaTheme.colors.secondaryColor</span>
+            )
+<span class="nc" id="L567">        },</span>
+<span class="nc" id="L568">        trailingContent = {</span>
+<span class="nc" id="L569">            Switch(</span>
+<span class="nc" id="L570">                checked = isNotificationEnabled,</span>
+<span class="nc" id="L571">                onCheckedChange = {</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">                    if (isNotificationEnabled) {</span>
+<span class="nc" id="L573">                        showAlertDialog = true</span>
+                    } else
+<span class="nc" id="L575">                        onNotificationStateChanged(it)</span>
+<span class="nc" id="L576">                },</span>
+<span class="nc" id="L577">                colors = SwitchDefaults.colors(</span>
+<span class="nc" id="L578">                    uncheckedTrackColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L579">                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L580">                    uncheckedBorderColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L581">                    checkedTrackColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L582">                    checkedThumbColor = WikipediaTheme.colors.paperColor</span>
+                )
+            )
+<span class="nc" id="L585">        }</span>
+    )
+
+<span class="nc bnc" id="L588" title="All 2 branches missed.">    if (showAlertDialog) {</span>
+<span class="nc" id="L589">        WikipediaAlertDialog(</span>
+<span class="nc" id="L590">            title = stringResource(R.string.recommended_reading_list_settings_notifications_dialog_title),</span>
+<span class="nc" id="L591">            message = stringResource(R.string.recommended_reading_list_settings_notifications_dialog_message),</span>
+<span class="nc" id="L592">            confirmButtonText = stringResource(R.string.recommended_reading_list_settings_notifications_dialog_negative_button),</span>
+<span class="nc" id="L593">            dismissButtonText = stringResource(R.string.recommended_reading_list_settings_notifications_dialog_positive_button),</span>
+<span class="nc" id="L594">            onDismissRequest = {</span>
+<span class="nc" id="L595">                showAlertDialog = false</span>
+<span class="nc" id="L596">            },</span>
+<span class="nc bnc" id="L597" title="All 2 branches missed.">            onConfirmButtonClick = {</span>
+<span class="nc" id="L598">                RecommendedReadingListEvent.submit(&quot;notifs_on_confirm&quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L599">                showAlertDialog = false</span>
+<span class="nc" id="L600">                onNotificationStateChanged(true)</span>
+<span class="nc" id="L601">            },</span>
+<span class="nc bnc" id="L602" title="All 2 branches missed.">            onDismissButtonClick = {</span>
+<span class="nc" id="L603">                RecommendedReadingListEvent.submit(&quot;notifs_off_confirm &quot;, &quot;discover_settings&quot;)</span>
+<span class="nc" id="L604">                showAlertDialog = false</span>
+<span class="nc" id="L605">                onNotificationStateChanged(false)</span>
+<span class="nc" id="L606">            }</span>
+        )
+<span class="nc" id="L608">    }</span>
+<span class="nc" id="L609">}</span>
+
+@Composable
+fun RadioListDialog(
+<span class="nc" id="L613">    modifier: Modifier = Modifier,</span>
+    options: List&lt;String&gt;,
+    selectedOption: String,
+    onDismissRequest: () -&gt; Unit,
+    onOptionSelected: (String) -&gt; Unit
+<span class="nc bnc" id="L618" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L619">    Dialog(</span>
+<span class="nc" id="L620">        onDismissRequest = onDismissRequest,</span>
+<span class="nc" id="L621">        content = {</span>
+<span class="nc" id="L622">            LazyColumn(</span>
+<span class="nc" id="L623">                modifier = modifier</span>
+<span class="nc" id="L624">                    .clip(RoundedCornerShape(28.dp))</span>
+<span class="nc" id="L625">                    .background(WikipediaTheme.colors.paperColor)</span>
+<span class="nc" id="L626">                    .padding(vertical = 8.dp, horizontal = 16.dp),</span>
+<span class="nc" id="L627">                verticalArrangement = Arrangement.spacedBy(8.dp)</span>
+<span class="nc" id="L628">            ) {</span>
+<span class="nc" id="L629">                items(options) { option -&gt;</span>
+<span class="nc" id="L630">                    Row(</span>
+<span class="nc" id="L631">                        modifier = Modifier</span>
+<span class="nc" id="L632">                            .fillMaxWidth()</span>
+<span class="nc" id="L633">                            .clickable {</span>
+<span class="nc" id="L634">                                onOptionSelected(option)</span>
+<span class="nc" id="L635">                                onDismissRequest()</span>
+<span class="nc" id="L636">                            },</span>
+<span class="nc" id="L637">                        verticalAlignment = Alignment.CenterVertically,</span>
+                    ) {
+<span class="nc" id="L639">                        RadioButton(</span>
+<span class="nc" id="L640">                            selected = option == selectedOption,</span>
+<span class="nc" id="L641">                            onClick = {</span>
+<span class="nc" id="L642">                                onOptionSelected(option)</span>
+<span class="nc" id="L643">                                onDismissRequest()</span>
+<span class="nc" id="L644">                            },</span>
+<span class="nc" id="L645">                            colors = RadioButtonDefaults.colors(</span>
+<span class="nc" id="L646">                                selectedColor = WikipediaTheme.colors.progressiveColor</span>
+                            )
+                        )
+<span class="nc" id="L649">                        Text(</span>
+<span class="nc" id="L650">                            text = option,</span>
+<span class="nc" id="L651">                            style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L652">                            color = WikipediaTheme.colors.primaryColor</span>
+                        )
+<span class="nc" id="L654">                    }</span>
+<span class="nc" id="L655">                }</span>
+<span class="nc" id="L656">            }</span>
+<span class="nc" id="L657">        }</span>
+    )
+<span class="nc" id="L659">}</span>
+
+@Composable
+fun SettingsSection(
+<span class="nc bnc" id="L663" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L664">    canShowDivider: Boolean = true,</span>
+    content: @Composable ColumnScope.() -&gt; Unit
+<span class="nc bnc" id="L666" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L667">    Column(</span>
+<span class="nc" id="L668">        modifier = modifier,</span>
+        content = {
+<span class="nc" id="L670">            content()</span>
+<span class="nc bnc" id="L671" title="All 2 branches missed.">            if (canShowDivider) {</span>
+<span class="nc" id="L672">                HorizontalDivider(</span>
+<span class="nc" id="L673">                    color = WikipediaTheme.colors.borderColor</span>
+                )
+<span class="nc" id="L675">            }</span>
+<span class="nc" id="L676">        }</span>
+    )
+<span class="nc" id="L678">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L682">private fun RecommendedReadingListSettingsScreenPreview() {</span>
+<span class="nc" id="L683">    BaseTheme(</span>
+<span class="nc" id="L684">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L685">    ) {</span>
+<span class="nc" id="L686">        RecommendedReadingListSettingsScreen(</span>
+<span class="nc" id="L687">            uiState = RecommendedReadingListSettingsState(</span>
+<span class="nc" id="L688">                isRecommendedReadingListEnabled = true,</span>
+<span class="nc" id="L689">                articlesNumber = 1,</span>
+<span class="nc" id="L690">                updateFrequency = RecommendedReadingListUpdateFrequency.WEEKLY,</span>
+<span class="nc" id="L691">                recommendedReadingListSource = RecommendedReadingListSource.INTERESTS,</span>
+<span class="nc" id="L692">                isRecommendedReadingListNotificationEnabled = true</span>
+            ),
+<span class="nc" id="L694">            resetUiState = Resource.Loading(),</span>
+<span class="nc" id="L695">            onRecommendedReadingListSourceClick = {},</span>
+<span class="nc" id="L696">            onRecommendedReadingListSwitchClick = {},</span>
+<span class="nc" id="L697">            onInterestClick = {},</span>
+<span class="nc" id="L698">            onUpdateFrequency = {},</span>
+<span class="nc" id="L699">            onArticleNumberChanged = {},</span>
+<span class="nc" id="L700">            onBackButtonClick = {},</span>
+<span class="nc" id="L701">            onListGenerated = {},</span>
+<span class="nc" id="L702">            onNotificationStateChanged = {}</span>
+        )
+<span class="nc" id="L704">    }</span>
+<span class="nc" id="L705">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

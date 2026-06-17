@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TalkThreadHeaderView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.talk</a> &gt; <span class="el_source">TalkThreadHeaderView.kt</span></div><h1>TalkThreadHeaderView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.talk
+
+import android.content.Context
+import android.text.method.MovementMethod
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.isVisible
+import org.wikipedia.R
+import org.wikipedia.databinding.ItemTalkThreadHeaderBinding
+import org.wikipedia.dataclient.discussiontools.ThreadItem
+import org.wikipedia.page.PageTitle
+import org.wikipedia.richtext.setHtml
+import org.wikipedia.staticdata.TalkAliasData
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L19">class TalkThreadHeaderView constructor(context: Context, attrs: AttributeSet? = null) : ConstraintLayout(context, attrs) {</span>
+    interface Callback {
+        fun onSubscribeClick()
+    }
+
+<span class="nc" id="L24">    var callback: Callback? = null</span>
+<span class="nc" id="L25">    private val binding = ItemTalkThreadHeaderBinding.inflate(LayoutInflater.from(context), this)</span>
+
+<span class="nc" id="L27">    init {</span>
+<span class="nc" id="L28">        layoutParams = ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)</span>
+
+<span class="nc" id="L30">        binding.subscribeButton.setOnClickListener {</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">            callback?.onSubscribeClick()</span>
+<span class="nc" id="L32">        }</span>
+<span class="nc" id="L33">    }</span>
+
+<span class="nc" id="L35">    fun bind(pageTitle: PageTitle, item: ThreadItem?, subscribed: Boolean, movementMethod: MovementMethod, searchQuery: String? = null) {</span>
+<span class="nc" id="L36">        binding.pageTitleText.movementMethod = movementMethod</span>
+<span class="nc" id="L37">        val baseTitle = TalkTopicsActivity.getNonTalkPageTitle(pageTitle)</span>
+<span class="nc bnc" id="L38" title="All 4 branches missed.">        val pageTitleText = StringUtil.fromHtml(pageTitle.namespace.ifEmpty { TalkAliasData.valueFor(pageTitle.wikiSite.languageCode) } +</span>
+<span class="nc" id="L39">                &quot;: &quot; + &quot;&lt;a href='&quot; + baseTitle.uri + &quot;'&gt;${StringUtil.removeNamespace(StringUtil.removeHTMLTags(pageTitle.displayText))}&lt;/a&gt;&quot;)</span>
+<span class="nc" id="L40">        StringUtil.setHighlightedAndBoldenedText(binding.pageTitleText, pageTitleText, searchQuery)</span>
+
+<span class="nc bnc" id="L42" title="All 2 branches missed.">        binding.threadTitleText.isVisible = !TalkTopicActivity.isHeaderTemplate(item)</span>
+<span class="nc" id="L43">        binding.threadTitleText.movementMethod = movementMethod</span>
+<span class="nc bnc" id="L44" title="All 4 branches missed.">        val threadTitle = StringUtil.fromHtml(item?.html).ifBlank { context.getString(R.string.talk_no_subject) }</span>
+<span class="nc" id="L45">        StringUtil.setHighlightedAndBoldenedText(binding.threadTitleText, threadTitle, searchQuery)</span>
+
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (TalkTopicActivity.isSubscribable(item)) {</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            binding.subscribeButton.text = context.getString(if (subscribed) R.string.talk_list_item_overflow_subscribed else R.string.talk_list_item_overflow_subscribe)</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">            binding.subscribeButton.setTextColor(ResourceUtil.getThemedColor(context, if (subscribed) R.attr.secondary_color else R.attr.progressive_color))</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            binding.subscribeButton.setIconResource(if (subscribed) R.drawable.ic_notifications_active else R.drawable.ic_notifications_black_24dp)</span>
+<span class="nc" id="L51">            binding.subscribeButton.iconTint = binding.subscribeButton.textColors</span>
+<span class="nc" id="L52">            binding.subscribeButton.isVisible = true</span>
+        } else {
+<span class="nc" id="L54">            binding.subscribeButton.isVisible = false</span>
+        }
+
+<span class="nc" id="L57">        binding.otherContentText.movementMethod = movementMethod</span>
+<span class="nc bnc" id="L58" title="All 8 branches missed.">        binding.otherContentText.isVisible = !item?.othercontent.isNullOrEmpty()</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">        binding.otherContentText.setHtml(StringUtil.removeStyleTags(item?.othercontent.orEmpty()))</span>
+<span class="nc" id="L60">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

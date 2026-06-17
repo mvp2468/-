@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArchivedTalkPagesActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.talk</a> &gt; <span class="el_source">ArchivedTalkPagesActivity.kt</span></div><h1>ArchivedTalkPagesActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.talk
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.activity.viewModels
+import androidx.annotation.StringRes
+import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.paging.LoadState
+import androidx.paging.LoadStateAdapter
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.adapter.PagingDataAdapterPatched
+import org.wikipedia.databinding.ActivityArchivedTalkPagesBinding
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.DrawableItemDecoration
+import org.wikipedia.views.PageItemView
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.views.WikiErrorView
+
+<span class="nc" id="L40">class ArchivedTalkPagesActivity : BaseActivity() {</span>
+    private lateinit var binding: ActivityArchivedTalkPagesBinding
+
+<span class="nc" id="L43">    private val archivedTalkPagesAdapter = ArchivedTalkPagesAdapter()</span>
+<span class="nc" id="L44">    private val archivedTalkPagesLoadHeader = LoadingItemAdapter { archivedTalkPagesAdapter.retry(); }</span>
+<span class="nc" id="L45">    private val archivedTalkPagesLoadFooter = LoadingItemAdapter { archivedTalkPagesAdapter.retry(); }</span>
+<span class="nc" id="L46">    private val archivedTalkPagesConcatAdapter = archivedTalkPagesAdapter.withLoadStateHeaderAndFooter(archivedTalkPagesLoadHeader, archivedTalkPagesLoadFooter)</span>
+
+<span class="nc" id="L48">    private val itemCallback = ItemCallback()</span>
+<span class="nc" id="L49">    private val viewModel: ArchivedTalkPagesViewModel by viewModels()</span>
+
+    public override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L52">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L53">        binding = ActivityArchivedTalkPagesBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L54">        setContentView(binding.root)</span>
+<span class="nc" id="L55">        setSupportActionBar(binding.toolbar)</span>
+<span class="nc" id="L56">        setToolbarTitle(viewModel.pageTitle)</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+
+<span class="nc" id="L59">        binding.recyclerView.layoutManager = LinearLayoutManager(this)</span>
+<span class="nc" id="L60">        binding.recyclerView.addItemDecoration(DrawableItemDecoration(this, R.attr.list_divider, drawStart = false, drawEnd = false))</span>
+<span class="nc" id="L61">        binding.recyclerView.adapter = archivedTalkPagesConcatAdapter</span>
+
+<span class="nc" id="L63">        lifecycleScope.launch {</span>
+<span class="nc" id="L64">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L65">                launch {</span>
+<span class="nc" id="L66">                    viewModel.archivedTalkPagesFlow.collectLatest {</span>
+<span class="nc" id="L67">                        archivedTalkPagesAdapter.submitData(lifecycleScope, it)</span>
+<span class="nc" id="L68">                    }</span>
+<span class="nc" id="L69">                }</span>
+<span class="nc" id="L70">                launch {</span>
+<span class="nc" id="L71">                    archivedTalkPagesAdapter.loadStateFlow.collectLatest {</span>
+<span class="nc" id="L72">                        archivedTalkPagesLoadHeader.loadState = it.refresh</span>
+<span class="nc" id="L73">                        archivedTalkPagesLoadFooter.loadState = it.append</span>
+<span class="nc bnc" id="L74" title="All 6 branches missed.">                        val showEmpty = (it.append is LoadState.NotLoading &amp;&amp; it.append.endOfPaginationReached &amp;&amp; archivedTalkPagesAdapter.itemCount == 0)</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                        if (showEmpty) {</span>
+<span class="nc" id="L76">                            archivedTalkPagesConcatAdapter.addAdapter(EmptyItemAdapter(R.string.archive_empty))</span>
+                        }
+<span class="nc" id="L78">                    }</span>
+<span class="nc" id="L79">                }</span>
+<span class="nc" id="L80">            }</span>
+<span class="nc" id="L81">        }</span>
+<span class="nc" id="L82">    }</span>
+
+    private fun setToolbarTitle(pageTitle: PageTitle) {
+<span class="nc" id="L85">        val title = StringUtil.fromHtml(getString(R.string.talk_archived_title, &quot;&lt;a href='#'&gt;${StringUtil.removeNamespace(pageTitle.displayText)}&lt;/a&gt;&quot;))</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        ViewUtil.getTitleViewFromToolbar(binding.toolbar)?.let {</span>
+<span class="nc" id="L87">            it.contentDescription = title</span>
+<span class="nc" id="L88">            it.movementMethod = LinkMovementMethodExt { _ -&gt;</span>
+<span class="nc" id="L89">                val entry = HistoryEntry(TalkTopicsActivity.getNonTalkPageTitle(viewModel.pageTitle), HistoryEntry.SOURCE_ARCHIVED_TALK)</span>
+<span class="nc" id="L90">                startActivity(PageActivity.newIntentForNewTab(this, entry, entry.title))</span>
+<span class="nc" id="L91">            }</span>
+<span class="nc" id="L92">            FeedbackUtil.setButtonTooltip(it)</span>
+<span class="nc" id="L93">        }</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        supportActionBar?.title = title</span>
+<span class="nc" id="L95">    }</span>
+
+<span class="nc" id="L97">    private inner class LoadingItemAdapter(private val retry: () -&gt; Unit) : LoadStateAdapter&lt;LoadingViewHolder&gt;() {</span>
+        override fun onBindViewHolder(holder: LoadingViewHolder, loadState: LoadState) {
+<span class="nc" id="L99">            holder.bindItem(loadState, retry)</span>
+<span class="nc" id="L100">        }</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, loadState: LoadState): LoadingViewHolder {
+<span class="nc" id="L103">            return LoadingViewHolder(layoutInflater.inflate(R.layout.item_list_progress, parent, false))</span>
+        }
+    }
+
+<span class="nc" id="L107">    private inner class EmptyItemAdapter(@StringRes private val text: Int) : RecyclerView.Adapter&lt;EmptyViewHolder&gt;() {</span>
+        override fun onBindViewHolder(holder: EmptyViewHolder, position: Int) {
+<span class="nc" id="L109">            holder.bindItem(text)</span>
+<span class="nc" id="L110">        }</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EmptyViewHolder {
+<span class="nc" id="L113">            return EmptyViewHolder(layoutInflater.inflate(R.layout.item_list_progress, parent, false))</span>
+        }
+
+<span class="nc" id="L116">        override fun getItemCount(): Int { return 1 }</span>
+    }
+
+<span class="nc" id="L119">    private inner class ArchivedTalkPagesDiffCallback : DiffUtil.ItemCallback&lt;PageTitle&gt;() {</span>
+        override fun areItemsTheSame(oldItem: PageTitle, newItem: PageTitle): Boolean {
+<span class="nc bnc" id="L121" title="All 4 branches missed.">            return oldItem.prefixedText == newItem.prefixedText &amp;&amp; oldItem.namespace == newItem.namespace</span>
+        }
+
+        override fun areContentsTheSame(oldItem: PageTitle, newItem: PageTitle): Boolean {
+<span class="nc" id="L125">            return areItemsTheSame(oldItem, newItem)</span>
+        }
+    }
+
+<span class="nc" id="L129">    private inner class ArchivedTalkPagesAdapter : PagingDataAdapterPatched&lt;PageTitle, RecyclerView.ViewHolder&gt;(ArchivedTalkPagesDiffCallback()) {</span>
+        override fun onCreateViewHolder(parent: ViewGroup, pos: Int): ArchivedTalkPageItemHolder {
+<span class="nc" id="L131">            val view = PageItemView&lt;PageTitle&gt;(this@ArchivedTalkPagesActivity)</span>
+<span class="nc" id="L132">            view.callback = itemCallback</span>
+<span class="nc" id="L133">            return ArchivedTalkPageItemHolder(view)</span>
+        }
+
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            getItem(position)?.let {</span>
+<span class="nc" id="L138">                (holder as ArchivedTalkPageItemHolder).bindItem(it)</span>
+<span class="nc" id="L139">            }</span>
+<span class="nc" id="L140">        }</span>
+    }
+
+<span class="nc" id="L143">    private inner class LoadingViewHolder constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {</span>
+        fun bindItem(loadState: LoadState, retry: () -&gt; Unit) {
+<span class="nc" id="L145">            val errorView = itemView.findViewById&lt;WikiErrorView&gt;(R.id.errorView)</span>
+<span class="nc" id="L146">            val progressBar = itemView.findViewById&lt;View&gt;(R.id.progressBar)</span>
+<span class="nc" id="L147">            progressBar.isVisible = loadState is LoadState.Loading</span>
+<span class="nc" id="L148">            errorView.isVisible = loadState is LoadState.Error</span>
+<span class="nc" id="L149">            errorView.retryClickListener = View.OnClickListener { retry() }</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">            if (loadState is LoadState.Error) {</span>
+<span class="nc" id="L151">                errorView.setError(loadState.error, viewModel.pageTitle)</span>
+            }
+<span class="nc" id="L153">        }</span>
+    }
+
+<span class="nc" id="L156">    private inner class EmptyViewHolder constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {</span>
+        fun bindItem(@StringRes text: Int) {
+<span class="nc" id="L158">            val errorView = itemView.findViewById&lt;WikiErrorView&gt;(R.id.errorView)</span>
+<span class="nc" id="L159">            val progressBar = itemView.findViewById&lt;View&gt;(R.id.progressBar)</span>
+<span class="nc" id="L160">            val emptyMessage = itemView.findViewById&lt;TextView&gt;(R.id.emptyMessage)</span>
+<span class="nc" id="L161">            progressBar.isVisible = false</span>
+<span class="nc" id="L162">            errorView.isVisible = false</span>
+<span class="nc" id="L163">            emptyMessage.text = getString(text)</span>
+<span class="nc" id="L164">            emptyMessage.isVisible = true</span>
+<span class="nc" id="L165">        }</span>
+    }
+
+<span class="nc" id="L168">    private inner class ArchivedTalkPageItemHolder constructor(val view: PageItemView&lt;PageTitle&gt;) : RecyclerView.ViewHolder(view) {</span>
+        fun bindItem(title: PageTitle) {
+<span class="nc" id="L170">            view.item = title</span>
+<span class="nc" id="L171">            view.setTitle(title.displayText)</span>
+<span class="nc" id="L172">            view.setImageUrl(title.thumbUrl)</span>
+<span class="nc bnc" id="L173" title="All 6 branches missed.">            view.setImageVisible(!title.thumbUrl.isNullOrEmpty())</span>
+<span class="nc" id="L174">            view.setDescription(title.description)</span>
+<span class="nc" id="L175">        }</span>
+    }
+
+<span class="nc" id="L178">    private inner class ItemCallback : PageItemView.Callback&lt;PageTitle?&gt; {</span>
+        override fun onClick(item: PageTitle?) {
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            item?.let {</span>
+<span class="nc" id="L181">                startActivity(TalkTopicsActivity.newIntent(this@ArchivedTalkPagesActivity, it, InvokeSource.ARCHIVED_TALK_ACTIVITY))</span>
+<span class="nc" id="L182">            }</span>
+<span class="nc" id="L183">        }</span>
+
+        override fun onLongClick(item: PageTitle?): Boolean {
+<span class="nc" id="L186">            return false</span>
+        }
+
+<span class="nc" id="L189">        override fun onActionClick(item: PageTitle?, view: View) {}</span>
+
+<span class="nc" id="L191">        override fun onListChipClick(readingList: ReadingList) {}</span>
+    }
+
+    companion object {
+        fun newIntent(context: Context, talkTopicTitle: PageTitle): Intent {
+<span class="nc" id="L196">            return Intent(context, ArchivedTalkPagesActivity::class.java)</span>
+<span class="nc" id="L197">                    .putExtra(Constants.ARG_TITLE, talkTopicTitle)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

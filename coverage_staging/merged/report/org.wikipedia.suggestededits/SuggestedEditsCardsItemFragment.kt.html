@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsCardsItemFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsCardsItemFragment.kt</span></div><h1>SuggestedEditsCardsItemFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.View.GONE
+import android.view.View.VISIBLE
+import android.view.ViewGroup
+import androidx.core.net.toUri
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.databinding.FragmentSuggestedEditsCardsItemBinding
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_DESCRIPTION
+import org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ImageZoomHelper
+
+<span class="nc" id="L28">class SuggestedEditsCardsItemFragment : SuggestedEditsItemFragment() {</span>
+    private var _binding: FragmentSuggestedEditsCardsItemBinding? = null
+<span class="nc" id="L30">    private val binding get() = _binding!!</span>
+<span class="nc" id="L31">    private val viewModel: SuggestedEditsCardsItemViewModel by viewModels()</span>
+<span class="nc" id="L32">    var sourceSummaryForEdit: PageSummaryForEdit? = null</span>
+<span class="nc" id="L33">    var targetSummaryForEdit: PageSummaryForEdit? = null</span>
+<span class="nc" id="L34">    var addedContribution: String = &quot;&quot;</span>
+<span class="nc" id="L35">        internal set</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L38">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L39">        _binding = FragmentSuggestedEditsCardsItemBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L40">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L44">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L45">        binding.viewArticleContainer.setLayoutDirectionByLang(parent().langFromCode())</span>
+
+<span class="nc" id="L47">        binding.viewArticleImage.setOnClickListener {</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            if (Prefs.showImageZoomTooltip) {</span>
+<span class="nc" id="L49">                Prefs.showImageZoomTooltip = false</span>
+<span class="nc" id="L50">                FeedbackUtil.showMessage(requireActivity(), R.string.suggested_edits_image_zoom_tooltip)</span>
+            }
+<span class="nc" id="L52">        }</span>
+
+<span class="nc" id="L54">        binding.cardItemErrorView.backClickListener = View.OnClickListener { requireActivity().finish() }</span>
+<span class="nc" id="L55">        binding.cardItemErrorView.retryClickListener = View.OnClickListener {</span>
+<span class="nc" id="L56">            viewModel.findNextSuggestedEditsItem(parent().action(), parent().langFromCode(), parent().langToCode())</span>
+<span class="nc" id="L57">        }</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (sourceSummaryForEdit == null) {</span>
+<span class="nc" id="L60">            viewModel.findNextSuggestedEditsItem(parent().action(), parent().langFromCode(), parent().langToCode())</span>
+        }
+
+<span class="nc" id="L63">        binding.viewArticleContainer.setOnClickListener {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (sourceSummaryForEdit != null) {</span>
+<span class="nc" id="L65">                parent().onSelectPage()</span>
+            }
+<span class="nc" id="L67">        }</span>
+<span class="nc" id="L68">        showAddedContributionView(addedContribution)</span>
+
+<span class="nc" id="L70">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L71">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L72">                launch {</span>
+<span class="nc" id="L73">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L74">                        when (it) {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                            is Resource.Success -&gt; updateContents(it.data)</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                            is Resource.Error -&gt; setErrorState(it.throwable)</span>
+                        }
+<span class="nc" id="L79">                    }</span>
+                }
+<span class="nc" id="L81">            }</span>
+<span class="nc" id="L82">        }</span>
+<span class="nc" id="L83">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L86">        _binding = null</span>
+<span class="nc" id="L87">        super.onDestroyView()</span>
+<span class="nc" id="L88">    }</span>
+
+    fun showAddedContributionView(addedContribution: String?) {
+<span class="nc bnc" id="L91" title="All 6 branches missed.">        if (!addedContribution.isNullOrEmpty()) {</span>
+<span class="nc" id="L92">            binding.viewArticleSubtitleContainer.visibility = VISIBLE</span>
+<span class="nc" id="L93">            binding.viewArticleSubtitle.text = addedContribution</span>
+<span class="nc" id="L94">            this.addedContribution = addedContribution</span>
+        }
+<span class="nc" id="L96">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L99">        binding.cardItemProgressBar.visibility = VISIBLE</span>
+<span class="nc" id="L100">        binding.cardItemContainer.visibility = GONE</span>
+<span class="nc" id="L101">        binding.cardItemErrorView.visibility = GONE</span>
+<span class="nc" id="L102">    }</span>
+
+    private fun setErrorState(t: Throwable) {
+<span class="nc" id="L105">        L.e(t)</span>
+<span class="nc" id="L106">        binding.cardItemErrorView.setError(t)</span>
+<span class="nc" id="L107">        binding.cardItemErrorView.visibility = VISIBLE</span>
+<span class="nc" id="L108">        binding.cardItemProgressBar.visibility = GONE</span>
+<span class="nc" id="L109">        binding.cardItemContainer.visibility = GONE</span>
+<span class="nc" id="L110">    }</span>
+
+    private fun updateContents(pair: Pair&lt;PageSummaryForEdit?, PageSummaryForEdit?&gt;) {
+<span class="nc" id="L113">        sourceSummaryForEdit = pair.first</span>
+<span class="nc" id="L114">        targetSummaryForEdit = pair.second</span>
+<span class="nc" id="L115">        binding.cardItemErrorView.visibility = GONE</span>
+<span class="nc" id="L116">        binding.cardItemContainer.visibility = VISIBLE</span>
+<span class="nc" id="L117">        binding.cardItemProgressBar.visibility = GONE</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        binding.viewArticleImage.contentDescription = getString(R.string.image_content_description, sourceSummaryForEdit?.displayTitle)</span>
+
+<span class="nc" id="L120">        ImageZoomHelper.setViewZoomable(binding.viewArticleImage)</span>
+
+<span class="nc bnc" id="L122" title="All 4 branches missed.">        if (parent().action() == ADD_DESCRIPTION || parent().action() == TRANSLATE_DESCRIPTION) {</span>
+<span class="nc" id="L123">            updateDescriptionContents()</span>
+        } else {
+<span class="nc" id="L125">            updateCaptionContents()</span>
+        }
+<span class="nc" id="L127">    }</span>
+
+    private fun updateDescriptionContents() {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        binding.viewArticleTitle.text = StringUtil.fromHtml(sourceSummaryForEdit?.displayTitle)</span>
+<span class="nc" id="L131">        binding.viewArticleTitle.visibility = VISIBLE</span>
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (parent().action() == TRANSLATE_DESCRIPTION) {</span>
+<span class="nc" id="L134">            binding.viewArticleSubtitleContainer.visibility = VISIBLE</span>
+<span class="nc bnc" id="L135" title="All 6 branches missed.">            binding.viewArticleSubtitle.text = addedContribution.ifEmpty { sourceSummaryForEdit?.description }</span>
+        }
+
+<span class="nc" id="L138">        binding.viewImageSummaryContainer.visibility = GONE</span>
+
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        binding.viewArticleExtract.text = StringUtil.removeHTMLTags(sourceSummaryForEdit?.extractHtml)</span>
+<span class="nc bnc" id="L141" title="All 6 branches missed.">        if (sourceSummaryForEdit!!.thumbnailUrl.isNullOrBlank()) {</span>
+<span class="nc" id="L142">            binding.viewArticleImagePlaceholder.visibility = GONE</span>
+        } else {
+<span class="nc" id="L144">            binding.viewArticleImagePlaceholder.visibility = VISIBLE</span>
+<span class="nc bnc" id="L145" title="All 4 branches missed.">            binding.viewArticleImage.loadImage(sourceSummaryForEdit?.getPreferredSizeThumbnailUrl()?.toUri())</span>
+        }
+<span class="nc" id="L147">    }</span>
+
+    private fun updateCaptionContents() {
+<span class="nc" id="L150">        binding.viewArticleTitle.visibility = GONE</span>
+<span class="nc" id="L151">        binding.viewArticleSubtitleContainer.visibility = VISIBLE</span>
+
+<span class="nc bnc" id="L153" title="All 4 branches missed.">        val descriptionText = addedContribution.ifEmpty {</span>
+<span class="nc bnc" id="L154" title="All 4 branches missed.">            sourceSummaryForEdit!!.description!!.ifEmpty { getString(R.string.suggested_edits_no_description) }</span>
+        }
+
+<span class="nc" id="L157">        binding.viewArticleSubtitle.text = StringUtil.removeHTMLTags(descriptionText).trim()</span>
+<span class="nc bnc" id="L158" title="All 4 branches missed.">        binding.viewImageFileName.setDetailText(StringUtil.removeNamespace(sourceSummaryForEdit?.displayTitle.orEmpty()))</span>
+
+<span class="nc bnc" id="L160" title="All 8 branches missed.">        if (!sourceSummaryForEdit?.user.isNullOrEmpty()) {</span>
+<span class="nc" id="L161">            binding.viewImageArtist.setTitleText(getString(R.string.suggested_edits_image_caption_summary_title_author))</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            binding.viewImageArtist.setDetailText(sourceSummaryForEdit?.user)</span>
+        } else {
+<span class="nc bnc" id="L164" title="All 4 branches missed.">            binding.viewImageArtist.setTitleText(StringUtil.removeHTMLTags(sourceSummaryForEdit?.metadata?.artist()))</span>
+        }
+
+<span class="nc bnc" id="L167" title="All 4 branches missed.">        binding.viewImageDate.setDetailText(DateUtil.getTimeAndDateString(requireContext(), sourceSummaryForEdit?.timestamp.orEmpty()))</span>
+<span class="nc" id="L168">        binding.viewImageSource.setDetailText(sourceSummaryForEdit!!.metadata!!.credit())</span>
+<span class="nc" id="L169">        binding.viewImageLicense.setDetailText(sourceSummaryForEdit!!.metadata!!.licenseShortName())</span>
+
+<span class="nc" id="L171">        binding.viewArticleImage.loadImage(sourceSummaryForEdit!!.getPreferredSizeThumbnailUrl().toUri())</span>
+<span class="nc" id="L172">        binding.viewArticleExtract.visibility = GONE</span>
+<span class="nc" id="L173">    }</span>
+
+    companion object {
+        fun newInstance(): SuggestedEditsItemFragment {
+<span class="nc" id="L177">            return SuggestedEditsCardsItemFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

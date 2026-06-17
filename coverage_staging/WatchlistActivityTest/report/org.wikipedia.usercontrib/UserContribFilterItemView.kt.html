@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserContribFilterItemView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.usercontrib</a> &gt; <span class="el_source">UserContribFilterItemView.kt</span></div><h1>UserContribFilterItemView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.usercontrib
+
+import android.content.Context
+import android.graphics.Typeface
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import androidx.core.view.isVisible
+import androidx.core.widget.ImageViewCompat
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.databinding.ItemUserContribFilterBinding
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L19">class UserContribFilterItemView constructor(context: Context, attrs: AttributeSet? = null) : LinearLayout(context, attrs) {</span>
+
+    interface Callback {
+        fun onSelected(item: UserContribFilterActivity.Item?)
+    }
+
+    private var item: UserContribFilterActivity.Item? = null
+<span class="nc" id="L26">    private var binding = ItemUserContribFilterBinding.inflate(LayoutInflater.from(context), this)</span>
+<span class="nc" id="L27">    var callback: Callback? = null</span>
+
+<span class="nc" id="L29">    init {</span>
+<span class="nc" id="L30">        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, DimenUtil.roundedDpToPx(48f))</span>
+<span class="nc" id="L31">        setBackgroundResource(ResourceUtil.getThemedAttributeId(context, androidx.appcompat.R.attr.selectableItemBackground))</span>
+<span class="nc" id="L32">        setOnClickListener {</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">            callback?.onSelected(item)</span>
+<span class="nc" id="L34">        }</span>
+<span class="nc" id="L35">    }</span>
+
+    fun setContents(item: UserContribFilterActivity.Item) {
+<span class="nc" id="L38">        this.item = item</span>
+<span class="nc" id="L39">        binding.itemTitle.text = WikipediaApp.instance.languageState.getWikiLanguageName(item.filterCode)</span>
+<span class="nc" id="L40">        binding.itemCheck.isVisible = item.isEnabled()</span>
+
+<span class="nc bnc" id="L42" title="All 2 branches missed.">        if (item.type == UserContribFilterActivity.FILTER_TYPE_WIKI) {</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">            getTitleCodeFor(item.filterCode)?.let {</span>
+<span class="nc" id="L44">                binding.languageCode.setLangCode(it)</span>
+<span class="nc" id="L45">            } ?: run {</span>
+<span class="nc" id="L46">                binding.languageCode.visibility = View.GONE</span>
+<span class="nc" id="L47">            }</span>
+<span class="nc" id="L48">            binding.itemCheck.setImageResource(R.drawable.ic_baseline_radio_button_checked_24)</span>
+        } else {
+<span class="nc" id="L50">            binding.languageCode.visibility = View.GONE</span>
+<span class="nc" id="L51">            binding.itemCheck.setImageResource(R.drawable.ic_check_borderless)</span>
+        }
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        item.imageRes?.let {</span>
+<span class="nc" id="L55">            binding.itemLogo.setImageResource(it)</span>
+<span class="nc" id="L56">            binding.itemLogo.visibility = View.VISIBLE</span>
+<span class="nc" id="L57">        } ?: run {</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            binding.itemLogo.visibility = if (binding.languageCode.isVisible) View.GONE else View.INVISIBLE</span>
+<span class="nc" id="L59">        }</span>
+<span class="nc" id="L60">    }</span>
+
+    fun setSingleLabel(text: String) {
+<span class="nc" id="L63">        binding.languageCode.visibility = View.GONE</span>
+<span class="nc" id="L64">        binding.itemLogo.visibility = View.VISIBLE</span>
+<span class="nc" id="L65">        binding.itemLogo.setImageResource(R.drawable.ic_mode_edit_white_24dp)</span>
+<span class="nc" id="L66">        binding.itemCheck.visibility = View.GONE</span>
+<span class="nc" id="L67">        binding.itemTitle.setTextColor(ResourceUtil.getThemedColorStateList(context, R.attr.progressive_color))</span>
+<span class="nc" id="L68">        binding.itemTitle.text = text</span>
+<span class="nc" id="L69">        binding.itemTitle.typeface = Typeface.create(&quot;sans-serif-medium&quot;, Typeface.NORMAL)</span>
+<span class="nc" id="L70">        ImageViewCompat.setImageTintList(binding.itemLogo, ResourceUtil.getThemedColorStateList(context, R.attr.progressive_color))</span>
+<span class="nc" id="L71">    }</span>
+
+    private fun getTitleCodeFor(itemCode: String): String? {
+<span class="nc bnc" id="L74" title="All 4 branches missed.">        return if (itemCode == Constants.WIKI_CODE_COMMONS || itemCode == Constants.WIKI_CODE_WIKIDATA) null</span>
+<span class="nc" id="L75">        else itemCode</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

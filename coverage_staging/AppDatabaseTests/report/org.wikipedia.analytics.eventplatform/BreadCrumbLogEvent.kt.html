@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BreadCrumbLogEvent.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">BreadCrumbLogEvent.kt</span></div><h1>BreadCrumbLogEvent.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import android.app.Activity
+import android.content.Context
+import android.view.MenuItem
+import android.view.View
+import android.widget.CompoundButton
+import android.widget.TextView
+import androidx.fragment.app.Fragment
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.settings.SettingsActivity
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L18">@Suppress(&quot;unused&quot;, &quot;CanBeParameter&quot;)</span>
+@Serializable
+@SerialName(&quot;/analytics/mobile_apps/android_breadcrumbs_event/1.1.0&quot;)
+<span class="nc" id="L21">class BreadCrumbLogEvent(</span>
+<span class="nc" id="L22">        private val screen_name: String,</span>
+<span class="nc" id="L23">        private val action: String</span>
+<span class="nc" id="L24">) : MobileAppsEventWithTemp(STREAM_NAME) {</span>
+
+    // Do NOT join the declaration and assignment to these fields, or they won't be serialized correctly.
+    private val app_primary_language_code: String
+
+<span class="nc" id="L29">    init {</span>
+<span class="nc" id="L30">        app_primary_language_code = WikipediaApp.instance.languageState.appLanguageCode</span>
+<span class="nc" id="L31">        L.d(&quot;&gt;&gt;&gt; $screen_name.$action&quot;)</span>
+<span class="nc" id="L32">    }</span>
+
+    companion object {
+        private const val STREAM_NAME = &quot;android.breadcrumbs_event&quot;
+
+        fun logClick(context: Context, view: View) {
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            if (context is SettingsActivity) {</span>
+<span class="nc" id="L39">                return</span>
+            }
+<span class="nc" id="L41">            var viewReadableName = BreadCrumbViewUtil.getReadableNameForView(view)</span>
+<span class="nc bnc" id="L42" title="All 6 branches missed.">            if (view.tag is String &amp;&amp; (view.tag as String).isNotEmpty()) {</span>
+<span class="nc" id="L43">                viewReadableName += &quot;.&quot; + view.tag as String</span>
+            }
+<span class="nc bnc" id="L45" title="All 4 branches missed.">            val str = &quot;$viewReadableName.&quot; + if (view is CompoundButton) { if (!view.isChecked) &quot;on&quot; else &quot;off&quot; } else &quot;click&quot;</span>
+<span class="nc" id="L46">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context), str))</span>
+<span class="nc" id="L47">        }</span>
+
+        fun logClick(context: Context, item: MenuItem) {
+<span class="nc" id="L50">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context),</span>
+<span class="nc" id="L51">                context.resources.getResourceEntryName(item.itemId) + &quot;.click&quot;))</span>
+<span class="nc" id="L52">        }</span>
+
+        fun logClick(context: Context, composableName: String) {
+<span class="nc" id="L55">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context), &quot;$composableName.click&quot;))</span>
+<span class="nc" id="L56">        }</span>
+
+        fun logLongClick(context: Context, view: View) {
+<span class="nc" id="L59">            val viewReadableName = BreadCrumbViewUtil.getReadableNameForView(view)</span>
+<span class="nc" id="L60">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context), &quot;$viewReadableName.longclick&quot;))</span>
+<span class="nc" id="L61">        }</span>
+
+<span class="nc" id="L63">        fun logScreenShown(context: Context, fragment: Fragment? = null) {</span>
+<span class="nc bnc" id="L64" title="All 14 branches missed.">            val invokeSource = (fragment?.activity?.intent ?: (context as? Activity)?.intent)?.getSerializableExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE) as? Constants.InvokeSource</span>
+<span class="nc" id="L65">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context, fragment),</span>
+<span class="nc bnc" id="L66" title="All 4 branches missed.">                &quot;show&quot; + invokeSource?.let { &quot;.from.&quot; + it.value }.orEmpty()))</span>
+<span class="nc" id="L67">        }</span>
+
+        fun logImpression(context: Context, name: String) {
+<span class="nc" id="L70">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context),</span>
+<span class="nc" id="L71">                &quot;impression.$name&quot;))</span>
+<span class="nc" id="L72">        }</span>
+
+        fun logBackPress(context: Context) {
+<span class="nc" id="L75">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context), &quot;back&quot;))</span>
+<span class="nc" id="L76">        }</span>
+
+        fun logTooltipShown(context: Context, anchor: View) {
+<span class="nc" id="L79">            val viewReadableName = BreadCrumbViewUtil.getReadableNameForView(anchor)</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">            EventPlatformClient.submit(BreadCrumbLogEvent(context.javaClass.simpleName.orEmpty(), &quot;$viewReadableName.tooltip&quot;))</span>
+<span class="nc" id="L81">        }</span>
+
+<span class="nc" id="L83">        fun logSettingsSelection(context: Context, title: String, newValue: Any? = null) {</span>
+<span class="nc bnc" id="L84" title="All 4 branches missed.">            val str = title + &quot;.&quot; + if (newValue is Boolean) (if (newValue == true) &quot;on&quot; else &quot;off&quot;) else &quot;click&quot;</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            EventPlatformClient.submit(BreadCrumbLogEvent(context.javaClass.simpleName.orEmpty(), str))</span>
+<span class="nc" id="L86">        }</span>
+
+        fun logInputField(context: Context, view: View) {
+<span class="nc" id="L89">            val viewReadableName = BreadCrumbViewUtil.getReadableNameForView(view)</span>
+<span class="nc" id="L90">            val str = &quot;$viewReadableName.&quot; + (view as TextView).text</span>
+<span class="nc" id="L91">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context), str))</span>
+<span class="nc" id="L92">        }</span>
+
+        fun logMap(context: Context, map: Map&lt;String, String&gt;) {
+<span class="nc" id="L95">            EventPlatformClient.submit(BreadCrumbLogEvent(BreadCrumbViewUtil.getReadableScreenName(context),</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                JsonUtil.encodeToString(map).orEmpty()))</span>
+<span class="nc" id="L97">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

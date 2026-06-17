@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComposeWikiErrorView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.compose.components.error</a> &gt; <span class="el_source">ComposeWikiErrorView.kt</span></div><h1>ComposeWikiErrorView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.compose.components.error
+
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.BreadCrumbLogEvent
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.mwapi.MwException
+import org.wikipedia.page.Namespace
+import org.wikipedia.page.PageTitle
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.ThrowableUtil.is404
+import org.wikipedia.util.ThrowableUtil.isEmptyException
+import org.wikipedia.util.ThrowableUtil.isNotLoggedIn
+import org.wikipedia.util.ThrowableUtil.isOffline
+import org.wikipedia.util.ThrowableUtil.isTimeout
+
+@Composable
+fun WikiErrorView(
+<span class="nc bnc" id="L50" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    caught: Throwable?,
+<span class="nc bnc" id="L52" title="All 2 branches missed.">    pageTitle: PageTitle? = null,</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">    errorClickEvents: WikiErrorClickEvents? = null,</span>
+<span class="nc" id="L54">    retryForGenericError: Boolean = false</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L56">    val errorType = getErrorType(caught, pageTitle, retryForGenericError)</span>
+<span class="nc" id="L57">    val context = LocalContext.current</span>
+
+<span class="nc" id="L59">    val errorMessage = when {</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        caught is MwException -&gt; caught.message</span>
+<span class="nc bnc" id="L61" title="All 4 branches missed.">        errorType is ComposeErrorType.UserPageMissing &amp;&amp; pageTitle != null -&gt; stringResource(</span>
+<span class="nc" id="L62">            errorType.text,</span>
+<span class="nc" id="L63">            pageTitle.uri,</span>
+<span class="nc" id="L64">            pageTitle.displayText,</span>
+<span class="nc" id="L65">            StringUtil.removeNamespace(pageTitle.displayText)</span>
+        )
+<span class="nc" id="L67">        else -&gt; stringResource(errorType.text)</span>
+    }
+
+<span class="nc" id="L70">    val footerErrorMessage = when {</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        errorType.hasFooterText -&gt; stringResource(errorType.footerText)</span>
+<span class="nc bnc" id="L72" title="All 4 branches missed.">        caught != null &amp;&amp; caught !is MwException -&gt; caught.message</span>
+<span class="nc" id="L73">        else -&gt; null</span>
+    }
+
+<span class="nc" id="L76">    Column(</span>
+<span class="nc" id="L77">        modifier = modifier</span>
+<span class="nc" id="L78">            .fillMaxWidth(),</span>
+<span class="nc" id="L79">        horizontalAlignment = Alignment.CenterHorizontally</span>
+    ) {
+<span class="nc" id="L81">        Spacer(</span>
+<span class="nc" id="L82">            modifier = Modifier</span>
+<span class="nc" id="L83">                .height(16.dp)</span>
+        )
+<span class="nc" id="L85">        Image(</span>
+<span class="nc" id="L86">            modifier = Modifier</span>
+<span class="nc" id="L87">                .size(72.dp),</span>
+<span class="nc" id="L88">            painter = painterResource(errorType.icon),</span>
+<span class="nc" id="L89">            colorFilter = ColorFilter.tint(color = WikipediaTheme.colors.placeholderColor),</span>
+<span class="nc" id="L90">            contentDescription = null</span>
+        )
+<span class="nc" id="L92">        Spacer(</span>
+<span class="nc" id="L93">            modifier = Modifier</span>
+<span class="nc" id="L94">                .height(24.dp)</span>
+        )
+
+<span class="nc bnc" id="L97" title="All 4 branches missed.">        if (errorMessage.isNotEmpty()) {</span>
+<span class="nc" id="L98">            Text(</span>
+<span class="nc" id="L99">                text = AnnotatedString.fromHtml(</span>
+<span class="nc" id="L100">                    htmlString = errorMessage,</span>
+<span class="nc" id="L101">                    linkStyles = TextLinkStyles(</span>
+<span class="nc" id="L102">                        style = SpanStyle(</span>
+<span class="nc" id="L103">                            color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L104">                            fontSize = 14.sp</span>
+                        )
+                    )
+                ),
+<span class="nc" id="L108">                style = TextStyle(</span>
+<span class="nc" id="L109">                    textAlign = TextAlign.Center,</span>
+<span class="nc" id="L110">                    fontSize = 16.sp,</span>
+<span class="nc" id="L111">                    lineHeight = 19.2.sp,</span>
+<span class="nc" id="L112">                    color = WikipediaTheme.colors.placeholderColor</span>
+                )
+            )
+<span class="nc" id="L115">        }</span>
+
+<span class="nc" id="L117">        Spacer(</span>
+<span class="nc" id="L118">            modifier = Modifier</span>
+<span class="nc" id="L119">                .height(16.dp)</span>
+        )
+<span class="nc" id="L121">        Button(</span>
+<span class="nc" id="L122">            modifier = Modifier</span>
+<span class="nc" id="L123">                .heightIn(min = 48.dp)</span>
+<span class="nc" id="L124">                .widthIn(min = 0.dp),</span>
+<span class="nc" id="L125">            onClick = {</span>
+<span class="nc" id="L126">                BreadCrumbLogEvent.logClick(context, &quot;errorButton&quot;)</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                getClickEventForErrorType(errorClickEvents, errorType)?.invoke()</span>
+<span class="nc" id="L128">            },</span>
+<span class="nc" id="L129">            colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L130">                containerColor = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc" id="L131">                contentColor = WikipediaTheme.colors.placeholderColor</span>
+            ),
+<span class="nc" id="L133">            content = {</span>
+<span class="nc" id="L134">                Text(</span>
+<span class="nc" id="L135">                    text = stringResource(errorType.buttonText),</span>
+<span class="nc" id="L136">                    fontSize = 16.sp</span>
+                )
+<span class="nc" id="L138">            }</span>
+        )
+<span class="nc bnc" id="L140" title="All 6 branches missed.">        if (!footerErrorMessage.isNullOrEmpty()) {</span>
+<span class="nc" id="L141">            Spacer(</span>
+<span class="nc" id="L142">                modifier = Modifier</span>
+<span class="nc" id="L143">                    .height(16.dp)</span>
+            )
+<span class="nc" id="L145">            Text(</span>
+<span class="nc" id="L146">                modifier = Modifier</span>
+<span class="nc" id="L147">                    .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L148">                text = footerErrorMessage,</span>
+<span class="nc" id="L149">                textAlign = TextAlign.Center,</span>
+<span class="nc" id="L150">                color = WikipediaTheme.colors.placeholderColor,</span>
+<span class="nc" id="L151">                fontSize = 14.sp</span>
+            )
+<span class="nc" id="L153">        }</span>
+<span class="nc" id="L154">    }</span>
+<span class="nc" id="L155">}</span>
+
+private fun getClickEventForErrorType(
+    wikiErrorClickEvents: WikiErrorClickEvents?,
+    errorType: ComposeErrorType
+): (() -&gt; Unit)? {
+<span class="nc" id="L161">    return when (errorType) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        is ComposeErrorType.UserPageMissing,</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        is ComposeErrorType.PageMissing,</span>
+<span class="nc bnc" id="L164" title="All 4 branches missed.">        is ComposeErrorType.Generic -&gt; wikiErrorClickEvents?.backClickListener</span>
+<span class="nc bnc" id="L165" title="All 4 branches missed.">        is ComposeErrorType.LoggedOut -&gt; wikiErrorClickEvents?.loginClickListener</span>
+<span class="nc bnc" id="L166" title="All 4 branches missed.">        is ComposeErrorType.Empty -&gt; wikiErrorClickEvents?.nextClickListener</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        is ComposeErrorType.Retry,</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        is ComposeErrorType.Offline,</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        is ComposeErrorType.Timeout -&gt; wikiErrorClickEvents?.retryClickListener</span>
+    }
+}
+
+private fun getErrorType(caught: Throwable?, pageTitle: PageTitle?, retryForGenericError: Boolean): ComposeErrorType {
+<span class="nc bnc" id="L174" title="All 2 branches missed.">    caught?.let {</span>
+<span class="nc" id="L175">        when {</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            is404(it) -&gt; {</span>
+<span class="nc bnc" id="L177" title="All 4 branches missed.">                return if (pageTitle?.namespace() == Namespace.USER) ComposeErrorType.UserPageMissing()</span>
+<span class="nc" id="L178">                else ComposeErrorType.PageMissing()</span>
+            }
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            isTimeout(it) -&gt; {</span>
+<span class="nc" id="L181">                return ComposeErrorType.Timeout()</span>
+            }
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            isOffline(it) -&gt; {</span>
+<span class="nc" id="L184">                return ComposeErrorType.Offline()</span>
+            }
+<span class="nc bnc" id="L186" title="All 2 branches missed.">            isEmptyException(it) -&gt; {</span>
+<span class="nc" id="L187">                return ComposeErrorType.Empty()</span>
+            }
+<span class="nc bnc" id="L189" title="All 2 branches missed.">            isNotLoggedIn(it) -&gt; {</span>
+<span class="nc" id="L190">                return ComposeErrorType.LoggedOut()</span>
+            }
+        }
+<span class="nc" id="L193">    }</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">    return if (retryForGenericError) ComposeErrorType.Retry() else ComposeErrorType.Generic()</span>
+}
+
+<span class="nc" id="L197">sealed class ComposeErrorType(</span>
+<span class="nc" id="L198">    @param:DrawableRes val icon: Int,</span>
+<span class="nc" id="L199">    @param:StringRes val text: Int,</span>
+<span class="nc" id="L200">    @param:StringRes val buttonText: Int,</span>
+<span class="nc" id="L201">    val hasFooterText: Boolean = false,</span>
+<span class="nc" id="L202">    @param:StringRes val footerText: Int = 0,</span>
+<span class="nc" id="L203">) {</span>
+<span class="nc" id="L204">    class UserPageMissing : ComposeErrorType(</span>
+<span class="nc" id="L205">        icon = R.drawable.ic_userpage_error_icon,</span>
+<span class="nc" id="L206">        text = R.string.error_user_page_does_not_exist,</span>
+<span class="nc" id="L207">        buttonText = R.string.page_error_back_to_main</span>
+    )
+
+<span class="nc" id="L210">    class PageMissing : ComposeErrorType(</span>
+<span class="nc" id="L211">        icon = R.drawable.ic_error_black_24dp,</span>
+<span class="nc" id="L212">        text = R.string.error_page_does_not_exist,</span>
+<span class="nc" id="L213">        buttonText = R.string.page_error_back_to_main</span>
+    )
+
+<span class="nc" id="L216">    class Timeout : ComposeErrorType(</span>
+<span class="nc" id="L217">        icon = R.drawable.ic_error_black_24dp,</span>
+<span class="nc" id="L218">        text = R.string.view_wiki_error_message_timeout,</span>
+<span class="nc" id="L219">        buttonText = R.string.offline_load_error_retry</span>
+    )
+
+<span class="nc" id="L222">    class Offline : ComposeErrorType(</span>
+<span class="nc" id="L223">        icon = R.drawable.ic_portable_wifi_off_black_24px,</span>
+<span class="nc" id="L224">        text = R.string.view_wiki_error_message_offline,</span>
+<span class="nc" id="L225">        buttonText = R.string.offline_load_error_retry</span>
+    )
+
+<span class="nc" id="L228">    class Empty : ComposeErrorType(</span>
+<span class="nc" id="L229">        icon = R.drawable.ic_error_black_24dp,</span>
+<span class="nc" id="L230">        text = R.string.error_message_generic,</span>
+<span class="nc" id="L231">        buttonText = R.string.error_next</span>
+    )
+
+<span class="nc" id="L234">    class LoggedOut : ComposeErrorType(</span>
+<span class="nc" id="L235">        icon = R.drawable.ic_error_black_24dp,</span>
+<span class="nc" id="L236">        text = R.string.error_message_generic,</span>
+<span class="nc" id="L237">        buttonText = R.string.reading_lists_login_button</span>
+    )
+
+<span class="nc" id="L240">    class Generic : ComposeErrorType(</span>
+<span class="nc" id="L241">        icon = R.drawable.ic_error_black_24dp,</span>
+<span class="nc" id="L242">        text = R.string.error_message_generic,</span>
+<span class="nc" id="L243">        buttonText = R.string.error_back</span>
+    )
+
+<span class="nc" id="L246">    class Retry : ComposeErrorType(</span>
+<span class="nc" id="L247">        icon = R.drawable.ic_error_black_24dp,</span>
+<span class="nc" id="L248">        text = R.string.error_message_generic,</span>
+<span class="nc" id="L249">        buttonText = R.string.offline_load_error_retry</span>
+    )
+}
+
+<span class="nc" id="L253">data class WikiErrorClickEvents(</span>
+<span class="nc" id="L254">    var retryClickListener: (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L255">    var backClickListener: (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L256">    var nextClickListener: (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L257">    var loginClickListener: (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L258">)</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L262">private fun WikiErrorViewGenericPreview() {</span>
+<span class="nc" id="L263">    BaseTheme(</span>
+<span class="nc" id="L264">        currentTheme = Theme.DARK</span>
+<span class="nc" id="L265">    ) {</span>
+<span class="nc" id="L266">        WikiErrorView(</span>
+<span class="nc" id="L267">            caught = Exception()</span>
+        )
+<span class="nc" id="L269">    }</span>
+<span class="nc" id="L270">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L274">private fun WikiErrorViewRetryPreview() {</span>
+<span class="nc" id="L275">    BaseTheme(</span>
+<span class="nc" id="L276">        currentTheme = Theme.DARK</span>
+<span class="nc" id="L277">    ) {</span>
+<span class="nc" id="L278">        WikiErrorView(</span>
+<span class="nc" id="L279">            caught = Exception(),</span>
+<span class="nc" id="L280">            retryForGenericError = true</span>
+        )
+<span class="nc" id="L282">    }</span>
+<span class="nc" id="L283">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

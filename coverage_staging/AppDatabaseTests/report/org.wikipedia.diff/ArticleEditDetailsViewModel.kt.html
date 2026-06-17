@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArticleEditDetailsViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.diff</a> &gt; <span class="el_source">ArticleEditDetailsViewModel.kt</span></div><h1>ArticleEditDetailsViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.diff
+
+import android.net.Uri
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.dataclient.restbase.DiffResponse
+import org.wikipedia.dataclient.restbase.Revision
+import org.wikipedia.dataclient.rollback.RollbackPostResponse
+import org.wikipedia.dataclient.wikidata.EntityPostResponse
+import org.wikipedia.edit.Edit
+import org.wikipedia.edit.EditTags
+import org.wikipedia.page.Namespace
+import org.wikipedia.page.PageTitle
+import org.wikipedia.suggestededits.provider.EditingSuggestionsProvider
+import org.wikipedia.util.Resource
+import org.wikipedia.util.SingleLiveData
+import org.wikipedia.watchlist.WatchlistExpiry
+import org.wikipedia.watchlist.WatchlistViewModel
+
+<span class="nc" id="L31">class ArticleEditDetailsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+<span class="nc" id="L32">    private val invokeSource = savedStateHandle.get&lt;InvokeSource&gt;(Constants.INTENT_EXTRA_INVOKE_SOURCE)</span>
+
+<span class="nc" id="L34">    val watchedStatus = MutableLiveData&lt;Resource&lt;MwQueryPage&gt;&gt;()</span>
+<span class="nc" id="L35">    val rollbackRights = MutableLiveData&lt;Resource&lt;Boolean&gt;&gt;()</span>
+<span class="nc" id="L36">    val revisionDetails = MutableLiveData&lt;Resource&lt;Unit&gt;&gt;()</span>
+<span class="nc" id="L37">    val diffText = MutableLiveData&lt;Resource&lt;DiffResponse&gt;&gt;()</span>
+<span class="nc" id="L38">    val singleRevisionText = MutableLiveData&lt;Resource&lt;Revision&gt;&gt;()</span>
+<span class="nc" id="L39">    val thankStatus = SingleLiveData&lt;Resource&lt;EntityPostResponse&gt;&gt;()</span>
+<span class="nc" id="L40">    val watchResponse = SingleLiveData&lt;Resource&lt;Pair&lt;Boolean, String&gt;&gt;&gt;()</span>
+<span class="nc" id="L41">    val undoEditResponse = SingleLiveData&lt;Resource&lt;Edit&gt;&gt;()</span>
+<span class="nc" id="L42">    val rollbackResponse = SingleLiveData&lt;Resource&lt;RollbackPostResponse&gt;&gt;()</span>
+
+<span class="nc bnc" id="L44" title="All 2 branches missed.">    val fromRecentEdits = invokeSource == InvokeSource.SUGGESTED_EDITS_RECENT_EDITS</span>
+
+<span class="nc" id="L46">    var pageTitle = savedStateHandle.get&lt;PageTitle&gt;(ArticleEditDetailsActivity.EXTRA_ARTICLE_TITLE)!!</span>
+        private set
+<span class="nc bnc" id="L48" title="All 2 branches missed.">    var pageId = savedStateHandle[ArticleEditDetailsActivity.EXTRA_PAGE_ID] ?: -1</span>
+        private set
+<span class="nc bnc" id="L50" title="All 2 branches missed.">    var revisionToId = savedStateHandle[ArticleEditDetailsActivity.EXTRA_EDIT_REVISION_TO] ?: -1L</span>
+<span class="nc" id="L51">    var revisionTo: MwQueryPage.Revision? = null</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">    var revisionFromId = savedStateHandle[ArticleEditDetailsActivity.EXTRA_EDIT_REVISION_FROM] ?: -1L</span>
+<span class="nc" id="L53">    var revisionFrom: MwQueryPage.Revision? = null</span>
+<span class="nc" id="L54">    var canGoForward = false</span>
+<span class="nc" id="L55">    var hasRollbackRights = false</span>
+<span class="nc" id="L56">    var isWatched = false</span>
+<span class="nc" id="L57">    var ns = 0</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">    val diffSize get() = if (revisionFrom != null) revisionTo!!.size - revisionFrom!!.size else revisionTo!!.size</span>
+
+<span class="nc" id="L61">    init {</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (!fromRecentEdits) {</span>
+<span class="nc" id="L63">            getRevisionDetails(revisionToId, revisionFromId)</span>
+        } else {
+<span class="nc" id="L65">            getNextRecentEdit()</span>
+        }
+<span class="nc" id="L67">    }</span>
+
+<span class="nc" id="L69">    fun getRevisionDetails(revisionIdTo: Long, revisionIdFrom: Long = -1) {</span>
+<span class="nc" id="L70">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L71">            revisionDetails.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L72">        }) {</span>
+<span class="nc" id="L73">            revisionToId = revisionIdTo</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            if (watchedStatus.value !is Resource.Success) {</span>
+<span class="nc" id="L75">                val query = ServiceFactory.get(pageTitle.wikiSite).getWatchedStatusWithRights(pageTitle.prefixedText).query!!</span>
+<span class="nc" id="L76">                val page = query.firstPage()!!</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                if (pageId &lt; 0) {</span>
+<span class="nc" id="L78">                    pageId = page.pageId</span>
+                }
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                if (revisionToId &lt; 0) {</span>
+<span class="nc" id="L81">                    revisionToId = page.lastrevid</span>
+                }
+<span class="nc" id="L83">                ns = page.ns</span>
+<span class="nc" id="L84">                isWatched = page.watched</span>
+<span class="nc" id="L85">                watchedStatus.postValue(Resource.Success(page))</span>
+<span class="nc bnc" id="L86" title="All 6 branches missed.">                hasRollbackRights = query.userInfo?.rights?.contains(&quot;rollback&quot;) == true</span>
+<span class="nc" id="L87">                rollbackRights.postValue(Resource.Success(hasRollbackRights))</span>
+            }
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            if (revisionIdFrom &gt;= 0) {</span>
+<span class="nc" id="L90">                val responseFrom = async { ServiceFactory.get(pageTitle.wikiSite).getRevisionDetailsWithInfo(pageId.toString(), 2, revisionIdFrom) }</span>
+<span class="nc" id="L91">                val responseTo = async { ServiceFactory.get(pageTitle.wikiSite).getRevisionDetailsWithInfo(pageId.toString(), 2, revisionToId) }</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                val pageTo = responseTo.await().query?.firstPage()!!</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                revisionFrom = responseFrom.await().query?.firstPage()!!.revisions[0]</span>
+<span class="nc" id="L94">                revisionTo = pageTo.revisions[0]</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                canGoForward = revisionTo!!.revId &lt; pageTo.lastrevid</span>
+            } else {
+<span class="nc" id="L97">                val response = ServiceFactory.get(pageTitle.wikiSite).getRevisionDetailsWithInfo(pageId.toString(), 2, revisionToId)</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                val page = response.query?.firstPage()!!</span>
+<span class="nc" id="L99">                val revisions = page.revisions</span>
+<span class="nc" id="L100">                revisionTo = revisions[0]</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                canGoForward = revisions[0].revId &lt; page.lastrevid</span>
+<span class="nc" id="L102">                revisionFrom = revisions.getOrNull(1)</span>
+            }
+
+<span class="nc" id="L105">            revisionToId = revisionTo!!.revId</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            revisionFromId = if (revisionFrom != null) revisionFrom!!.revId else revisionTo!!.parentRevId</span>
+
+<span class="nc" id="L108">            revisionDetails.postValue(Resource.Success(Unit))</span>
+<span class="nc" id="L109">            getDiffText(revisionFromId, revisionToId)</span>
+<span class="nc" id="L110">        }</span>
+<span class="nc" id="L111">    }</span>
+
+    private fun getNextRecentEdit() {
+<span class="nc" id="L114">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L115">            revisionDetails.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L116">        }) {</span>
+<span class="nc" id="L117">            val candidate = EditingSuggestionsProvider.getNextRevertCandidate(pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L118">            pageId = candidate.pageid</span>
+<span class="nc" id="L119">            revisionToId = candidate.curRev</span>
+
+<span class="nc" id="L121">            val response = ServiceFactory.get(pageTitle.wikiSite).getRevisionDetailsWithUserInfo(pageId.toString(), 2, revisionToId)</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            val page = response.query?.firstPage()!!</span>
+<span class="nc" id="L123">            val revisions = page.revisions</span>
+
+<span class="nc" id="L125">            pageTitle = PageTitle(page.title, pageTitle.wikiSite)</span>
+<span class="nc" id="L126">            pageTitle.displayText = page.displayTitle(pageTitle.wikiSite.languageCode)</span>
+
+<span class="nc" id="L128">            watchedStatus.postValue(Resource.Success(page))</span>
+<span class="nc bnc" id="L129" title="All 8 branches missed.">            hasRollbackRights = response.query?.userInfo?.rights?.contains(&quot;rollback&quot;) == true</span>
+<span class="nc" id="L130">            rollbackRights.postValue(Resource.Success(hasRollbackRights))</span>
+
+<span class="nc" id="L132">            revisionTo = revisions[0]</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">            canGoForward = revisions[0].revId &lt; page.lastrevid</span>
+<span class="nc" id="L134">            revisionFrom = revisions.getOrNull(1)</span>
+
+<span class="nc" id="L136">            revisionToId = revisionTo!!.revId</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            revisionFromId = if (revisionFrom != null) revisionFrom!!.revId else revisionTo!!.parentRevId</span>
+
+<span class="nc" id="L139">            revisionDetails.postValue(Resource.Success(Unit))</span>
+<span class="nc" id="L140">            getDiffText(revisionFromId, revisionToId)</span>
+<span class="nc" id="L141">        }</span>
+<span class="nc" id="L142">    }</span>
+
+    fun goBackward() {
+<span class="nc" id="L145">        revisionToId = revisionFromId</span>
+<span class="nc" id="L146">        getRevisionDetails(revisionToId)</span>
+<span class="nc" id="L147">    }</span>
+
+    fun goForward() {
+<span class="nc" id="L150">        val revisionIdFrom = revisionToId</span>
+<span class="nc" id="L151">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L152">            revisionDetails.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L153">        }) {</span>
+<span class="nc" id="L154">            val response = ServiceFactory.get(pageTitle.wikiSite).getRevisionDetailsAscending(null, pageId.toString(), 2, revisionIdFrom)</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            val page = response.query?.firstPage()!!</span>
+<span class="nc" id="L156">            val revisions = page.revisions</span>
+
+<span class="nc" id="L158">            revisionFrom = revisions[0]</span>
+<span class="nc bnc" id="L159" title="All 4 branches missed.">            revisionTo = revisions.getOrElse(1) { revisions.first() }</span>
+<span class="nc bnc" id="L160" title="All 4 branches missed.">            canGoForward = revisions.size &gt; 1 &amp;&amp; revisions[1].revId &lt; page.lastrevid</span>
+
+<span class="nc" id="L162">            revisionToId = revisionTo!!.revId</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">            revisionFromId = if (revisionFrom != null) revisionFrom!!.revId else revisionTo!!.parentRevId</span>
+
+<span class="nc" id="L165">            revisionDetails.postValue(Resource.Success(Unit))</span>
+<span class="nc" id="L166">            getDiffText(revisionFromId, revisionToId)</span>
+<span class="nc" id="L167">        }</span>
+<span class="nc" id="L168">    }</span>
+
+    private fun getDiffText(oldRevisionId: Long, newRevisionId: Long) {
+<span class="nc" id="L171">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L172">            diffText.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L173">        }) {</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">            if (pageTitle.wikiSite.uri.authority == Uri.parse(Service.WIKIDATA_URL).authority) {</span>
+                // For the special case of Wikidata we return a blank Revision object, since the
+                // Rest API in Wikidata cannot render diffs properly yet.
+                // TODO: wait until Wikidata API returns diffs correctly
+<span class="nc" id="L178">                singleRevisionText.postValue(Resource.Success(Revision()))</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">            } else if (oldRevisionId &gt; 0) {</span>
+<span class="nc" id="L180">                diffText.postValue(Resource.Success(ServiceFactory.getCoreRest(pageTitle.wikiSite).getDiff(oldRevisionId, newRevisionId)))</span>
+            } else {
+<span class="nc" id="L182">                singleRevisionText.postValue(Resource.Success(ServiceFactory.getCoreRest(pageTitle.wikiSite).getRevision(newRevisionId)))</span>
+            }
+<span class="nc" id="L184">        }</span>
+<span class="nc" id="L185">    }</span>
+
+    fun sendThanks(wikiSite: WikiSite, revisionId: Long) {
+<span class="nc" id="L188">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L189">            thankStatus.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L190">        }) {</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">            val token = ServiceFactory.get(wikiSite).getToken().query?.csrfToken()</span>
+<span class="nc" id="L192">            thankStatus.postValue(Resource.Success(ServiceFactory.get(wikiSite).postThanksToRevision(revisionId, token!!)))</span>
+<span class="nc" id="L193">        }</span>
+<span class="nc" id="L194">    }</span>
+
+    fun watchOrUnwatch(unwatch: Boolean) {
+<span class="nc" id="L197">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L198">            watchResponse.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L199">        }) {</span>
+<span class="nc" id="L200">            val pair = WatchlistViewModel.watchPageTitle(this, pageTitle, unwatch, WatchlistExpiry.NEVER, isWatched, Namespace.of(ns).talk())</span>
+<span class="nc" id="L201">            isWatched = pair.first</span>
+<span class="nc" id="L202">            watchResponse.postValue(Resource.Success(pair))</span>
+<span class="nc" id="L203">        }</span>
+<span class="nc" id="L204">    }</span>
+
+    fun undoEdit(title: PageTitle, user: String, comment: String, revisionId: Long, revisionIdAfter: Long) {
+<span class="nc" id="L207">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L208">            undoEditResponse.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L209">        }) {</span>
+<span class="nc" id="L210">            val msgResponse = ServiceFactory.get(title.wikiSite).getMessages(&quot;undo-summary&quot;, &quot;$revisionId|$user&quot;)</span>
+<span class="nc bnc" id="L211" title="All 10 branches missed.">            val undoMessage = msgResponse.query?.allmessages?.find { it.name == &quot;undo-summary&quot; }?.content</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            val summary = if (undoMessage != null) &quot;$undoMessage $comment&quot; else comment</span>
+<span class="nc" id="L213">            val token = ServiceFactory.get(title.wikiSite).getToken().query!!.csrfToken()!!</span>
+<span class="nc" id="L214">            val undoResponse = ServiceFactory.get(title.wikiSite).postUndoEdit(title.prefixedText, summary,</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                    null, token, revisionId, if (revisionIdAfter &gt; 0) revisionIdAfter else null, tags = getEditTags(EditTags.APP_UNDO))</span>
+<span class="nc" id="L216">            undoEditResponse.postValue(Resource.Success(undoResponse))</span>
+<span class="nc" id="L217">        }</span>
+<span class="nc" id="L218">    }</span>
+
+    fun postRollback(title: PageTitle, user: String) {
+<span class="nc" id="L221">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L222">            rollbackResponse.postValue(Resource.Error(throwable))</span>
+<span class="nc" id="L223">        }) {</span>
+
+<span class="nc" id="L225">            val rollbackSummaryMsg = ServiceFactory.get(title.wikiSite).getMessages(&quot;revertpage&quot;, null)</span>
+<span class="nc bnc" id="L226" title="All 6 branches missed.">                .query?.allmessages?.firstOrNull { it.name == &quot;revertpage&quot; }?.content</span>
+
+<span class="nc" id="L228">            val rollbackToken = ServiceFactory.get(title.wikiSite).getToken(&quot;rollback&quot;).query!!.rollbackToken()!!</span>
+<span class="nc" id="L229">            val rollbackPostResponse = ServiceFactory.get(title.wikiSite).postRollback(title.prefixedText, rollbackSummaryMsg, user, rollbackToken, tags = getEditTags(EditTags.APP_ROLLBACK))</span>
+<span class="nc" id="L230">            rollbackResponse.postValue(Resource.Success(rollbackPostResponse))</span>
+<span class="nc" id="L231">        }</span>
+<span class="nc" id="L232">    }</span>
+
+    private fun getEditTags(tag: String): String {
+<span class="nc" id="L235">        val tags = mutableListOf&lt;String&gt;()</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        if (fromRecentEdits) {</span>
+<span class="nc" id="L237">            tags.add(EditTags.APP_SUGGESTED_EDIT)</span>
+        }
+<span class="nc" id="L239">        tags.add(tag)</span>
+<span class="nc" id="L240">        return tags.joinToString(&quot;,&quot;)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

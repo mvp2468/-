@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TimelineRepository.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab.timeline</a> &gt; <span class="el_source">TimelineRepository.kt</span></div><h1>TimelineRepository.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab.timeline
+
+import kotlinx.coroutines.delay
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.history.HistoryEntry.Companion.SOURCE_SEARCH
+import org.wikipedia.history.db.HistoryEntryWithImageDao
+import org.wikipedia.page.Namespace
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.db.ReadingListPageDao
+import java.time.ZoneId
+import java.util.Date
+
+interface TimelineSource {
+    val id: String
+    suspend fun fetch(pageSize: Int, cursor: Cursor?): Pair&lt;List&lt;TimelineItem&gt;, Cursor?&gt;
+}
+
+<span class="nc" id="L19">class HistoryEntryPagingSource(</span>
+<span class="nc" id="L20">    private val dao: HistoryEntryWithImageDao</span>
+) : TimelineSource {
+
+<span class="nc" id="L23">    override val id: String = &quot;history_entry&quot;</span>
+
+<span class="nc" id="L25">    override suspend fun fetch(pageSize: Int, cursor: Cursor?): Pair&lt;List&lt;TimelineItem&gt;, Cursor?&gt; {</span>
+<span class="nc" id="L26">        delay(500)</span>
+<span class="nc bnc" id="L27" title="All 4 branches missed.">        val offset = (cursor as? Cursor.HistoryEntryCursor)?.offset ?: 0</span>
+<span class="nc" id="L28">        val items = dao.getHistoryEntriesWithOffset(pageSize, offset).map {</span>
+<span class="nc" id="L29">            TimelineItem(</span>
+<span class="nc" id="L30">                id = it.id,</span>
+<span class="nc" id="L31">                pageId = 0,</span>
+<span class="nc" id="L32">                apiTitle = it.apiTitle,</span>
+<span class="nc" id="L33">                displayTitle = it.displayTitle,</span>
+<span class="nc" id="L34">                description = it.description,</span>
+<span class="nc" id="L35">                thumbnailUrl = it.imageName,</span>
+<span class="nc" id="L36">                timestamp = it.timestamp,</span>
+<span class="nc" id="L37">                namespace = it.namespace,</span>
+<span class="nc" id="L38">                lang = it.lang,</span>
+<span class="nc" id="L39">                source = it.source,</span>
+<span class="nc" id="L40">                activitySource = when (it.source) {</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                    SOURCE_SEARCH -&gt; ActivitySource.SEARCH</span>
+<span class="nc" id="L42">                    else -&gt; ActivitySource.LINK</span>
+                },
+<span class="nc" id="L44">                wiki = WikiSite.forLanguageCode(it.lang)</span>
+<span class="nc" id="L45">            )</span>
+        }
+<span class="nc" id="L47">        val nextCursor =</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            if (items.size &lt; pageSize) null else Cursor.HistoryEntryCursor(offset + items.size)</span>
+<span class="nc" id="L49">        return items to nextCursor</span>
+    }
+}
+
+<span class="nc" id="L53">class UserContribPagingSource(</span>
+<span class="nc" id="L54">    private val wikiSite: WikiSite,</span>
+<span class="nc" id="L55">    private val userName: String,</span>
+<span class="nc" id="L56">    private val historyEntryWithImageDao: HistoryEntryWithImageDao</span>
+) : TimelineSource {
+
+<span class="nc" id="L59">    private val maxBatchSize = 50</span>
+
+<span class="nc" id="L61">    override val id: String = &quot;user_contrib&quot;</span>
+
+<span class="nc" id="L63">    override suspend fun fetch(pageSize: Int, cursor: Cursor?): Pair&lt;List&lt;TimelineItem&gt;, Cursor?&gt; {</span>
+<span class="nc bnc" id="L64" title="All 4 branches missed.">        val token = (cursor as? Cursor.UserContribCursor)?.token</span>
+<span class="nc" id="L65">        val service = ServiceFactory.get(wikiSite)</span>
+<span class="nc" id="L66">        val userContribResponse = service.getUserContrib(username = userName, maxCount = pageSize, ns = null, filter = null, uccontinue = token, ucdir = &quot;older&quot;)</span>
+
+<span class="nc" id="L68">        val missingPageInfoIds = mutableListOf&lt;Int&gt;()</span>
+<span class="nc" id="L69">        val timelineItemsByPageId = mutableMapOf&lt;Long, TimelineItem&gt;()</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">        userContribResponse.query?.userContributions?.forEach { contribution -&gt;</span>
+            // pageId for article namespace and revid for other namespace as key because they can have similar pageId for example (User talk namespace)
+            // Only check database cache for article namespace article
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            val savedHistoryItem = if (contribution.ns == Namespace.MAIN.code()) historyEntryWithImageDao.getHistoryItemWIthImage(contribution.title).firstOrNull() else null</span>
+<span class="nc bnc" id="L74" title="All 4 branches missed.">            val keyForMap = savedHistoryItem?.id ?: if (contribution.ns == Namespace.MAIN.code()) contribution.pageid.toLong() else contribution.revid</span>
+<span class="nc" id="L75">            val timelineItem = TimelineItem(</span>
+<span class="nc" id="L76">                id = contribution.revid,</span>
+<span class="nc" id="L77">                pageId = contribution.pageid,</span>
+<span class="nc" id="L78">                apiTitle = contribution.title,</span>
+<span class="nc" id="L79">                displayTitle = contribution.title,</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                description = savedHistoryItem?.description,</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                thumbnailUrl = savedHistoryItem?.imageName,</span>
+<span class="nc" id="L82">                timestamp = Date.from(contribution.parsedDateTime.atZone(ZoneId.systemDefault()).toInstant()),</span>
+<span class="nc" id="L83">                activitySource = ActivitySource.EDIT,</span>
+<span class="nc" id="L84">                source = -1,</span>
+<span class="nc" id="L85">                wiki = wikiSite</span>
+            )
+<span class="nc" id="L87">            timelineItemsByPageId[keyForMap] = timelineItem</span>
+            // only fetch page info for contribution in article namespace
+<span class="nc bnc" id="L89" title="All 4 branches missed.">            if (contribution.ns == Namespace.MAIN.code() &amp;&amp; savedHistoryItem == null) {</span>
+<span class="nc" id="L90">                missingPageInfoIds.add(contribution.pageid)</span>
+            }
+<span class="nc" id="L92">        }</span>
+
+        // Fetching missing page info in batches
+<span class="nc" id="L95">        missingPageInfoIds.chunked(maxBatchSize).forEach { batch -&gt;</span>
+<span class="nc bnc" id="L96" title="All 4 branches missed.">            val pages = service.getInfoByPageIdsOrTitles(pageIds = batch.joinToString(separator = &quot;|&quot;)).query?.pages.orEmpty()</span>
+<span class="nc" id="L97">            pages.forEach { page -&gt;</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                timelineItemsByPageId[page.pageId.toLong()]?.let { existingItem -&gt;</span>
+<span class="nc" id="L99">                    timelineItemsByPageId[page.pageId.toLong()] = existingItem.copy(</span>
+<span class="nc" id="L100">                        description = page.description,</span>
+<span class="nc" id="L101">                        thumbnailUrl = page.thumbUrl()</span>
+                    )
+<span class="nc" id="L103">                }</span>
+<span class="nc" id="L104">            }</span>
+<span class="nc" id="L105">        }</span>
+
+<span class="nc" id="L107">        val items = timelineItemsByPageId.values.sortedByDescending { it.timestamp }</span>
+
+<span class="nc bnc" id="L109" title="All 4 branches missed.">        val nextCursor = userContribResponse.continuation?.ucContinuation?.let { Cursor.UserContribCursor(it) }</span>
+<span class="nc" id="L110">        return items to nextCursor</span>
+    }
+}
+
+<span class="nc" id="L114">class ReadingListPagingSource(</span>
+<span class="nc" id="L115">    val dao: ReadingListPageDao</span>
+) : TimelineSource {
+
+<span class="nc" id="L118">    override val id: String = &quot;reading_list&quot;</span>
+
+<span class="nc" id="L120">    override suspend fun fetch(pageSize: Int, cursor: Cursor?): Pair&lt;List&lt;TimelineItem&gt;, Cursor?&gt; {</span>
+<span class="nc bnc" id="L121" title="All 4 branches missed.">        val offset = (cursor as? Cursor.ReadingListCursor)?.offset ?: 0</span>
+<span class="nc" id="L122">        val items = dao.getPagesBySavedTime(pageSize, offset).map {</span>
+<span class="nc" id="L123">            TimelineItem(</span>
+<span class="nc" id="L124">                id = it.mtime + it.atime + it.id,</span>
+<span class="nc" id="L125">                pageId = 0,</span>
+<span class="nc" id="L126">                apiTitle = it.apiTitle,</span>
+<span class="nc" id="L127">                displayTitle = it.displayTitle,</span>
+<span class="nc" id="L128">                description = it.description,</span>
+<span class="nc" id="L129">                thumbnailUrl = it.thumbUrl,</span>
+<span class="nc" id="L130">                timestamp = Date(it.atime),</span>
+<span class="nc" id="L131">                activitySource = ActivitySource.BOOKMARKED,</span>
+<span class="nc" id="L132">                source = -1,</span>
+<span class="nc" id="L133">                wiki = WikiSite.forLanguageCode(it.lang)</span>
+<span class="nc" id="L134">            )</span>
+        }
+<span class="nc" id="L136">        val nextCursor =</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            if (items.size &lt; pageSize) null else Cursor.ReadingListCursor(offset + items.size)</span>
+<span class="nc" id="L138">        return items to nextCursor</span>
+    }
+}
+
+// Data Models
+enum class ActivitySource {
+<span class="nc" id="L144">    EDIT, SEARCH, LINK, BOOKMARKED</span>
+}
+
+<span class="nc" id="L147">data class TimelineItem(</span>
+<span class="nc" id="L148">    val id: Long,</span>
+<span class="nc" id="L149">    val pageId: Int,</span>
+<span class="nc" id="L150">    val description: String?,</span>
+<span class="nc" id="L151">    val thumbnailUrl: String?,</span>
+<span class="nc" id="L152">    val timestamp: Date,</span>
+<span class="nc" id="L153">    val source: Int,</span>
+<span class="nc" id="L154">    val activitySource: ActivitySource?,</span>
+<span class="nc" id="L155">    var lang: String = &quot;&quot;,</span>
+<span class="nc" id="L156">    var apiTitle: String = &quot;&quot;,</span>
+<span class="nc" id="L157">    var displayTitle: String = &quot;&quot;,</span>
+<span class="nc" id="L158">    var namespace: String = &quot;&quot;,</span>
+<span class="nc" id="L159">    val wiki: WikiSite</span>
+<span class="nc" id="L160">) {</span>
+    fun toPageTitle(): PageTitle {
+<span class="nc" id="L162">        return PageTitle(namespace, apiTitle, wiki).also {</span>
+<span class="nc" id="L163">            it.displayText = displayTitle</span>
+<span class="nc" id="L164">            it.thumbUrl = thumbnailUrl</span>
+<span class="nc" id="L165">            it.description = description</span>
+<span class="nc" id="L166">        }</span>
+    }
+}
+
+sealed class Cursor {
+<span class="nc" id="L171">    data class UserContribCursor(val token: String?) : Cursor()</span>
+<span class="nc" id="L172">    data class HistoryEntryCursor(val offset: Int) : Cursor()</span>
+<span class="nc" id="L173">    data class ReadingListCursor(val offset: Int) : Cursor()</span>
+}
+
+<span class="nc" id="L176">data class TimelinePageKey(</span>
+<span class="nc" id="L177">    val cursors: Map&lt;String, Cursor&gt; = emptyMap()</span>
+<span class="nc" id="L178">)</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FilePageView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.commons</a> &gt; <span class="el_source">FilePageView.kt</span></div><h1>FilePageView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.commons
+
+import android.content.Context
+import android.icu.text.ListFormatter
+import android.net.Uri
+import android.os.Build
+import android.text.TextUtils
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import org.wikipedia.Constants
+import org.wikipedia.Constants.PREFERRED_GALLERY_IMAGE_SIZE
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.databinding.ViewFilePageBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.suggestededits.PageSummaryForEdit
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.views.ImageDetailView
+import org.wikipedia.views.ImageZoomHelper
+import org.wikipedia.views.ViewUtil
+import java.util.Locale
+
+<span class="nc" id="L35">class FilePageView(context: Context, attrs: AttributeSet? = null) : LinearLayout(context, attrs) {</span>
+
+    interface Callback {
+        fun onImageCaptionClick(summaryForEdit: PageSummaryForEdit)
+        fun onImageTagsClick(page: MwQueryPage)
+    }
+
+<span class="nc" id="L42">    val binding = ViewFilePageBinding.inflate(LayoutInflater.from(context), this)</span>
+
+<span class="nc" id="L44">    init {</span>
+<span class="nc" id="L45">        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)</span>
+<span class="nc" id="L46">    }</span>
+
+<span class="nc" id="L48">    fun setup(summaryForEdit: PageSummaryForEdit,</span>
+              imageTags: Map&lt;String, List&lt;String&gt;&gt;,
+              page: MwQueryPage,
+              containerWidth: Int,
+              thumbWidth: Int,
+              thumbHeight: Int,
+              imageFromCommons: Boolean,
+              showFilename: Boolean,
+              showEditButton: Boolean,
+<span class="nc" id="L57">              action: DescriptionEditActivity.Action? = null,</span>
+<span class="nc" id="L58">              callback: Callback? = null) {</span>
+
+<span class="nc" id="L60">        loadImage(summaryForEdit, containerWidth, thumbWidth, thumbHeight)</span>
+
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (showFilename) {</span>
+<span class="nc" id="L63">            binding.filenameView.visibility = View.VISIBLE</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            binding.filenameView.binding.titleText.text = context.getString(if (imageFromCommons) R.string.suggested_edits_image_preview_dialog_file_commons else R.string.suggested_edits_image_preview_dialog_image)</span>
+<span class="nc" id="L65">            binding.filenameView.binding.contentText.setTextIsSelectable(false)</span>
+<span class="nc" id="L66">            binding.filenameView.binding.contentText.maxLines = 3</span>
+<span class="nc" id="L67">            binding.filenameView.binding.contentText.ellipsize = TextUtils.TruncateAt.END</span>
+<span class="nc" id="L68">            binding.filenameView.binding.contentText.text = StringUtil.removeNamespace(summaryForEdit.displayTitle)</span>
+<span class="nc" id="L69">            binding.filenameView.binding.divider.visibility = View.GONE</span>
+        }
+
+<span class="nc" id="L72">        binding.detailsContainer.removeAllViews()</span>
+
+<span class="nc bnc" id="L74" title="All 14 branches missed.">        if (summaryForEdit.pageTitle.description.isNullOrEmpty() &amp;&amp; summaryForEdit.description.isNullOrEmpty() &amp;&amp; showEditButton) {</span>
+<span class="nc" id="L75">            addActionButton(context.getString(R.string.file_page_add_image_caption_button), imageCaptionOnClickListener(summaryForEdit, callback))</span>
+<span class="nc bnc" id="L76" title="All 10 branches missed.">        } else if ((action == DescriptionEditActivity.Action.ADD_CAPTION || action == null) &amp;&amp; summaryForEdit.pageTitle.description.isNullOrEmpty()) {</span>
+            // Show the image description when a structured caption does not exist.
+<span class="nc" id="L78">            addDetail(</span>
+<span class="nc" id="L79">                titleString = context.getString(R.string.description_edit_add_caption_label),</span>
+<span class="nc" id="L80">                detail = summaryForEdit.description,</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                listener = if (showEditButton) imageCaptionOnClickListener(summaryForEdit, callback) else null</span>
+            )
+        } else {
+<span class="nc" id="L84">            addDetail(</span>
+<span class="nc" id="L85">                titleString = context.getString(R.string.suggested_edits_image_preview_dialog_caption_in_language_title,</span>
+<span class="nc" id="L86">                    WikipediaApp.instance.languageState.getAppLanguageLocalizedName(getProperLanguageCode(summaryForEdit, imageFromCommons))),</span>
+<span class="nc bnc" id="L87" title="All 6 branches missed.">                detail = if (summaryForEdit.pageTitle.description.isNullOrEmpty()) summaryForEdit.description else summaryForEdit.pageTitle.description,</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                listener = if (showEditButton) imageCaptionOnClickListener(summaryForEdit, callback) else null</span>
+            )
+        }
+
+<span class="nc bnc" id="L92" title="All 6 branches missed.">        if ((imageTags.isEmpty() || !imageTags.containsKey(getProperLanguageCode(summaryForEdit, imageFromCommons))) &amp;&amp; showEditButton) {</span>
+<span class="nc" id="L93">            addActionButton(context.getString(R.string.file_page_add_image_tags_button), imageTagsOnClickListener(page, callback))</span>
+        } else {
+<span class="nc" id="L95">            addDetail(titleString = context.getString(R.string.suggested_edits_image_tags), detail = getImageTags(imageTags, getProperLanguageCode(summaryForEdit, imageFromCommons)))</span>
+        }
+
+<span class="nc" id="L98">        addDetail(titleString = context.getString(R.string.suggested_edits_image_caption_summary_title_author), detail = summaryForEdit.metadata!!.artist())</span>
+<span class="nc" id="L99">        addDetail(titleString = context.getString(R.string.suggested_edits_image_preview_dialog_date), detail = summaryForEdit.metadata!!.dateTime())</span>
+<span class="nc" id="L100">        addDetail(titleString = context.getString(R.string.suggested_edits_image_caption_summary_title_source), detail = summaryForEdit.metadata!!.credit())</span>
+<span class="nc" id="L101">        addDetail(titleString = context.getString(R.string.suggested_edits_image_preview_dialog_licensing), detail = summaryForEdit.metadata!!.licenseShortName(), externalLink = summaryForEdit.metadata!!.licenseUrl())</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (imageFromCommons) {</span>
+<span class="nc" id="L103">            addDetail(false, context.getString(R.string.suggested_edits_image_preview_dialog_more_info), context.getString(R.string.suggested_edits_image_preview_dialog_file_page_link_text), context.getString(R.string.suggested_edits_image_file_page_commons_link, summaryForEdit.title))</span>
+        } else {
+<span class="nc" id="L105">            addDetail(false, context.getString(R.string.suggested_edits_image_preview_dialog_more_info), context.getString(R.string.suggested_edits_image_preview_dialog_file_page_wikipedia_link_text), summaryForEdit.pageTitle.uri)</span>
+        }
+<span class="nc" id="L107">        requestLayout()</span>
+<span class="nc" id="L108">    }</span>
+
+    private fun getImageTags(imageTags: Map&lt;String, List&lt;String&gt;&gt;, languageCode: String): String? {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (!imageTags.containsKey(languageCode)) {</span>
+<span class="nc" id="L112">            return null</span>
+        }
+
+<span class="nc bnc" id="L115" title="All 6 branches missed.">        return if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.O &amp;&amp; imageTags.isNotEmpty()) {</span>
+<span class="nc" id="L116">            ListFormatter.getInstance(Locale(languageCode)).format(imageTags[languageCode])</span>
+        } else {
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            imageTags[languageCode]?.joinToString(separator = &quot;\n&quot;)</span>
+        }
+    }
+
+    private fun getProperLanguageCode(summary: PageSummaryForEdit, imageFromCommons: Boolean): String {
+<span class="nc bnc" id="L123" title="All 4 branches missed.">        return if (!imageFromCommons || summary.lang == Constants.WIKI_CODE_COMMONS) {</span>
+<span class="nc" id="L124">            WikipediaApp.instance.languageState.appLanguageCode</span>
+        } else {
+<span class="nc" id="L126">            summary.lang</span>
+        }
+    }
+
+    private fun loadImage(summaryForEdit: PageSummaryForEdit, containerWidth: Int, thumbWidth: Int, thumbHeight: Int) {
+<span class="nc" id="L131">        ImageZoomHelper.setViewZoomable(binding.imageView)</span>
+<span class="nc" id="L132">        ViewUtil.loadImage(binding.imageView, ImageUrlUtil.getUrlForPreferredSize(summaryForEdit.thumbnailUrl!!, PREFERRED_GALLERY_IMAGE_SIZE),</span>
+<span class="nc" id="L133">            force = true,</span>
+<span class="nc" id="L134">            listener = null</span>
+        )
+<span class="nc" id="L136">        binding.imageViewPlaceholder.layoutParams = LayoutParams(containerWidth, ViewUtil.adjustImagePlaceholderHeight(containerWidth.toFloat(), thumbWidth.toFloat(), thumbHeight.toFloat()))</span>
+<span class="nc" id="L137">    }</span>
+
+    private fun imageCaptionOnClickListener(summaryForEdit: PageSummaryForEdit, callback: Callback?): OnClickListener {
+<span class="nc" id="L140">        return OnClickListener {</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            callback?.onImageCaptionClick(summaryForEdit)</span>
+<span class="nc" id="L142">        }</span>
+    }
+
+    private fun imageTagsOnClickListener(page: MwQueryPage, callback: Callback?): OnClickListener {
+<span class="nc" id="L146">        return OnClickListener {</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            callback?.onImageTagsClick(page)</span>
+<span class="nc" id="L148">        }</span>
+    }
+
+<span class="nc" id="L151">    private fun addDetail(</span>
+<span class="nc" id="L152">        showDivider: Boolean = true, titleString: String, detail: String? = null,</span>
+<span class="nc" id="L153">        externalLink: String? = null, listener: OnClickListener? = null</span>
+    ) {
+<span class="nc bnc" id="L155" title="All 6 branches missed.">        if (!detail.isNullOrEmpty()) {</span>
+<span class="nc" id="L156">            val view = ImageDetailView(context)</span>
+<span class="nc" id="L157">            view.binding.titleText.text = titleString</span>
+<span class="nc" id="L158">            view.binding.contentText.text = StringUtil.fromHtml(StringUtil.removeStyleTags(detail)).trim()</span>
+<span class="nc bnc" id="L159" title="All 6 branches missed.">            if (!externalLink.isNullOrEmpty()) {</span>
+<span class="nc" id="L160">                view.binding.contentText.setTextColor(ResourceUtil.getThemedColor(context, R.attr.progressive_color))</span>
+<span class="nc" id="L161">                view.binding.contentText.setTextIsSelectable(false)</span>
+<span class="nc" id="L162">                view.binding.externalLink.visibility = View.VISIBLE</span>
+<span class="nc" id="L163">                view.binding.contentContainer.setOnClickListener {</span>
+<span class="nc" id="L164">                    UriUtil.visitInExternalBrowser(context, Uri.parse(UriUtil.resolveProtocolRelativeUrl(externalLink)))</span>
+<span class="nc" id="L165">                }</span>
+            } else {
+<span class="nc" id="L167">                view.binding.contentText.movementMethod = movementMethod</span>
+            }
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (!showDivider) {</span>
+<span class="nc" id="L170">                view.binding.divider.visibility = View.GONE</span>
+            }
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            if (listener != null) {</span>
+<span class="nc" id="L173">                view.binding.editButton.visibility = View.VISIBLE</span>
+<span class="nc" id="L174">                view.binding.editButton.setOnClickListener(listener)</span>
+<span class="nc" id="L175">                view.binding.editButton.contentDescription = context.getString(R.string.file_page_edit_button_content_description, titleString)</span>
+            }
+<span class="nc" id="L177">            binding.detailsContainer.addView(view)</span>
+        }
+<span class="nc" id="L179">    }</span>
+
+    private fun addActionButton(buttonText: String, listener: OnClickListener) {
+<span class="nc" id="L182">        val view = ImageDetailView(context)</span>
+<span class="nc" id="L183">        view.binding.titleContainer.visibility = View.GONE</span>
+<span class="nc" id="L184">        view.binding.contentContainer.visibility = View.GONE</span>
+<span class="nc" id="L185">        view.binding.actionButton.visibility = View.VISIBLE</span>
+<span class="nc" id="L186">        view.binding.actionButton.text = buttonText</span>
+<span class="nc" id="L187">        view.binding.actionButton.setOnClickListener(listener)</span>
+<span class="nc" id="L188">        binding.detailsContainer.addView(view)</span>
+<span class="nc" id="L189">    }</span>
+
+<span class="nc" id="L191">    private val movementMethod = LinkMovementMethodExt { url -&gt;</span>
+<span class="nc" id="L192">        val uri = Uri.parse(UriUtil.resolveProtocolRelativeUrl(url))</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        if (UriUtil.isValidPageLink(uri)) {</span>
+<span class="nc" id="L194">            val entry = HistoryEntry(PageTitle.titleForUri(uri, WikiSite(uri)), HistoryEntry.SOURCE_FILE_PAGE)</span>
+<span class="nc" id="L195">            context.startActivity(PageActivity.newIntentForNewTab(context, entry, entry.title))</span>
+        } else {
+<span class="nc" id="L197">            UriUtil.handleExternalLink(context, Uri.parse(UriUtil.resolveProtocolRelativeUrl(url)))</span>
+        }
+<span class="nc" id="L199">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CardLargeHeaderView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.view</a> &gt; <span class="el_source">CardLargeHeaderView.kt</span></div><h1>CardLargeHeaderView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.view
+
+import android.content.Context
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import androidx.annotation.ColorInt
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
+import androidx.palette.graphics.Palette
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.databinding.ViewCardHeaderLargeBinding
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.TransitionUtil
+import org.wikipedia.views.imageservice.ImageLoadListener
+import org.wikipedia.views.imageservice.ImageService
+
+<span class="nc" id="L23">class CardLargeHeaderView(context: Context, attrs: AttributeSet? = null) : ConstraintLayout(context, attrs) {</span>
+
+<span class="nc" id="L25">    val binding = ViewCardHeaderLargeBinding.inflate(LayoutInflater.from(context), this)</span>
+
+<span class="nc" id="L27">    init {</span>
+<span class="nc bnc" id="L28" title="All 2 branches missed.">        if (!isInEditMode) {</span>
+<span class="nc" id="L29">            resetBackgroundColor()</span>
+        }
+<span class="nc" id="L31">    }</span>
+
+<span class="nc" id="L33">    val sharedElements get() = TransitionUtil.getSharedElements(context, binding.viewCardHeaderLargeImage)</span>
+
+    fun setLanguageCode(langCode: String): CardLargeHeaderView {
+<span class="nc" id="L36">        setLayoutDirectionByLang(langCode)</span>
+<span class="nc" id="L37">        return this</span>
+    }
+
+    fun setImage(uri: Uri?): CardLargeHeaderView {
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        binding.viewCardHeaderLargeImage.visibility = if (uri == null) GONE else VISIBLE</span>
+<span class="nc" id="L42">        binding.viewCardHeaderLargeImage.loadImage(uri, listener = CardImageLoadListener())</span>
+<span class="nc" id="L43">        return this</span>
+    }
+
+    fun setTitle(title: String?): CardLargeHeaderView {
+<span class="nc" id="L47">        binding.viewCardHeaderLargeTitle.text = StringUtil.fromHtml(title)</span>
+<span class="nc" id="L48">        return this</span>
+    }
+
+    fun setSubtitle(subtitle: CharSequence?): CardLargeHeaderView {
+<span class="nc" id="L52">        binding.viewCardHeaderLargeSubtitle.text = subtitle</span>
+<span class="nc" id="L53">        return this</span>
+    }
+
+    private fun resetBackgroundColor() {
+<span class="nc" id="L57">        setGradientDrawableBackground(ContextCompat.getColor(context, R.color.white),</span>
+<span class="nc" id="L58">                ContextCompat.getColor(context, R.color.gray600))</span>
+<span class="nc" id="L59">    }</span>
+
+<span class="nc" id="L61">    private inner class CardImageLoadListener : ImageLoadListener {</span>
+        override fun onSuccess(image: Any, width: Int, height: Int) {
+<span class="nc" id="L63">            val palette = Palette.from(ImageService.getBitmap(image)).generate()</span>
+<span class="nc" id="L64">            var color1 = palette.getLightVibrantColor(ContextCompat.getColor(context, R.color.gray300))</span>
+<span class="nc" id="L65">            var color2 = palette.getLightMutedColor(ContextCompat.getColor(context, R.color.gray500))</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (WikipediaApp.instance.currentTheme.isDark) {</span>
+<span class="nc" id="L67">                color1 = ResourceUtil.darkenColor(color1)</span>
+<span class="nc" id="L68">                color2 = ResourceUtil.darkenColor(color2)</span>
+            } else {
+<span class="nc" id="L70">                color1 = ResourceUtil.lightenColor(color1)</span>
+<span class="nc" id="L71">                color2 = ResourceUtil.lightenColor(color2)</span>
+            }
+<span class="nc" id="L73">            setGradientDrawableBackground(color1, color2)</span>
+<span class="nc" id="L74">        }</span>
+
+        override fun onError(error: Throwable) {
+<span class="nc" id="L77">            resetBackgroundColor()</span>
+<span class="nc" id="L78">        }</span>
+    }
+
+    private fun setGradientDrawableBackground(@ColorInt leftColor: Int, @ColorInt rightColor: Int) {
+<span class="nc" id="L82">        val gradientDrawable = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(leftColor, rightColor))</span>
+<span class="nc" id="L83">        gradientDrawable.alpha = 70</span>
+<span class="nc" id="L84">        gradientDrawable.cornerRadius = DimenUtil.dpToPx(12f)</span>
+<span class="nc" id="L85">        gradientDrawable.setStroke(DimenUtil.roundedDpToPx(0.5f), ResourceUtil.getThemedColor(context, R.attr.secondary_color))</span>
+<span class="nc" id="L86">        background = gradientDrawable</span>
+<span class="nc" id="L87">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

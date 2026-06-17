@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NotificationPresenter.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.notifications</a> &gt; <span class="el_source">NotificationPresenter.kt</span></div><h1>NotificationPresenter.kt</h1><pre class="source lang-java linenums">package org.wikipedia.notifications
+
+import android.Manifest
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Typeface
+import android.os.Build
+import androidx.activity.result.ActivityResultLauncher
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
+import androidx.appcompat.view.ContextThemeWrapper
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.PendingIntentCompat
+import androidx.core.app.RemoteInput
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.applyCanvas
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.diff.ArticleEditDetailsActivity
+import org.wikipedia.notifications.db.Notification
+import org.wikipedia.page.PageTitle
+import org.wikipedia.richtext.RichTextUtil
+import org.wikipedia.settings.Prefs
+import org.wikipedia.talk.TalkTopicsActivity
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import java.util.Locale
+import java.util.concurrent.TimeUnit
+
+object NotificationPresenter {
+
+    const val NOTIFICATION_TYPE_LOCAL = &quot;local&quot;
+    private var lastPermissionRequestTime = 0L
+
+    fun maybeRequestPermission(context: Context, launcher: ActivityResultLauncher&lt;String&gt;) {
+<span class="fc" id="L52">        val millisSinceLastRequest = System.currentTimeMillis() - lastPermissionRequestTime</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.TIRAMISU &amp;&amp;</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">            !Prefs.isInitialOnboardingEnabled &amp;&amp;</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">            AccountUtil.isLoggedIn &amp;&amp;</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">            (millisSinceLastRequest &gt; TimeUnit.HOURS.toMillis(1) || millisSinceLastRequest &lt; 0) &amp;&amp;</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {</span>
+<span class="nc" id="L58">            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)</span>
+<span class="nc" id="L59">            lastPermissionRequestTime = System.currentTimeMillis()</span>
+        }
+<span class="fc" id="L61">    }</span>
+
+    fun showNotification(context: Context, n: Notification, wikiSiteName: String, lang: String) {
+<span class="nc" id="L64">        val notificationCategory = NotificationCategory.find(n.category)</span>
+<span class="nc" id="L65">        var activityIntent = addIntentExtras(NotificationActivity.newIntent(context), n.id, n.type)</span>
+<span class="nc" id="L66">        val builder = getDefaultBuilder(context, n.id, n.type, notificationCategory)</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">        val title = RichTextUtil.stripHtml(n.contents?.header.orEmpty())</span>
+<span class="nc" id="L68">        val id = n.key().toInt()</span>
+
+<span class="nc bnc" id="L70" title="All 4 branches missed.">        n.contents?.links?.let {</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            it.getPrimary()?.let { primary -&gt;</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                if (NotificationCategory.EDIT_USER_TALK.id == n.category) {</span>
+<span class="nc" id="L73">                    val talkWiki = WikiSite(primary.url)</span>
+<span class="nc" id="L74">                    val talkTitle = PageTitle.titleForUri(primary.url.toUri(), talkWiki)</span>
+<span class="nc" id="L75">                    activityIntent = addIntentExtras(TalkTopicsActivity.newIntent(context, talkTitle, Constants.InvokeSource.NOTIFICATION), n.id, n.type)</span>
+<span class="nc" id="L76">                    addActionForTalkPage(context, builder, primary, n)</span>
+                } else {
+<span class="nc" id="L78">                    addAction(context, builder, primary, n)</span>
+                }
+<span class="nc" id="L80">            }</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            it.secondary?.let { secondary -&gt;</span>
+<span class="nc bnc" id="L82" title="All 4 branches missed.">                if (secondary.isNotEmpty()) {</span>
+<span class="nc" id="L83">                    addAction(context, builder, secondary[0], n)</span>
+                }
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                if (secondary.size &gt; 1) {</span>
+<span class="nc" id="L86">                    addAction(context, builder, secondary[1], n)</span>
+                }
+<span class="nc" id="L88">            }</span>
+        }
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        val themedContext = ContextThemeWrapper(context, if (WikipediaApp.instance.currentTheme == Theme.LIGHT) R.style.AppTheme else WikipediaApp.instance.currentTheme.resourceId)</span>
+
+<span class="nc bnc" id="L93" title="All 4 branches missed.">        showNotification(context, builder, id, n.agent?.name ?: wikiSiteName, title, title, lang,</span>
+<span class="nc" id="L94">                notificationCategory.iconResId, ResourceUtil.getThemedAttributeId(themedContext, notificationCategory.iconColor), activityIntent)</span>
+<span class="nc" id="L95">    }</span>
+
+    fun showMultipleUnread(context: Context, unreadCount: Int) {
+        // When showing the multiple-unread notification, we pass the unreadCount as the &quot;id&quot;
+        // purely for analytics purposes, to get a sense of how many unread notifications are
+        // typically queued up when the user has more than two of them.
+<span class="nc" id="L101">        val builder = getDefaultBuilder(context, unreadCount.toLong(), type = NotificationPollBroadcastReceiver.TYPE_MULTIPLE)</span>
+<span class="nc" id="L102">        showNotification(context, builder, 0, context.getString(R.string.app_name),</span>
+<span class="nc" id="L103">                context.getString(R.string.notification_many_unread, unreadCount), context.getString(R.string.notification_many_unread, unreadCount),</span>
+<span class="nc" id="L104">                null, R.drawable.ic_notifications_black_24dp, R.color.blue600,</span>
+<span class="nc" id="L105">                addIntentExtras(NotificationActivity.newIntent(context), unreadCount.toLong(), NotificationPollBroadcastReceiver.TYPE_MULTIPLE))</span>
+<span class="nc" id="L106">    }</span>
+
+<span class="nc" id="L108">    fun addIntentExtras(intent: Intent, id: Long, type: String = NOTIFICATION_TYPE_LOCAL): Intent {</span>
+<span class="nc" id="L109">        return intent</span>
+<span class="nc" id="L110">            .putExtra(Constants.INTENT_EXTRA_NOTIFICATION_ID, id)</span>
+<span class="nc" id="L111">            .putExtra(Constants.INTENT_EXTRA_NOTIFICATION_TYPE, type)</span>
+<span class="nc" id="L112">            .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, Constants.InvokeSource.NOTIFICATION)</span>
+    }
+
+<span class="nc" id="L115">    fun getDefaultBuilder(</span>
+<span class="nc" id="L116">        context: Context, id: Long, type: String? = NOTIFICATION_TYPE_LOCAL,</span>
+<span class="nc" id="L117">        notificationCategory: NotificationCategory = NotificationCategory.SYSTEM,</span>
+    ): NotificationCompat.Builder {
+<span class="nc" id="L119">        return NotificationCompat.Builder(context, notificationCategory.id)</span>
+<span class="nc" id="L120">                .setDefaults(NotificationCompat.DEFAULT_ALL)</span>
+<span class="nc" id="L121">                .setPriority(NotificationCompat.PRIORITY_HIGH)</span>
+<span class="nc" id="L122">                .setAutoCancel(true)</span>
+<span class="nc" id="L123">                .setDeleteIntent(NotificationPollBroadcastReceiver.getCancelNotificationPendingIntent(context, id, type))</span>
+    }
+
+    fun showNotification(
+        context: Context, builder: NotificationCompat.Builder, id: Int,
+        title: String, text: String, longText: CharSequence?, lang: String?,
+        @DrawableRes icon: Int?, @ColorRes color: Int, bodyIntent: Intent,
+    ) {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {</span>
+<span class="nc" id="L132">            return</span>
+        }
+<span class="nc" id="L134">        builder.setContentIntent(PendingIntentCompat.getActivity(context, 0, bodyIntent, PendingIntent.FLAG_UPDATE_CURRENT, false))</span>
+<span class="nc bnc" id="L135" title="All 4 branches missed.">                .setLargeIcon(if (icon != null) drawNotificationBitmap(context, color, icon, lang.orEmpty().uppercase(Locale.getDefault())) else null)</span>
+<span class="nc" id="L136">                .setSmallIcon(R.drawable.ic_wikipedia_w)</span>
+<span class="nc" id="L137">                .setColor(ContextCompat.getColor(context, color))</span>
+<span class="nc" id="L138">                .setContentTitle(title)</span>
+<span class="nc" id="L139">                .setContentText(text)</span>
+<span class="nc" id="L140">                .setStyle(NotificationCompat.BigTextStyle().bigText(longText))</span>
+<span class="nc" id="L141">        NotificationManagerCompat.from(context).notify(id, builder.build())</span>
+<span class="nc" id="L142">    }</span>
+
+    private fun addAction(context: Context, builder: NotificationCompat.Builder, link: Notification.Link, n: Notification) {
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (UriUtil.isDiffUrl(link.url)) {</span>
+<span class="nc" id="L146">            try {</span>
+<span class="nc" id="L147">                addActionForDiffLink(context, builder, link, n)</span>
+<span class="nc" id="L148">                return</span>
+<span class="nc" id="L149">            } catch (e: Exception) {</span>
+<span class="nc" id="L150">                L.e(e)</span>
+            }
+        }
+<span class="nc" id="L153">        val pendingIntent = PendingIntentCompat.getActivity(context, 0,</span>
+<span class="nc" id="L154">            addIntentExtras(Intent(Intent.ACTION_VIEW, link.url.toUri()), n.id, n.type),</span>
+<span class="nc" id="L155">            PendingIntent.FLAG_UPDATE_CURRENT, false)</span>
+<span class="nc bnc" id="L156" title="All 4 branches missed.">        val labelStr: String = if (link.tooltip.isNotEmpty()) {</span>
+<span class="nc" id="L157">            StringUtil.fromHtml(link.tooltip).toString()</span>
+        } else {
+<span class="nc" id="L159">            StringUtil.fromHtml(link.label).toString()</span>
+        }
+<span class="nc" id="L161">        builder.addAction(0, labelStr, pendingIntent)</span>
+<span class="nc" id="L162">    }</span>
+
+    private fun addActionForDiffLink(context: Context, builder: NotificationCompat.Builder, link: Notification.Link, n: Notification) {
+<span class="nc" id="L165">        val uri = link.url.toUri()</span>
+<span class="nc" id="L166">        val title = uri.getQueryParameter(&quot;title&quot;)</span>
+<span class="nc bnc" id="L167" title="All 4 branches missed.">        val oldRev = uri.getQueryParameter(&quot;prev&quot;).orEmpty().toLongOrNull() ?: -1</span>
+<span class="nc bnc" id="L168" title="All 4 branches missed.">        val newRev = uri.getQueryParameter(&quot;diff&quot;).orEmpty().toLongOrNull() ?: -1</span>
+
+<span class="nc" id="L170">        val pendingIntent = PendingIntentCompat.getActivity(context, 0,</span>
+<span class="nc" id="L171">            addIntentExtras(ArticleEditDetailsActivity.newIntent(context, PageTitle(title, WikiSite(link.url)), -1, oldRev, newRev), n.id, n.type),</span>
+<span class="nc" id="L172">            PendingIntent.FLAG_UPDATE_CURRENT, false)</span>
+<span class="nc" id="L173">        builder.addAction(0, StringUtil.fromHtml(link.label).toString(), pendingIntent)</span>
+<span class="nc" id="L174">    }</span>
+
+    private fun addActionForTalkPage(context: Context, builder: NotificationCompat.Builder, link: Notification.Link, n: Notification) {
+<span class="nc" id="L177">        val wiki = WikiSite(link.url)</span>
+<span class="nc" id="L178">        val title = PageTitle.titleForUri(link.url.toUri(), wiki)</span>
+<span class="nc" id="L179">        val pendingIntent = PendingIntentCompat.getActivity(context, 0,</span>
+<span class="nc" id="L180">            addIntentExtras(TalkTopicsActivity.newIntent(context, title, Constants.InvokeSource.NOTIFICATION), n.id, n.type),</span>
+<span class="nc" id="L181">            PendingIntent.FLAG_UPDATE_CURRENT, false)</span>
+<span class="nc" id="L182">        builder.addAction(0, StringUtil.fromHtml(link.label).toString(), pendingIntent)</span>
+<span class="nc" id="L183">    }</span>
+
+    private fun addActionWithDirectReply(
+        context: Context, builder: NotificationCompat.Builder,
+        title: PageTitle, replyTo: String, id: Int,
+    ) {
+<span class="nc" id="L189">        val remoteInput = RemoteInput.Builder(NotificationPollBroadcastReceiver.RESULT_KEY_DIRECT_REPLY)</span>
+<span class="nc" id="L190">            .build()</span>
+<span class="nc" id="L191">        val resultIntent = Intent(context, NotificationPollBroadcastReceiver::class.java)</span>
+<span class="nc" id="L192">            .setAction(NotificationPollBroadcastReceiver.ACTION_DIRECT_REPLY)</span>
+<span class="nc" id="L193">            .putExtra(Constants.ARG_WIKISITE, title.wikiSite)</span>
+<span class="nc" id="L194">            .putExtra(Constants.ARG_TITLE, title)</span>
+<span class="nc" id="L195">            .putExtra(NotificationPollBroadcastReceiver.RESULT_EXTRA_REPLY_TO, replyTo)</span>
+<span class="nc" id="L196">            .putExtra(NotificationPollBroadcastReceiver.RESULT_EXTRA_ID, id)</span>
+<span class="nc" id="L197">        val resultPendingIntent = PendingIntentCompat.getBroadcast(context, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT, false)</span>
+
+<span class="nc" id="L199">        val action = NotificationCompat.Action.Builder(R.drawable.ic_reply_24, context.getString(R.string.notifications_direct_reply_action), resultPendingIntent)</span>
+<span class="nc" id="L200">            .addRemoteInput(remoteInput)</span>
+<span class="nc" id="L201">            .build()</span>
+<span class="nc" id="L202">        builder.addAction(action)</span>
+<span class="nc" id="L203">    }</span>
+
+    fun drawNotificationBitmap(context: Context, @ColorRes color: Int, @DrawableRes icon: Int, lang: String): Bitmap {
+<span class="nc" id="L206">        val bitmapHalfSize = DimenUtil.roundedDpToPx(24f)</span>
+<span class="nc" id="L207">        val iconHalfSize = DimenUtil.roundedDpToPx(14f)</span>
+<span class="nc" id="L208">        return createBitmap(bitmapHalfSize * 2, bitmapHalfSize * 2).applyCanvas {</span>
+<span class="nc" id="L209">            val p = Paint()</span>
+<span class="nc" id="L210">            p.isAntiAlias = true</span>
+<span class="nc" id="L211">            p.color = ContextCompat.getColor(context, color)</span>
+
+<span class="nc bnc" id="L213" title="All 4 branches missed.">            if (lang.isNotEmpty()) {</span>
+<span class="nc" id="L214">                p.typeface = Typeface.create(&quot;sans-serif-medium&quot;, Typeface.NORMAL)</span>
+<span class="nc" id="L215">                p.textSize = DimenUtil.dpToPx(12f)</span>
+<span class="nc" id="L216">                p.strokeWidth = DimenUtil.dpToPx(1f)</span>
+
+<span class="nc" id="L218">                val textBounds = Rect()</span>
+<span class="nc" id="L219">                p.getTextBounds(lang, 0, lang.length, textBounds)</span>
+
+<span class="nc" id="L221">                val rectPadding = DimenUtil.dpToPx(4f)</span>
+<span class="nc" id="L222">                val textLeft = bitmapHalfSize.toFloat() - (textBounds.right - textBounds.left) / 2</span>
+<span class="nc" id="L223">                val textBottom = bitmapHalfSize * 2 - rectPadding - p.strokeWidth</span>
+
+<span class="nc" id="L225">                drawText(lang, textLeft, textBottom, p)</span>
+
+<span class="nc" id="L227">                p.style = Paint.Style.STROKE</span>
+<span class="nc" id="L228">                val rBounds = RectF(textLeft + textBounds.left - rectPadding, textBottom + textBounds.top - rectPadding,</span>
+<span class="nc" id="L229">                        textLeft + textBounds.right + rectPadding, textBottom + textBounds.bottom + rectPadding)</span>
+<span class="nc" id="L230">                drawRoundRect(rBounds, rectPadding, rectPadding, p)</span>
+            }
+
+<span class="nc" id="L233">            val iconBmp = ResourceUtil.bitmapFromVectorDrawable(context, icon, color)</span>
+<span class="nc" id="L234">            drawBitmap(iconBmp, null, Rect(bitmapHalfSize - iconHalfSize, 0,</span>
+<span class="nc" id="L235">                    bitmapHalfSize + iconHalfSize, iconHalfSize * 2), null)</span>
+<span class="nc" id="L236">            iconBmp.recycle()</span>
+<span class="nc" id="L237">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

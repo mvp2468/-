@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NotificationViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.notifications</a> &gt; <span class="el_source">NotificationViewModel.kt</span></div><h1>NotificationViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.notifications
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.notifications.db.Notification
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+import java.util.Date
+import java.util.Random
+
+<span class="nc" id="L20">class NotificationViewModel : ViewModel() {</span>
+
+<span class="nc" id="L22">    private val notificationRepository = NotificationRepository(AppDatabase.instance.notificationDao())</span>
+<span class="nc" id="L23">    private val handler = CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L24">        _uiState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L25">    }</span>
+<span class="nc" id="L26">    private val notificationList = mutableListOf&lt;Notification&gt;()</span>
+<span class="nc" id="L27">    private var dbNameMap = mapOf&lt;String, WikiSite&gt;()</span>
+    private var selectedFilterTab: Int = 0
+    private var currentContinueStr: String? = null
+<span class="nc" id="L30">    var currentSearchQuery: String? = null</span>
+        private set
+<span class="nc" id="L32">    var mentionsUnreadCount: Int = 0</span>
+<span class="nc" id="L33">    var allUnreadCount: Int = 0</span>
+
+<span class="nc" id="L35">    private val _uiState = MutableStateFlow(Resource&lt;Pair&lt;List&lt;NotificationListItemContainer&gt;, Boolean&gt;&gt;())</span>
+<span class="nc" id="L36">    val uiState = _uiState.asStateFlow()</span>
+
+<span class="nc" id="L38">    init {</span>
+<span class="nc" id="L39">        viewModelScope.launch(handler) {</span>
+<span class="nc" id="L40">            dbNameMap = notificationRepository.fetchUnreadWikiDbNames()</span>
+<span class="nc" id="L41">        }</span>
+<span class="nc" id="L42">        fetchAndSave()</span>
+<span class="nc" id="L43">    }</span>
+
+    private suspend fun filterAndPostNotifications() {
+<span class="nc bnc" id="L46" title="All 6 branches missed.">        val pair = Pair(processList(notificationRepository.getAllNotifications()), !currentContinueStr.isNullOrEmpty())</span>
+<span class="nc" id="L47">        _uiState.value = Resource.Success(pair)</span>
+<span class="nc" id="L48">    }</span>
+
+    private fun processList(list: List&lt;Notification&gt;): List&lt;NotificationListItemContainer&gt; {
+<span class="nc bnc" id="L51" title="All 6 branches missed.">        if (currentContinueStr.isNullOrEmpty()) {</span>
+<span class="nc" id="L52">            notificationList.clear()</span>
+        }
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        for (n in list) {</span>
+<span class="nc bnc" id="L55" title="All 6 branches missed.">            if (notificationList.none { it.id == n.id &amp;&amp; it.wiki == n.wiki }) {</span>
+<span class="nc" id="L56">                notificationList.add(n)</span>
+            }
+        }
+        // Sort them by descending date...
+<span class="nc" id="L60">        notificationList.sortByDescending { it.date() }</span>
+
+        // Filtered the tab selection
+<span class="nc" id="L63">        val tabSelectedList = notificationList</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            .filter { if (Prefs.hideReadNotificationsEnabled) it.isUnread else true }</span>
+
+<span class="nc" id="L66">        val excludedTypeCodes = Prefs.notificationExcludedTypeCodes</span>
+<span class="nc" id="L67">        val excludedWikiCodes = Prefs.notificationExcludedWikiCodes</span>
+<span class="nc" id="L68">        val includedWikiCodes = NotificationFilterActivity.allWikisList().minus(excludedWikiCodes).map {</span>
+<span class="nc" id="L69">            it.split(&quot;-&quot;)[0]</span>
+        }
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        val checkExcludedWikiCodes = NotificationFilterActivity.allWikisList().size != includedWikiCodes.size</span>
+
+<span class="nc" id="L73">        val notificationContainerList = mutableListOf&lt;NotificationListItemContainer&gt;()</span>
+
+<span class="nc" id="L75">        allUnreadCount = 0</span>
+<span class="nc" id="L76">        mentionsUnreadCount = 0</span>
+
+        // Save into display list
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        for (n in tabSelectedList) {</span>
+<span class="nc bnc" id="L80" title="All 8 branches missed.">            val linkText = n.contents?.links?.secondary?.firstOrNull()?.label</span>
+<span class="nc" id="L81">            val searchQuery = currentSearchQuery</span>
+<span class="nc bnc" id="L82" title="All 6 branches missed.">            if (!searchQuery.isNullOrEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L83" title="All 8 branches missed.">                !(n.title?.full?.contains(searchQuery, true) == true ||</span>
+<span class="nc bnc" id="L84" title="All 8 branches missed.">                        n.contents?.header?.contains(searchQuery, true) == true ||</span>
+<span class="nc bnc" id="L85" title="All 8 branches missed.">                        n.contents?.body?.contains(searchQuery, true) == true ||</span>
+<span class="nc bnc" id="L86" title="All 6 branches missed.">                        (linkText?.contains(searchQuery, true) == true))) {</span>
+<span class="nc" id="L87">                continue</span>
+            }
+<span class="nc bnc" id="L89" title="All 6 branches missed.">            if (excludedTypeCodes.find { n.category.startsWith(it) } != null) {</span>
+<span class="nc" id="L90">                continue</span>
+            }
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            if (checkExcludedWikiCodes) {</span>
+<span class="nc" id="L93">                val wikiCode = StringUtil.dbNameToLangCode(n.wiki)</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                if (!includedWikiCodes.contains(wikiCode)) {</span>
+<span class="nc" id="L95">                    continue</span>
+                }
+            }
+<span class="nc" id="L98">            val isMention = NotificationCategory.isMentionsGroup(n.category)</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (n.isUnread) {</span>
+<span class="nc" id="L100">                allUnreadCount++</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                if (isMention) {</span>
+<span class="nc" id="L102">                    mentionsUnreadCount++</span>
+                }
+            }
+<span class="nc bnc" id="L105" title="All 4 branches missed.">            if (selectedFilterTab == 1 &amp;&amp; !isMention) {</span>
+<span class="nc" id="L106">                continue</span>
+            }
+<span class="nc" id="L108">            notificationContainerList.add(NotificationListItemContainer(n))</span>
+        }
+
+<span class="nc" id="L111">        return notificationContainerList</span>
+    }
+
+    fun excludedFiltersCount(): Int {
+<span class="nc" id="L115">        val excludedWikiCodes = Prefs.notificationExcludedWikiCodes</span>
+<span class="nc" id="L116">        val excludedTypeCodes = Prefs.notificationExcludedTypeCodes</span>
+<span class="nc" id="L117">        return NotificationFilterActivity.allWikisList().count { excludedWikiCodes.contains(it) } +</span>
+<span class="nc" id="L118">                NotificationFilterActivity.allTypesIdList().count { excludedTypeCodes.contains(it) }</span>
+    }
+
+<span class="nc" id="L121">    fun fetchAndSave(refresh: Boolean = false) {</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (refresh) {</span>
+<span class="nc" id="L123">            currentContinueStr = null</span>
+<span class="nc" id="L124">            notificationList.clear()</span>
+        }
+
+<span class="nc" id="L127">        viewModelScope.launch(handler) {</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">            if (WikipediaApp.instance.isOnline) {</span>
+<span class="nc" id="L129">                currentContinueStr = notificationRepository.fetchAndSave(&quot;read|!read&quot;, currentContinueStr)</span>
+            }
+<span class="nc" id="L131">            filterAndPostNotifications()</span>
+<span class="nc" id="L132">        }</span>
+<span class="nc" id="L133">    }</span>
+
+    fun updateSearchQuery(query: String?) {
+<span class="nc" id="L136">        currentSearchQuery = query</span>
+<span class="nc" id="L137">        viewModelScope.launch(handler) {</span>
+<span class="nc" id="L138">            filterAndPostNotifications()</span>
+<span class="nc" id="L139">        }</span>
+<span class="nc" id="L140">    }</span>
+
+    fun updateTabSelection(position: Int) {
+<span class="nc" id="L143">        selectedFilterTab = position</span>
+<span class="nc" id="L144">        viewModelScope.launch(handler) {</span>
+<span class="nc" id="L145">            filterAndPostNotifications()</span>
+<span class="nc" id="L146">        }</span>
+<span class="nc" id="L147">    }</span>
+
+    fun markItemsAsRead(items: List&lt;NotificationListItemContainer&gt;, markUnread: Boolean) {
+<span class="nc" id="L150">        val notificationsPerWiki = mutableMapOf&lt;WikiSite, MutableList&lt;Notification&gt;&gt;()</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        val selectionKey = if (items.size &gt; 1) Random().nextLong() else null</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        for (item in items) {</span>
+<span class="nc" id="L153">            val notification = item.notification!!</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            val wiki = dbNameMap.getOrElse(notification.wiki) {</span>
+<span class="nc" id="L155">                when (notification.wiki) {</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                    Constants.COMMONS_DB_NAME -&gt; Constants.commonsWikiSite</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                    Constants.WIKIDATA_DB_NAME -&gt; Constants.wikidataWikiSite</span>
+                    else -&gt; {
+<span class="nc" id="L159">                        val langCode = StringUtil.dbNameToLangCode(notification.wiki)</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                        WikiSite.forLanguageCode(WikipediaApp.instance.languageState.getDefaultLanguageCode(langCode) ?: langCode)</span>
+                    }
+<span class="nc" id="L162">                }</span>
+            }
+<span class="nc" id="L164">            notificationsPerWiki.getOrPut(wiki) { mutableListOf() }.add(notification)</span>
+        }
+
+<span class="nc" id="L167">        viewModelScope.launch(handler) {</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            for ((wiki, notifications) in notificationsPerWiki) {</span>
+<span class="nc" id="L169">                NotificationPollBroadcastReceiver.markRead(wiki, notifications, markUnread)</span>
+            }
+<span class="nc" id="L171">        }</span>
+
+        // Mark items in read state and save into database
+<span class="nc" id="L174">        viewModelScope.launch(handler) {</span>
+<span class="nc" id="L175">            notificationList</span>
+<span class="nc bnc" id="L176" title="All 4 branches missed.">                .filter { n -&gt; items.map { container -&gt; container.notification?.id }</span>
+<span class="nc bnc" id="L177" title="All 4 branches missed.">                .firstOrNull { it == n.id } != null }</span>
+<span class="nc" id="L178">                .map {</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">                    it.read = if (markUnread) null else Date().toString()</span>
+<span class="nc" id="L180">                    notificationRepository.updateNotification(it)</span>
+<span class="nc" id="L181">                }</span>
+<span class="nc" id="L182">            filterAndPostNotifications()</span>
+<span class="nc" id="L183">        }</span>
+<span class="nc" id="L184">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

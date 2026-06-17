@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SettingsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">SettingsFragment.kt</span></div><h1>SettingsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.os.Bundle
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import androidx.core.view.MenuProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.preference.SwitchPreferenceCompat
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.donate.donationreminder.DonationReminderHelper
+import org.wikipedia.events.ReadingListsEnableSyncStatusEvent
+import org.wikipedia.events.ReadingListsEnabledStatusEvent
+import org.wikipedia.events.ReadingListsNoLongerSyncedEvent
+import org.wikipedia.settings.dev.DeveloperSettingsActivity.Companion.newIntent
+
+<span class="nc" id="L23">class SettingsFragment : PreferenceLoaderFragment(), MenuProvider {</span>
+    private lateinit var preferenceLoader: SettingsPreferenceLoader
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L27">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L28">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+
+<span class="nc" id="L30">        lifecycleScope.launch {</span>
+<span class="nc" id="L31">            repeatOnLifecycle(Lifecycle.State.RESUMED) {</span>
+<span class="nc" id="L32">                FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc" id="L33">                    when (event) {</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">                        is ReadingListsEnabledStatusEvent -&gt; {</span>
+<span class="nc" id="L35">                            setReadingListSyncPref(true)</span>
+                        }
+<span class="nc bnc" id="L37" title="All 2 branches missed.">                        is ReadingListsNoLongerSyncedEvent -&gt; {</span>
+<span class="nc" id="L38">                            setReadingListSyncPref(false)</span>
+                        }
+<span class="nc bnc" id="L40" title="All 2 branches missed.">                        is ReadingListsEnableSyncStatusEvent -&gt; {</span>
+<span class="nc" id="L41">                            setReadingListSyncPref(Prefs.isReadingListSyncEnabled)</span>
+                        }
+                    }
+<span class="nc" id="L44">                }</span>
+<span class="nc" id="L45">            }</span>
+<span class="nc" id="L46">        }</span>
+
+        // TODO: Kick off a sync of reading lists, which will call back to us whether lists
+        // are enabled or not. (Not sure if this is necessary yet.)
+<span class="nc" id="L50">    }</span>
+
+    override fun loadPreferences() {
+<span class="nc" id="L53">        preferenceLoader = SettingsPreferenceLoader(this)</span>
+<span class="nc" id="L54">        preferenceLoader.loadPreferences()</span>
+<span class="nc" id="L55">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L58">        super.onResume()</span>
+<span class="nc" id="L59">        preferenceLoader.updateSyncReadingListsPrefSummary()</span>
+<span class="nc" id="L60">        preferenceLoader.updateLanguagePrefSummary()</span>
+<span class="nc" id="L61">        preferenceLoader.updateRecommendedReadingListSummary()</span>
+<span class="nc" id="L62">        preferenceLoader.updateDonationRemindersDescription()</span>
+<span class="nc" id="L63">        DonationReminderHelper.maybeShowSettingSnackbar(requireActivity())</span>
+<span class="nc" id="L64">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L65">    }</span>
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+<span class="nc" id="L68">        menuInflater.inflate(R.menu.menu_settings, menu)</span>
+<span class="nc" id="L69">    }</span>
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc" id="L72">        prepareDeveloperSettingsMenuItem(menu)</span>
+<span class="nc" id="L73">    }</span>
+
+    override fun onMenuItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L76">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            R.id.developer_settings -&gt; {</span>
+<span class="nc" id="L78">                launchDeveloperSettingsActivity()</span>
+<span class="nc" id="L79">                true</span>
+            }
+<span class="nc" id="L81">            else -&gt; false</span>
+        }
+    }
+
+    private fun launchDeveloperSettingsActivity() {
+<span class="nc" id="L86">        startActivity(newIntent(requireActivity()))</span>
+<span class="nc" id="L87">    }</span>
+
+    private fun prepareDeveloperSettingsMenuItem(menu: Menu) {
+<span class="nc" id="L90">        menu.findItem(R.id.developer_settings).isVisible = Prefs.isShowDeveloperSettingsEnabled</span>
+<span class="nc" id="L91">    }</span>
+
+    private fun setReadingListSyncPref(checked: Boolean) {
+<span class="nc" id="L94">        (preferenceLoader.findPreference(R.string.preference_key_sync_reading_lists) as SwitchPreferenceCompat).isChecked = checked</span>
+<span class="nc" id="L95">    }</span>
+
+    companion object {
+        fun newInstance(): SettingsFragment {
+<span class="nc" id="L99">            return SettingsFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

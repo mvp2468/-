@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>YearInReviewScreenCaptureHandler.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.yearinreview</a> &gt; <span class="el_source">YearInReviewScreenCaptureHandler.kt</span></div><h1>YearInReviewScreenCaptureHandler.kt</h1><pre class="source lang-java linenums">package org.wikipedia.yearinreview
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import org.wikipedia.R
+import org.wikipedia.util.ShareUtil
+
+@Composable
+fun YearInReviewScreenCaptureHandler(
+    request: YearInReviewCaptureRequest,
+    onComplete: () -&gt; Unit
+<span class="nc" id="L15">) {</span>
+<span class="nc" id="L16">    val coroutineScope = rememberCoroutineScope()</span>
+<span class="nc" id="L17">    val context = LocalContext.current</span>
+<span class="nc" id="L18">    val shareUrl = stringResource(R.string.year_in_review_share_url)</span>
+<span class="nc" id="L19">    val shareBodyFormat = stringResource(R.string.year_in_review_share_body)</span>
+<span class="nc" id="L20">    val hashtag = stringResource(R.string.year_in_review_hashtag)</span>
+<span class="nc" id="L21">    val shareSubject = stringResource(R.string.year_in_review_share_subject)</span>
+
+<span class="nc bnc" id="L23" title="All 2 branches missed.">    val shareImageCallback: (Bitmap) -&gt; Unit = { bitmap -&gt;</span>
+<span class="nc" id="L24">        val googlePlayUrl = shareUrl + YearInReviewViewModel.YIR_TAG</span>
+<span class="nc" id="L25">        val bodyText = String.format(shareBodyFormat, googlePlayUrl, hashtag)</span>
+<span class="nc" id="L26">        ShareUtil.shareImage(</span>
+<span class="nc" id="L27">            coroutineScope = coroutineScope,</span>
+<span class="nc" id="L28">            context = context,</span>
+<span class="nc" id="L29">            bmp = bitmap,</span>
+<span class="nc" id="L30">            imageFileName = YearInReviewViewModel.YIR_TAG,</span>
+<span class="nc" id="L31">            subject = shareSubject,</span>
+<span class="nc" id="L32">            text = bodyText,</span>
+<span class="nc" id="L33">            onShared = onComplete</span>
+        )
+<span class="nc" id="L35">    }</span>
+
+<span class="nc" id="L37">    when (request) {</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        is YearInReviewCaptureRequest.StandardScreen -&gt; {</span>
+<span class="nc" id="L39">            CreateScreenShotBitmap(</span>
+<span class="nc" id="L40">                screenContent = request.screenData,</span>
+<span class="nc" id="L41">                onBitmapReady = shareImageCallback,</span>
+<span class="nc" id="L42">                requestScreenshotBitmap = null</span>
+            )
+        }
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        is YearInReviewCaptureRequest.GeoScreen -&gt; {</span>
+<span class="nc" id="L46">            CreateScreenShotBitmap(</span>
+<span class="nc" id="L47">                screenContent = request.screenData,</span>
+<span class="nc" id="L48">                onBitmapReady = shareImageCallback,</span>
+<span class="nc" id="L49">                requestScreenshotBitmap = request.requestScreenshotBitmap</span>
+            )
+        }
+
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        is YearInReviewCaptureRequest.HighlightsScreen -&gt; {</span>
+<span class="nc" id="L54">            ShareHighlightsScreenCapture(</span>
+<span class="nc" id="L55">                data = request.data,</span>
+<span class="nc" id="L56">                onBitmapReady = shareImageCallback</span>
+            )
+        }
+<span class="nc" id="L59">    }</span>
+<span class="nc" id="L60">}</span>
+
+sealed class YearInReviewCaptureRequest {
+<span class="nc" id="L63">    data class StandardScreen(val screenData: YearInReviewScreenData) : YearInReviewCaptureRequest()</span>
+<span class="nc" id="L64">    data class GeoScreen(val screenData: YearInReviewScreenData, val requestScreenshotBitmap: ((Int, Int) -&gt; Bitmap)? = null) : YearInReviewCaptureRequest()</span>
+<span class="nc" id="L65">    data class HighlightsScreen(val data: YearInReviewScreenData.HighlightsScreen) : YearInReviewCaptureRequest()</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

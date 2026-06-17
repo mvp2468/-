@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AboutActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">AboutActivity.kt</span></div><h1>AboutActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import org.wikipedia.BuildConfig
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.compose.components.HtmlText
+import org.wikipedia.compose.components.LicenseLinkText
+import org.wikipedia.compose.components.LinkTextData
+import org.wikipedia.compose.components.Snackbar
+import org.wikipedia.compose.components.WikiTopAppBar
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DeviceUtil
+
+<span class="nc" id="L53">class AboutActivity : BaseActivity() {</span>
+<span class="nc" id="L54">    private val credits = listOf(</span>
+<span class="nc" id="L55">        LinkTextData(</span>
+<span class="nc" id="L56">            text = &quot;Balloon&quot;,</span>
+<span class="nc" id="L57">            url = &quot;https://github.com/skydoves/Balloon/blob/main/LICENSE/&quot;</span>
+        ),
+<span class="nc" id="L59">        LinkTextData(</span>
+<span class="nc" id="L60">            text = &quot;(license),&quot;,</span>
+<span class="nc" id="L61">            asset = &quot;licenses/Balloon&quot;</span>
+        ),
+<span class="nc" id="L63">        LinkTextData(</span>
+<span class="nc" id="L64">            text = &quot;Commons Lang&quot;,</span>
+<span class="nc" id="L65">            url = &quot;https://www.apache.org/licenses/&quot;</span>
+        ),
+<span class="nc" id="L67">        LinkTextData(</span>
+<span class="nc" id="L68">            text = &quot;(license),&quot;,</span>
+<span class="nc" id="L69">            asset = &quot;licenses/CommonsLang3&quot;</span>
+        ),
+<span class="nc" id="L71">        LinkTextData(</span>
+<span class="nc" id="L72">            text = &quot;jsoup&quot;,</span>
+<span class="nc" id="L73">            url = &quot;https://github.com/jhy/jsoup&quot;</span>
+        ),
+<span class="nc" id="L75">        LinkTextData(</span>
+<span class="nc" id="L76">            text = &quot;(license),&quot;,</span>
+<span class="nc" id="L77">            asset = &quot;licenses/jsoup&quot;</span>
+        ),
+<span class="nc" id="L79">        LinkTextData(</span>
+<span class="nc" id="L80">            text = &quot;OkHttp&quot;,</span>
+<span class="nc" id="L81">            url = &quot;https://square.github.io/okhttp/&quot;</span>
+        ),
+<span class="nc" id="L83">        LinkTextData(</span>
+<span class="nc" id="L84">            text = &quot;(license),&quot;,</span>
+<span class="nc" id="L85">            asset = &quot;licenses/OkHttp&quot;</span>
+        ),
+<span class="nc" id="L87">        LinkTextData(</span>
+<span class="nc" id="L88">            text = &quot;Retrofit&quot;,</span>
+<span class="nc" id="L89">            url = &quot;https://square.github.io/retrofit/&quot;</span>
+        ),
+<span class="nc" id="L91">        LinkTextData(</span>
+<span class="nc" id="L92">            text = &quot;(license)&quot;,</span>
+<span class="nc" id="L93">            asset = &quot;licenses/Retrofit&quot;</span>
+        )
+    )
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L97">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L98">        DeviceUtil.setEdgeToEdge(this)</span>
+<span class="nc" id="L99">        setContent {</span>
+<span class="nc" id="L100">            BaseTheme {</span>
+<span class="nc" id="L101">                AboutWikipediaScreen(</span>
+<span class="nc" id="L102">                    modifier = Modifier</span>
+<span class="nc" id="L103">                        .fillMaxSize()</span>
+<span class="nc" id="L104">                        .safeDrawingPadding(),</span>
+<span class="nc" id="L105">                    versionName = BuildConfig.VERSION_NAME,</span>
+<span class="nc" id="L106">                    credits = credits,</span>
+<span class="nc" id="L107">                    onBackButtonClick = {</span>
+<span class="nc" id="L108">                        onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L109">                    }</span>
+                )
+<span class="nc" id="L111">            }</span>
+<span class="nc" id="L112">        }</span>
+<span class="nc" id="L113">    }</span>
+
+    companion object {
+        const val SECRET_CLICK_LIMIT = 7
+    }
+}
+
+@Composable
+fun AboutWikipediaScreen(
+<span class="nc" id="L122">    modifier: Modifier = Modifier,</span>
+    versionName: String,
+    credits: List&lt;LinkTextData&gt;,
+    onBackButtonClick: () -&gt; Unit
+<span class="nc bnc" id="L126" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L127">    val snackbarHostState = remember { SnackbarHostState() }</span>
+
+<span class="nc" id="L129">    Scaffold(</span>
+<span class="nc" id="L130">        modifier = modifier,</span>
+<span class="nc" id="L131">        snackbarHost = {</span>
+<span class="nc" id="L132">            SnackbarHost(</span>
+<span class="nc" id="L133">                hostState = snackbarHostState,</span>
+<span class="nc" id="L134">                snackbar = {</span>
+<span class="nc" id="L135">                    Snackbar(</span>
+<span class="nc" id="L136">                        message = it.visuals.message</span>
+                    )
+<span class="nc" id="L138">                }</span>
+            )
+<span class="nc" id="L140">        },</span>
+<span class="nc" id="L141">        topBar = {</span>
+<span class="nc" id="L142">            WikiTopAppBar(</span>
+<span class="nc" id="L143">                title = stringResource(R.string.about_activity_title),</span>
+<span class="nc" id="L144">                onNavigationClick = onBackButtonClick</span>
+            )
+<span class="nc" id="L146">        },</span>
+<span class="nc" id="L147">        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L148">        content = { paddingValues -&gt;</span>
+<span class="nc" id="L149">           AboutScreenContent(</span>
+<span class="nc" id="L150">               modifier = Modifier</span>
+<span class="nc" id="L151">                   .padding(paddingValues),</span>
+<span class="nc" id="L152">               versionName = versionName,</span>
+<span class="nc" id="L153">               credits = credits,</span>
+<span class="nc" id="L154">               snackbarHostState = snackbarHostState</span>
+           )
+<span class="nc" id="L156">        }</span>
+    )
+<span class="nc" id="L158">}</span>
+
+@Composable
+fun AboutScreenContent(
+<span class="nc" id="L162">    modifier: Modifier = Modifier,</span>
+    versionName: String,
+    credits: List&lt;LinkTextData&gt;,
+    snackbarHostState: SnackbarHostState
+<span class="nc bnc" id="L166" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L167">    Column(</span>
+<span class="nc" id="L168">        modifier = modifier</span>
+<span class="nc" id="L169">            .verticalScroll(rememberScrollState()),</span>
+<span class="nc" id="L170">        horizontalAlignment = Alignment.CenterHorizontally</span>
+    ) {
+<span class="nc" id="L172">        AboutWikipediaHeader(</span>
+<span class="nc" id="L173">            modifier = Modifier</span>
+<span class="nc" id="L174">                .fillMaxWidth()</span>
+<span class="nc" id="L175">                .padding(top = 30.dp, bottom = 16.dp),</span>
+<span class="nc" id="L176">            versionName = versionName,</span>
+<span class="nc" id="L177">            snackbarHostState = snackbarHostState</span>
+        )
+<span class="nc" id="L179">        SelectionContainer {</span>
+<span class="nc" id="L180">            AboutScreenBody(</span>
+<span class="nc" id="L181">                modifier = Modifier</span>
+<span class="nc" id="L182">                    .fillMaxSize()</span>
+<span class="nc" id="L183">                    .padding(top = 20.dp)</span>
+<span class="nc" id="L184">                    .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L185">                credits = credits</span>
+            )
+<span class="nc" id="L187">        }</span>
+<span class="nc" id="L188">        AboutScreenFooter(</span>
+<span class="nc" id="L189">            modifier = Modifier</span>
+<span class="nc" id="L190">                .padding(top = 24.dp, bottom = 16.dp)</span>
+        )
+<span class="nc" id="L192">    }</span>
+<span class="nc" id="L193">}</span>
+
+@Composable
+fun AboutWikipediaHeader(
+<span class="nc" id="L197">    modifier: Modifier = Modifier,</span>
+    versionName: String,
+    snackbarHostState: SnackbarHostState
+<span class="nc bnc" id="L200" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L201">    val scope = rememberCoroutineScope()</span>
+
+<span class="nc" id="L203">    val alreadyEnabledMessage = stringResource(R.string.show_developer_settings_already_enabled)</span>
+<span class="nc" id="L204">    val enabledMessage = stringResource(R.string.show_developer_settings_enabled)</span>
+<span class="nc" id="L205">    Column(</span>
+<span class="nc" id="L206">        modifier = modifier,</span>
+<span class="nc" id="L207">        horizontalAlignment = Alignment.CenterHorizontally</span>
+    ) {
+<span class="nc" id="L209">        AboutWikipediaImage(</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">            onSecretCountClick = { isEnabled -&gt;</span>
+<span class="nc" id="L211">                scope.launch {</span>
+<span class="nc" id="L212">                    when (isEnabled) {</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">                        true -&gt; {</span>
+<span class="nc" id="L214">                            snackbarHostState.showSnackbar(</span>
+<span class="nc" id="L215">                                message = alreadyEnabledMessage,</span>
+<span class="nc" id="L216">                                duration = SnackbarDuration.Short</span>
+                            )
+                        }
+
+<span class="nc bnc" id="L220" title="All 2 branches missed.">                        false -&gt; {</span>
+<span class="nc" id="L221">                            snackbarHostState.showSnackbar(</span>
+<span class="nc" id="L222">                                message = enabledMessage,</span>
+<span class="nc" id="L223">                                duration = SnackbarDuration.Short</span>
+                            )
+                        }
+                    }
+<span class="nc" id="L227">                }</span>
+<span class="nc" id="L228">            }</span>
+        )
+<span class="nc" id="L230">        SelectionContainer {</span>
+<span class="nc" id="L231">            Text(</span>
+<span class="nc" id="L232">                modifier = Modifier</span>
+<span class="nc" id="L233">                    .padding(vertical = 16.dp),</span>
+<span class="nc" id="L234">                text = versionName,</span>
+<span class="nc" id="L235">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L237">        }</span>
+<span class="nc" id="L238">    }</span>
+<span class="nc" id="L239">}</span>
+
+@Composable
+fun AboutWikipediaImage(
+<span class="nc" id="L243">    modifier: Modifier = Modifier,</span>
+    onSecretCountClick: (isEnabled: Boolean) -&gt; Unit,
+<span class="nc bnc" id="L245" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L246">    var secretClickCount by remember { mutableIntStateOf(0) }</span>
+
+<span class="nc" id="L248">    Column(</span>
+<span class="nc" id="L249">        modifier = modifier,</span>
+<span class="nc" id="L250">        horizontalAlignment = Alignment.CenterHorizontally,</span>
+    ) {
+<span class="nc" id="L252">        Image(</span>
+<span class="nc" id="L253">            modifier = Modifier</span>
+<span class="nc" id="L254">                .size(88.dp)</span>
+<span class="nc" id="L255">                .clickable(</span>
+<span class="nc" id="L256">                    interactionSource = remember { MutableInteractionSource() },</span>
+<span class="nc" id="L257">                    indication = null,</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">                    onClick = {</span>
+<span class="nc" id="L259">                        secretClickCount++</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                        if (secretClickCount == AboutActivity.SECRET_CLICK_LIMIT) {</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                            if (Prefs.isShowDeveloperSettingsEnabled) {</span>
+<span class="nc" id="L262">                                onSecretCountClick(true)</span>
+                            } else {
+<span class="nc" id="L264">                                Prefs.isShowDeveloperSettingsEnabled = true</span>
+<span class="nc" id="L265">                                onSecretCountClick(false)</span>
+                            }
+                        }
+<span class="nc" id="L268">                    },</span>
+                ),
+<span class="nc" id="L270">            painter = painterResource(R.drawable.w_nav_mark),</span>
+<span class="nc" id="L271">            contentDescription = stringResource(R.string.about_logo_content_description),</span>
+        )
+<span class="nc" id="L273">        Image(</span>
+<span class="nc" id="L274">            modifier = Modifier</span>
+<span class="nc" id="L275">                .padding(top = 4.dp)</span>
+<span class="nc" id="L276">                .size(</span>
+<span class="nc" id="L277">                    height = 22.dp,</span>
+<span class="nc" id="L278">                    width = 114.dp</span>
+                ),
+<span class="nc" id="L280">            painter = painterResource(R.drawable.wp_wordmark),</span>
+<span class="nc" id="L281">            colorFilter = ColorFilter.tint(color = WikipediaTheme.colors.primaryColor),</span>
+<span class="nc" id="L282">            contentDescription = null,</span>
+        )
+<span class="nc" id="L284">    }</span>
+<span class="nc" id="L285">}</span>
+
+@Composable
+fun AboutScreenBody(
+<span class="nc" id="L289">    modifier: Modifier = Modifier,</span>
+    credits: List&lt;LinkTextData&gt;
+<span class="nc bnc" id="L291" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L292">    Column(</span>
+<span class="nc" id="L293">        modifier = modifier,</span>
+<span class="nc" id="L294">        verticalArrangement = Arrangement.spacedBy(32.dp)</span>
+    ) {
+<span class="nc" id="L296">        LinkTextWithHeader(</span>
+<span class="nc" id="L297">            header = stringResource(R.string.about_contributors_heading),</span>
+<span class="nc" id="L298">            html = stringResource(R.string.about_contributors)</span>
+        )
+
+<span class="nc" id="L301">        LinkTextWithHeader(</span>
+<span class="nc" id="L302">            header = stringResource(R.string.about_translators_heading),</span>
+<span class="nc" id="L303">            html = stringResource(R.string.about_translators_translatewiki)</span>
+        )
+
+<span class="nc" id="L306">        LicenseTextWithHeader(</span>
+<span class="nc" id="L307">            header = stringResource(R.string.about_libraries_heading),</span>
+<span class="nc" id="L308">            credits = credits</span>
+        )
+
+<span class="nc" id="L311">        LinkTextWithHeader(</span>
+<span class="nc" id="L312">            header = stringResource(R.string.about_app_license_heading),</span>
+<span class="nc" id="L313">            html = stringResource(R.string.about_app_license)</span>
+        )
+<span class="nc" id="L315">    }</span>
+<span class="nc" id="L316">}</span>
+
+@Composable
+fun AboutScreenFooter(
+<span class="nc" id="L320">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L321" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L322">    Column(</span>
+<span class="nc" id="L323">        modifier = modifier,</span>
+<span class="nc" id="L324">        verticalArrangement = Arrangement.spacedBy(16.dp),</span>
+<span class="nc" id="L325">        horizontalAlignment = Alignment.CenterHorizontally</span>
+    ) {
+<span class="nc" id="L327">        Image(</span>
+<span class="nc" id="L328">            modifier = Modifier</span>
+<span class="nc" id="L329">                .size(24.dp),</span>
+<span class="nc" id="L330">            painter = painterResource(R.drawable.ic_wmf_logo),</span>
+<span class="nc" id="L331">            contentDescription = null,</span>
+<span class="nc" id="L332">            colorFilter = ColorFilter.tint(color = WikipediaTheme.colors.placeholderColor)</span>
+        )
+<span class="nc" id="L334">        HtmlText(</span>
+<span class="nc" id="L335">            text = stringResource(R.string.about_wmf),</span>
+<span class="nc" id="L336">            style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L337">            color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L338">            linkStyle = TextLinkStyles(</span>
+<span class="nc" id="L339">                style = SpanStyle(color = WikipediaTheme.colors.progressiveColor)</span>
+            )
+        )
+<span class="nc" id="L342">    }</span>
+<span class="nc" id="L343">}</span>
+
+@Composable
+<span class="nc bnc" id="L346" title="All 2 branches missed.">fun LinkTextWithHeader(</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    header: String,
+    html: String,
+<span class="nc" id="L350">    linkStyles: TextLinkStyles = TextLinkStyles(</span>
+<span class="nc" id="L351">        style = SpanStyle(</span>
+<span class="nc" id="L352">            color = WikipediaTheme.colors.progressiveColor</span>
+        )
+    )
+<span class="nc bnc" id="L355" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L356">    Column(</span>
+<span class="nc" id="L357">        verticalArrangement = Arrangement.spacedBy(8.dp),</span>
+<span class="nc" id="L358">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L360">        Text(</span>
+<span class="nc" id="L361">            text = header,</span>
+<span class="nc" id="L362">            style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L363">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L365">        HtmlText(</span>
+<span class="nc" id="L366">            text = html,</span>
+<span class="nc" id="L367">            linkStyle = linkStyles</span>
+        )
+<span class="nc" id="L369">    }</span>
+<span class="nc" id="L370">}</span>
+
+@Composable
+fun LicenseTextWithHeader(
+<span class="nc" id="L374">    modifier: Modifier = Modifier,</span>
+    header: String,
+    credits: List&lt;LinkTextData&gt;
+<span class="nc bnc" id="L377" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L378">    Column(</span>
+<span class="nc" id="L379">        verticalArrangement = Arrangement.spacedBy(8.dp),</span>
+<span class="nc" id="L380">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L382">        Text(</span>
+<span class="nc" id="L383">            text = header,</span>
+<span class="nc" id="L384">            style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L385">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L387">        LicenseLinkText(</span>
+<span class="nc" id="L388">            links = credits</span>
+        )
+<span class="nc" id="L390">    }</span>
+<span class="nc" id="L391">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L395">private fun AboutScreenPreview() {</span>
+<span class="nc" id="L396">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L397">        AboutWikipediaScreen(</span>
+<span class="nc" id="L398">            modifier = Modifier</span>
+<span class="nc" id="L399">                .fillMaxSize(),</span>
+<span class="nc" id="L400">            versionName = &quot;version name&quot;,</span>
+<span class="nc" id="L401">            credits = listOf(),</span>
+<span class="nc" id="L402">            onBackButtonClick = {}</span>
+        )
+<span class="nc" id="L404">    }</span>
+<span class="nc" id="L405">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

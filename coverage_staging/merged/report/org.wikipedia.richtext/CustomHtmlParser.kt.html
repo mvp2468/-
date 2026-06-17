@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomHtmlParser.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.richtext</a> &gt; <span class="el_source">CustomHtmlParser.kt</span></div><h1>CustomHtmlParser.kt</h1><pre class="source lang-java linenums">package org.wikipedia.richtext
+
+import android.content.Context
+import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Rect
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
+import android.text.Editable
+import android.text.Html.ImageGetter
+import android.text.Html.TagHandler
+import android.text.Spannable
+import android.text.Spanned
+import android.text.style.LeadingMarginSpan
+import android.text.style.ParagraphStyle
+import android.text.style.TypefaceSpan
+import android.text.style.URLSpan
+import android.widget.TextView
+import androidx.core.graphics.applyCanvas
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.text.HtmlCompat
+import androidx.core.text.getSpans
+import androidx.core.text.parseAsHtml
+import androidx.core.text.toSpanned
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.imageservice.ImageService
+import org.xml.sax.Attributes
+import org.xml.sax.ContentHandler
+import org.xml.sax.Locator
+import org.xml.sax.XMLReader
+import java.util.Stack
+
+<span class="nc" id="L39">class CustomHtmlParser(private val handler: TagHandler) : TagHandler, ContentHandler {</span>
+    interface TagHandler {
+        fun handleTag(opening: Boolean, tag: String?, output: Editable?, attributes: Attributes?): Boolean
+    }
+
+    private var wrapped: ContentHandler? = null
+    private var text: Editable? = null
+<span class="nc" id="L46">    private val tagStatus = ArrayDeque&lt;Boolean&gt;()</span>
+
+    override fun handleTag(opening: Boolean, tag: String?, output: Editable?, xmlReader: XMLReader) {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (wrapped == null) {</span>
+<span class="nc" id="L50">            text = output</span>
+<span class="nc" id="L51">            wrapped = xmlReader.contentHandler</span>
+<span class="nc" id="L52">            xmlReader.contentHandler = this</span>
+
+            // Note: If it becomes necessary to inject a starting tag (see comments below), then
+            // explicitly add a status to our queue to account for this tag:
+            // tagStatus.addLast(false)
+        }
+<span class="nc" id="L58">    }</span>
+
+    override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
+<span class="nc" id="L61">        val isHandled = handler.handleTag(true, localName, text, attributes)</span>
+<span class="nc" id="L62">        tagStatus.addLast(isHandled)</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if (!isHandled) {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            wrapped?.startElement(uri, localName, qName, attributes)</span>
+        }
+<span class="nc" id="L66">    }</span>
+
+    override fun endElement(uri: String?, localName: String?, qName: String?) {
+<span class="nc bnc" id="L69" title="All 6 branches missed.">        if (tagStatus.isNotEmpty() &amp;&amp; !tagStatus.removeLast()) {</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            wrapped?.endElement(uri, localName, qName)</span>
+        }
+<span class="nc" id="L72">        handler.handleTag(false, localName, text, null)</span>
+<span class="nc" id="L73">    }</span>
+
+    override fun setDocumentLocator(locator: Locator?) {
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        wrapped?.setDocumentLocator(locator)</span>
+<span class="nc" id="L77">    }</span>
+
+    override fun startDocument() {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        wrapped?.startDocument()</span>
+<span class="nc" id="L81">    }</span>
+
+    override fun endDocument() {
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        wrapped?.endDocument()</span>
+<span class="nc" id="L85">    }</span>
+
+    override fun startPrefixMapping(prefix: String?, uri: String?) {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        wrapped?.startPrefixMapping(prefix, uri)</span>
+<span class="nc" id="L89">    }</span>
+
+    override fun endPrefixMapping(prefix: String?) {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        wrapped?.endPrefixMapping(prefix)</span>
+<span class="nc" id="L93">    }</span>
+
+    override fun characters(ch: CharArray?, start: Int, length: Int) {
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        wrapped?.characters(ch, start, length)</span>
+<span class="nc" id="L97">    }</span>
+
+    override fun ignorableWhitespace(ch: CharArray?, start: Int, length: Int) {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        wrapped?.ignorableWhitespace(ch, start, length)</span>
+<span class="nc" id="L101">    }</span>
+
+    override fun processingInstruction(target: String?, data: String?) {
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        wrapped?.processingInstruction(target, data)</span>
+<span class="nc" id="L105">    }</span>
+
+    override fun skippedEntity(name: String?) {
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        wrapped?.skippedEntity(name)</span>
+<span class="nc" id="L109">    }</span>
+
+<span class="nc" id="L111">    class CustomTagHandler(private val view: TextView?) : TagHandler {</span>
+<span class="nc" id="L112">        private var lastAClass = &quot;&quot;</span>
+<span class="nc" id="L113">        private var lastHiddenSpanPos = -1</span>
+<span class="nc" id="L114">        private var listItemCounts = Stack&lt;Int&gt;()</span>
+<span class="nc" id="L115">        private val listParents = mutableListOf&lt;String&gt;()</span>
+
+        override fun handleTag(opening: Boolean, tag: String?, output: Editable?, attributes: Attributes?): Boolean {
+<span class="nc bnc" id="L118" title="All 4 branches missed.">            if (tag == &quot;img&quot; &amp;&amp; view == null) {</span>
+<span class="nc" id="L119">                return true</span>
+<span class="nc bnc" id="L120" title="All 6 branches missed.">            } else if (tag == &quot;img&quot; &amp;&amp; opening &amp;&amp; view != null) {</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                var imgWidth = DimenUtil.htmlPxToInt(getValue(attributes, &quot;width&quot;).orEmpty())</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                var imgHeight = DimenUtil.htmlPxToInt(getValue(attributes, &quot;height&quot;).orEmpty())</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                val imgSrc = getValue(attributes, &quot;src&quot;).orEmpty()</span>
+
+<span class="nc bnc" id="L125" title="All 4 branches missed.">                if (imgWidth &lt; MIN_IMAGE_SIZE || imgHeight &lt; MIN_IMAGE_SIZE) {</span>
+<span class="nc" id="L126">                    return true</span>
+                }
+
+<span class="nc" id="L129">                imgWidth = DimenUtil.roundedDpToPx(imgWidth.toFloat())</span>
+<span class="nc" id="L130">                imgHeight = DimenUtil.roundedDpToPx(imgHeight.toFloat())</span>
+
+<span class="nc bnc" id="L132" title="All 8 branches missed.">                if (imgWidth &gt; 0 &amp;&amp; imgHeight &gt; 0 &amp;&amp; imgSrc.isNotEmpty()) {</span>
+<span class="nc" id="L133">                    val bmpMap = contextBmpMap.getOrPut(view.context) { mutableMapOf() }</span>
+<span class="nc" id="L134">                    var drawable = bmpMap[imgSrc]</span>
+
+<span class="nc bnc" id="L136" title="All 4 branches missed.">                    if (drawable == null || drawable.bitmap.isRecycled) {</span>
+                        // give it a placeholder drawable of the appropriate size
+<span class="nc" id="L138">                        drawable = createBitmap(imgWidth, imgHeight, Bitmap.Config.RGB_565)</span>
+<span class="nc" id="L139">                            .toDrawable(view.context.resources)</span>
+<span class="nc" id="L140">                        bmpMap[imgSrc] = drawable</span>
+
+<span class="nc" id="L142">                        drawable.setBounds(0, 0, imgWidth, imgHeight)</span>
+
+<span class="nc" id="L144">                        var uri = imgSrc</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                        if (uri.startsWith(&quot;//&quot;)) {</span>
+<span class="nc" id="L146">                            uri = WikiSite.DEFAULT_SCHEME + &quot;:&quot; + uri</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                        } else if (uri.startsWith(&quot;./&quot;)) {</span>
+<span class="nc" id="L148">                            uri = Service.COMMONS_URL + uri.replace(&quot;./&quot;, &quot;&quot;)</span>
+                        }
+
+<span class="nc" id="L151">                        ImageService.loadImage(view.context, uri, onSuccess = { bitmap -&gt;</span>
+<span class="nc" id="L152">                        val newBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                        if (!drawable.bitmap.isRecycled) {</span>
+<span class="nc" id="L154">                                drawable.bitmap.applyCanvas {</span>
+<span class="nc" id="L155">                                    drawBitmap(newBitmap, Rect(0, 0, bitmap.width, bitmap.height), drawable.bounds, null)</span>
+<span class="nc" id="L156">                                }</span>
+<span class="nc" id="L157">                                view.postInvalidate()</span>
+                            }
+<span class="nc" id="L159">                        })</span>
+                    }
+                }
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            } else if (tag == &quot;a&quot;) {</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                if (opening) {</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                    lastAClass = getValue(attributes, &quot;class&quot;).orEmpty()</span>
+<span class="nc bnc" id="L165" title="All 6 branches missed.">                } else if (!output.isNullOrEmpty()) {</span>
+<span class="nc" id="L166">                    val spans = output.getSpans&lt;URLSpan&gt;(output.length - 1)</span>
+<span class="nc bnc" id="L167" title="All 6 branches missed.">                    if (spans.isNotEmpty()) {</span>
+<span class="nc" id="L168">                        val span = spans.last()</span>
+<span class="nc" id="L169">                        val start = output.getSpanStart(span)</span>
+<span class="nc" id="L170">                        val end = output.getSpanEnd(span)</span>
+<span class="nc" id="L171">                        output.removeSpan(span)</span>
+<span class="nc bnc" id="L172" title="All 4 branches missed.">                        val color = if (lastAClass == &quot;new&quot; &amp;&amp; view != null) ResourceUtil.getThemedColor(view.context, androidx.appcompat.R.attr.colorError) else -1</span>
+<span class="nc" id="L173">                        output.setSpan(URLSpanNoUnderline(span.url, color), start, end, 0)</span>
+                    }
+                }
+<span class="nc bnc" id="L176" title="All 4 branches missed.">            } else if (tag == &quot;code&quot; &amp;&amp; output != null) {</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                if (opening) {</span>
+<span class="nc" id="L178">                    output.setSpan(TypefaceSpan(&quot;monospace&quot;), output.length, output.length, Spannable.SPAN_INCLUSIVE_INCLUSIVE)</span>
+                } else {
+<span class="nc" id="L180">                    val spans = output.getSpans&lt;TypefaceSpan&gt;(output.length)</span>
+<span class="nc bnc" id="L181" title="All 6 branches missed.">                    if (spans.isNotEmpty()) {</span>
+<span class="nc" id="L182">                        val span = spans.last()</span>
+<span class="nc" id="L183">                        val start = output.getSpanStart(span)</span>
+<span class="nc" id="L184">                        output.removeSpan(span)</span>
+<span class="nc" id="L185">                        output.setSpan(TypefaceSpan(&quot;monospace&quot;), start, output.length, 0)</span>
+                    }
+                }
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            } else if (tag == &quot;ol&quot;) {</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                if (opening) {</span>
+<span class="nc" id="L190">                    listParents.add(tag)</span>
+<span class="nc" id="L191">                    listItemCounts.push(0)</span>
+                } else {
+<span class="nc" id="L193">                    listParents.remove(tag)</span>
+<span class="nc" id="L194">                    listItemCounts.pop()</span>
+                }
+<span class="nc bnc" id="L196" title="All 10 branches missed.">            } else if (tag == &quot;li&quot; &amp;&amp; listParents.isNotEmpty() &amp;&amp; !opening &amp;&amp; output != null) {</span>
+<span class="nc" id="L197">                handleListTag(output)</span>
+<span class="nc bnc" id="L198" title="All 4 branches missed.">            } else if (tag == &quot;span&quot; &amp;&amp; output != null) {</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                if (opening) {</span>
+<span class="nc bnc" id="L200" title="All 4 branches missed.">                    if (getValue(attributes, &quot;style&quot;).orEmpty().contains(&quot;display:none&quot;)) {</span>
+<span class="nc" id="L201">                        lastHiddenSpanPos = output.length</span>
+                    }
+                } else {
+<span class="nc bnc" id="L204" title="All 4 branches missed.">                    if (lastHiddenSpanPos &gt;= 0 &amp;&amp; lastHiddenSpanPos &lt; output.length) {</span>
+<span class="nc" id="L205">                        output.delete(lastHiddenSpanPos, output.length)</span>
+<span class="nc" id="L206">                        lastHiddenSpanPos = -1</span>
+                    }
+                }
+            }
+<span class="nc" id="L210">            return false</span>
+        }
+
+        private fun handleListTag(output: Editable) {
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            if (listParents.last() == &quot;ol&quot;) {</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                val count = (if (listItemCounts.size &gt; 0) listItemCounts.pop() else 0) + 1</span>
+<span class="nc" id="L216">                listItemCounts.push(count)</span>
+                // TODO: improve this logic to no longer require explicitly inserting the count
+                // into the output text. This requires manual and fragile manipulation of any
+                // existing spans that may be present in the output text.
+<span class="nc" id="L220">                val paragraphSpans = output.getSpans&lt;ParagraphStyle&gt;(output.length)</span>
+<span class="nc" id="L221">                var lastLeadingSpan: LeadingMarginSpan? = null</span>
+<span class="nc" id="L222">                paragraphSpans.forEach {</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                    if (it !is LeadingMarginSpan) {</span>
+<span class="nc" id="L224">                        output.removeSpan(it)</span>
+                    } else {
+<span class="nc" id="L226">                        lastLeadingSpan = it</span>
+                    }
+<span class="nc" id="L228">                }</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">                lastLeadingSpan?.let { span -&gt;</span>
+<span class="nc" id="L230">                    val spanStart = output.getSpanStart(span)</span>
+<span class="nc" id="L231">                    output.removeSpan(span)</span>
+<span class="nc" id="L232">                    output.insert(spanStart, &quot;$count. &quot;)</span>
+<span class="nc" id="L233">                    output.setSpan(LeadingMarginSpan.Standard(DimenUtil.roundedDpToPx(16f)), spanStart, output.length, 0)</span>
+<span class="nc" id="L234">                }</span>
+            }
+<span class="nc" id="L236">        }</span>
+    }
+
+<span class="nc" id="L239">    class CustomImageGetter(private val context: Context) : ImageGetter {</span>
+        override fun getDrawable(source: String?): Drawable {
+<span class="nc" id="L241">            var bmp: BitmapDrawable? = null</span>
+<span class="nc" id="L242">            try {</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">                if (contextBmpMap.containsKey(context)) {</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                    if (contextBmpMap[context]!!.containsKey(source)) {</span>
+<span class="nc" id="L245">                        bmp = contextBmpMap[context]!![source]</span>
+                    }
+                }
+<span class="nc" id="L248">            } catch (e: Exception) {</span>
+<span class="nc" id="L249">                L.e(e)</span>
+            }
+<span class="nc bnc" id="L251" title="All 2 branches missed.">            if (bmp == null) {</span>
+<span class="nc" id="L252">                bmp = BlankBitmapPlaceholder(context.resources, null)</span>
+            }
+<span class="nc" id="L254">            return bmp</span>
+        }
+    }
+
+<span class="nc" id="L258">    internal class BlankBitmapPlaceholder(res: Resources, bitmap: Bitmap?) : BitmapDrawable(res, bitmap) {</span>
+        override fun draw(canvas: Canvas) {
+<span class="nc" id="L260">        }</span>
+    }
+
+    companion object {
+        private const val MIN_IMAGE_SIZE = 64
+<span class="fc" id="L265">        private val contextBmpMap = mutableMapOf&lt;Context, MutableMap&lt;String, BitmapDrawable&gt;&gt;()</span>
+
+<span class="fc" id="L267">        fun fromHtml(html: String?, view: TextView? = null): Spanned {</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">            var sourceStr = html.orEmpty()</span>
+
+<span class="pc bpc" id="L270" title="2 of 4 branches missed.">            if (&quot;&lt;&quot; !in sourceStr &amp;&amp; &quot;&amp;&quot; !in sourceStr) {</span>
+                // If the string doesn't contain any hints of HTML entities, then skip the expensive
+                // processing that fromHtml() performs.
+<span class="fc" id="L273">                return sourceStr.toSpanned()</span>
+            }
+
+            // Replace a few HTML entities that are not handled automatically by the parser.
+<span class="nc" id="L277">            sourceStr = sourceStr.replace(&quot;&amp;#8206;&quot;, &quot;\u200E&quot;)</span>
+<span class="nc" id="L278">                .replace(&quot;&amp;#8207;&quot;, &quot;\u200F&quot;)</span>
+<span class="nc" id="L279">                .replace(&quot;&amp;amp;&quot;, &quot;&amp;&quot;)</span>
+
+            // Add &lt;small&gt; tag in the &lt;sub&gt; or &lt;sup&gt; tags to make the text 3 times smaller
+<span class="nc" id="L282">            sourceStr = sourceStr.replace(&quot;&lt;sub&gt;&quot;, &quot;&lt;sub&gt;&lt;small&gt;&lt;small&gt;&lt;small&gt;&quot;).replace(&quot;&lt;/sub&gt;&quot;, &quot;&lt;/small&gt;&lt;/small&gt;&lt;/small&gt;&lt;/sub&gt;&quot;)</span>
+<span class="nc" id="L283">                .replace(&quot;&lt;sup&gt;&quot;, &quot;&lt;sup&gt;&lt;small&gt;&lt;small&gt;&lt;small&gt;&quot;).replace(&quot;&lt;/sup&gt;&quot;, &quot;&lt;/small&gt;&lt;/small&gt;&lt;/small&gt;&lt;/sup&gt;&quot;)</span>
+
+            // TODO: Investigate if it's necessary to inject a dummy tag at the beginning of the
+            // text, since there are reports that XmlReader ignores the first tag by default?
+            // This would become something like &quot;&lt;inject/&gt;$sourceStr&quot;.parseAsHtml(...)
+<span class="nc" id="L288">            return sourceStr.parseAsHtml(HtmlCompat.FROM_HTML_MODE_LEGACY,</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">                if (view == null) null else CustomImageGetter(view.context),</span>
+<span class="nc" id="L290">                CustomHtmlParser(CustomTagHandler(view)))</span>
+        }
+
+        fun pruneBitmaps(context: Context) {
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">            contextBmpMap[context]?.let { map -&gt;</span>
+<span class="nc" id="L295">                map.values.forEach {</span>
+<span class="nc" id="L296">                    try {</span>
+<span class="nc" id="L297">                        it.bitmap.recycle()</span>
+<span class="nc" id="L298">                    } catch (e: Exception) {</span>
+<span class="nc" id="L299">                        L.e(e)</span>
+                    }
+<span class="nc" id="L301">                }</span>
+<span class="nc" id="L302">                map.clear()</span>
+<span class="nc" id="L303">                contextBmpMap.remove(context)</span>
+            }
+<span class="fc" id="L305">        }</span>
+
+        private fun getValue(attributes: Attributes?, name: String): String? {
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            if (attributes != null) {</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">                for (i in 0 until attributes.length) {</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                    if (name == attributes.getLocalName(i)) return attributes.getValue(i)</span>
+                }
+            }
+<span class="nc" id="L313">            return null</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

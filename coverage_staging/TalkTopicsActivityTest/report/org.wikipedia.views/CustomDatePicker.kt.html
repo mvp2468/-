@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomDatePicker.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">CustomDatePicker.kt</span></div><h1>CustomDatePicker.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.app.Dialog
+import android.content.DialogInterface
+import android.graphics.Typeface
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.DialogFragment
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.R
+import org.wikipedia.databinding.DatePickerDialogBinding
+import org.wikipedia.databinding.ViewCustomCalendarDayBinding
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.ResourceUtil
+import java.util.Calendar
+import java.util.Locale
+
+<span class="nc" id="L22">class CustomDatePicker : DialogFragment() {</span>
+    interface Callback {
+        fun onDatePicked(calendar: Calendar)
+    }
+
+    private var _binding: DatePickerDialogBinding? = null
+<span class="nc" id="L28">    private val binding get() = _binding!!</span>
+
+<span class="nc" id="L30">    private val today = Calendar.getInstance()</span>
+<span class="nc" id="L31">    private val selectedDay = Calendar.getInstance()</span>
+<span class="nc" id="L32">    private val callbackDay = Calendar.getInstance()</span>
+
+<span class="nc" id="L34">    var callback: Callback? = null</span>
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+<span class="nc" id="L37">        _binding = DatePickerDialogBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L38">        setUpMonthGrid()</span>
+<span class="nc" id="L39">        setMonthString()</span>
+<span class="nc" id="L40">        setDayString()</span>
+<span class="nc" id="L41">        setPreviousMonthClickListener()</span>
+<span class="nc" id="L42">        setNextMonthClickListener()</span>
+<span class="nc" id="L43">        return MaterialAlertDialogBuilder(requireActivity())</span>
+<span class="nc" id="L44">                .setView(binding.root)</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">                .setPositiveButton(R.string.custom_date_picker_dialog_ok_button_text) { _: DialogInterface?, _: Int -&gt; callback?.onDatePicked(callbackDay) }</span>
+<span class="nc" id="L46">                .setNegativeButton(R.string.custom_date_picker_dialog_cancel_button_text) { dialog: DialogInterface, _: Int -&gt; dialog.dismiss() }</span>
+<span class="nc" id="L47">                .create()</span>
+    }
+
+    private fun setPreviousMonthClickListener() {
+<span class="nc" id="L51">        binding.previousMonth.setOnClickListener {</span>
+<span class="nc" id="L52">            val currentMonth = selectedDay[Calendar.MONTH]</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            selectedDay[LEAP_YEAR, if (currentMonth == 0) Calendar.DECEMBER else currentMonth - 1] = 1</span>
+<span class="nc" id="L54">            setMonthString()</span>
+<span class="nc" id="L55">        }</span>
+<span class="nc" id="L56">    }</span>
+
+    private fun setNextMonthClickListener() {
+<span class="nc" id="L59">        binding.nextMonth.setOnClickListener {</span>
+<span class="nc" id="L60">            val currentMonth = selectedDay[Calendar.MONTH]</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            selectedDay[LEAP_YEAR, if (currentMonth == Calendar.DECEMBER) Calendar.JANUARY else currentMonth + 1] = 1</span>
+<span class="nc" id="L62">            setMonthString()</span>
+<span class="nc" id="L63">        }</span>
+<span class="nc" id="L64">    }</span>
+
+    private fun setUpMonthGrid() {
+<span class="nc" id="L67">        binding.calendarGrid.layoutManager = GridLayoutManager(requireContext(), MAX_COLUMN_SPAN)</span>
+<span class="nc" id="L68">        binding.calendarGrid.adapter = CustomCalendarAdapter()</span>
+<span class="nc" id="L69">    }</span>
+
+    private fun setMonthString() {
+<span class="nc" id="L72">        binding.currentMonth.text = DateUtil.getMonthOnlyWithoutDayDateString(selectedDay.time)</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        binding.calendarGrid.adapter?.notifyDataSetChanged()</span>
+<span class="nc" id="L74">    }</span>
+
+<span class="nc" id="L76">    inner class CustomCalendarAdapter : RecyclerView.Adapter&lt;CustomCalendarAdapter.ViewHolder&gt;() {</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+<span class="nc" id="L79">            return ViewHolder(ViewCustomCalendarDayBinding.inflate(LayoutInflater.from(requireContext()), parent, false))</span>
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+<span class="nc" id="L83">            holder.setFields(position + 1)</span>
+<span class="nc" id="L84">        }</span>
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L87">            return selectedDay.getActualMaximum(Calendar.DAY_OF_MONTH)</span>
+        }
+
+<span class="nc" id="L90">        inner class ViewHolder internal constructor(private val binding: ViewCustomCalendarDayBinding) :</span>
+<span class="nc" id="L91">                RecyclerView.ViewHolder(binding.root) {</span>
+
+<span class="nc" id="L93">            init {</span>
+<span class="nc" id="L94">                binding.root.setOnClickListener {</span>
+<span class="nc" id="L95">                    selectedDay[Calendar.DATE] = bindingAdapterPosition + 1</span>
+<span class="nc" id="L96">                    callbackDay[LEAP_YEAR, selectedDay[Calendar.MONTH]] = bindingAdapterPosition + 1</span>
+<span class="nc" id="L97">                    setDayString()</span>
+<span class="nc" id="L98">                    notifyItemRangeChanged(0, itemCount)</span>
+<span class="nc" id="L99">                }</span>
+<span class="nc" id="L100">            }</span>
+
+            fun setFields(position: Int) {
+<span class="nc bnc" id="L103" title="All 4 branches missed.">                if (position == today[Calendar.DATE] &amp;&amp; today[Calendar.MONTH] == selectedDay[Calendar.MONTH]) {</span>
+<span class="nc" id="L104">                    binding.dayText.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.progressive_color))</span>
+                } else {
+<span class="nc" id="L106">                    binding.dayText.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.primary_color))</span>
+                }
+<span class="nc bnc" id="L108" title="All 4 branches missed.">                if (position == callbackDay[Calendar.DATE] &amp;&amp; selectedDay[Calendar.MONTH] == callbackDay[Calendar.MONTH]) {</span>
+<span class="nc" id="L109">                    binding.dayText.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color))</span>
+<span class="nc" id="L110">                    binding.dayText.typeface = Typeface.DEFAULT_BOLD</span>
+<span class="nc" id="L111">                    binding.dayCircleBackground.visibility = View.VISIBLE</span>
+                } else {
+<span class="nc" id="L113">                    binding.dayText.typeface = Typeface.DEFAULT</span>
+<span class="nc" id="L114">                    binding.dayCircleBackground.visibility = View.GONE</span>
+                }
+<span class="nc" id="L116">                binding.dayText.text = String.format(Locale.getDefault(), &quot;%d&quot;, position)</span>
+<span class="nc" id="L117">            }</span>
+        }
+    }
+
+    private fun setDayString() {
+<span class="nc" id="L122">        binding.calendarDay.text = DateUtil.getFeedCardShortDateString(selectedDay)</span>
+<span class="nc" id="L123">    }</span>
+
+    fun setSelectedDay(month: Int, day: Int) {
+<span class="nc" id="L126">        selectedDay[LEAP_YEAR, month] = day</span>
+<span class="nc" id="L127">        callbackDay[LEAP_YEAR, month] = day</span>
+<span class="nc" id="L128">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L131">        _binding = null</span>
+<span class="nc" id="L132">        super.onDestroyView()</span>
+<span class="nc" id="L133">    }</span>
+
+    companion object {
+        private const val MAX_COLUMN_SPAN = 7
+        const val LEAP_YEAR = 2016
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

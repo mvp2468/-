@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activity</a> &gt; <span class="el_source">BaseActivity.kt</span></div><h1>BaseActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activity
+
+import android.content.Intent
+import android.os.Bundle
+import android.view.MenuItem
+import android.view.MotionEvent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.ColorInt
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.toDrawable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.skydoves.balloon.Balloon
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikimedia.testkitchen.instrument.InstrumentImpl
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.BreadcrumbsContextHelper
+import org.wikipedia.analytics.eventplatform.BreadCrumbLogEvent
+import org.wikipedia.analytics.eventplatform.BreadCrumbViewUtil
+import org.wikipedia.analytics.eventplatform.EventPlatformClient
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.appshortcuts.AppShortcuts
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.connectivity.ConnectionStateMonitor
+import org.wikipedia.donate.DonateDialog
+import org.wikipedia.events.LoggedOutInBackgroundEvent
+import org.wikipedia.events.ReadingListsEnableDialogEvent
+import org.wikipedia.events.ReadingListsNoLongerSyncedEvent
+import org.wikipedia.events.SplitLargeListsEvent
+import org.wikipedia.events.ThemeFontChangeEvent
+import org.wikipedia.events.UnreadNotificationsEvent
+import org.wikipedia.games.onthisday.OnThisDayGameResultFragment
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.main.MainActivity
+import org.wikipedia.notifications.NotificationPresenter
+import org.wikipedia.onboarding.InitialOnboardingActivity
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.readinglist.ReadingListSyncBehaviorDialogs
+import org.wikipedia.readinglist.sync.ReadingListSyncAdapter
+import org.wikipedia.readinglist.sync.ReadingListSyncEvent
+import org.wikipedia.recurring.RecurringTasksExecutor
+import org.wikipedia.richtext.CustomHtmlParser
+import org.wikipedia.settings.Prefs
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.views.ImageZoomHelper
+import org.wikipedia.widgets.readingchallenge.ReadingChallengeInstallWidgetDialog
+import org.wikipedia.widgets.readingchallenge.ReadingChallengeOnboardingActivity
+import org.wikipedia.widgets.readingchallenge.ReadingChallengeWidgetRepository
+import org.wikipedia.yearinreview.YearInReviewActivity
+import org.wikipedia.yearinreview.YearInReviewOnboardingActivity
+import org.wikipedia.yearinreview.YearInReviewViewModel
+
+<span class="fc" id="L65">abstract class BaseActivity : AppCompatActivity(), ConnectionStateMonitor.Callback {</span>
+    interface Callback {
+        fun onPermissionResult(activity: BaseActivity, isGranted: Boolean)
+    }
+    private var currentTooltip: Balloon? = null
+    private var imageZoomHelper: ImageZoomHelper? = null
+<span class="nc" id="L71">    var callback: Callback? = null</span>
+
+    // For subclasses to create instruments that they would like to persist for the lifetime of the activity.
+<span class="nc" id="L74">    protected var _instrument: InstrumentImpl? = null</span>
+
+<span class="pc" id="L76">    val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted -&gt;</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            callback?.onPermissionResult(this, isGranted)</span>
+<span class="nc" id="L78">    }</span>
+
+<span class="fc" id="L80">    private val requestDonateActivity = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L82">            ExclusiveBottomSheetPresenter.dismiss(supportFragmentManager)</span>
+<span class="nc" id="L83">            FeedbackUtil.showMessage(this, R.string.donate_gpay_success_message)</span>
+        }
+<span class="nc" id="L85">    }</span>
+
+<span class="fc" id="L87">    private val requestReadingChallengeActivity = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (ReadingChallengeWidgetRepository.shouldShowWidgetInstallDialog()) {</span>
+<span class="nc" id="L89">            ExclusiveBottomSheetPresenter.dismiss(supportFragmentManager)</span>
+<span class="nc" id="L90">            ExclusiveBottomSheetPresenter.show(supportFragmentManager,</span>
+<span class="nc" id="L91">                ReadingChallengeInstallWidgetDialog()</span>
+            )
+        }
+<span class="nc" id="L94">    }</span>
+
+<span class="fc" id="L96">    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted -&gt;</span>
+        // TODO: Show message(s) to the user if they deny the permission
+<span class="nc" id="L98">    }</span>
+
+<span class="fc" id="L100">    private val yearInReviewLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (it.resultCode == RESULT_CANCELED) {</span>
+<span class="nc" id="L102">            FeedbackUtil.showMessage(this, getString(R.string.year_in_review_get_started_later))</span>
+        }
+<span class="nc" id="L104">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="fc" id="L107">        super.onCreate(savedInstanceState)</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">        if (!DeviceUtil.assertAppContext(this, true)) {</span>
+<span class="nc" id="L109">            finish()</span>
+<span class="nc" id="L110">            return</span>
+        }
+
+<span class="fc" id="L113">        setTheme()</span>
+<span class="fc" id="L114">        removeSplashBackground()</span>
+
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (AppShortcuts.ACTION_APP_SHORTCUT == intent.action) {</span>
+<span class="nc" id="L117">            intent.putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, InvokeSource.APP_SHORTCUTS)</span>
+<span class="nc" id="L118">            val shortcutId = intent.getStringExtra(AppShortcuts.APP_SHORTCUT_ID)</span>
+<span class="nc bnc" id="L119" title="All 6 branches missed.">            if (!shortcutId.isNullOrEmpty()) {</span>
+<span class="nc" id="L120">                ShortcutManagerCompat.reportShortcutUsed(applicationContext, shortcutId)</span>
+            }
+        }
+
+<span class="fc" id="L124">        val invokeSource = when (val extra = intent.getSerializableExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE)) {</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">            is InvokeSource -&gt; extra</span>
+<span class="nc" id="L126">            else -&gt; null</span>
+        }
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        invokeSource?.let {</span>
+<span class="pc bpc" id="L129" title="3 of 4 branches missed.">            when (it) {</span>
+                InvokeSource.WIDGET -&gt; {
+<span class="nc" id="L131">                    val widgetType = intent.getStringExtra(Constants.INTENT_WIDGET_TYPE)</span>
+<span class="nc" id="L132">                    TestKitchenAdapter.client.getInstrument(&quot;apps-open&quot;)</span>
+<span class="nc" id="L133">                        .submitInteraction(action = &quot;app_open&quot;, actionSource = &quot;widget&quot;, actionSubtype = widgetType)</span>
+                }
+                InvokeSource.NOTIFICATION -&gt; {
+<span class="nc" id="L136">                    TestKitchenAdapter.client.getInstrument(&quot;apps-open&quot;)</span>
+<span class="nc" id="L137">                        .submitInteraction(action = &quot;app_open&quot;, actionSource = &quot;notification&quot;)</span>
+                }
+                InvokeSource.APP_SHORTCUTS -&gt; {
+<span class="nc" id="L140">                    val shortcutId = intent.getStringExtra(AppShortcuts.APP_SHORTCUT_ID)</span>
+<span class="nc" id="L141">                    TestKitchenAdapter.client.getInstrument(&quot;apps-open&quot;)</span>
+<span class="nc" id="L142">                        .submitInteraction(action = &quot;app_open&quot;, actionSource = &quot;shortcut&quot;, actionSubtype = shortcutId)</span>
+                }
+                else -&gt; { }
+            }
+<span class="fc" id="L146">        }</span>
+
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+
+        // Conditionally execute all recurring tasks
+<span class="fc" id="L151">        RecurringTasksExecutor().run()</span>
+<span class="pc bpc" id="L152" title="2 of 4 branches missed.">        if (Prefs.isReadingListsFirstTimeSync &amp;&amp; AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L153">            Prefs.isReadingListsFirstTimeSync = false</span>
+<span class="nc" id="L154">            Prefs.isReadingListSyncEnabled = true</span>
+<span class="nc" id="L155">            ReadingListSyncAdapter.manualSyncWithForce()</span>
+        }
+
+<span class="fc" id="L158">        WikipediaApp.instance.connectionStateMonitor.registerCallback(this)</span>
+
+<span class="fc" id="L160">        DeviceUtil.setLightSystemUiVisibility(this)</span>
+<span class="fc" id="L161">        setStatusBarColor(ResourceUtil.getThemedColor(this, R.attr.paper_color))</span>
+<span class="fc" id="L162">        setNavigationBarColor(ResourceUtil.getThemedColor(this, R.attr.paper_color))</span>
+<span class="fc" id="L163">        maybeShowLoggedOutInBackgroundDialog()</span>
+<span class="fc" id="L164">        maybeShowYearInReview()</span>
+<span class="fc" id="L165">        maybeShowReadingChallengePrompt()</span>
+
+<span class="fc" id="L167">        Prefs.localClassName = localClassName</span>
+
+<span class="fc" id="L169">        lifecycleScope.launch {</span>
+<span class="fc" id="L170">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="fc" id="L171">                FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                    if (event is ThemeFontChangeEvent) {</span>
+<span class="nc" id="L173">                        ActivityCompat.recreate(this@BaseActivity)</span>
+                    }
+<span class="nc" id="L175">                }</span>
+<span class="nc" id="L176">            }</span>
+<span class="fc" id="L177">        }</span>
+
+<span class="fc" id="L179">        lifecycleScope.launch {</span>
+<span class="fc" id="L180">            repeatOnLifecycle(Lifecycle.State.RESUMED) {</span>
+<span class="fc" id="L181">                FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc" id="L182">                    when (event) {</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                        is SplitLargeListsEvent -&gt; {</span>
+<span class="nc" id="L184">                            MaterialAlertDialogBuilder(this@BaseActivity)</span>
+<span class="nc" id="L185">                                .setMessage(getString(R.string.split_reading_list_message, Constants.MAX_READING_LIST_ARTICLE_LIMIT))</span>
+<span class="nc" id="L186">                                .setPositiveButton(R.string.reading_list_split_dialog_ok_button_text, null)</span>
+<span class="nc" id="L187">                                .show()</span>
+                        }
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                        is ReadingListsNoLongerSyncedEvent -&gt; {</span>
+<span class="nc" id="L190">                            ReadingListSyncBehaviorDialogs.detectedRemoteTornDownDialog(this@BaseActivity)</span>
+                        }
+<span class="nc bnc" id="L192" title="All 4 branches missed.">                        is ReadingListsEnableDialogEvent, (this@BaseActivity is MainActivity) -&gt; {</span>
+<span class="nc" id="L193">                            ReadingListSyncBehaviorDialogs.promptEnableSyncDialog(this@BaseActivity)</span>
+                        }
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                        is LoggedOutInBackgroundEvent -&gt; {</span>
+<span class="nc" id="L196">                            maybeShowLoggedOutInBackgroundDialog()</span>
+                        }
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                        is ReadingListSyncEvent -&gt; {</span>
+<span class="nc bnc" id="L199" title="All 4 branches missed.">                            if (event.showMessage &amp;&amp; !Prefs.isSuggestedEditsHighestPriorityEnabled) {</span>
+<span class="nc" id="L200">                                FeedbackUtil.makeSnackbar(this@BaseActivity, getString(R.string.reading_list_toast_last_sync)).show()</span>
+                            }
+                        }
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                        is UnreadNotificationsEvent -&gt; {</span>
+<span class="nc" id="L204">                            runOnUiThread {</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                                if (!isDestroyed) {</span>
+<span class="nc" id="L206">                                    onUnreadNotification()</span>
+                                }
+<span class="nc" id="L208">                            }</span>
+                        }
+                    }
+<span class="nc" id="L211">                }</span>
+<span class="nc" id="L212">            }</span>
+<span class="fc" id="L213">        }</span>
+<span class="fc" id="L214">    }</span>
+
+    override fun onDestroy() {
+<span class="fc" id="L217">        WikipediaApp.instance.connectionStateMonitor.unregisterCallback(this)</span>
+<span class="fc" id="L218">        CustomHtmlParser.pruneBitmaps(this)</span>
+<span class="fc" id="L219">        super.onDestroy()</span>
+<span class="fc" id="L220">    }</span>
+
+    override fun onPause() {
+<span class="fc" id="L223">        super.onPause()</span>
+<span class="fc" id="L224">        WikipediaApp.instance.appSessionEvent.persistSession()</span>
+<span class="fc" id="L225">        TestKitchenAdapter.client.onAppPause()</span>
+<span class="fc" id="L226">        EventPlatformClient.flushCachedEvents()</span>
+<span class="fc" id="L227">    }</span>
+
+    override fun onResume() {
+<span class="fc" id="L230">        super.onResume()</span>
+<span class="fc" id="L231">        WikipediaApp.instance.appSessionEvent.touchSession()</span>
+<span class="fc" id="L232">        TestKitchenAdapter.client.onAppResume()</span>
+<span class="fc" id="L233">        BreadCrumbLogEvent.logScreenShown(this)</span>
+<span class="fc" id="L234">        TestKitchenAdapter.client.getInstrument(&quot;apps-open&quot;)</span>
+<span class="fc" id="L235">            .submitInteraction(action = &quot;app_open&quot;, actionSource = &quot;background&quot;,</span>
+<span class="fc" id="L236">                actionSubtype = BreadCrumbViewUtil.getReadableScreenName(this))</span>
+<span class="fc" id="L237">    }</span>
+
+    override fun onStart() {
+<span class="fc" id="L240">        super.onStart()</span>
+<span class="fc" id="L241">        NotificationPresenter.maybeRequestPermission(this, notificationPermissionLauncher)</span>
+<span class="fc" id="L242">    }</span>
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L245">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            android.R.id.home -&gt; {</span>
+<span class="nc" id="L247">                onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L248">                true</span>
+            }
+<span class="nc" id="L250">            else -&gt; false</span>
+        }
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (event.actionMasked == MotionEvent.ACTION_DOWN ||</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">                event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {</span>
+<span class="nc" id="L257">            dismissCurrentTooltip()</span>
+        }
+
+<span class="nc" id="L260">        BreadcrumbsContextHelper.dispatchTouchEvent(window, event)</span>
+
+<span class="nc bnc" id="L262" title="All 2 branches missed.">        imageZoomHelper?.let {</span>
+<span class="nc bnc" id="L263" title="All 4 branches missed.">            return it.onDispatchTouchEvent(event) || super.dispatchTouchEvent(event)</span>
+        }
+<span class="nc" id="L265">        return super.dispatchTouchEvent(event)</span>
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+<span class="nc" id="L269">        super.onActivityResult(requestCode, resultCode, data)</span>
+<span class="nc bnc" id="L270" title="All 8 branches missed.">        if (resultCode == RESULT_OK &amp;&amp; data?.hasExtra(OnThisDayGameResultFragment.EXTRA_GAME_COMPLETED) == true) {</span>
+<span class="nc" id="L271">            OnThisDayGameResultFragment.maybeShowOnThisDayGameEndContent(this)</span>
+        }
+<span class="nc" id="L273">    }</span>
+
+    protected fun setStatusBarColor(@ColorInt color: Int) {
+<span class="fc" id="L276">        window.statusBarColor = color</span>
+<span class="fc" id="L277">    }</span>
+
+    protected fun setNavigationBarColor(@ColorInt color: Int) {
+<span class="fc" id="L280">        DeviceUtil.setNavigationBarColor(window, color)</span>
+<span class="fc" id="L281">    }</span>
+
+    protected open fun setTheme() {
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">        if (WikipediaApp.instance.currentTheme != Theme.LIGHT) {</span>
+<span class="nc" id="L285">            setTheme(WikipediaApp.instance.currentTheme.resourceId)</span>
+        }
+<span class="fc" id="L287">    }</span>
+
+<span class="nc" id="L289">    override fun onGoOffline() {}</span>
+
+<span class="nc" id="L291">    override fun onGoOnline() {}</span>
+
+<span class="nc" id="L293">    fun launchDonateDialog(campaignId: String? = null, donateUrl: String? = null) {</span>
+<span class="nc" id="L294">        ExclusiveBottomSheetPresenter.show(supportFragmentManager, DonateDialog.newInstance(campaignId, donateUrl))</span>
+<span class="nc" id="L295">    }</span>
+
+    fun launchDonateActivity(intent: Intent) {
+<span class="nc" id="L298">        requestDonateActivity.launch(intent)</span>
+<span class="nc" id="L299">    }</span>
+
+    fun getInstrument(): InstrumentImpl? {
+<span class="nc" id="L302">        return _instrument</span>
+    }
+
+    private fun maybeShowYearInReview() {
+<span class="pc bpc" id="L306" title="2 of 4 branches missed.">        if (this !is YearInReviewOnboardingActivity &amp;&amp; this !is YearInReviewActivity &amp;&amp;</span>
+<span class="pc bpc" id="L307" title="1 of 2 branches missed.">            !Prefs.isInitialOnboardingEnabled &amp;&amp;</span>
+<span class="pc bpc" id="L308" title="4 of 6 branches missed.">            YearInReviewViewModel.isAccessible &amp;&amp; Prefs.isYearInReviewEnabled &amp;&amp; !Prefs.yearInReviewVisited) {</span>
+<span class="nc" id="L309">            yearInReviewLauncher.launch((YearInReviewOnboardingActivity.newIntent(this)))</span>
+        }
+<span class="fc" id="L311">    }</span>
+
+    protected fun maybeShowReadingChallengePrompt() {
+<span class="pc bpc" id="L314" title="1 of 2 branches missed.">        if (ReadingChallengeWidgetRepository.shouldShowOnboardingDialog() &amp;&amp;</span>
+<span class="nc bnc" id="L315" title="All 4 branches missed.">            this !is ReadingChallengeOnboardingActivity &amp;&amp; this !is InitialOnboardingActivity) {</span>
+<span class="nc" id="L316">            requestReadingChallengeActivity.launch(ReadingChallengeOnboardingActivity</span>
+<span class="nc" id="L317">                .newIntent(this)</span>
+<span class="nc" id="L318">                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))</span>
+        }
+<span class="fc" id="L320">    }</span>
+
+    private fun removeSplashBackground() {
+<span class="fc" id="L323">        window.setBackgroundDrawable(ResourceUtil.getThemedColor(this, R.attr.paper_color).toDrawable())</span>
+<span class="fc" id="L324">    }</span>
+
+    private fun maybeShowLoggedOutInBackgroundDialog() {
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (Prefs.loggedOutInBackground) {</span>
+<span class="nc" id="L328">            Prefs.loggedOutInBackground = false</span>
+
+<span class="nc" id="L330">            val instrument = TestKitchenAdapter.client.getInstrument(&quot;apps-authentication&quot;)</span>
+<span class="nc" id="L331">                .setDefaultActionSource(&quot;logout_background_dialog&quot;)</span>
+<span class="nc" id="L332">                .startFunnel(&quot;logout_account_background&quot;)</span>
+<span class="nc" id="L333">            instrument.submitInteraction(&quot;impression&quot;)</span>
+
+<span class="nc" id="L335">            MaterialAlertDialogBuilder(this)</span>
+<span class="nc" id="L336">                    .setCancelable(false)</span>
+<span class="nc" id="L337">                    .setTitle(R.string.logged_out_in_background_title)</span>
+<span class="nc" id="L338">                    .setMessage(R.string.logged_out_in_background_dialog)</span>
+<span class="nc" id="L339">                    .setPositiveButton(R.string.logged_out_in_background_login) { _, _ -&gt;</span>
+<span class="nc" id="L340">                        instrument.submitInteraction(&quot;click&quot;, elementId = &quot;login_button&quot;)</span>
+<span class="nc" id="L341">                        startActivity(LoginActivity.newIntent(this@BaseActivity, LoginActivity.SOURCE_LOGOUT_BACKGROUND))</span>
+<span class="nc" id="L342">                    }</span>
+<span class="nc" id="L343">                    .setNegativeButton(R.string.logged_out_in_background_cancel) { _, _ -&gt;</span>
+<span class="nc" id="L344">                        instrument.submitInteraction(&quot;click&quot;, elementId = &quot;cancel&quot;)</span>
+<span class="nc" id="L345">                    }</span>
+<span class="nc" id="L346">                    .show()</span>
+        }
+<span class="fc" id="L348">    }</span>
+
+    private fun dismissCurrentTooltip() {
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        currentTooltip?.dismiss()</span>
+<span class="nc" id="L352">        currentTooltip = null</span>
+<span class="nc" id="L353">    }</span>
+
+    fun setCurrentTooltip(tooltip: Balloon) {
+<span class="nc" id="L356">        dismissCurrentTooltip()</span>
+<span class="nc" id="L357">        currentTooltip = tooltip</span>
+<span class="nc" id="L358">    }</span>
+
+    fun setImageZoomHelper() {
+<span class="nc" id="L361">        imageZoomHelper = ImageZoomHelper(this)</span>
+<span class="nc" id="L362">    }</span>
+
+<span class="nc" id="L364">    open fun onUnreadNotification() { }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

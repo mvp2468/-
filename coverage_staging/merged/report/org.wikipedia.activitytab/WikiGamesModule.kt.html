@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiGamesModule.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab</a> &gt; <span class="el_source">WikiGamesModule.kt</span></div><h1>WikiGamesModule.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab
+
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import org.wikipedia.R
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.games.onthisday.OnThisDayGameViewModel
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.UiState
+import java.text.DecimalFormat
+
+@Composable
+fun WikiGamesModule(
+<span class="nc bnc" id="L45" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    uiState: UiState&lt;OnThisDayGameViewModel.GameStatistics?&gt;,
+<span class="nc bnc" id="L47" title="All 2 branches missed.">    onPlayGameCardClick: (() -&gt; Unit)? = null,</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">    onStatsCardClick: (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L49">    wikiErrorClickEvents: WikiErrorClickEvents? = null</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L51">    when (uiState) {</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        UiState.Loading -&gt; {</span>
+<span class="nc" id="L53">            ActivityTabShimmerView(size = 160.dp)</span>
+        }
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        is UiState.Success -&gt; {</span>
+<span class="nc" id="L56">            WikiGamesStatsCard(</span>
+<span class="nc" id="L57">                modifier = modifier</span>
+<span class="nc" id="L58">                    .fillMaxWidth()</span>
+<span class="nc" id="L59">                    .animateContentSize(),</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                totalGamesPlayed = uiState.data?.totalGamesPlayed ?: 0,</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                currentStreak = uiState.data?.currentStreak ?: 0,</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">                bestStreak = uiState.data?.bestStreak ?: 0,</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">                averageScore = uiState.data?.averageScore ?: 0.0,</span>
+<span class="nc" id="L64">                onStatsCardClick = onStatsCardClick,</span>
+<span class="nc" id="L65">                onPlayGameCardClick = onPlayGameCardClick</span>
+            )
+        }
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        is UiState.Error -&gt; {</span>
+<span class="nc" id="L70">            Box(</span>
+<span class="nc" id="L71">                modifier = modifier</span>
+<span class="nc" id="L72">                    .fillMaxSize(),</span>
+<span class="nc" id="L73">                contentAlignment = Alignment.Center</span>
+            ) {
+<span class="nc" id="L75">                WikiErrorView(</span>
+<span class="nc" id="L76">                    modifier = Modifier</span>
+<span class="nc" id="L77">                        .fillMaxWidth(),</span>
+<span class="nc" id="L78">                    caught = uiState.error,</span>
+<span class="nc" id="L79">                    errorClickEvents = wikiErrorClickEvents,</span>
+<span class="nc" id="L80">                    retryForGenericError = true</span>
+                )
+<span class="nc" id="L82">            }</span>
+        }
+<span class="nc" id="L84">    }</span>
+<span class="nc" id="L85">}</span>
+
+@Composable
+fun WikiGamesStatsCard(
+<span class="nc bnc" id="L89" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">    totalGamesPlayed: Int = 0,</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">    currentStreak: Int = 0,</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">    bestStreak: Int = 0,</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">    averageScore: Double = 0.0,</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">    showTitle: Boolean = true,</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">    onStatsCardClick: (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L96">    onPlayGameCardClick: (() -&gt; Unit)? = null</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L98">    WikiCard(</span>
+<span class="nc" id="L99">        modifier = modifier,</span>
+<span class="nc" id="L100">        colors = CardDefaults.cardColors(</span>
+<span class="nc" id="L101">            containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L102">            contentColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L104">        elevation = 0.dp,</span>
+<span class="nc" id="L105">        border = BorderStroke(</span>
+<span class="nc" id="L106">            width = 1.dp,</span>
+<span class="nc" id="L107">            color = WikipediaTheme.colors.borderColor</span>
+        ),
+<span class="nc" id="L109">        onClick = onStatsCardClick</span>
+<span class="nc" id="L110">    ) {</span>
+<span class="nc" id="L111">        Column(</span>
+<span class="nc" id="L112">            modifier = Modifier</span>
+<span class="nc" id="L113">                .padding(16.dp),</span>
+<span class="nc" id="L114">            verticalArrangement = Arrangement.spacedBy(16.dp)</span>
+        ) {
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            if (showTitle) {</span>
+<span class="nc" id="L117">                Row(</span>
+<span class="nc" id="L118">                    modifier = Modifier</span>
+<span class="nc" id="L119">                        .fillMaxWidth(),</span>
+                ) {
+<span class="nc" id="L121">                    Text(</span>
+<span class="nc" id="L122">                        modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L123">                        text = stringResource(R.string.activity_tab_game_stats),</span>
+<span class="nc" id="L124">                        style = MaterialTheme.typography.labelMedium.copy(</span>
+<span class="nc" id="L125">                            fontWeight = FontWeight.SemiBold</span>
+                        ),
+<span class="nc" id="L127">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L128">                        lineHeight = MaterialTheme.typography.labelMedium.lineHeight</span>
+                    )
+<span class="nc" id="L130">                    Icon(</span>
+<span class="nc" id="L131">                        modifier = Modifier.size(24.dp),</span>
+<span class="nc" id="L132">                        painter = painterResource(R.drawable.ic_chevron_forward_white_24dp),</span>
+<span class="nc" id="L133">                        tint = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L134">                        contentDescription = null</span>
+                    )
+<span class="nc" id="L136">                }</span>
+<span class="nc" id="L137">            }</span>
+<span class="nc" id="L138">            Row(</span>
+<span class="nc" id="L139">                modifier = Modifier</span>
+<span class="nc" id="L140">                    .fillMaxWidth(),</span>
+<span class="nc" id="L141">                horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+            ) {
+<span class="nc" id="L143">                WikiGamesStatView(</span>
+<span class="nc" id="L144">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L145">                    iconResource = R.drawable.baseline_extension_24,</span>
+<span class="nc" id="L146">                    statValue = totalGamesPlayed.toString(),</span>
+<span class="nc" id="L147">                    statLabel = pluralStringResource(R.plurals.on_this_day_game_stats_games_played, totalGamesPlayed)</span>
+                )
+<span class="nc" id="L149">                WikiGamesStatView(</span>
+<span class="nc" id="L150">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L151">                    iconResource = R.drawable.outline_motion_blur_24,</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                    statValue = if (currentStreak == 0) &quot;-&quot; else currentStreak.toString(),</span>
+<span class="nc" id="L153">                    statLabel = stringResource(R.string.on_this_day_game_stats_streak)</span>
+                )
+<span class="nc" id="L155">            }</span>
+<span class="nc" id="L156">            Spacer(modifier = Modifier.padding(top = 8.dp))</span>
+<span class="nc" id="L157">            Row(</span>
+<span class="nc" id="L158">                modifier = Modifier</span>
+<span class="nc" id="L159">                    .fillMaxWidth(),</span>
+<span class="nc" id="L160">                horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+            ) {
+<span class="nc" id="L162">                WikiGamesStatView(</span>
+<span class="nc" id="L163">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L164">                    iconResource = R.drawable.filled_family_star_24,</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                    statValue = if (bestStreak == 0) &quot;-&quot; else bestStreak.toString(),</span>
+<span class="nc" id="L166">                    statLabel = stringResource(R.string.activity_tab_game_stats_best_streak)</span>
+                )
+<span class="nc" id="L168">                WikiGamesStatView(</span>
+<span class="nc" id="L169">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L170">                    iconResource = R.drawable.outline_sports_score_24,</span>
+<span class="nc bnc" id="L171" title="All 4 branches missed.">                    statValue = if (averageScore == 0.0) &quot;-&quot; else DecimalFormat(&quot;0.#&quot;).format(averageScore),</span>
+<span class="nc" id="L172">                    statLabel = stringResource(R.string.on_this_day_game_stats_average_score)</span>
+                )
+<span class="nc" id="L174">            }</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            if (totalGamesPlayed == 0) {</span>
+<span class="nc" id="L176">                Button(</span>
+<span class="nc" id="L177">                    modifier = Modifier.padding(top = 16.dp).align(Alignment.CenterHorizontally),</span>
+<span class="nc" id="L178">                    contentPadding = PaddingValues(horizontal = 18.dp),</span>
+<span class="nc" id="L179">                    colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L180">                        containerColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L181">                        contentColor = Color.White,</span>
+                    ),
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                    onClick = { onPlayGameCardClick?.invoke() },</span>
+<span class="nc" id="L184">                ) {</span>
+<span class="nc" id="L185">                    Text(</span>
+<span class="nc" id="L186">                        modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 4.dp),</span>
+<span class="nc" id="L187">                        text = stringResource(R.string.activity_tab_play_wiki_games),</span>
+<span class="nc" id="L188">                        style = MaterialTheme.typography.labelLarge</span>
+                    )
+<span class="nc" id="L190">                }</span>
+<span class="nc" id="L191">            }</span>
+<span class="nc" id="L192">        }</span>
+<span class="nc" id="L193">    }</span>
+<span class="nc" id="L194">}</span>
+
+@Composable
+fun WikiGamesStatView(
+    modifier: Modifier,
+    iconResource: Int,
+    statValue: String,
+    statLabel: String
+<span class="nc" id="L202">) {</span>
+<span class="nc" id="L203">    Row(</span>
+<span class="nc" id="L204">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L206">        Icon(</span>
+<span class="nc" id="L207">            modifier = Modifier.size(28.dp),</span>
+<span class="nc" id="L208">            painter = painterResource(iconResource),</span>
+<span class="nc" id="L209">            tint = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L210">            contentDescription = null</span>
+        )
+<span class="nc" id="L212">        Column(</span>
+<span class="nc" id="L213">            modifier = Modifier.padding(horizontal = 12.dp)</span>
+        ) {
+<span class="nc" id="L215">            Text(</span>
+<span class="nc" id="L216">                text = statValue,</span>
+<span class="nc" id="L217">                style = MaterialTheme.typography.labelLarge.copy(</span>
+<span class="nc" id="L218">                    fontWeight = FontWeight.SemiBold</span>
+                ),
+<span class="nc" id="L220">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L222">            Text(</span>
+<span class="nc" id="L223">                text = statLabel.lowercase(),</span>
+<span class="nc" id="L224">                style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L225">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L227">        }</span>
+<span class="nc" id="L228">    }</span>
+<span class="nc" id="L229">}</span>
+
+@Composable
+fun OnThisDayGameLoginPromptCard(
+<span class="nc" id="L233">    modifier: Modifier = Modifier,</span>
+    onLogInClick: () -&gt; Unit,
+<span class="nc bnc" id="L235" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L236">    WikiCard(</span>
+<span class="nc" id="L237">        modifier = modifier,</span>
+<span class="nc" id="L238">        colors = CardDefaults.cardColors(</span>
+<span class="nc" id="L239">            containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L240">            contentColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L242">        elevation = 0.dp,</span>
+<span class="nc" id="L243">        border = BorderStroke(</span>
+<span class="nc" id="L244">            width = 1.dp,</span>
+<span class="nc" id="L245">            color = WikipediaTheme.colors.borderColor</span>
+        )
+<span class="nc" id="L247">    ) {</span>
+<span class="nc" id="L248">        Column(</span>
+<span class="nc" id="L249">            modifier = Modifier</span>
+<span class="nc" id="L250">                .fillMaxWidth()</span>
+<span class="nc" id="L251">                .padding(top = 16.dp, bottom = 24.dp),</span>
+<span class="nc" id="L252">            horizontalAlignment = Alignment.CenterHorizontally</span>
+        ) {
+<span class="nc" id="L254">            Text(</span>
+<span class="nc" id="L255">                text = stringResource(R.string.on_this_day_game_stats_log_in_prompt_card_title),</span>
+<span class="nc" id="L256">                color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L257">                style = MaterialTheme.typography.titleSmall.copy(</span>
+<span class="nc" id="L258">                    fontWeight = FontWeight.SemiBold</span>
+                )
+            )
+
+<span class="nc" id="L262">            Text(</span>
+<span class="nc" id="L263">                modifier = Modifier</span>
+<span class="nc" id="L264">                    .padding(top = 8.dp),</span>
+<span class="nc" id="L265">                text = stringResource(R.string.on_this_day_game_stats_log_in_prompt_card_description),</span>
+<span class="nc" id="L266">                color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L267">                style = MaterialTheme.typography.bodyMedium</span>
+            )
+
+<span class="nc" id="L270">            ElevatedButton (</span>
+<span class="nc" id="L271">                modifier = Modifier</span>
+<span class="nc" id="L272">                    .padding(top = 16.dp),</span>
+<span class="nc" id="L273">                colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L274">                    containerColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L275">                    contentColor = Color.White,</span>
+                ),
+<span class="nc" id="L277">                elevation = ButtonDefaults.elevatedButtonElevation(</span>
+<span class="nc" id="L278">                    defaultElevation = 2.dp</span>
+                ),
+<span class="nc" id="L280">                onClick = onLogInClick,</span>
+<span class="nc" id="L281">            ) {</span>
+<span class="nc" id="L282">                Row(</span>
+<span class="nc" id="L283">                    modifier = Modifier</span>
+<span class="nc" id="L284">                        .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L285">                    verticalAlignment = Alignment.CenterVertically,</span>
+                ) {
+<span class="nc" id="L287">                    Icon(</span>
+<span class="nc" id="L288">                        modifier = Modifier</span>
+<span class="nc" id="L289">                            .size(18.dp),</span>
+<span class="nc" id="L290">                        painter = painterResource(R.drawable.ic_person_filled_24),</span>
+<span class="nc" id="L291">                        contentDescription = null</span>
+                    )
+<span class="nc" id="L293">                    Text(</span>
+<span class="nc" id="L294">                        modifier = Modifier.padding(start = 6.dp),</span>
+<span class="nc" id="L295">                        text = stringResource(R.string.on_this_day_game_stats_log_in_prompt_card_button),</span>
+<span class="nc" id="L296">                        style = MaterialTheme.typography.labelLarge</span>
+                    )
+<span class="nc" id="L298">                }</span>
+<span class="nc" id="L299">            }</span>
+<span class="nc" id="L300">        }</span>
+<span class="nc" id="L301">    }</span>
+<span class="nc" id="L302">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L306">private fun OnThisDayGameLoginPromptCardPreview() {</span>
+<span class="nc" id="L307">    BaseTheme(</span>
+<span class="nc" id="L308">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L309">    ) {</span>
+<span class="nc" id="L310">        OnThisDayGameLoginPromptCard(</span>
+<span class="nc" id="L311">            onLogInClick = {}</span>
+        )
+<span class="nc" id="L313">    }</span>
+<span class="nc" id="L314">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L318">private fun WikiGamesModulePreview() {</span>
+<span class="nc" id="L319">    BaseTheme(</span>
+<span class="nc" id="L320">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L321">    ) {</span>
+<span class="nc" id="L322">        WikiGamesModule(</span>
+<span class="nc" id="L323">            modifier = Modifier</span>
+<span class="nc" id="L324">                .fillMaxWidth()</span>
+<span class="nc" id="L325">                .padding(16.dp),</span>
+<span class="nc" id="L326">            uiState = UiState.Success(</span>
+<span class="nc" id="L327">                OnThisDayGameViewModel.GameStatistics(</span>
+<span class="nc" id="L328">                    totalGamesPlayed = 43,</span>
+<span class="nc" id="L329">                    averageScore = 4.5,</span>
+<span class="nc" id="L330">                    currentStreak = 5,</span>
+<span class="nc" id="L331">                    bestStreak = 15</span>
+                )
+            ),
+<span class="nc" id="L334">            onPlayGameCardClick = {},</span>
+<span class="nc" id="L335">            onStatsCardClick = {},</span>
+<span class="nc" id="L336">            wikiErrorClickEvents = null</span>
+        )
+<span class="nc" id="L338">    }</span>
+<span class="nc" id="L339">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L343">private fun WikiGamesModuleWithPlayButtonPreview() {</span>
+<span class="nc" id="L344">    BaseTheme(</span>
+<span class="nc" id="L345">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L346">    ) {</span>
+<span class="nc" id="L347">        WikiGamesModule(</span>
+<span class="nc" id="L348">            modifier = Modifier</span>
+<span class="nc" id="L349">                .fillMaxWidth()</span>
+<span class="nc" id="L350">                .padding(16.dp),</span>
+<span class="nc" id="L351">            uiState = UiState.Success(</span>
+<span class="nc" id="L352">                OnThisDayGameViewModel.GameStatistics(</span>
+<span class="nc" id="L353">                    totalGamesPlayed = 0,</span>
+<span class="nc" id="L354">                    averageScore = 0.0,</span>
+<span class="nc" id="L355">                    currentStreak = 0,</span>
+<span class="nc" id="L356">                    bestStreak = 0</span>
+                )
+            ),
+<span class="nc" id="L359">            onPlayGameCardClick = {},</span>
+<span class="nc" id="L360">            onStatsCardClick = {},</span>
+<span class="nc" id="L361">            wikiErrorClickEvents = null</span>
+        )
+<span class="nc" id="L363">    }</span>
+<span class="nc" id="L364">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

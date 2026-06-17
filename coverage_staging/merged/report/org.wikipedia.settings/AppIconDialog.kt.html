@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AppIconDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">AppIconDialog.kt</span></div><h1>AppIconDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.flexbox.AlignItems
+import com.google.android.flexbox.FlexDirection
+import com.google.android.flexbox.FlexboxLayoutManager
+import com.google.android.flexbox.JustifyContent
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.YearInReviewEvent
+import org.wikipedia.appshortcuts.AppShortcuts
+import org.wikipedia.databinding.DialogAppIconBinding
+import org.wikipedia.databinding.ItemAppIconBinding
+import org.wikipedia.page.ExtendedBottomSheetDialogFragment
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L23">class AppIconDialog : ExtendedBottomSheetDialogFragment() {</span>
+    private var _binding: DialogAppIconBinding? = null
+<span class="nc" id="L25">    private val binding get() = _binding!!</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L28">        _binding = DialogAppIconBinding.inflate(inflater, container, false)</span>
+
+<span class="nc" id="L30">        binding.appIconRecyclerView.layoutManager = FlexboxLayoutManager(requireContext()).apply {</span>
+<span class="nc" id="L31">            flexDirection = FlexDirection.ROW</span>
+<span class="nc" id="L32">            justifyContent = JustifyContent.CENTER</span>
+<span class="nc" id="L33">            alignItems = AlignItems.CENTER</span>
+<span class="nc" id="L34">        }</span>
+<span class="nc" id="L35">        binding.appIconRecyclerView.adapter = AppIconAdapter(LauncherIcon.entries).apply {</span>
+<span class="nc" id="L36">            onItemClickListener = { icon -&gt;</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">                val eventAction = if (icon == LauncherIcon.DEFAULT) &quot;icon_deactivate_click&quot; else &quot;icon_activate_click&quot;</span>
+<span class="nc" id="L38">                YearInReviewEvent.submit(action = eventAction, slide = &quot;setting&quot;)</span>
+<span class="nc" id="L39">                Prefs.selectedAppIcon = icon.key</span>
+<span class="nc" id="L40">                LauncherController.setIcon(icon)</span>
+<span class="nc" id="L41">                AppShortcuts.setShortcuts(requireContext())</span>
+<span class="nc" id="L42">                dismiss()</span>
+<span class="nc" id="L43">                Toast.makeText(requireActivity(), R.string.settings_app_icon_updated, Toast.LENGTH_SHORT).show()</span>
+<span class="nc" id="L44">            }</span>
+<span class="nc" id="L45">        }</span>
+<span class="nc" id="L46">        return binding.root</span>
+    }
+
+    override fun onDestroyView() {
+<span class="nc" id="L50">        super.onDestroyView()</span>
+<span class="nc" id="L51">        _binding = null</span>
+<span class="nc" id="L52">    }</span>
+
+<span class="nc" id="L54">    private class AppIconAdapter(val list: List&lt;LauncherIcon&gt;) : RecyclerView.Adapter&lt;AppIconAdapter.AppIconViewHolder&gt;() {</span>
+<span class="nc" id="L55">        var onItemClickListener: ((LauncherIcon) -&gt; Unit)? = null</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppIconViewHolder {
+<span class="nc" id="L58">            val view = ItemAppIconBinding.inflate(LayoutInflater.from(parent.context), parent, false)</span>
+<span class="nc" id="L59">            return AppIconViewHolder(view)</span>
+        }
+
+<span class="nc" id="L62">        override fun getItemCount() = list.size</span>
+
+        override fun onBindViewHolder(holder: AppIconViewHolder, position: Int) {
+<span class="nc" id="L65">            val item = list[position]</span>
+<span class="nc" id="L66">            holder.bind(item)</span>
+<span class="nc" id="L67">        }</span>
+
+<span class="nc" id="L69">        private inner class AppIconViewHolder(val binding: ItemAppIconBinding) : RecyclerView.ViewHolder(binding.root) {</span>
+            fun bind(item: LauncherIcon) {
+<span class="nc" id="L71">                binding.appIcon.apply {</span>
+<span class="nc" id="L72">                    foreground = ContextCompat.getDrawable(binding.root.context, item.foreground)</span>
+<span class="nc" id="L73">                    background = ContextCompat.getDrawable(binding.root.context, item.background)</span>
+<span class="nc" id="L74">                    setOnClickListener {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                        onItemClickListener?.invoke(item)</span>
+<span class="nc" id="L76">                    }</span>
+<span class="nc" id="L77">                    val isSelected = Prefs.selectedAppIcon == item.key</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">                    val strokeColor = if (isSelected) R.attr.progressive_color else R.attr.border_color</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">                    val newStrokeWidth = if (isSelected) 2f else 1f</span>
+<span class="nc" id="L80">                    this.strokeColor = ResourceUtil.getThemedColorStateList(context, strokeColor)</span>
+<span class="nc" id="L81">                    this.strokeWidth = DimenUtil.dpToPx(newStrokeWidth)</span>
+<span class="nc" id="L82">                }</span>
+<span class="nc" id="L83">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

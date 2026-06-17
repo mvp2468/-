@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LanguageScrollView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">LanguageScrollView.kt</span></div><h1>LanguageScrollView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.TextView
+import androidx.annotation.ColorInt
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.isNotEmpty
+import com.google.android.material.tabs.TabLayout
+import com.google.android.material.tabs.TabLayout.OnTabSelectedListener
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.databinding.ViewLanguageScrollBinding
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L18">class LanguageScrollView(context: Context, attrs: AttributeSet? = null) : ConstraintLayout(context, attrs) {</span>
+
+    interface Callback {
+        fun onLanguageTabSelected(selectedLanguageCode: String)
+        fun onLanguageButtonClicked()
+    }
+
+<span class="nc" id="L25">    private val binding = ViewLanguageScrollBinding.inflate(LayoutInflater.from(context), this)</span>
+    private var callback: Callback? = null
+<span class="nc" id="L27">    private var languageCodes: List&lt;String&gt; = mutableListOf()</span>
+    private var allowSelect = false
+    val selectedPosition: Int
+<span class="nc" id="L30">        get() = binding.horizontalScrollLanguages.selectedTabPosition</span>
+
+<span class="nc" id="L32">    init {</span>
+<span class="nc" id="L33">        binding.horizontalScrollLanguages.addOnTabSelectedListener(object : OnTabSelectedListener {</span>
+            override fun onTabSelected(tab: TabLayout.Tab) {
+<span class="nc" id="L35">                updateTabView(true, tab)</span>
+<span class="nc" id="L36">            }</span>
+
+            override fun onTabUnselected(tab: TabLayout.Tab) {
+<span class="nc" id="L39">                updateTabView(false, tab)</span>
+<span class="nc" id="L40">            }</span>
+
+            override fun onTabReselected(tab: TabLayout.Tab) {
+<span class="nc" id="L43">                updateTabView(true, tab)</span>
+<span class="nc" id="L44">            }</span>
+        })
+<span class="nc" id="L46">        binding.moreLanguages.setOnClickListener {</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">            callback?.onLanguageButtonClicked()</span>
+<span class="nc" id="L48">        }</span>
+<span class="nc" id="L49">    }</span>
+
+    private fun updateTabView(selected: Boolean, tab: TabLayout.Tab) {
+<span class="nc" id="L52">        val view = tab.customView</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        if (selected) {</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            view?.let {</span>
+<span class="nc" id="L55">                @ColorInt val color = ResourceUtil.getThemedColor(context, R.attr.progressive_color)</span>
+<span class="nc" id="L56">                @ColorInt val paperColor = ResourceUtil.getThemedColor(context, R.attr.paper_color)</span>
+<span class="nc" id="L57">                updateTabLanguageCode(it, textColor = paperColor, backgroundColorTint = color, fillBackground = true)</span>
+<span class="nc" id="L58">                updateTabLanguageLabel(it, textColor = color)</span>
+<span class="nc" id="L59">            }</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            if (allowSelect) {</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                callback?.onLanguageTabSelected(languageCodes[tab.position])</span>
+            }
+        } else {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            view?.let {</span>
+<span class="nc" id="L65">                @ColorInt val color = ResourceUtil.getThemedColor(context, R.attr.placeholder_color)</span>
+<span class="nc" id="L66">                updateTabLanguageLabel(it, textColor = color)</span>
+<span class="nc" id="L67">                updateTabLanguageCode(it, textColor = color, backgroundColorTint = color)</span>
+<span class="nc" id="L68">            }</span>
+        }
+<span class="nc" id="L70">    }</span>
+
+    fun setUpLanguageScrollTabData(languageCodes: List&lt;String&gt;, position: Int, callback: Callback?) {
+<span class="nc" id="L73">        this.callback = callback</span>
+<span class="nc" id="L74">        this.languageCodes = languageCodes</span>
+<span class="nc" id="L75">        allowSelect = false</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        if (binding.horizontalScrollLanguages.isNotEmpty()) {</span>
+<span class="nc" id="L77">            binding.horizontalScrollLanguages.removeAllTabs()</span>
+        }
+<span class="nc" id="L79">        languageCodes.forEach {</span>
+<span class="nc" id="L80">            val tab = binding.horizontalScrollLanguages.newTab()</span>
+<span class="nc" id="L81">            tab.customView = createLanguageTab(it)</span>
+<span class="nc" id="L82">            binding.horizontalScrollLanguages.addTab(tab)</span>
+<span class="nc" id="L83">            updateTabView(tab.isSelected, tab)</span>
+<span class="nc" id="L84">        }</span>
+<span class="nc" id="L85">        allowSelect = true</span>
+<span class="nc" id="L86">        binding.horizontalScrollLanguages.post {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (isAttachedToWindow) {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                binding.horizontalScrollLanguages.getTabAt(position)?.select()</span>
+            }
+<span class="nc" id="L90">        }</span>
+<span class="nc" id="L91">    }</span>
+
+    private fun createLanguageTab(languageCode: String): View {
+<span class="nc" id="L94">        val tab = LayoutInflater.from(context).inflate(R.layout.view_custom_language_tab, this, false)</span>
+<span class="nc" id="L95">        updateTabLanguageCode(tab, languageCode)</span>
+<span class="nc" id="L96">        updateTabLanguageLabel(tab, languageCode)</span>
+<span class="nc" id="L97">        return tab</span>
+    }
+
+<span class="nc" id="L100">    private fun updateTabLanguageLabel(customView: View, languageCode: String? = null, @ColorInt textColor: Int? = null) {</span>
+<span class="nc" id="L101">        val languageLabelTextView = customView.findViewById&lt;TextView&gt;(R.id.language_label)</span>
+<span class="nc bnc" id="L102" title="All 6 branches missed.">        if (!languageCode.isNullOrEmpty()) {</span>
+<span class="nc" id="L103">            languageLabelTextView.text = WikipediaApp.instance.languageState.getAppLanguageLocalizedName(languageCode)</span>
+        }
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        textColor?.let {</span>
+<span class="nc" id="L106">            languageLabelTextView.setTextColor(textColor)</span>
+<span class="nc" id="L107">        }</span>
+<span class="nc" id="L108">    }</span>
+
+<span class="nc" id="L110">    private fun updateTabLanguageCode(customView: View, languageCode: String? = null, @ColorInt textColor: Int? = null, @ColorInt backgroundColorTint: Int? = null, fillBackground: Boolean = false) {</span>
+<span class="nc" id="L111">        val languageCodeTextView = customView.findViewById&lt;LangCodeView&gt;(R.id.language_code)</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if (languageCode != null) {</span>
+<span class="nc" id="L113">            languageCodeTextView.setLangCode(languageCode)</span>
+        }
+<span class="nc" id="L115">        languageCodeTextView.fillBackground(fillBackground)</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        textColor?.let { languageCodeTextView.setTextColor(it) }</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        backgroundColorTint?.let { languageCodeTextView.setBackgroundTint(it) }</span>
+<span class="nc" id="L118">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

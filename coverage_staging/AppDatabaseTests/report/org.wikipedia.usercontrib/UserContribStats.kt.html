@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserContribStats.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.usercontrib</a> &gt; <span class="el_source">UserContribStats.kt</span></div><h1>UserContribStats.kt</h1><pre class="source lang-java linenums">package org.wikipedia.usercontrib
+
+import org.wikipedia.dataclient.mwapi.UserContribution
+import org.wikipedia.settings.Prefs
+import java.util.*
+import kotlin.math.ceil
+
+object UserContribStats {
+    private const val REVERT_SEVERITY_PAUSE_THRESHOLD = 5
+    private const val REVERT_SEVERITY_DISABLE_THRESHOLD = 7
+    private const val PAUSE_DURATION_DAYS = 7
+
+    private var totalEdits: Int = 0
+<span class="nc" id="L14">    var totalReverts: Int = 0</span>
+
+    fun verifyEditCountsAndPauseState(totalContributionsList: List&lt;UserContribution&gt;) {
+<span class="nc" id="L17">        totalEdits = totalContributionsList.size</span>
+<span class="nc bnc" id="L18" title="All 4 branches missed.">        totalReverts = totalContributionsList.count { it.ns == 0 &amp;&amp; it.tags.contains(&quot;mw-reverted&quot;) }</span>
+<span class="nc" id="L19">        maybePauseAndGetEndDate()</span>
+<span class="nc" id="L20">    }</span>
+
+    fun getRevertSeverity(): Int {
+<span class="nc bnc" id="L23" title="All 2 branches missed.">        return if (totalEdits &lt;= 100) totalReverts else ceil(totalReverts.toFloat() / totalEdits.toFloat() * 100f).toInt()</span>
+    }
+
+    fun isDisabled(): Boolean {
+<span class="nc bnc" id="L27" title="All 2 branches missed.">        return getRevertSeverity() &gt; REVERT_SEVERITY_DISABLE_THRESHOLD</span>
+    }
+
+    fun maybePauseAndGetEndDate(): Date? {
+<span class="nc" id="L31">        val pauseDate = Prefs.suggestedEditsPauseDate</span>
+<span class="nc" id="L32">        var pauseEndDate: Date? = null</span>
+
+        // Are we currently in a pause period?
+<span class="nc bnc" id="L35" title="All 2 branches missed.">        if (pauseDate.time != 0L) {</span>
+<span class="nc" id="L36">            val cal = Calendar.getInstance()</span>
+<span class="nc" id="L37">            cal.time = pauseDate</span>
+<span class="nc" id="L38">            cal.add(Calendar.DAY_OF_YEAR, PAUSE_DURATION_DAYS)</span>
+<span class="nc" id="L39">            pauseEndDate = cal.time</span>
+
+<span class="nc bnc" id="L41" title="All 2 branches missed.">            if (Date().after((pauseEndDate))) {</span>
+                // We've exceeded the pause period, so remove it.
+<span class="nc" id="L43">                Prefs.suggestedEditsPauseDate = Date(0)</span>
+<span class="nc" id="L44">                pauseEndDate = null</span>
+            }
+        }
+
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (getRevertSeverity() &gt; REVERT_SEVERITY_PAUSE_THRESHOLD) {</span>
+            // Do we need to impose a new pause?
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            if (totalReverts &gt; Prefs.suggestedEditsPauseReverts) {</span>
+<span class="nc" id="L51">                val cal = Calendar.getInstance()</span>
+<span class="nc" id="L52">                cal.time = Date()</span>
+<span class="nc" id="L53">                Prefs.suggestedEditsPauseDate = cal.time</span>
+<span class="nc" id="L54">                Prefs.suggestedEditsPauseReverts = totalReverts</span>
+
+<span class="nc" id="L56">                cal.add(Calendar.DAY_OF_YEAR, PAUSE_DURATION_DAYS)</span>
+<span class="nc" id="L57">                pauseEndDate = cal.time</span>
+            }
+        }
+<span class="nc" id="L60">        return pauseEndDate</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeveloperSettingsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings.dev</a> &gt; <span class="el_source">DeveloperSettingsFragment.kt</span></div><h1>DeveloperSettingsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings.dev
+
+import android.content.Context
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
+import androidx.core.view.MenuProvider
+import androidx.lifecycle.Lifecycle
+import org.wikipedia.R
+import org.wikipedia.history.SearchActionModeCallback
+import org.wikipedia.settings.PreferenceLoaderFragment
+
+<span class="nc" id="L19">class DeveloperSettingsFragment : PreferenceLoaderFragment(), MenuProvider {</span>
+
+<span class="nc" id="L21">    private val searchActionModeCallback = DevPreferencesSearchCallback()</span>
+    private var actionMode: ActionMode? = null
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L25">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+<span class="nc" id="L26">        return super.onCreateView(inflater, container, savedInstanceState)</span>
+    }
+
+    override fun loadPreferences() {
+<span class="nc" id="L30">        DeveloperSettingsPreferenceLoader(this).loadPreferences()</span>
+<span class="nc" id="L31">    }</span>
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+<span class="nc" id="L34">        menuInflater.inflate(R.menu.menu_developer_settings, menu)</span>
+<span class="nc" id="L35">    }</span>
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+<span class="nc" id="L38">        return when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">            R.id.menu_search -&gt; {</span>
+<span class="nc" id="L40">                (requireActivity() as AppCompatActivity).startSupportActionMode(searchActionModeCallback)</span>
+<span class="nc" id="L41">                true</span>
+            }
+<span class="nc" id="L43">            else -&gt; false</span>
+        }
+    }
+
+<span class="nc" id="L47">    private inner class DevPreferencesSearchCallback : SearchActionModeCallback() {</span>
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L49">            actionMode = mode</span>
+<span class="nc" id="L50">            return super.onCreateActionMode(mode, menu)</span>
+        }
+
+        override fun onQueryChange(s: String) {
+<span class="nc" id="L54">            DeveloperSettingsPreferenceLoader(this@DeveloperSettingsFragment).filterPreferences(s.trim())</span>
+<span class="nc" id="L55">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L58">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L59">            actionMode = null</span>
+<span class="nc" id="L60">            DeveloperSettingsPreferenceLoader(this@DeveloperSettingsFragment).filterPreferences()</span>
+<span class="nc" id="L61">        }</span>
+
+        override fun getSearchHintString(): String {
+<span class="nc" id="L64">            return requireContext().resources.getString(R.string.preferences_developer_search_hint)</span>
+        }
+
+        override fun getParentContext(): Context {
+<span class="nc" id="L68">            return requireContext()</span>
+        }
+    }
+
+    companion object {
+        fun newInstance(): DeveloperSettingsFragment {
+<span class="nc" id="L74">            return DeveloperSettingsFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

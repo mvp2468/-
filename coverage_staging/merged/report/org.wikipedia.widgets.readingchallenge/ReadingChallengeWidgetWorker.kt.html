@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingChallengeWidgetWorker.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">ReadingChallengeWidgetWorker.kt</span></div><h1>ReadingChallengeWidgetWorker.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import android.content.Context
+import androidx.work.BackoffPolicy
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
+import androidx.work.WorkRequest
+import androidx.work.WorkerParameters
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.ReleaseUtil
+import java.time.Duration
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.util.concurrent.TimeUnit
+
+<span class="nc" id="L18">class ReadingChallengeWidgetWorker(</span>
+    context: Context,
+    workerParameters: WorkerParameters
+<span class="nc" id="L21">) : CoroutineWorker(context, workerParameters) {</span>
+
+    override suspend fun doWork(): Result {
+<span class="nc" id="L24">        ReadingChallengeWidgetRepository(applicationContext).updateWidgetsAndSendAnalytics()</span>
+<span class="nc" id="L25">        scheduleNextWidgetUpdate(applicationContext)</span>
+<span class="nc" id="L26">        return Result.success()</span>
+    }
+
+    companion object {
+        const val WORK_NAME = &quot;ReadingChallengeWidgetWorker&quot;
+
+        fun scheduleNextWidgetUpdate(context: Context) {
+<span class="nc bnc" id="L33" title="All 4 branches missed.">            val delay = if (ReleaseUtil.isPreBetaRelease &amp;&amp; Prefs.readingChallengeWidgetFastCycle) {</span>
+<span class="nc" id="L34">                Duration.ofMinutes(1)</span>
+            } else {
+<span class="nc" id="L36">                val now = LocalDateTime.now()</span>
+<span class="nc" id="L37">                val nextMidnight = LocalDateTime.of(now.toLocalDate().plusDays(1), LocalTime.MIDNIGHT).plusMinutes(1)</span>
+<span class="nc" id="L38">                Duration.between(now, nextMidnight)</span>
+            }
+<span class="nc" id="L40">            val workRequest = OneTimeWorkRequest.Builder(ReadingChallengeWidgetWorker::class.java)</span>
+<span class="nc" id="L41">                .addTag(ReadingChallengeWidgetWorker::class.java.simpleName)</span>
+<span class="nc" id="L42">                .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)</span>
+<span class="nc" id="L43">                .setBackoffCriteria(</span>
+<span class="nc" id="L44">                    BackoffPolicy.LINEAR,</span>
+<span class="nc" id="L45">                    WorkRequest.MIN_BACKOFF_MILLIS,</span>
+<span class="nc" id="L46">                    TimeUnit.MILLISECONDS</span>
+                )
+<span class="nc" id="L48">                .build()</span>
+
+<span class="nc" id="L50">            WorkManager.getInstance(context).enqueueUniqueWork(</span>
+<span class="nc" id="L51">                WORK_NAME,</span>
+<span class="nc" id="L52">                ExistingWorkPolicy.REPLACE,</span>
+<span class="nc" id="L53">                workRequest</span>
+            )
+<span class="nc" id="L55">        }</span>
+
+        fun cancelScheduledUpdates(context: Context) {
+<span class="nc" id="L58">            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)</span>
+<span class="nc" id="L59">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

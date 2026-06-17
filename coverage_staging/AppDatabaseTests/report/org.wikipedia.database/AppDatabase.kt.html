@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AppDatabase.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.database</a> &gt; <span class="el_source">AppDatabase.kt</span></div><h1>AppDatabase.kt</h1><pre class="source lang-java linenums">package org.wikipedia.database
+
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import org.wikipedia.WikipediaApp
+import org.wikipedia.categories.db.Category
+import org.wikipedia.categories.db.CategoryDao
+import org.wikipedia.edit.db.EditSummary
+import org.wikipedia.edit.db.EditSummaryDao
+import org.wikipedia.games.db.DailyGameHistory
+import org.wikipedia.games.db.DailyGameHistoryDao
+import org.wikipedia.games.onthisday.OnThisDayGameViewModel
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.history.db.HistoryEntryDao
+import org.wikipedia.history.db.HistoryEntryWithImageDao
+import org.wikipedia.notifications.db.Notification
+import org.wikipedia.notifications.db.NotificationDao
+import org.wikipedia.offline.db.OfflineObject
+import org.wikipedia.offline.db.OfflineObjectDao
+import org.wikipedia.pageimages.db.PageImage
+import org.wikipedia.pageimages.db.PageImageDao
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.readinglist.database.RecommendedPage
+import org.wikipedia.readinglist.db.ReadingListDao
+import org.wikipedia.readinglist.db.ReadingListPageDao
+import org.wikipedia.readinglist.db.RecommendedPageDao
+import org.wikipedia.search.db.RecentSearch
+import org.wikipedia.search.db.RecentSearchDao
+import org.wikipedia.staticdata.MainPageNameData
+import org.wikipedia.talk.db.TalkPageSeen
+import org.wikipedia.talk.db.TalkPageSeenDao
+import org.wikipedia.talk.db.TalkTemplate
+import org.wikipedia.talk.db.TalkTemplateDao
+import java.time.LocalDate
+
+const val DATABASE_NAME = &quot;wikipedia.db&quot;
+const val DATABASE_VERSION = 32
+
+<span class="fc" id="L44">@Database(</span>
+    entities = [
+        HistoryEntry::class,
+        PageImage::class,
+        RecentSearch::class,
+        TalkPageSeen::class,
+        EditSummary::class,
+        OfflineObject::class,
+        ReadingList::class,
+        ReadingListPage::class,
+        Notification::class,
+        TalkTemplate::class,
+        Category::class,
+        DailyGameHistory::class,
+        RecommendedPage::class
+    ],
+    version = DATABASE_VERSION
+)
+@TypeConverters(
+    DateTypeConverter::class,
+    WikiSiteTypeConverter::class,
+    NamespaceTypeConverter::class,
+    NotificationTypeConverters::class
+)
+abstract class AppDatabase : RoomDatabase() {
+
+    abstract fun historyEntryDao(): HistoryEntryDao
+    abstract fun historyEntryWithImageDao(): HistoryEntryWithImageDao
+    abstract fun pageImagesDao(): PageImageDao
+    abstract fun recentSearchDao(): RecentSearchDao
+    abstract fun talkPageSeenDao(): TalkPageSeenDao
+    abstract fun editSummaryDao(): EditSummaryDao
+    abstract fun offlineObjectDao(): OfflineObjectDao
+    abstract fun readingListDao(): ReadingListDao
+    abstract fun readingListPageDao(): ReadingListPageDao
+    abstract fun notificationDao(): NotificationDao
+    abstract fun talkTemplateDao(): TalkTemplateDao
+    abstract fun categoryDao(): CategoryDao
+    abstract fun dailyGameHistoryDao(): DailyGameHistoryDao
+    abstract fun recommendedPageDao(): RecommendedPageDao
+
+    companion object {
+<span class="pc" id="L86">        val MIGRATION_19_20 = object : Migration(19, 20) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // introduced Offline Object table
+<span class="nc" id="L89">            }</span>
+        }
+<span class="pc" id="L91">        val MIGRATION_20_21 = object : Migration(20, 21) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // introduced Talk Page Seen table
+<span class="nc" id="L94">            }</span>
+        }
+<span class="pc" id="L96">        val MIGRATION_21_22 = object : Migration(21, 22) {</span>
+<span class="nc" id="L97">            override fun migrate(db: SupportSQLiteDatabase) {}</span>
+        }
+<span class="pc" id="L99">        val MIGRATION_22_23 = object : Migration(22, 23) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L101">                val defaultLang = WikipediaApp.instance.appOrSystemLanguageCode</span>
+<span class="nc" id="L102">                val defaultAuthority = WikipediaApp.instance.wikiSite.authority()</span>
+<span class="nc" id="L103">                val defaultTitle = MainPageNameData.valueFor(defaultLang)</span>
+
+                // convert Recent Searches table
+<span class="nc" id="L106">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `RecentSearch` (`text` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, PRIMARY KEY(`text`))&quot;)</span>
+<span class="nc" id="L107">                try {</span>
+<span class="nc" id="L108">                    db.execSQL(&quot;INSERT OR REPLACE INTO RecentSearch (text, timestamp) SELECT text, timestamp FROM recentsearches&quot;)</span>
+<span class="nc" id="L109">                } catch (_: Exception) {</span>
+                    // ignore further errors
+                }
+<span class="nc" id="L112">                db.execSQL(&quot;DROP TABLE IF EXISTS recentsearches&quot;)</span>
+
+                // convert Talk Pages Seen table
+<span class="nc" id="L115">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `TalkPageSeen_temp` (`sha` TEXT NOT NULL, PRIMARY KEY(`sha`))&quot;)</span>
+<span class="nc" id="L116">                try {</span>
+<span class="nc" id="L117">                    db.query(&quot;SELECT * FROM sqlite_master WHERE type='table' AND name='talkpageseen'&quot;).use {</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">                        if (it.count &gt; 0) {</span>
+<span class="nc" id="L119">                            db.execSQL(&quot;INSERT OR REPLACE INTO TalkPageSeen_temp (sha) SELECT sha FROM talkpageseen&quot;)</span>
+<span class="nc" id="L120">                            db.execSQL(&quot;DROP TABLE talkpageseen&quot;)</span>
+                        }
+<span class="nc" id="L122">                    }</span>
+<span class="nc" id="L123">                } catch (_: Exception) {</span>
+                    // ignore further errors
+                }
+<span class="nc" id="L126">                db.execSQL(&quot;ALTER TABLE TalkPageSeen_temp RENAME TO TalkPageSeen&quot;)</span>
+
+                // convert Edit Summaries table
+<span class="nc" id="L129">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `EditSummary` (`summary` TEXT NOT NULL, `lastUsed` INTEGER NOT NULL, PRIMARY KEY(`summary`))&quot;)</span>
+<span class="nc" id="L130">                try {</span>
+<span class="nc" id="L131">                    db.execSQL(&quot;INSERT OR REPLACE INTO EditSummary (summary, lastUsed) SELECT summary, lastUsed FROM editsummaries&quot;)</span>
+<span class="nc" id="L132">                } catch (_: Exception) {</span>
+                    // ignore further errors
+                }
+<span class="nc" id="L135">                db.execSQL(&quot;DROP TABLE IF EXISTS editsummaries&quot;)</span>
+
+                // convert Offline Objects table
+<span class="nc" id="L138">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `OfflineObject_temp` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `url` TEXT NOT NULL, `lang` TEXT NOT NULL, `path` TEXT NOT NULL, `status` INTEGER NOT NULL, `usedByStr` TEXT NOT NULL)&quot;)</span>
+<span class="nc" id="L139">                try {</span>
+<span class="nc" id="L140">                    db.query(&quot;SELECT * FROM sqlite_master WHERE type='table' AND name='offlineobject'&quot;).use {</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                        if (it.count &gt; 0) {</span>
+<span class="nc" id="L142">                            db.execSQL(&quot;INSERT INTO OfflineObject_temp (id, url, lang, path, status, usedByStr) SELECT _id, url, lang, path, status, usedby FROM offlineobject&quot;)</span>
+<span class="nc" id="L143">                            db.execSQL(&quot;DROP TABLE offlineobject&quot;)</span>
+                        }
+<span class="nc" id="L145">                    }</span>
+<span class="nc" id="L146">                } catch (_: Exception) {</span>
+                    // ignore further errors
+                }
+<span class="nc" id="L149">                db.execSQL(&quot;ALTER TABLE OfflineObject_temp RENAME TO OfflineObject&quot;)</span>
+
+                // Delete vestigial Reading List tables that might have been left over from very old DB versions.
+<span class="nc" id="L152">                db.execSQL(&quot;DROP TABLE IF EXISTS readinglist&quot;)</span>
+<span class="nc" id="L153">                db.execSQL(&quot;DROP TABLE IF EXISTS readinglistpage&quot;)</span>
+
+                // convert Reading List tables
+<span class="nc" id="L156">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `ReadingList` (`listTitle` TEXT NOT NULL, `description` TEXT, `mtime` INTEGER NOT NULL, `atime` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sizeBytes` INTEGER NOT NULL, `dirty` INTEGER NOT NULL, `remoteId` INTEGER NOT NULL)&quot;)</span>
+<span class="nc" id="L157">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `ReadingListPage` (`wiki` TEXT NOT NULL, `namespace` INTEGER NOT NULL, `displayTitle` TEXT NOT NULL, `apiTitle` TEXT NOT NULL, `description` TEXT, `thumbUrl` TEXT, `listId` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mtime` INTEGER NOT NULL, `atime` INTEGER NOT NULL, `offline` INTEGER NOT NULL, `status` INTEGER NOT NULL, `sizeBytes` INTEGER NOT NULL, `lang` TEXT NOT NULL, `revId` INTEGER NOT NULL, `remoteId` INTEGER NOT NULL)&quot;)</span>
+<span class="nc" id="L158">                try {</span>
+<span class="nc" id="L159">                    db.execSQL(&quot;INSERT INTO ReadingList (id, listTitle, description, mtime, atime, sizeBytes, dirty, remoteId) SELECT _id, COALESCE(readingListTitle,''), readingListDescription, readingListMtime, readingListAtime, readingListSizeBytes, readingListDirty, readingListRemoteId FROM localreadinglist&quot;)</span>
+<span class="nc" id="L160">                    db.execSQL(&quot;INSERT INTO ReadingListPage (id, wiki, namespace, displayTitle, apiTitle, description, thumbUrl, listId, mtime, atime, offline, status, sizeBytes, lang, revId, remoteId) SELECT _id, site, namespace, title, COALESCE(apiTitle,title), description, thumbnailUrl, listId, mtime, atime, offline, status, sizeBytes, lang, revId, remoteId FROM localreadinglistpage&quot;)</span>
+<span class="nc" id="L161">                } catch (_: Exception) {</span>
+                    // ignore further errors
+                }
+<span class="nc" id="L164">                db.execSQL(&quot;DROP TABLE IF EXISTS localreadinglist&quot;)</span>
+<span class="nc" id="L165">                db.execSQL(&quot;DROP TABLE IF EXISTS localreadinglistpage&quot;)</span>
+
+                // convert History table
+<span class="nc" id="L168">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `HistoryEntry` (`authority` TEXT NOT NULL, `lang` TEXT NOT NULL, `apiTitle` TEXT NOT NULL, `displayTitle` TEXT NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `namespace` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `source` INTEGER NOT NULL, `timeSpentSec` INTEGER NOT NULL)&quot;)</span>
+<span class="nc" id="L169">                try {</span>
+<span class="nc" id="L170">                    db.execSQL(&quot;INSERT INTO HistoryEntry (id, authority, lang, apiTitle, displayTitle, namespace, source, timestamp, timeSpentSec) SELECT _id, COALESCE(site,'$defaultAuthority'), COALESCE(lang,'$defaultLang'), COALESCE(title,'$defaultTitle'), COALESCE(displayTitle,''), COALESCE(namespace,''), COALESCE(source,2), COALESCE(timestamp,0), COALESCE(timeSpent,0) FROM history&quot;)</span>
+<span class="nc" id="L171">                } catch (_: Exception) {</span>
+                    // ignore further errors
+                }
+<span class="nc" id="L174">                db.execSQL(&quot;DROP TABLE IF EXISTS history&quot;)</span>
+
+                // convert Page Images table
+<span class="nc" id="L177">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `PageImage` (`lang` TEXT NOT NULL, `namespace` TEXT NOT NULL, `apiTitle` TEXT NOT NULL, `imageName` TEXT, PRIMARY KEY(`lang`, `namespace`, `apiTitle`))&quot;)</span>
+<span class="nc" id="L178">                try {</span>
+<span class="nc" id="L179">                    db.execSQL(&quot;INSERT OR REPLACE INTO PageImage (lang, namespace, apiTitle, imageName) SELECT COALESCE(lang,'$defaultLang'), COALESCE(namespace,''), COALESCE(title,'$defaultTitle'), imageName FROM pageimages&quot;)</span>
+<span class="nc" id="L180">                } catch (_: Exception) {</span>
+                    // ignore further errors
+                }
+<span class="nc" id="L183">                db.execSQL(&quot;DROP TABLE pageimages&quot;)</span>
+<span class="nc" id="L184">            }</span>
+        }
+<span class="pc" id="L186">        val MIGRATION_23_24 = object : Migration(23, 24) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L188">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `Notification` (`id` INTEGER NOT NULL, `wiki` TEXT NOT NULL, `read` TEXT, `category` TEXT NOT NULL, `type` TEXT NOT NULL, `revid` INTEGER NOT NULL, `title` TEXT, `agent` TEXT, `timestamp` TEXT, `contents` TEXT, PRIMARY KEY(`id`, `wiki`))&quot;)</span>
+<span class="nc" id="L189">            }</span>
+        }
+<span class="pc" id="L191">        val MIGRATION_24_25 = object : Migration(24, 25) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L193">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS `TalkTemplate` (`id` INTEGER NOT NULL, `type` INTEGER NOT NULL, `order` INTEGER NOT NULL, `title` TEXT NOT NULL, `subject` TEXT NOT NULL, `message` TEXT NOT NULL, PRIMARY KEY(`id`))&quot;)</span>
+<span class="nc" id="L194">            }</span>
+        }
+<span class="pc" id="L196">        val MIGRATION_25_26 = object : Migration(25, 26) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L198">                db.execSQL(&quot;ALTER TABLE HistoryEntry ADD COLUMN description TEXT NOT NULL DEFAULT ''&quot;)</span>
+<span class="nc" id="L199">            }</span>
+        }
+<span class="pc" id="L201">        val MIGRATION_26_27 = object : Migration(26, 27) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Rename the existing HistoryEntry table, which we're preserving for now (in case
+                // things go wrong with migrations in the field).
+<span class="nc" id="L205">                db.execSQL(&quot;ALTER TABLE HistoryEntry RENAME TO HistoryEntry_old&quot;)</span>
+
+                // Create the &quot;new&quot; HistoryEntry table, which will match the new HistoryEntry structure.
+<span class="nc" id="L208">                db.execSQL(&quot;CREATE TABLE `HistoryEntry` (`authority` TEXT NOT NULL, `lang` TEXT NOT NULL, `apiTitle` TEXT NOT NULL, `displayTitle` TEXT NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `namespace` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `source` INTEGER NOT NULL, `prevId` INTEGER NOT NULL DEFAULT -1)&quot;)</span>
+
+                // Copy everything from the old table to the new one, minus the columns that were removed.
+<span class="nc" id="L211">                db.execSQL(&quot;INSERT INTO HistoryEntry (authority, lang, apiTitle, displayTitle, id, namespace, timestamp, source) SELECT authority, lang, apiTitle, displayTitle, id, namespace, timestamp, source FROM HistoryEntry_old&quot;)</span>
+
+                // Add new columns to the PageImage table, will will now serve as a more general
+                // table for page metadata, not just the thumbnail.
+<span class="nc" id="L215">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN timeSpentSec INTEGER NOT NULL DEFAULT 0&quot;)</span>
+<span class="nc" id="L216">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN description TEXT DEFAULT ''&quot;)</span>
+<span class="nc" id="L217">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN geoLat REAL NOT NULL DEFAULT 0.0&quot;)</span>
+<span class="nc" id="L218">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN geoLon REAL NOT NULL DEFAULT 0.0&quot;)</span>
+
+                // Copy the metadata from the removed columns in the old HistoryEntry table into the
+                // new columns in the PageImage table.
+<span class="nc" id="L222">                db.execSQL(&quot;UPDATE PageImage SET description = (SELECT description FROM HistoryEntry_old WHERE PageImage.lang = HistoryEntry_old.lang AND PageImage.namespace = HistoryEntry_old.namespace AND PageImage.apiTitle = HistoryEntry_old.apiTitle)&quot;)</span>
+<span class="nc" id="L223">                db.execSQL(&quot;UPDATE PageImage SET timeSpentSec = COALESCE((SELECT timeSpentSec FROM HistoryEntry_old WHERE PageImage.lang = HistoryEntry_old.lang AND PageImage.namespace = HistoryEntry_old.namespace AND PageImage.apiTitle = HistoryEntry_old.apiTitle), 0)&quot;)</span>
+
+                // Drop the old HistoryEntry table that was preserved during migration.
+<span class="nc" id="L226">                db.execSQL(&quot;DROP TABLE IF EXISTS HistoryEntry_old&quot;)</span>
+<span class="nc" id="L227">            }</span>
+        }
+<span class="pc" id="L229">        val MIGRATION_27_28 = object : Migration(27, 28) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L231">                db.execSQL(&quot;CREATE INDEX IF NOT EXISTS index_HistoryEntry_lang_namespace_apiTitle ON HistoryEntry (lang, namespace, apiTitle)&quot;)</span>
+<span class="nc" id="L232">                db.execSQL(&quot;CREATE INDEX IF NOT EXISTS index_PageImage_lang_namespace_apiTitle ON PageImage (lang, namespace, apiTitle)&quot;)</span>
+<span class="nc" id="L233">            }</span>
+        }
+<span class="pc" id="L235">        val MIGRATION_26_28 = object : Migration(26, 28) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Rename the existing HistoryEntry table, which we're preserving for now (in case
+                // things go wrong with migrations in the field).
+<span class="nc" id="L239">                db.execSQL(&quot;ALTER TABLE HistoryEntry RENAME TO HistoryEntry_old&quot;)</span>
+
+                // Create the &quot;new&quot; HistoryEntry table, which will match the new HistoryEntry structure.
+<span class="nc" id="L242">                db.execSQL(&quot;CREATE TABLE `HistoryEntry` (`authority` TEXT NOT NULL, `lang` TEXT NOT NULL, `apiTitle` TEXT NOT NULL, `displayTitle` TEXT NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `namespace` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `source` INTEGER NOT NULL, `prevId` INTEGER NOT NULL DEFAULT -1)&quot;)</span>
+
+                // Create indexes on the new and old HistoryEntry table.
+<span class="nc" id="L245">                db.execSQL(&quot;CREATE INDEX IF NOT EXISTS index_HistoryEntry_lang_namespace_apiTitle ON HistoryEntry (lang, namespace, apiTitle)&quot;)</span>
+<span class="nc" id="L246">                db.execSQL(&quot;CREATE INDEX IF NOT EXISTS index_HistoryEntry_old_lang_namespace_apiTitle ON HistoryEntry_old (lang, namespace, apiTitle)&quot;)</span>
+
+                // Copy everything from the old table to the new one, minus the columns that were removed.
+<span class="nc" id="L249">                db.execSQL(&quot;INSERT INTO HistoryEntry (authority, lang, apiTitle, displayTitle, id, namespace, timestamp, source) SELECT authority, lang, apiTitle, displayTitle, id, namespace, timestamp, source FROM HistoryEntry_old&quot;)</span>
+
+                // Add new columns to the PageImage table, will will now serve as a more general
+                // table for page metadata, not just the thumbnail.
+<span class="nc" id="L253">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN timeSpentSec INTEGER NOT NULL DEFAULT 0&quot;)</span>
+<span class="nc" id="L254">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN description TEXT DEFAULT ''&quot;)</span>
+<span class="nc" id="L255">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN geoLat REAL NOT NULL DEFAULT 0.0&quot;)</span>
+<span class="nc" id="L256">                db.execSQL(&quot;ALTER TABLE PageImage ADD COLUMN geoLon REAL NOT NULL DEFAULT 0.0&quot;)</span>
+
+                // Create an index on the PageImage table.
+<span class="nc" id="L259">                db.execSQL(&quot;CREATE INDEX IF NOT EXISTS index_PageImage_lang_namespace_apiTitle ON PageImage (lang, namespace, apiTitle)&quot;)</span>
+
+                // Copy the metadata from the removed columns in the old HistoryEntry table into the
+                // new columns in the PageImage table, for PageImage rows that already exist.
+<span class="nc" id="L263">                db.execSQL(&quot;UPDATE PageImage SET&quot; +</span>
+                        &quot; description = (SELECT HistoryEntry_old.description&quot; +
+                        &quot;     FROM HistoryEntry_old&quot; +
+                        &quot;     WHERE PageImage.lang = HistoryEntry_old.lang&quot; +
+                        &quot;     AND PageImage.namespace = HistoryEntry_old.namespace&quot; +
+                        &quot;     AND PageImage.apiTitle = HistoryEntry_old.apiTitle),&quot; +
+                        &quot; timeSpentSec = COALESCE((SELECT HistoryEntry_old.timeSpentSec&quot; +
+                        &quot;     FROM HistoryEntry_old&quot; +
+                        &quot;     WHERE PageImage.lang = HistoryEntry_old.lang&quot; +
+                        &quot;     AND PageImage.namespace = HistoryEntry_old.namespace&quot; +
+                        &quot;     AND PageImage.apiTitle = HistoryEntry_old.apiTitle), 0)&quot;)
+
+                // For PageImage rows that don't already exist (i.e. HistoryEntries that didn't have
+                // a thumbnail), insert them and copy the other metadata.
+<span class="nc" id="L277">                db.execSQL(&quot;INSERT INTO PageImage (lang, namespace, apiTitle, description, timeSpentSec)&quot; +</span>
+                        &quot; SELECT lang, namespace, apiTitle, description, COALESCE(timeSpentSec, 0) as timeSpentSec FROM&quot; +
+                        &quot; (SELECT lang, namespace, apiTitle, description, MAX(COALESCE(timeSpentSec, 0)) as timeSpentSec&quot; +
+                        &quot;     FROM HistoryEntry_old GROUP BY lang, namespace, apiTitle) AS HistoryUnique&quot; +
+                        &quot; WHERE NOT EXISTS (SELECT 1 FROM PageImage&quot; +
+                        &quot;     WHERE PageImage.lang = HistoryUnique.lang AND&quot; +
+                        &quot;         PageImage.namespace = HistoryUnique.namespace AND&quot; +
+                        &quot;         PageImage.apiTitle = HistoryUnique.apiTitle)&quot;)
+
+                // Drop the old HistoryEntry table that was preserved during migration.
+<span class="nc" id="L287">                db.execSQL(&quot;DROP TABLE IF EXISTS HistoryEntry_old&quot;)</span>
+<span class="nc" id="L288">            }</span>
+        }
+
+<span class="pc" id="L291">        val MIGRATION_28_29 = object : Migration(28, 29) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L293">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS Category (&quot; +</span>
+                        &quot;title TEXT NOT NULL,&quot; +
+                        &quot;lang TEXT NOT NULL,&quot; +
+                        &quot;timeStamp INTEGER NOT NULL,&quot; +
+                        &quot;PRIMARY KEY (title, lang, timeStamp)&quot; +
+                        &quot;)&quot;)
+<span class="nc" id="L299">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS DailyGameHistory (&quot; +</span>
+                        &quot;    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,&quot; +
+                        &quot;    gameName INTEGER NOT NULL,&quot; +
+                        &quot;    language TEXT NOT NULL,&quot; +
+                        &quot;    year INTEGER NOT NULL,&quot; +
+                        &quot;    month INTEGER NOT NULL,&quot; +
+                        &quot;    day INTEGER NOT NULL,&quot; +
+                        &quot;    score INTEGER NOT NULL,&quot; +
+                        &quot;    playType INTEGER NOT NULL,&quot; +
+                        &quot;    gameData TEXT&quot; +
+                        &quot;)&quot;)
+<span class="nc" id="L310">            }</span>
+        }
+<span class="pc" id="L312">        val MIGRATION_29_30 = object : Migration(29, 30) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L314">                db.execSQL(&quot;CREATE TABLE IF NOT EXISTS RecommendedPage (&quot; +</span>
+                        &quot;    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,&quot; +
+                        &quot;    wiki TEXT NOT NULL,&quot; +
+                        &quot;    lang TEXT NOT NULL DEFAULT 'en',&quot; +
+                        &quot;    namespace INTEGER NOT NULL,&quot; +
+                        &quot;    timestamp INTEGER NOT NULL,&quot; +
+                        &quot;    apiTitle TEXT NOT NULL,&quot; +
+                        &quot;    displayTitle TEXT NOT NULL,&quot; +
+                        &quot;    description TEXT,&quot; +
+                        &quot;    thumbUrl TEXT,&quot; +
+                        &quot;    status INTEGER NOT NULL DEFAULT 0&quot; +
+                        &quot;)&quot;)
+<span class="nc" id="L326">            }</span>
+        }
+<span class="pc" id="L328">        val MIGRATION_30_31 = object : Migration(30, 31) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Step 1: Create a temporary table
+<span class="nc" id="L331">                db.execSQL(&quot;CREATE TABLE Category_temp (&quot; +</span>
+                        &quot;    year INTEGER NOT NULL,&quot; +
+                        &quot;    month INTEGER NOT NULL,&quot; +
+                        &quot;    title TEXT NOT NULL,&quot; +
+                        &quot;    lang TEXT NOT NULL,&quot; +
+                        &quot;    count INTEGER NOT NULL,&quot; +
+                        &quot;    PRIMARY KEY (year, month, title, lang)&quot; +
+                        &quot;)&quot;)
+
+                // Step 2: Populate the new table with the transformed data from the old table
+<span class="nc" id="L341">                db.execSQL(&quot;INSERT INTO Category_temp (year, month, title, lang, count)&quot; +</span>
+                        &quot;    SELECT&quot; +
+<span class="nc" id="L343">                        &quot;        COALESCE(CAST(strftime('%Y', timeStamp / 1000, 'unixepoch') AS INTEGER), ${LocalDate.now().year}) AS year,&quot; +</span>
+<span class="nc" id="L344">                        &quot;        COALESCE(CAST(strftime('%m', timeStamp / 1000, 'unixepoch') AS INTEGER), ${LocalDate.now().monthValue}) AS month,&quot; +</span>
+                        &quot;        title,&quot; +
+                        &quot;        lang,&quot; +
+                        &quot;        COUNT(*) AS count&quot; +
+                        &quot;    FROM Category GROUP BY year, month, title, lang&quot;)
+
+                // Step 3: Drop the old table
+<span class="nc" id="L351">                db.execSQL(&quot;DROP TABLE Category&quot;)</span>
+                // Step 4: Rename the temporary table to the original table name
+
+<span class="nc" id="L354">                db.execSQL(&quot;ALTER TABLE Category_temp RENAME TO Category&quot;)</span>
+<span class="nc" id="L355">            }</span>
+        }
+
+<span class="pc" id="L358">        val MIGRATION_31_32 = object : Migration(31, 32) {</span>
+            override fun migrate(db: SupportSQLiteDatabase) {
+<span class="nc" id="L360">                db.execSQL(&quot;ALTER TABLE DailyGameHistory ADD COLUMN status INTEGER NOT NULL DEFAULT 1&quot;)</span>
+<span class="nc" id="L361">                db.execSQL(&quot;ALTER TABLE DailyGameHistory ADD COLUMN currentQuestionIndex INTEGER NOT NULL DEFAULT ${OnThisDayGameViewModel.MAX_QUESTIONS}&quot;)</span>
+<span class="nc" id="L362">            }</span>
+        }
+
+<span class="pc" id="L365">        val instance: AppDatabase by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {</span>
+<span class="nc" id="L366">            Room.databaseBuilder(WikipediaApp.instance, AppDatabase::class.java, DATABASE_NAME)</span>
+<span class="nc" id="L367">                .addMigrations(MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,</span>
+<span class="nc" id="L368">                    MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,</span>
+<span class="nc" id="L369">                    MIGRATION_26_28, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,</span>
+<span class="nc" id="L370">                    MIGRATION_30_31, MIGRATION_31_32)</span>
+<span class="nc" id="L371">                .fallbackToDestructiveMigration(false)</span>
+<span class="nc" id="L372">                .build()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

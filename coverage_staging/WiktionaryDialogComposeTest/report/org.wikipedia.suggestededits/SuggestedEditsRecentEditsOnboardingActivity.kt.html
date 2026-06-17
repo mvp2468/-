@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsRecentEditsOnboardingActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsRecentEditsOnboardingActivity.kt</span></div><h1>SuggestedEditsRecentEditsOnboardingActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.os.PersistableBundle
+import androidx.activity.addCallback
+import org.wikipedia.activity.SingleFragmentActivity
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.onboarding.OnboardingFragment
+
+<span class="nc" id="L12">class SuggestedEditsRecentEditsOnboardingActivity : SingleFragmentActivity&lt;SuggestedEditsRecentEditsOnboardingFragment&gt;(), OnboardingFragment.Callback {</span>
+    override fun onSkip() {
+<span class="nc" id="L14">        PatrollerExperienceEvent.logAction(&quot;onboarding_skip&quot;, &quot;pt_onboarding&quot;)</span>
+<span class="nc" id="L15">    }</span>
+
+    override fun onComplete() {
+<span class="nc" id="L18">        PatrollerExperienceEvent.logAction(&quot;get_started&quot;, &quot;pt_onboarding&quot;)</span>
+<span class="nc" id="L19">        setResult(RESULT_OK, intent)</span>
+<span class="nc" id="L20">        finish()</span>
+<span class="nc" id="L21">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
+<span class="nc" id="L24">        super.onCreate(savedInstanceState, persistentState)</span>
+<span class="nc" id="L25">        onBackPressedDispatcher.addCallback(this) {</span>
+<span class="nc" id="L26">            PatrollerExperienceEvent.logAction(&quot;back&quot;, &quot;pt_onboarding&quot;)</span>
+<span class="nc" id="L27">            finish()</span>
+<span class="nc" id="L28">        }</span>
+<span class="nc" id="L29">    }</span>
+
+    override fun createFragment(): SuggestedEditsRecentEditsOnboardingFragment {
+<span class="nc" id="L32">        return SuggestedEditsRecentEditsOnboardingFragment.newInstance()</span>
+    }
+
+    companion object {
+        fun newIntent(context: Context): Intent {
+<span class="nc" id="L37">            return Intent(context, SuggestedEditsRecentEditsOnboardingActivity::class.java)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

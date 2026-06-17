@@ -1,0 +1,890 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlacesFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.places</a> &gt; <span class="el_source">PlacesFragment.kt</span></div><h1>PlacesFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.places
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.Activity.RESULT_OK
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
+import android.graphics.RectF
+import android.location.Location
+import android.os.Bundle
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.app.ActivityCompat
+import androidx.core.app.ActivityOptionsCompat
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.Insets
+import androidx.core.graphics.applyCanvas
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.os.bundleOf
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMap.CancelableCallback
+import org.maplibre.android.maps.Style
+import org.maplibre.android.module.http.HttpRequestImpl
+import org.maplibre.android.plugins.annotation.ClusterOptions
+import org.maplibre.android.plugins.annotation.Symbol
+import org.maplibre.android.plugins.annotation.SymbolManager
+import org.maplibre.android.plugins.annotation.SymbolOptions
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
+import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
+import org.maplibre.android.style.layers.PropertyFactory.textAllowOverlap
+import org.maplibre.android.style.layers.PropertyFactory.textColor
+import org.maplibre.android.style.layers.PropertyFactory.textField
+import org.maplibre.android.style.layers.PropertyFactory.textFont
+import org.maplibre.android.style.layers.PropertyFactory.textIgnorePlacement
+import org.maplibre.android.style.layers.PropertyFactory.textSize
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.PlacesEvent
+import org.wikipedia.databinding.FragmentPlacesBinding
+import org.wikipedia.databinding.ItemPlacesListBinding
+import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory
+import org.wikipedia.dataclient.page.NearbyPage
+import org.wikipedia.extensions.parcelable
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.page.linkpreview.LinkPreviewDialog
+import org.wikipedia.page.tabs.TabActivity
+import org.wikipedia.readinglist.LongPressMenu
+import org.wikipedia.readinglist.ReadingListBehaviorsUtil
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.search.SearchActivity
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.GeoUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.TabUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.DrawableItemDecoration
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.views.imageservice.ImageService
+import java.util.Locale
+import kotlin.math.abs
+
+<span class="nc" id="L103">class PlacesFragment : Fragment(), LinkPreviewDialog.LoadPageCallback, LinkPreviewDialog.DismissCallback, MapLibreMap.OnMapClickListener {</span>
+
+    private var _binding: FragmentPlacesBinding? = null
+<span class="nc" id="L106">    private val binding get() = _binding!!</span>
+    private var statusBarInsets: Insets? = null
+    private var navBarInsets: Insets? = null
+
+<span class="nc" id="L110">    private val viewModel: PlacesFragmentViewModel by viewModels()</span>
+
+    private var mapboxMap: MapLibreMap? = null
+    private var symbolManager: SymbolManager? = null
+
+<span class="nc" id="L115">    private val annotationCache = ArrayDeque&lt;NearbyPage&gt;()</span>
+<span class="nc" id="L116">    private var lastCheckedId = R.id.mapViewButton</span>
+    private var lastLocation: Location? = null
+    private var lastLocationQueried: Location? = null
+<span class="nc" id="L119">    private var lastZoom = 15.0</span>
+    private var lastZoomQueried = 0.0
+
+    private lateinit var markerBitmapBase: Bitmap
+    private lateinit var markerPaintSrc: Paint
+    private lateinit var markerPaintSrcIn: Paint
+    private lateinit var markerBorderPaint: Paint
+<span class="nc" id="L126">    private val markerRect = getMarkerRect()</span>
+
+    private val searchRadius
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        get() = mapboxMap?.let {</span>
+<span class="nc" id="L130">            latitudeDiffToMeters(it.projection.visibleRegion.latLngBounds.latitudeSpan / 2)</span>
+<span class="nc" id="L131">        } ?: 50</span>
+    private var magnifiedMarker: Symbol? = null
+
+<span class="nc" id="L134">    private val locationPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions -&gt;</span>
+<span class="nc" id="L135">        when {</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) ||</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -&gt; {</span>
+<span class="nc" id="L138">                PlacesEvent.logAction(&quot;location_permission_granted&quot;, &quot;map_view&quot;)</span>
+<span class="nc" id="L139">                startLocationTracking()</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                goToLocation(viewModel.location ?: getDefaultLocation())</span>
+            }
+            else -&gt; {
+<span class="nc" id="L143">                PlacesEvent.logAction(&quot;location_permission_denied&quot;, &quot;map_view&quot;)</span>
+<span class="nc" id="L144">                FeedbackUtil.showMessage(requireActivity(), R.string.places_permissions_denied)</span>
+            }
+        }
+<span class="nc" id="L147">    }</span>
+
+<span class="nc" id="L149">    private val placesSearchLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if (it.resultCode == SearchActivity.RESULT_LINK_SUCCESS) {</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            val location = it.data?.parcelableExtra&lt;Location&gt;(PlacesActivity.EXTRA_LOCATION)!!</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            val pageTitle = it.data?.parcelableExtra&lt;PageTitle&gt;(SearchActivity.EXTRA_RETURN_LINK_TITLE)!!</span>
+<span class="nc" id="L153">            viewModel.highlightedPageTitle = pageTitle</span>
+<span class="nc" id="L154">            Prefs.placesWikiCode = pageTitle.wikiSite.languageCode</span>
+<span class="nc" id="L155">            goToLocation(preferredLocation = location, zoom = 15.9)</span>
+<span class="nc" id="L156">            viewModel.fetchNearbyPages(location.latitude, location.longitude, searchRadius, ITEMS_PER_REQUEST)</span>
+        }
+<span class="nc" id="L158">    }</span>
+
+<span class="nc" id="L160">    private val filterLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            val languageChanged = it.data?.getBooleanExtra(PlacesFilterActivity.EXTRA_LANG_CHANGED, false) ?: false</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">            if (languageChanged) {</span>
+<span class="nc" id="L164">                clearAnnotationCache()</span>
+<span class="nc" id="L165">                viewModel.highlightedPageTitle = null</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                symbolManager?.deleteAll()</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                viewModel.fetchNearbyPages(lastLocation?.latitude ?: 0.0,</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                    lastLocation?.longitude ?: 0.0, searchRadius, ITEMS_PER_REQUEST)</span>
+<span class="nc" id="L169">                goToLocation(lastLocation, lastZoom)</span>
+            }
+        }
+<span class="nc" id="L172">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L175">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L176">        markerPaintSrc = getMarkerPaintSrc(requireContext())</span>
+<span class="nc" id="L177">        markerPaintSrcIn = getMarkerPaintSrcIn()</span>
+<span class="nc" id="L178">        markerBorderPaint = getMarkerBorderPaint(requireContext())</span>
+<span class="nc" id="L179">        markerBitmapBase = getMarkerBitmapBase(requireContext())</span>
+
+<span class="nc" id="L181">        MapLibre.getInstance(requireActivity().applicationContext)</span>
+
+<span class="nc" id="L183">        HttpRequestImpl.setOkHttpClient(OkHttpConnectionFactory.client)</span>
+
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        requireArguments().parcelable&lt;PageTitle&gt;(Constants.ARG_TITLE)?.let {</span>
+<span class="nc" id="L186">            Prefs.placesWikiCode = it.wikiSite.languageCode</span>
+<span class="nc" id="L187">        }</span>
+<span class="nc" id="L188">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L191">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L192">        _binding = FragmentPlacesBinding.inflate(inflater, container, false)</span>
+
+<span class="nc" id="L194">        binding.root.setOnApplyWindowInsetsListener { view, windowInsets -&gt;</span>
+<span class="nc" id="L195">            val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(windowInsets, view)</span>
+<span class="nc" id="L196">            val newStatusBarInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.statusBars())</span>
+<span class="nc" id="L197">            val newNavBarInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.navigationBars())</span>
+
+<span class="nc" id="L199">            var params = binding.controlsContainer.layoutParams as ViewGroup.MarginLayoutParams</span>
+<span class="nc" id="L200">            params.topMargin = newStatusBarInsets.top + newNavBarInsets.top</span>
+<span class="nc" id="L201">            params.leftMargin = newStatusBarInsets.left + newNavBarInsets.left</span>
+<span class="nc" id="L202">            params.rightMargin = newStatusBarInsets.right + newNavBarInsets.right</span>
+<span class="nc" id="L203">            params.bottomMargin = newStatusBarInsets.bottom + newNavBarInsets.bottom</span>
+
+<span class="nc" id="L205">            params = binding.myLocationButton.layoutParams as ViewGroup.MarginLayoutParams</span>
+<span class="nc" id="L206">            params.bottomMargin = newNavBarInsets.bottom + DimenUtil.roundedDpToPx(16f)</span>
+<span class="nc" id="L207">            params.leftMargin = newStatusBarInsets.left + newNavBarInsets.left + DimenUtil.roundedDpToPx(16f)</span>
+<span class="nc" id="L208">            params.rightMargin = newStatusBarInsets.right + newNavBarInsets.right + DimenUtil.roundedDpToPx(16f)</span>
+<span class="nc" id="L209">            binding.myLocationButton.layoutParams = params</span>
+
+<span class="nc" id="L211">            statusBarInsets = newStatusBarInsets</span>
+<span class="nc" id="L212">            navBarInsets = newNavBarInsets</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            WindowInsetsCompat.Builder()</span>
+<span class="nc" id="L214">                .setInsets(WindowInsetsCompat.Type.navigationBars(), navBarInsets!!)</span>
+<span class="nc" id="L215">                .build().toWindowInsets() ?: windowInsets</span>
+        }
+
+<span class="nc" id="L218">        binding.tabsButton.setOnClickListener {</span>
+<span class="nc" id="L219">            PlacesEvent.logAction(&quot;tabs_view_click&quot;, &quot;search_bar_view&quot;)</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            if (WikipediaApp.instance.tabCount == 1) {</span>
+<span class="nc" id="L221">                startActivity(PageActivity.newIntent(requireActivity()))</span>
+            } else {
+<span class="nc" id="L223">                startActivity(TabActivity.newIntent(requireActivity()))</span>
+            }
+<span class="nc" id="L225">        }</span>
+
+<span class="nc" id="L227">        binding.searchTextView.setOnClickListener {</span>
+<span class="nc" id="L228">            PlacesEvent.logAction(&quot;search_view_click&quot;, &quot;search_bar_view&quot;)</span>
+<span class="nc" id="L229">            val intent = SearchActivity.newIntent(requireActivity(), Constants.InvokeSource.PLACES,</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">                viewModel.highlightedPageTitle?.displayText, true)</span>
+<span class="nc bnc" id="L231" title="All 4 branches missed.">            val options = if (intent.component?.className == SearchActivity::class.java.name) {</span>
+<span class="nc" id="L232">                ActivityOptionsCompat.makeSceneTransitionAnimation(requireActivity(),</span>
+<span class="nc" id="L233">                    binding.searchContainer.getChildAt(0), getString(R.string.transition_search_bar))</span>
+<span class="nc" id="L234">            } else null</span>
+<span class="nc" id="L235">            placesSearchLauncher.launch(intent, options)</span>
+<span class="nc" id="L236">        }</span>
+
+<span class="nc" id="L238">        binding.backButton.setOnClickListener {</span>
+<span class="nc" id="L239">            PlacesEvent.logAction(&quot;back_click&quot;, &quot;search_bar_view&quot;)</span>
+<span class="nc" id="L240">            requireActivity().finish()</span>
+<span class="nc" id="L241">        }</span>
+
+<span class="nc" id="L243">        binding.langCodeButton.setOnClickListener {</span>
+<span class="nc" id="L244">            PlacesEvent.logAction(&quot;filter_click&quot;, &quot;search_bar_view&quot;)</span>
+<span class="nc" id="L245">            filterLauncher.launch(PlacesFilterActivity.newIntent(requireActivity()))</span>
+<span class="nc" id="L246">        }</span>
+
+<span class="nc" id="L248">        binding.searchCloseBtn.setOnClickListener {</span>
+<span class="nc" id="L249">            PlacesEvent.logAction(&quot;search_clear_click&quot;, &quot;search_bar_view&quot;)</span>
+<span class="nc" id="L250">            updateSearchText()</span>
+<span class="nc" id="L251">        }</span>
+
+<span class="nc" id="L253">        binding.myLocationButton.setOnClickListener {</span>
+<span class="nc" id="L254">            PlacesEvent.logAction(&quot;current_location_click&quot;, &quot;map_view&quot;)</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            if (haveLocationPermissions()) {</span>
+<span class="nc" id="L256">                goToLocation()</span>
+            } else {
+<span class="nc" id="L258">                locationPermissionRequest.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))</span>
+            }
+<span class="nc" id="L260">        }</span>
+
+<span class="nc" id="L262">        binding.viewButtonsGroup.addOnButtonCheckedListener { _, checkedId, isChecked -&gt;</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">            if (!isChecked) {</span>
+<span class="nc" id="L264">                return@addOnButtonCheckedListener</span>
+            }
+<span class="nc" id="L266">            lastCheckedId = checkedId</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            val mapViewChecked = checkedId == R.id.mapViewButton</span>
+<span class="nc" id="L268">            updateToggleViews(mapViewChecked)</span>
+
+<span class="nc" id="L270">            val progressColor = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.progressive_color)</span>
+<span class="nc" id="L271">            val additionColor = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.addition_color)</span>
+<span class="nc" id="L272">            val placeholderColor = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.placeholder_color)</span>
+<span class="nc" id="L273">            val paperColor = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.paper_color)</span>
+<span class="nc" id="L274">            val backgroundColor = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.background_color)</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">            if (mapViewChecked) {</span>
+<span class="nc" id="L276">                binding.mapViewButton.setTextColor(progressColor)</span>
+<span class="nc" id="L277">                binding.mapViewButton.backgroundTintList = additionColor</span>
+<span class="nc" id="L278">                binding.mapViewButton.strokeColor = paperColor</span>
+<span class="nc" id="L279">                binding.listViewButton.setTextColor(placeholderColor)</span>
+<span class="nc" id="L280">                binding.listViewButton.backgroundTintList = paperColor</span>
+<span class="nc" id="L281">                binding.listViewButton.strokeColor = paperColor</span>
+            } else {
+<span class="nc" id="L283">                binding.mapViewButton.setTextColor(placeholderColor)</span>
+<span class="nc" id="L284">                binding.mapViewButton.backgroundTintList = backgroundColor</span>
+<span class="nc" id="L285">                binding.mapViewButton.strokeColor = backgroundColor</span>
+<span class="nc" id="L286">                binding.listViewButton.setTextColor(progressColor)</span>
+<span class="nc" id="L287">                binding.listViewButton.backgroundTintList = additionColor</span>
+<span class="nc" id="L288">                binding.listViewButton.strokeColor = backgroundColor</span>
+            }
+<span class="nc" id="L290">        }</span>
+
+<span class="nc" id="L292">        binding.listRecyclerView.layoutManager = LinearLayoutManager(requireContext())</span>
+<span class="nc" id="L293">        binding.listRecyclerView.addItemDecoration(DrawableItemDecoration(requireContext(), R.attr.list_divider, drawStart = true, skipSearchBar = true))</span>
+<span class="nc" id="L294">        binding.listEmptyMessage.text = StringUtil.fromHtml(getString(R.string.places_empty_list))</span>
+<span class="nc" id="L295">        binding.listEmptyMessage.movementMethod = LinkMovementMethodExt { _ -&gt;</span>
+<span class="nc" id="L296">            binding.viewButtonsGroup.check(R.id.mapViewButton)</span>
+<span class="nc" id="L297">        }</span>
+
+<span class="nc" id="L299">        return binding.root</span>
+    }
+
+<span class="nc" id="L302">    private fun updateSearchText(searchText: String = &quot;&quot;) {</span>
+<span class="nc bnc" id="L303" title="All 4 branches missed.">        if (searchText.isEmpty()) {</span>
+<span class="nc" id="L304">            binding.searchTextView.text = getString(R.string.places_search_hint)</span>
+<span class="nc" id="L305">            binding.searchCloseBtn.isVisible = false</span>
+<span class="nc" id="L306">            resetMagnifiedSymbol()</span>
+        } else {
+<span class="nc" id="L308">            binding.searchCloseBtn.isVisible = true</span>
+<span class="nc" id="L309">            binding.searchTextView.text = StringUtil.fromHtml(searchText)</span>
+        }
+<span class="nc" id="L311">    }</span>
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L314">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L315">        binding.mapView.onCreate(savedInstanceState)</span>
+
+<span class="nc" id="L317">        PlacesEvent.logImpression(&quot;map_view&quot;)</span>
+
+<span class="nc" id="L319">        binding.mapView.getMapAsync { map -&gt;</span>
+<span class="nc" id="L320">            map.setStyle(Style.Builder().fromUri(getStyleAsset())) { style -&gt;</span>
+<span class="nc" id="L321">                mapboxMap = map</span>
+
+<span class="nc" id="L323">                style.addImage(MARKER_DRAWABLE, markerBitmapBase)</span>
+
+<span class="nc" id="L325">                map.setMaxZoomPreference(20.0)</span>
+
+<span class="nc" id="L327">                map.uiSettings.isLogoEnabled = false</span>
+<span class="nc" id="L328">                val defMargin = DimenUtil.roundedDpToPx(16f)</span>
+
+<span class="nc bnc" id="L330" title="All 2 branches missed.">                val navBarLeft = navBarInsets?.left ?: 0</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">                val navBarRight = navBarInsets?.right ?: 0</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                val navBarTop = navBarInsets?.top ?: 0</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">                val navBarBottom = navBarInsets?.bottom ?: 0</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">                val statusBarLeft = statusBarInsets?.left ?: 0</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">                val statusBarRight = statusBarInsets?.right ?: 0</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                val statusBarTop = statusBarInsets?.top ?: 0</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                val statusBarBottom = statusBarInsets?.bottom ?: 0</span>
+
+<span class="nc" id="L339">                map.uiSettings.setCompassImage(AppCompatResources.getDrawable(requireContext(), R.drawable.ic_compass_with_bg)!!)</span>
+<span class="nc" id="L340">                map.uiSettings.compassGravity = Gravity.TOP or Gravity.END</span>
+<span class="nc" id="L341">                map.uiSettings.attributionGravity = Gravity.BOTTOM or Gravity.START</span>
+<span class="nc" id="L342">                map.uiSettings.setAttributionTintColor(ResourceUtil.getThemedColor(requireContext(), R.attr.placeholder_color))</span>
+
+<span class="nc" id="L344">                map.uiSettings.setCompassMargins(defMargin + navBarLeft + statusBarLeft,</span>
+<span class="nc" id="L345">                    defMargin + navBarTop + statusBarTop + binding.searchContainer.height,</span>
+<span class="nc" id="L346">                    DimenUtil.roundedDpToPx(12f) + navBarRight + statusBarRight, defMargin)</span>
+
+<span class="nc" id="L348">                map.uiSettings.setAttributionMargins(defMargin + navBarLeft + statusBarLeft,</span>
+<span class="nc" id="L349">                    0, defMargin + navBarRight + statusBarRight,</span>
+<span class="nc" id="L350">                    navBarBottom + statusBarBottom + DimenUtil.roundedDpToPx(36f))</span>
+
+<span class="nc" id="L352">                map.addOnCameraIdleListener {</span>
+<span class="nc bnc" id="L353" title="All 6 branches missed.">                    mapboxMap?.cameraPosition?.target?.let {</span>
+<span class="nc" id="L354">                        onUpdateCameraPosition(it)</span>
+<span class="nc" id="L355">                    }</span>
+<span class="nc" id="L356">                }</span>
+
+<span class="nc" id="L358">                map.addOnMapClickListener(this)</span>
+
+<span class="nc" id="L360">                setUpSymbolManagerWithClustering(map, style)</span>
+
+<span class="nc bnc" id="L362" title="All 2 branches missed.">                symbolManager?.iconAllowOverlap = true</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">                symbolManager?.textAllowOverlap = true</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">                symbolManager?.addClickListener { symbol -&gt;</span>
+<span class="nc" id="L365">                    L.d(&quot;&gt;&gt;&gt;&gt; clicked: &quot; + symbol.latLng.latitude + &quot;, &quot; + symbol.latLng.longitude)</span>
+<span class="nc" id="L366">                    PlacesEvent.logAction(&quot;marker_click&quot;, &quot;map_view&quot;)</span>
+<span class="nc bnc" id="L367" title="All 6 branches missed.">                    annotationCache.find { it.annotation == symbol }?.let {</span>
+<span class="nc" id="L368">                        val location = Location(&quot;&quot;).apply {</span>
+<span class="nc" id="L369">                            latitude = symbol.latLng.latitude</span>
+<span class="nc" id="L370">                            longitude = symbol.latLng.longitude</span>
+<span class="nc" id="L371">                        }</span>
+<span class="nc" id="L372">                        resetMagnifiedSymbol()</span>
+<span class="nc" id="L373">                        setMagnifiedSymbol(it.annotation)</span>
+<span class="nc" id="L374">                        viewModel.highlightedPageTitle = it.pageTitle</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">                        symbolManager?.update(it.annotation)</span>
+<span class="nc" id="L376">                        showLinkPreview(it.pageTitle, location)</span>
+<span class="nc" id="L377">                    }</span>
+<span class="nc" id="L378">                    true</span>
+                }
+
+<span class="nc bnc" id="L381" title="All 2 branches missed.">                if (haveLocationPermissions()) {</span>
+<span class="nc" id="L382">                    startLocationTracking()</span>
+                }
+
+<span class="nc bnc" id="L385" title="All 2 branches missed.">                viewModel.location?.let {</span>
+<span class="nc" id="L386">                    goToLocation(it)</span>
+<span class="nc" id="L387">                } ?: run {</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">                    if (Prefs.placesDefaultLocationLatLng != null) {</span>
+<span class="nc" id="L389">                        goToLocation(getDefaultLocation())</span>
+                    } else {
+<span class="nc" id="L391">                        val lastLocationAndZoomLevel = Prefs.placesLastLocationAndZoomLevel</span>
+<span class="nc bnc" id="L392" title="All 4 branches missed.">                        goToLocation(lastLocationAndZoomLevel?.first, lastLocationAndZoomLevel?.second ?: lastZoom)</span>
+                    }
+
+<span class="nc bnc" id="L395" title="All 2 branches missed.">                    if (!haveLocationPermissions()) {</span>
+<span class="nc" id="L396">                        locationPermissionRequest.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))</span>
+                    }
+<span class="nc" id="L398">                }</span>
+<span class="nc" id="L399">            }</span>
+<span class="nc" id="L400">        }</span>
+
+<span class="nc" id="L402">        viewModel.nearbyPagesLiveData.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L404">                updateMapMarkers(it.data)</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L406">                FeedbackUtil.showError(requireActivity(), it.throwable)</span>
+            }
+<span class="nc" id="L408">        }</span>
+<span class="nc" id="L409">    }</span>
+
+    private fun getDefaultLocation(): Location? {
+<span class="nc bnc" id="L412" title="All 2 branches missed.">        return Prefs.placesDefaultLocationLatLng?.let { defaultLocationString -&gt;</span>
+<span class="nc" id="L413">            val defaultLocationStrings = defaultLocationString.split(&quot;,&quot;).map { it.toDouble() }</span>
+<span class="nc" id="L414">            val defaultLocation = Location(&quot;&quot;).apply {</span>
+<span class="nc" id="L415">                latitude = defaultLocationStrings[0]</span>
+<span class="nc" id="L416">                longitude = defaultLocationStrings[1]</span>
+<span class="nc" id="L417">            }</span>
+<span class="nc" id="L418">            return defaultLocation</span>
+        }
+    }
+
+    private fun updateToggleViews(isMapVisible: Boolean) {
+<span class="nc bnc" id="L423" title="All 6 branches missed.">        if ((binding.listRecyclerView.isVisible || binding.listEmptyContainer.isVisible) &amp;&amp; isMapVisible) {</span>
+<span class="nc" id="L424">            PlacesEvent.logAction(&quot;map_view_click&quot;, &quot;map_view&quot;)</span>
+        }
+<span class="nc bnc" id="L426" title="All 4 branches missed.">        if (binding.mapView.isVisible &amp;&amp; !isMapVisible) {</span>
+<span class="nc" id="L427">            PlacesEvent.logAction(&quot;list_view_click&quot;, &quot;list_view&quot;)</span>
+        }
+<span class="nc bnc" id="L429" title="All 2 branches missed.">        val tintColor = ResourceUtil.getThemedColorStateList(requireContext(), if (isMapVisible) R.attr.paper_color else R.attr.background_color)</span>
+<span class="nc" id="L430">        binding.mapView.isVisible = isMapVisible</span>
+<span class="nc bnc" id="L431" title="All 6 branches missed.">        binding.listRecyclerView.isVisible = !isMapVisible &amp;&amp; (binding.listRecyclerView.adapter?.itemCount ?: 0) &gt; 0</span>
+<span class="nc bnc" id="L432" title="All 6 branches missed.">        binding.listEmptyContainer.isVisible = !isMapVisible &amp;&amp; (binding.listRecyclerView.adapter?.itemCount ?: 0) == 0</span>
+<span class="nc" id="L433">        binding.searchContainer.backgroundTintList = tintColor</span>
+<span class="nc" id="L434">        binding.myLocationButton.isVisible = isMapVisible</span>
+<span class="nc" id="L435">    }</span>
+
+    private fun showLinkPreview(pageTitle: PageTitle, location: Location) {
+<span class="nc" id="L438">        PlacesEvent.logImpression(&quot;detail_view&quot;)</span>
+<span class="nc" id="L439">        val entry = HistoryEntry(pageTitle, HistoryEntry.SOURCE_PLACES)</span>
+<span class="nc" id="L440">        updateSearchText(pageTitle.displayText)</span>
+
+<span class="nc" id="L442">        ExclusiveBottomSheetPresenter.show(childFragmentManager,</span>
+<span class="nc" id="L443">            LinkPreviewDialog.newInstance(entry, location, getLastKnownUserLocation()))</span>
+<span class="nc" id="L444">    }</span>
+
+    private fun resetMagnifiedSymbol() {
+        // Reset the magnified marker to regular size
+<span class="nc bnc" id="L448" title="All 2 branches missed.">        magnifiedMarker?.let {</span>
+<span class="nc" id="L449">            it.iconSize = 1.0f</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">            symbolManager?.update(it)</span>
+        }
+<span class="nc" id="L452">        viewModel.highlightedPageTitle = null</span>
+<span class="nc" id="L453">    }</span>
+
+    private fun setMagnifiedSymbol(symbol: Symbol?) {
+<span class="nc bnc" id="L456" title="All 2 branches missed.">        magnifiedMarker?.symbolSortKey = 0f</span>
+<span class="nc" id="L457">        magnifiedMarker = symbol</span>
+<span class="nc bnc" id="L458" title="All 2 branches missed.">        magnifiedMarker?.iconSize = 1.75f</span>
+<span class="nc bnc" id="L459" title="All 2 branches missed.">        magnifiedMarker?.symbolSortKey = 1f</span>
+<span class="nc" id="L460">    }</span>
+
+    private fun updateSearchCardViews() {
+<span class="nc" id="L463">        val tabsCount = WikipediaApp.instance.tabCount</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">        binding.tabsButton.isVisible = tabsCount != 0</span>
+<span class="nc" id="L465">        binding.tabsButton.updateTabCount(false)</span>
+
+<span class="nc bnc" id="L467" title="All 2 branches missed.">        if (!WikipediaApp.instance.languageState.appLanguageCodes.contains(Prefs.placesWikiCode)) {</span>
+<span class="nc" id="L468">            Prefs.placesWikiCode = WikipediaApp.instance.appOrSystemLanguageCode</span>
+        }
+<span class="nc" id="L470">        binding.langCodeButton.setLangCode(Prefs.placesWikiCode)</span>
+
+<span class="nc" id="L472">        FeedbackUtil.setButtonTooltip(binding.tabsButton, binding.langCodeButton)</span>
+<span class="nc" id="L473">    }</span>
+
+    private fun setUpSymbolManagerWithClustering(mapboxMap: MapLibreMap, style: Style) {
+
+<span class="nc" id="L477">        symbolManager = SymbolManager(binding.mapView, mapboxMap, style, null, null, ClusterOptions())</span>
+
+        // Clustering with SymbolManager doesn't expose a few style specifications we need.
+        // Accessing the styles in a fail-safe manner
+<span class="nc" id="L481">        try {</span>
+<span class="nc bnc" id="L482" title="All 2 branches missed.">            style.getLayer(CLUSTER_TEXT_LAYER_ID)?.apply {</span>
+<span class="nc" id="L483">                this.setProperties(</span>
+<span class="nc" id="L484">                    textField(Expression.toString(Expression.get(POINT_COUNT))),</span>
+<span class="nc" id="L485">                    textSize(Expression.literal(22f)),</span>
+<span class="nc" id="L486">                    textColor(ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color)),</span>
+<span class="nc" id="L487">                    textFont(CLUSTER_FONT_STACK),</span>
+<span class="nc" id="L488">                    textIgnorePlacement(true),</span>
+<span class="nc" id="L489">                    textAllowOverlap(true),</span>
+                )
+<span class="nc" id="L491">            }</span>
+<span class="nc bnc" id="L492" title="All 2 branches missed.">            style.getLayer(CLUSTER_CIRCLE_LAYER_ID)?.apply {</span>
+<span class="nc" id="L493">                this.setProperties(</span>
+<span class="nc" id="L494">                    circleRadius(24f),</span>
+<span class="nc" id="L495">                    circleColor(ContextCompat.getColor(requireActivity(), ResourceUtil.getThemedAttributeId(requireContext(), R.attr.secondary_color))),</span>
+<span class="nc" id="L496">                    circleOpacity(0.8f),</span>
+<span class="nc" id="L497">                    circleStrokeColor(ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color)),</span>
+<span class="nc" id="L498">                    circleStrokeWidth(2.0f),</span>
+                )
+<span class="nc" id="L500">            }</span>
+<span class="nc" id="L501">        } catch (e: Exception) {</span>
+<span class="nc" id="L502">            L.e(e)</span>
+        }
+<span class="nc" id="L504">    }</span>
+
+    override fun onStart() {
+<span class="nc" id="L507">        super.onStart()</span>
+<span class="nc" id="L508">        binding.mapView.onStart()</span>
+<span class="nc" id="L509">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L512">        super.onPause()</span>
+<span class="nc" id="L513">        binding.mapView.onPause()</span>
+<span class="nc" id="L514">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L517">        super.onResume()</span>
+<span class="nc bnc" id="L518" title="All 4 branches missed.">        activity?.window?.let { window -&gt;</span>
+<span class="nc" id="L519">            WindowCompat.setDecorFitsSystemWindows(window, false)</span>
+<span class="nc" id="L520">            window.statusBarColor = Color.TRANSPARENT</span>
+<span class="nc" id="L521">            window.navigationBarColor = Color.TRANSPARENT</span>
+<span class="nc" id="L522">        }</span>
+
+<span class="nc" id="L524">        binding.mapView.onResume()</span>
+<span class="nc" id="L525">        updateSearchCardViews()</span>
+<span class="nc bnc" id="L526" title="All 2 branches missed.">        updateToggleViews(lastCheckedId == R.id.mapViewButton)</span>
+<span class="nc" id="L527">        ExclusiveBottomSheetPresenter.dismiss(childFragmentManager)</span>
+<span class="nc" id="L528">    }</span>
+
+    override fun onStop() {
+<span class="nc" id="L531">        super.onStop()</span>
+<span class="nc" id="L532">        binding.mapView.onStop()</span>
+<span class="nc" id="L533">    }</span>
+
+    override fun onLowMemory() {
+<span class="nc" id="L536">        super.onLowMemory()</span>
+<span class="nc" id="L537">        binding.mapView.onLowMemory()</span>
+<span class="nc" id="L538">    }</span>
+
+    override fun onSaveInstanceState(outState: Bundle) {
+<span class="nc" id="L541">        super.onSaveInstanceState(outState)</span>
+<span class="nc" id="L542">        binding.mapView.onSaveInstanceState(outState)</span>
+<span class="nc" id="L543">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc bnc" id="L546" title="All 2 branches missed.">        lastLocation?.let {</span>
+<span class="nc" id="L547">            Prefs.placesLastLocationAndZoomLevel = Pair(it, lastZoom)</span>
+<span class="nc" id="L548">        }</span>
+<span class="nc" id="L549">        binding.mapView.onDestroy()</span>
+<span class="nc" id="L550">        _binding = null</span>
+
+<span class="nc" id="L552">        clearAnnotationCache()</span>
+<span class="nc" id="L553">        markerBitmapBase.recycle()</span>
+<span class="nc" id="L554">        super.onDestroyView()</span>
+<span class="nc" id="L555">    }</span>
+
+    private fun clearAnnotationCache() {
+<span class="nc" id="L558">        annotationCache.clear()</span>
+<span class="nc" id="L559">    }</span>
+
+    private fun onUpdateCameraPosition(latLng: LatLng) {
+<span class="nc" id="L562">        lastLocation = Location(&quot;&quot;).also {</span>
+<span class="nc" id="L563">            it.latitude = latLng.latitude</span>
+<span class="nc" id="L564">            it.longitude = latLng.longitude</span>
+<span class="nc" id="L565">        }</span>
+
+<span class="nc bnc" id="L567" title="All 4 branches missed.">        lastZoom = mapboxMap?.cameraPosition?.zoom ?: 15.0</span>
+
+<span class="nc bnc" id="L569" title="All 2 branches missed.">        if (lastZoom &lt; 3.0) {</span>
+            // Don't fetch pages if the map is zoomed out too far.
+<span class="nc" id="L571">            return</span>
+        }
+
+        // Fetch new pages within the current viewport, but only if the map has moved a significant distance.
+<span class="nc bnc" id="L575" title="All 8 branches missed.">        val latEpsilon = (mapboxMap?.projection?.visibleRegion?.latLngBounds?.latitudeSpan ?: 0.0) * 0.2</span>
+<span class="nc bnc" id="L576" title="All 8 branches missed.">        val lngEpsilon = (mapboxMap?.projection?.visibleRegion?.latLngBounds?.longitudeSpan ?: 0.0) * 0.2</span>
+<span class="nc bnc" id="L577" title="All 2 branches missed.">        if (lastLocationQueried != null &amp;&amp;</span>
+<span class="nc bnc" id="L578" title="All 4 branches missed.">            abs(latLng.latitude - (lastLocationQueried?.latitude ?: 0.0)) &lt; latEpsilon &amp;&amp;</span>
+<span class="nc bnc" id="L579" title="All 4 branches missed.">            abs(latLng.longitude - (lastLocationQueried?.longitude ?: 0.0)) &lt; lngEpsilon &amp;&amp;</span>
+<span class="nc bnc" id="L580" title="All 2 branches missed.">            abs(lastZoom - lastZoomQueried) &lt; 0.5) {</span>
+<span class="nc" id="L581">            return</span>
+        }
+<span class="nc" id="L583">        lastLocationQueried = lastLocation</span>
+<span class="nc" id="L584">        lastZoomQueried = lastZoom</span>
+
+<span class="nc bnc" id="L586" title="All 4 branches missed.">        L.d(&quot;&gt;&gt;&gt; requesting update: &quot; + latLng.latitude + &quot;, &quot; + latLng.longitude + &quot;, &quot; + mapboxMap?.cameraPosition?.zoom)</span>
+<span class="nc" id="L587">        viewModel.fetchNearbyPages(latLng.latitude, latLng.longitude, searchRadius, ITEMS_PER_REQUEST)</span>
+<span class="nc" id="L588">    }</span>
+
+    private fun updateMapMarkers(pages: List&lt;NearbyPage&gt;) {
+<span class="nc bnc" id="L591" title="All 2 branches missed.">        symbolManager?.let { manager -&gt;</span>
+
+<span class="nc" id="L593">            pages.filter {</span>
+<span class="nc bnc" id="L594" title="All 8 branches missed.">                annotationCache.find { item -&gt; item.pageId == it.pageId } == null</span>
+<span class="nc" id="L595">            }.forEach {</span>
+<span class="nc" id="L596">                it.annotation = manager.create(</span>
+<span class="nc" id="L597">                    SymbolOptions()</span>
+<span class="nc" id="L598">                        .withLatLng(LatLng(it.latitude, it.longitude))</span>
+<span class="nc" id="L599">                        .withTextFont(MARKER_FONT_STACK)</span>
+<span class="nc" id="L600">                        .withIconImage(MARKER_DRAWABLE)</span>
+                )
+<span class="nc bnc" id="L602" title="All 6 branches missed.">                if (viewModel.highlightedPageTitle?.prefixedText.orEmpty() == it.pageTitle.prefixedText) {</span>
+<span class="nc" id="L603">                    setMagnifiedSymbol(it.annotation)</span>
+                }
+<span class="nc" id="L605">                annotationCache.addFirst(it)</span>
+<span class="nc" id="L606">                manager.update(it.annotation)</span>
+
+<span class="nc" id="L608">                queueImageForAnnotation(it)</span>
+
+<span class="nc bnc" id="L610" title="All 2 branches missed.">                if (annotationCache.size &gt; MAX_ANNOTATIONS) {</span>
+<span class="nc" id="L611">                    val removed = annotationCache.removeLast()</span>
+<span class="nc" id="L612">                    manager.delete(removed.annotation)</span>
+<span class="nc bnc" id="L613" title="All 6 branches missed.">                    if (!removed.pageTitle.thumbUrl.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L614" title="All 4 branches missed.">                        mapboxMap?.style?.removeImage(removed.pageTitle.thumbUrl!!)</span>
+                    }
+                }
+<span class="nc" id="L617">            }</span>
+<span class="nc" id="L618">        }</span>
+<span class="nc" id="L619">        binding.listRecyclerView.adapter = RecyclerViewAdapter(pages)</span>
+
+<span class="nc bnc" id="L621" title="All 4 branches missed.">        if (pages.isEmpty() &amp;&amp; Prefs.placesLastLocationAndZoomLevel == null) {</span>
+<span class="nc" id="L622">            FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.places_empty_message_snackbar)).run {</span>
+<span class="nc" id="L623">                setAction(R.string.dialog_close_description) {</span>
+<span class="nc" id="L624">                    dismiss()</span>
+<span class="nc" id="L625">                }</span>
+<span class="nc" id="L626">                show()</span>
+<span class="nc" id="L627">            }</span>
+<span class="nc bnc" id="L628" title="All 2 branches missed.">            lastLocation?.let {</span>
+<span class="nc" id="L629">                Prefs.placesLastLocationAndZoomLevel = Pair(it, lastZoom)</span>
+<span class="nc" id="L630">            }</span>
+        }
+<span class="nc" id="L632">    }</span>
+
+    private fun haveLocationPermissions(): Boolean {
+<span class="nc bnc" id="L635" title="All 2 branches missed.">        return ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &amp;&amp;</span>
+<span class="nc bnc" id="L636" title="All 2 branches missed.">                ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED</span>
+    }
+
+    private fun getLastKnownUserLocation(): Location? {
+<span class="nc bnc" id="L640" title="All 8 branches missed.">        return if (mapboxMap?.locationComponent?.isLocationComponentActivated == true)</span>
+<span class="nc bnc" id="L641" title="All 4 branches missed.">            mapboxMap?.locationComponent?.lastKnownLocation else null</span>
+    }
+
+    @SuppressLint(&quot;MissingPermission&quot;)
+    private fun startLocationTracking() {
+<span class="nc bnc" id="L646" title="All 2 branches missed.">        mapboxMap?.let {</span>
+<span class="nc" id="L647">            it.locationComponent.activateLocationComponent(LocationComponentActivationOptions.builder(requireContext(), it.style!!).build())</span>
+<span class="nc" id="L648">            it.locationComponent.isLocationComponentEnabled = true</span>
+<span class="nc" id="L649">            it.locationComponent.cameraMode = CameraMode.NONE</span>
+<span class="nc" id="L650">            it.locationComponent.renderMode = RenderMode.COMPASS</span>
+<span class="nc" id="L651">        }</span>
+<span class="nc" id="L652">    }</span>
+
+<span class="nc" id="L654">    private fun goToLocation(preferredLocation: Location? = null, zoom: Double = 15.0) {</span>
+<span class="nc" id="L655">        binding.viewButtonsGroup.check(R.id.mapViewButton)</span>
+<span class="nc bnc" id="L656" title="All 2 branches missed.">        mapboxMap?.let {</span>
+<span class="nc" id="L657">            viewModel.lastKnownLocation = getLastKnownUserLocation()</span>
+<span class="nc" id="L658">            var currentLatLngLoc: LatLng? = null</span>
+<span class="nc bnc" id="L659" title="All 2 branches missed.">            viewModel.lastKnownLocation?.let { loc -&gt; currentLatLngLoc = LatLng(loc.latitude, loc.longitude) }</span>
+<span class="nc bnc" id="L660" title="All 2 branches missed.">            val location = preferredLocation?.let { loc -&gt; LatLng(loc.latitude, loc.longitude) }</span>
+<span class="nc bnc" id="L661" title="All 2 branches missed.">            val targetLocation = location ?: currentLatLngLoc</span>
+<span class="nc bnc" id="L662" title="All 2 branches missed.">            targetLocation?.let { target -&gt;</span>
+<span class="nc" id="L663">                it.moveCamera(CameraUpdateFactory.newLatLngZoom(target, zoom), object : CancelableCallback {</span>
+<span class="nc" id="L664">                    override fun onCancel() { }</span>
+
+                    override fun onFinish() {
+<span class="nc bnc" id="L667" title="All 6 branches missed.">                        if (isAdded &amp;&amp; preferredLocation != null &amp;&amp; viewModel.highlightedPageTitle != null) {</span>
+<span class="nc" id="L668">                            showLinkPreview(viewModel.highlightedPageTitle!!, preferredLocation)</span>
+                        }
+<span class="nc" id="L670">                    }</span>
+                })
+<span class="nc" id="L672">            }</span>
+        }
+<span class="nc" id="L674">    }</span>
+
+    private fun queueImageForAnnotation(page: NearbyPage) {
+<span class="nc" id="L677">        val url = page.pageTitle.thumbUrl</span>
+<span class="nc bnc" id="L678" title="All 8 branches missed.">        if (!Prefs.isImageDownloadEnabled || url.isNullOrEmpty()) {</span>
+<span class="nc" id="L679">            return</span>
+        }
+
+<span class="nc" id="L682">        ImageService.loadImage(</span>
+<span class="nc" id="L683">            requireContext(),</span>
+<span class="nc" id="L684">            url,</span>
+<span class="nc" id="L685">            whiteBackground = true,</span>
+            onSuccess = { bitmap -&gt;
+<span class="nc bnc" id="L687" title="All 2 branches missed.">                if (!isAdded) {</span>
+<span class="nc" id="L688">                    return@loadImage</span>
+                }
+<span class="nc bnc" id="L690" title="All 8 branches missed.">                annotationCache.find { it.pageId == page.pageId }?.let {</span>
+<span class="nc" id="L691">                    val bmp = getMarkerBitmap(bitmap, markerRect, markerPaintSrc, markerPaintSrcIn, markerBorderPaint)</span>
+<span class="nc" id="L692">                    it.bitmap = bmp</span>
+
+<span class="nc bnc" id="L694" title="All 4 branches missed.">                    mapboxMap?.style?.addImage(url, bmp.toDrawable(resources))</span>
+
+<span class="nc bnc" id="L696" title="All 2 branches missed.">                    it.annotation?.let { annotation -&gt;</span>
+<span class="nc" id="L697">                        annotation.iconImage = url</span>
+<span class="nc bnc" id="L698" title="All 2 branches missed.">                        symbolManager?.update(annotation)</span>
+<span class="nc" id="L699">                    }</span>
+<span class="nc" id="L700">                }</span>
+<span class="nc" id="L701">            }</span>
+        )
+<span class="nc" id="L703">    }</span>
+
+    override fun onLinkPreviewLoadPage(title: PageTitle, entry: HistoryEntry, inNewTab: Boolean) {
+<span class="nc bnc" id="L706" title="All 2 branches missed.">        if (inNewTab) {</span>
+<span class="nc" id="L707">            TabUtil.openInNewBackgroundTab(entry)</span>
+<span class="nc" id="L708">            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc bnc" id="L709" title="All 2 branches missed.">            binding.tabsButton.isVisible = WikipediaApp.instance.tabCount &gt; 0</span>
+<span class="nc" id="L710">            binding.tabsButton.updateTabCount(true)</span>
+        } else {
+<span class="nc" id="L712">            startActivity(PageActivity.newIntentForNewTab(requireActivity(), entry, entry.title))</span>
+        }
+<span class="nc" id="L714">    }</span>
+
+    override fun onLinkPreviewDismiss() {
+<span class="nc" id="L717">        updateSearchText()</span>
+<span class="nc" id="L718">    }</span>
+
+    override fun onMapClick(point: LatLng): Boolean {
+<span class="nc bnc" id="L721" title="All 2 branches missed.">        mapboxMap?.let {</span>
+<span class="nc" id="L722">            val screenPoint = it.projection.toScreenLocation(point)</span>
+<span class="nc" id="L723">            val rect = RectF(screenPoint.x - 10, screenPoint.y - 10, screenPoint.x + 10, screenPoint.y + 10)</span>
+
+<span class="nc" id="L725">            updateSearchText()</span>
+            // Zoom-in 2 levels on click of a cluster circle. Do not handle other click events
+<span class="nc" id="L727">            val featureList = it.queryRenderedFeatures(rect, CLUSTER_CIRCLE_LAYER_ID)</span>
+<span class="nc bnc" id="L728" title="All 4 branches missed.">            if (featureList.isNotEmpty()) {</span>
+<span class="nc" id="L729">                PlacesEvent.logAction(&quot;cluster_click&quot;, &quot;map_view&quot;)</span>
+<span class="nc" id="L730">                val cameraPosition = CameraPosition.Builder()</span>
+<span class="nc" id="L731">                    .target(point)</span>
+<span class="nc" id="L732">                    .zoom(it.cameraPosition.zoom + 2)</span>
+<span class="nc" id="L733">                    .build()</span>
+<span class="nc" id="L734">                it.easeCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), ZOOM_IN_ANIMATION_DURATION)</span>
+<span class="nc" id="L735">                return true</span>
+            }
+<span class="nc" id="L737">        }</span>
+<span class="nc" id="L738">        return false</span>
+    }
+
+<span class="nc" id="L741">    private inner class RecyclerViewAdapter(val nearbyPages: List&lt;NearbyPage&gt;) : RecyclerView.Adapter&lt;RecyclerViewItemHolder&gt;() {</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L743">            return nearbyPages.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, type: Int): RecyclerViewItemHolder {
+<span class="nc" id="L747">            return RecyclerViewItemHolder(ItemPlacesListBinding.inflate(layoutInflater, parent, false))</span>
+        }
+
+        override fun onBindViewHolder(holder: RecyclerViewItemHolder, position: Int) {
+<span class="nc" id="L751">            holder.bindItem(nearbyPages[position], viewModel.lastKnownLocation)</span>
+<span class="nc" id="L752">        }</span>
+    }
+
+<span class="nc" id="L755">    private inner class RecyclerViewItemHolder(val binding: ItemPlacesListBinding) :</span>
+<span class="nc" id="L756">        RecyclerView.ViewHolder(binding.root), View.OnClickListener, View.OnLongClickListener {</span>
+
+        private lateinit var page: NearbyPage
+
+<span class="nc" id="L760">        init {</span>
+<span class="nc" id="L761">            itemView.setOnClickListener(this)</span>
+<span class="nc" id="L762">            itemView.setOnLongClickListener(this)</span>
+<span class="nc" id="L763">            DeviceUtil.setContextClickAsLongClick(itemView)</span>
+<span class="nc" id="L764">        }</span>
+
+        fun bindItem(page: NearbyPage, locationForDistance: Location?) {
+<span class="nc" id="L767">            this.page = page</span>
+<span class="nc" id="L768">            binding.listItemTitle.text = StringUtil.fromHtml(page.pageTitle.displayText)</span>
+<span class="nc" id="L769">            binding.listItemDescription.text = StringUtil.fromHtml(page.pageTitle.description)</span>
+<span class="nc bnc" id="L770" title="All 6 branches missed.">            binding.listItemDescription.isVisible = !page.pageTitle.description.isNullOrEmpty()</span>
+<span class="nc bnc" id="L771" title="All 2 branches missed.">            locationForDistance?.let {</span>
+<span class="nc" id="L772">                binding.listItemDistance.text = GeoUtil.getDistanceWithUnit(it, page.location, Locale.getDefault())</span>
+<span class="nc" id="L773">            }</span>
+<span class="nc bnc" id="L774" title="All 2 branches missed.">            page.pageTitle.thumbUrl?.let {</span>
+<span class="nc" id="L775">                ViewUtil.loadImage(binding.listItemThumbnail, it)</span>
+<span class="nc" id="L776">            }</span>
+<span class="nc" id="L777">        }</span>
+
+        override fun onClick(v: View) {
+<span class="nc" id="L780">            PlacesEvent.logAction(&quot;read_click&quot;, &quot;list_view&quot;)</span>
+<span class="nc" id="L781">            val entry = HistoryEntry(page.pageTitle, HistoryEntry.SOURCE_PLACES)</span>
+<span class="nc" id="L782">            startActivity(PageActivity.newIntentForNewTab(requireActivity(), entry, entry.title))</span>
+<span class="nc" id="L783">        }</span>
+
+        override fun onLongClick(v: View): Boolean {
+<span class="nc" id="L786">            val entry = HistoryEntry(page.pageTitle, HistoryEntry.SOURCE_PLACES)</span>
+<span class="nc" id="L787">            val location = page.location</span>
+<span class="nc" id="L788">            LongPressMenu(v, menuRes = R.menu.menu_places_long_press, location = location, callback = object : LongPressMenu.Callback {</span>
+                override fun onOpenInNewTab(entry: HistoryEntry) {
+<span class="nc" id="L790">                    onLinkPreviewLoadPage(entry.title, entry, true)</span>
+<span class="nc" id="L791">                }</span>
+
+                override fun onAddRequest(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc" id="L794">                    ReadingListBehaviorsUtil.addToDefaultList(requireActivity(), entry.title, addToDefault, Constants.InvokeSource.PLACES)</span>
+<span class="nc" id="L795">                }</span>
+
+                override fun onMoveRequest(page: ReadingListPage?, entry: HistoryEntry) {
+<span class="nc bnc" id="L798" title="All 2 branches missed.">                    page?.let {</span>
+<span class="nc" id="L799">                        ReadingListBehaviorsUtil.moveToList(requireActivity(), it.listId, entry.title, Constants.InvokeSource.PLACES)</span>
+<span class="nc" id="L800">                    }</span>
+<span class="nc" id="L801">                }</span>
+<span class="nc" id="L802">            }).show(entry)</span>
+<span class="nc" id="L803">            return true</span>
+        }
+    }
+
+    companion object {
+        const val MARKER_DRAWABLE = &quot;markerDrawable&quot;
+        const val POINT_COUNT = &quot;point_count&quot;
+        const val MAX_ANNOTATIONS = 250
+        const val THUMB_SIZE = 120
+        const val ITEMS_PER_REQUEST = 75
+        const val CLUSTER_TEXT_LAYER_ID = &quot;mapbox-android-cluster-text&quot;
+        const val CLUSTER_CIRCLE_LAYER_ID = &quot;mapbox-android-cluster-circle0&quot;
+        const val ZOOM_IN_ANIMATION_DURATION = 1000
+
+<span class="nc" id="L817">        val CLUSTER_FONT_STACK = arrayOf(&quot;Open Sans Semibold&quot;)</span>
+<span class="nc" id="L818">        val MARKER_FONT_STACK = arrayOf(&quot;Open Sans Regular&quot;)</span>
+<span class="nc" id="L819">        val MARKER_SIZE = DimenUtil.roundedDpToPx(40f)</span>
+<span class="nc" id="L820">        val MARKER_BORDER_SIZE = DimenUtil.dpToPx(2f)</span>
+
+        fun newInstance(pageTitle: PageTitle?, location: Location?): PlacesFragment {
+<span class="nc" id="L823">            return PlacesFragment().apply {</span>
+<span class="nc" id="L824">                arguments = bundleOf(</span>
+<span class="nc" id="L825">                    Constants.ARG_TITLE to pageTitle,</span>
+<span class="nc" id="L826">                    PlacesActivity.EXTRA_LOCATION to location</span>
+                )
+<span class="nc" id="L828">            }</span>
+        }
+
+<span class="nc bnc" id="L831" title="All 2 branches missed.">        fun getStyleAsset() = if (WikipediaApp.instance.currentTheme.isDark) &quot;asset://mapstyle-dark.json&quot; else &quot;asset://mapstyle.json&quot;</span>
+
+<span class="nc" id="L833">        fun getMarkerRect() = Rect(0, 0, MARKER_SIZE, MARKER_SIZE)</span>
+
+<span class="nc" id="L835">        fun getMarkerPaintSrc(context: Context) = Paint().apply {</span>
+<span class="nc" id="L836">            isAntiAlias = true</span>
+<span class="nc" id="L837">            color = ResourceUtil.getThemedColor(context, R.attr.secondary_color)</span>
+<span class="nc" id="L838">            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)</span>
+<span class="nc" id="L839">        }</span>
+
+<span class="nc" id="L841">        fun getMarkerPaintSrcIn() = Paint().apply {</span>
+<span class="nc" id="L842">            isAntiAlias = true</span>
+<span class="nc" id="L843">            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)</span>
+<span class="nc" id="L844">        }</span>
+
+<span class="nc" id="L846">        fun getMarkerBorderPaint(context: Context) = Paint().apply {</span>
+<span class="nc" id="L847">            style = Paint.Style.STROKE</span>
+<span class="nc" id="L848">            strokeWidth = MARKER_BORDER_SIZE</span>
+<span class="nc" id="L849">            color = ResourceUtil.getThemedColor(context, R.attr.paper_color)</span>
+<span class="nc" id="L850">            isAntiAlias = true</span>
+<span class="nc" id="L851">        }</span>
+
+        fun getMarkerBitmapBase(context: Context): Bitmap {
+<span class="nc" id="L854">            return createBitmap(MARKER_SIZE, MARKER_SIZE).applyCanvas {</span>
+<span class="nc" id="L855">                val bitmap = ResourceUtil.bitmapFromVectorDrawable(context, R.drawable.ic_w_logo_circle)</span>
+<span class="nc" id="L856">                drawMarker(this, getMarkerRect(), getMarkerPaintSrc(context), getMarkerPaintSrcIn(), getMarkerBorderPaint(context), bitmap)</span>
+<span class="nc" id="L857">            }</span>
+        }
+
+        /**
+         * Rough conversion of latitude degrees to meters, bounded by the limits accepted by the API.
+         */
+        fun latitudeDiffToMeters(latitudeDiff: Double): Int {
+<span class="nc" id="L864">            return (111132 * latitudeDiff).toInt().coerceIn(10, 10000)</span>
+        }
+
+        fun getMarkerBitmap(thumbnailBitmap: Bitmap, markerRect: Rect, markerPaintSrc: Paint,
+                            markerPaintSrcIn: Paint, markerBorderPaint: Paint): Bitmap {
+<span class="nc" id="L869">            val markerSize = DimenUtil.roundedDpToPx(40f)</span>
+<span class="nc" id="L870">            val bmp = createBitmap(markerSize, markerSize, Bitmap.Config.ARGB_8888)</span>
+<span class="nc" id="L871">            bmp.applyCanvas {</span>
+<span class="nc" id="L872">                this.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)</span>
+<span class="nc" id="L873">                drawMarker(this, markerRect, markerPaintSrc, markerPaintSrcIn, markerBorderPaint, thumbnailBitmap)</span>
+<span class="nc" id="L874">            }</span>
+<span class="nc" id="L875">            return bmp</span>
+        }
+
+<span class="nc" id="L878">        fun drawMarker(canvas: Canvas, markerRect: Rect, markerPaintSrc: Paint,</span>
+<span class="nc" id="L879">                               markerPaintSrcIn: Paint, markerBorderPaint: Paint, thumbnailBitmap: Bitmap? = null) {</span>
+<span class="nc" id="L880">            val radius = MARKER_SIZE / 2f</span>
+<span class="nc" id="L881">            canvas.drawCircle(radius, radius, radius, markerPaintSrc)</span>
+<span class="nc bnc" id="L882" title="All 2 branches missed.">            thumbnailBitmap?.let {</span>
+<span class="nc" id="L883">                val thumbnailRect = Rect(0, 0, it.width, it.height)</span>
+<span class="nc" id="L884">                canvas.drawBitmap(it, thumbnailRect, markerRect, markerPaintSrcIn)</span>
+<span class="nc" id="L885">            }</span>
+<span class="nc" id="L886">            canvas.drawCircle(radius, radius, radius - MARKER_BORDER_SIZE / 2, markerBorderPaint)</span>
+<span class="nc" id="L887">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

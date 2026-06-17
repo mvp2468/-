@@ -1,0 +1,533 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TalkTemplatesFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.talk.template</a> &gt; <span class="el_source">TalkTemplatesFragment.kt</span></div><h1>TalkTemplatesFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.talk.template
+
+import android.annotation.SuppressLint
+import android.app.Activity.RESULT_OK
+import android.content.Intent
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
+import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.tabs.TabLayout
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.databinding.FragmentTalkTemplatesBinding
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.staticdata.TalkAliasData
+import org.wikipedia.talk.TalkReplyActivity
+import org.wikipedia.talk.TalkReplyActivity.Companion.EXTRA_TEMPLATE_MANAGEMENT
+import org.wikipedia.talk.TalkReplyActivity.Companion.RESULT_BACK_FROM_TOPIC
+import org.wikipedia.talk.TalkTopicsActivity
+import org.wikipedia.talk.db.TalkTemplate
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.DrawableItemDecoration
+import org.wikipedia.views.MultiSelectActionModeCallback
+import org.wikipedia.views.SwipeableItemTouchHelperCallback
+import org.wikipedia.views.ViewUtil
+
+<span class="nc" id="L51">class TalkTemplatesFragment : Fragment() {</span>
+    private var _binding: FragmentTalkTemplatesBinding? = null
+
+<span class="nc" id="L54">    private val viewModel: TalkTemplatesViewModel by viewModels()</span>
+<span class="nc" id="L55">    private val binding get() = _binding!!</span>
+
+    private lateinit var itemTouchHelper: ItemTouchHelper
+    private lateinit var itemSwipeTouchHelper: ItemTouchHelper
+    private lateinit var touchCallback: SwipeableItemTouchHelperCallback
+    private lateinit var adapter: RecyclerAdapter
+<span class="nc" id="L61">    private val selectedItems = mutableListOf&lt;TalkTemplate&gt;()</span>
+<span class="nc" id="L62">    private val deletedItems = mutableListOf&lt;TalkTemplate&gt;()</span>
+    private var actionMode: ActionMode? = null
+<span class="nc" id="L64">    private val multiSelectCallback = MultiSelectCallback()</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L67">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L68">        _binding = FragmentTalkTemplatesBinding.inflate(inflater, container, false)</span>
+
+<span class="nc" id="L70">        (requireActivity() as AppCompatActivity).setSupportActionBar(binding.toolbar)</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        (requireActivity() as AppCompatActivity).supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+
+<span class="nc" id="L73">        setToolbarTitle()</span>
+
+<span class="nc" id="L75">        binding.talkTemplatesRecyclerView.setHasFixedSize(true)</span>
+<span class="nc" id="L76">        adapter = RecyclerAdapter()</span>
+<span class="nc" id="L77">        binding.talkTemplatesRecyclerView.adapter = adapter</span>
+<span class="nc" id="L78">        binding.talkTemplatesRecyclerView.layoutManager = LinearLayoutManager(requireContext())</span>
+<span class="nc" id="L79">        binding.talkTemplatesRecyclerView.addItemDecoration(DrawableItemDecoration(requireContext(), R.attr.list_divider, drawStart = true, drawEnd = false))</span>
+
+<span class="nc" id="L81">        return binding.root</span>
+    }
+
+<span class="nc" id="L84">    private val requestNewTemplate = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result -&gt;</span>
+<span class="nc bnc" id="L85" title="All 4 branches missed.">        if (result.resultCode == RESULT_OK || result.resultCode == RESULT_BACK_FROM_TOPIC) {</span>
+<span class="nc" id="L86">            viewModel.loadTalkTemplates()</span>
+<span class="nc" id="L87">            PatrollerExperienceEvent.logAction(&quot;save_message_toast&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if (result.resultCode != RESULT_BACK_FROM_TOPIC) {</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                binding.talkTemplatesTabLayout.getTabAt(0)?.select()</span>
+<span class="nc" id="L90">                FeedbackUtil.showMessage(this, R.string.talk_templates_new_message_saved)</span>
+            }
+<span class="nc bnc" id="L92" title="All 4 branches missed.">        } else if (result.resultCode == TalkReplyActivity.RESULT_EDIT_SUCCESS || result.resultCode == TalkReplyActivity.RESULT_SAVE_TEMPLATE) {</span>
+<span class="nc" id="L93">            requireActivity().setResult(result.resultCode, Intent().putExtra(Constants.ARG_TITLE, viewModel.pageTitle))</span>
+<span class="nc" id="L94">            requireActivity().finish()</span>
+        }
+<span class="nc" id="L96">    }</span>
+
+<span class="nc" id="L98">    private val requestEditTemplate = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result -&gt;</span>
+<span class="nc bnc" id="L99" title="All 4 branches missed.">        if (result.resultCode == RESULT_OK || result.resultCode == RESULT_BACK_FROM_TOPIC) {</span>
+<span class="nc" id="L100">            viewModel.loadTalkTemplates()</span>
+<span class="nc" id="L101">            PatrollerExperienceEvent.logAction(&quot;update_message_toast&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            if (result.resultCode != RESULT_BACK_FROM_TOPIC) {</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                binding.talkTemplatesTabLayout.getTabAt(0)?.select()</span>
+<span class="nc" id="L104">                FeedbackUtil.showMessage(this, R.string.talk_templates_edit_message_updated)</span>
+            }
+<span class="nc bnc" id="L106" title="All 4 branches missed.">        } else if (result.resultCode == TalkReplyActivity.RESULT_EDIT_SUCCESS || result.resultCode == TalkReplyActivity.RESULT_SAVE_TEMPLATE) {</span>
+<span class="nc" id="L107">            requireActivity().setResult(result.resultCode, Intent().putExtra(Constants.ARG_TITLE, viewModel.pageTitle))</span>
+<span class="nc" id="L108">            requireActivity().finish()</span>
+        }
+<span class="nc" id="L110">    }</span>
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L113">        super.onViewCreated(view, savedInstanceState)</span>
+
+<span class="nc" id="L115">        binding.talkTemplatesErrorView.retryClickListener = View.OnClickListener { viewModel.loadTalkTemplates() }</span>
+
+<span class="nc" id="L117">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L118">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L119">                launch {</span>
+<span class="nc" id="L120">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L121">                        when (it) {</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                            is Resource.Success -&gt; onSuccess()</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">                            is Resource.Error -&gt; onError(it.throwable)</span>
+                        }
+<span class="nc" id="L126">                    }</span>
+                }
+
+<span class="nc" id="L129">                launch {</span>
+<span class="nc" id="L130">                    viewModel.actionState.collect {</span>
+<span class="nc" id="L131">                        when (it) {</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                            is TalkTemplatesViewModel.ActionState.Deleted -&gt; onDeleted(it.size)</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                            is TalkTemplatesViewModel.ActionState.Error -&gt; onActionError(it.throwable)</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                            is TalkTemplatesViewModel.ActionState.Added -&gt; onAdded()</span>
+                        }
+<span class="nc" id="L136">                    }</span>
+                }
+<span class="nc" id="L138">            }</span>
+<span class="nc" id="L139">        }</span>
+
+<span class="nc" id="L141">        binding.addSavedMessageFab.setOnClickListener {</span>
+<span class="nc" id="L142">            PatrollerExperienceEvent.logAction(&quot;new_message_init&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L143">            requestNewTemplate.launch(TalkReplyActivity.newIntent(requireContext(), viewModel.pageTitle, null,</span>
+<span class="nc" id="L144">                null, invokeSource = Constants.InvokeSource.DIFF_ACTIVITY, fromDiff = true, templateManagementMode = viewModel.templateManagementMode,</span>
+<span class="nc" id="L145">                fromRevisionId = viewModel.fromRevisionId, toRevisionId = viewModel.toRevisionId))</span>
+<span class="nc" id="L146">        }</span>
+
+<span class="nc" id="L148">        binding.toolBarEditButton.setOnClickListener {</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            if (actionMode == null) {</span>
+<span class="nc" id="L150">                PatrollerExperienceEvent.logAction(&quot;edit_message_click&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc" id="L151">                beginRemoveItemsMode()</span>
+<span class="nc" id="L152">                updateAndNotifyAdapter()</span>
+            }
+<span class="nc" id="L154">        }</span>
+
+<span class="nc" id="L156">        binding.talkTemplatesTabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {</span>
+            override fun onTabSelected(tab: TabLayout.Tab) {
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                if (actionMode != null) {</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                    actionMode?.finish()</span>
+                }
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                touchCallback.swipeableEnabled = tab.position == 0</span>
+<span class="nc" id="L162">                updateAndNotifyAdapter()</span>
+<span class="nc" id="L163">                updateToolbarEditButton()</span>
+<span class="nc" id="L164">            }</span>
+
+<span class="nc" id="L166">            override fun onTabUnselected(tab: TabLayout.Tab) {}</span>
+
+<span class="nc" id="L168">            override fun onTabReselected(tab: TabLayout.Tab) {}</span>
+        })
+<span class="nc" id="L170">        setUpTouchListeners()</span>
+
+<span class="nc" id="L172">        binding.talkTemplatesEmptyStateTextView.text = StringUtil.fromHtml(getString(R.string.talk_templates_empty_message))</span>
+
+<span class="nc" id="L174">        binding.talkTemplatesEmptyStateTextView.movementMethod = LinkMovementMethodExt { _ -&gt;</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            binding.talkTemplatesTabLayout.getTabAt(1)?.select()</span>
+<span class="nc" id="L176">            updateAndNotifyAdapter()</span>
+<span class="nc" id="L177">        }</span>
+<span class="nc" id="L178">    }</span>
+
+    private fun updateToolbarEditButton() {
+<span class="nc bnc" id="L181" title="All 6 branches missed.">        binding.toolBarEditButton.isVisible = binding.talkTemplatesTabLayout.selectedTabPosition == 0 &amp;&amp; viewModel.talkTemplatesList.isNotEmpty()</span>
+<span class="nc" id="L182">    }</span>
+
+    private fun setToolbarTitle() {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        val title = if (viewModel.templateManagementMode) getString(R.string.talk_warn_saved_messages) else</span>
+<span class="nc bnc" id="L186" title="All 4 branches missed.">            StringUtil.fromHtml(viewModel.pageTitle.namespace.ifEmpty { TalkAliasData.valueFor(viewModel.pageTitle.wikiSite.languageCode) } +</span>
+<span class="nc" id="L187">                &quot;: &quot; + &quot;&lt;a href='#'&gt;${StringUtil.removeNamespace(viewModel.pageTitle.displayText)}&lt;/a&gt;&quot;</span>
+<span class="nc bnc" id="L188" title="All 4 branches missed.">        ).trim().ifEmpty { getString(R.string.talk_no_subject) }</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        ViewUtil.getTitleViewFromToolbar(binding.toolbar)?.let {</span>
+<span class="nc" id="L190">            it.movementMethod = LinkMovementMethodExt { _ -&gt;</span>
+<span class="nc" id="L191">                val entry = HistoryEntry(TalkTopicsActivity.getNonTalkPageTitle(viewModel.pageTitle), HistoryEntry.SOURCE_TALK_TOPIC)</span>
+<span class="nc" id="L192">                startActivity(PageActivity.newIntentForNewTab(requireActivity(), entry, entry.title))</span>
+<span class="nc" id="L193">            }</span>
+<span class="nc" id="L194">        }</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        (requireActivity() as AppCompatActivity).supportActionBar?.title = title</span>
+<span class="nc" id="L196">    }</span>
+
+    private fun setUpTouchListeners() {
+<span class="nc" id="L199">        touchCallback = SwipeableItemTouchHelperCallback(requireContext())</span>
+<span class="nc" id="L200">        touchCallback.swipeableEnabled = true</span>
+<span class="nc" id="L201">        itemTouchHelper = ItemTouchHelper(RearrangeableItemTouchHelperCallback(adapter))</span>
+<span class="nc" id="L202">        itemSwipeTouchHelper = ItemTouchHelper(touchCallback)</span>
+<span class="nc" id="L203">        itemTouchHelper.attachToRecyclerView(binding.talkTemplatesRecyclerView)</span>
+<span class="nc" id="L204">        itemSwipeTouchHelper.attachToRecyclerView(binding.talkTemplatesRecyclerView)</span>
+<span class="nc" id="L205">    }</span>
+
+    private fun updateEmptyState() {
+<span class="nc" id="L208">        binding.talkTemplatesEmptyContainer.isVisible = adapter.templatesList.isEmpty()</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        binding.talkTemplatesRecyclerView.isVisible = adapter.templatesList.isNotEmpty()</span>
+<span class="nc" id="L210">    }</span>
+
+    fun updateAndNotifyAdapter() {
+<span class="nc" id="L213">        adapter.templatesList.clear()</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        adapter.templatesList.addAll(if (binding.talkTemplatesTabLayout.selectedTabPosition == 0) viewModel.talkTemplatesList else viewModel.savedTemplatesList)</span>
+<span class="nc" id="L215">        updateEmptyState()</span>
+<span class="nc" id="L216">        updateToolbarEditButton()</span>
+<span class="nc" id="L217">        adapter.notifyDataSetChanged()</span>
+<span class="nc" id="L218">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L221">        super.onDestroyView()</span>
+<span class="nc" id="L222">        _binding = null</span>
+<span class="nc" id="L223">    }</span>
+
+    private fun setRecyclerView() {
+<span class="nc" id="L226">        binding.talkTemplatesRecyclerView.setHasFixedSize(true)</span>
+<span class="nc" id="L227">        adapter = RecyclerAdapter()</span>
+<span class="nc" id="L228">        binding.talkTemplatesRecyclerView.adapter = adapter</span>
+<span class="nc" id="L229">        binding.talkTemplatesRecyclerView.layoutManager = LinearLayoutManager(requireContext())</span>
+<span class="nc" id="L230">        binding.talkTemplatesRecyclerView.addItemDecoration(DrawableItemDecoration(requireContext(), R.attr.list_divider, drawStart = true, drawEnd = false))</span>
+<span class="nc" id="L231">        updateAndNotifyAdapter()</span>
+<span class="nc" id="L232">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L235">        binding.talkTemplatesEmptyContainer.visibility = View.GONE</span>
+<span class="nc" id="L236">        binding.talkTemplatesRecyclerView.visibility = View.GONE</span>
+<span class="nc" id="L237">        binding.talkTemplatesErrorView.visibility = View.GONE</span>
+<span class="nc" id="L238">    }</span>
+
+    private fun onSuccess() {
+<span class="nc" id="L241">        setRecyclerView()</span>
+<span class="nc" id="L242">        updateToolbarEditButton()</span>
+<span class="nc" id="L243">        binding.talkTemplatesErrorView.visibility = View.GONE</span>
+<span class="nc" id="L244">        binding.talkTemplatesProgressBar.visibility = View.GONE</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        if (binding.talkTemplatesEmptyContainer.isVisible) {</span>
+<span class="nc" id="L246">            PatrollerExperienceEvent.logAction(&quot;templates_empty_impression&quot;, &quot;pt_templates&quot;)</span>
+        }
+<span class="nc" id="L248">    }</span>
+
+    private fun onDeleted(size: Int) {
+<span class="nc" id="L251">        PatrollerExperienceEvent.logAction(&quot;message_deleted_toast&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc" id="L252">        PatrollerExperienceEvent.logAction(&quot;delete_message_success&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L253">        val messageStr = resources.getQuantityString(R.plurals.talk_templates_message_deleted, size)</span>
+<span class="nc" id="L254">        FeedbackUtil.makeSnackbar(binding.coordinatorView, messageStr)</span>
+<span class="nc" id="L255">            .setAction(R.string.reading_list_item_delete_undo) {</span>
+<span class="nc" id="L256">                viewModel.saveTemplates(deletedItems)</span>
+<span class="nc" id="L257">            }</span>
+<span class="nc" id="L258">            .show()</span>
+<span class="nc" id="L259">        binding.talkTemplatesEmptyContainer.isVisible = viewModel.talkTemplatesList.isEmpty()</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        binding.talkTemplatesRecyclerView.isVisible = viewModel.talkTemplatesList.isNotEmpty()</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">        if (binding.talkTemplatesEmptyContainer.isVisible) {</span>
+<span class="nc" id="L262">            PatrollerExperienceEvent.logAction(&quot;templates_empty_impression&quot;, &quot;pt_templates&quot;)</span>
+        }
+<span class="nc bnc" id="L264" title="All 2 branches missed.">        actionMode?.finish()</span>
+<span class="nc" id="L265">        unselectAllTalkTemplates()</span>
+<span class="nc" id="L266">    }</span>
+
+    private fun onAdded() {
+<span class="nc" id="L269">        updateAndNotifyAdapter()</span>
+<span class="nc" id="L270">    }</span>
+
+    private fun onActionError(t: Throwable) {
+<span class="nc" id="L273">        FeedbackUtil.showMessage(this, t.toString())</span>
+<span class="nc" id="L274">    }</span>
+
+    private fun onError(t: Throwable) {
+<span class="nc" id="L277">        binding.talkTemplatesProgressBar.visibility = View.GONE</span>
+<span class="nc" id="L278">        binding.talkTemplatesErrorView.setError(t)</span>
+<span class="nc" id="L279">        binding.talkTemplatesErrorView.visibility = View.VISIBLE</span>
+<span class="nc" id="L280">    }</span>
+
+<span class="nc" id="L282">    internal inner class TalkTemplatesItemViewHolder(val templatesItemView: TalkTemplatesItemView) : RecyclerView.ViewHolder(templatesItemView.rootView), SwipeableItemTouchHelperCallback.Callback {</span>
+        private lateinit var entry: TalkTemplate
+
+        fun bindItem(item: TalkTemplate, position: Int) {
+<span class="nc" id="L286">            this.entry = item</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            templatesItemView.setContents(item, position, binding.talkTemplatesTabLayout.selectedTabPosition == 1)</span>
+<span class="nc" id="L288">        }</span>
+
+        override fun onSwipe() {
+<span class="nc" id="L291">            selectedItems.add(entry)</span>
+<span class="nc" id="L292">            PatrollerExperienceEvent.logAction(&quot;delete_message_click&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L293">            deleteSelectedTalkTemplates()</span>
+<span class="nc" id="L294">        }</span>
+
+        override fun isSwipeable(): Boolean {
+<span class="nc" id="L297">            return true</span>
+        }
+    }
+
+<span class="nc" id="L301">    internal inner class RecyclerAdapter : RecyclerView.Adapter&lt;TalkTemplatesItemViewHolder&gt;(), TalkTemplatesItemView.Callback {</span>
+
+        private var checkboxEnabled = false
+<span class="nc" id="L304">        var templatesList = mutableListOf&lt;TalkTemplate&gt;()</span>
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L307">            return templatesList.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TalkTemplatesItemViewHolder {
+<span class="nc" id="L311">            return TalkTemplatesItemViewHolder(TalkTemplatesItemView(requireContext()))</span>
+        }
+
+        override fun onBindViewHolder(holder: TalkTemplatesItemViewHolder, position: Int) {
+<span class="nc" id="L315">            val talkTemplate = templatesList[position]</span>
+<span class="nc" id="L316">            holder.bindItem(talkTemplate, position)</span>
+<span class="nc" id="L317">            holder.templatesItemView.setCheckBoxEnabled(checkboxEnabled)</span>
+<span class="nc" id="L318">            holder.templatesItemView.setCheckBoxChecked(selectedItems.contains(talkTemplate))</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">            holder.templatesItemView.setDragHandleEnabled(actionMode != null)</span>
+<span class="nc" id="L320">        }</span>
+
+        override fun onViewAttachedToWindow(holder: TalkTemplatesItemViewHolder) {
+<span class="nc" id="L323">            super.onViewAttachedToWindow(holder)</span>
+<span class="nc" id="L324">            holder.templatesItemView.setDragHandleTouchListener { v, event -&gt;</span>
+<span class="nc bnc" id="L325" title="All 3 branches missed.">                when (event.actionMasked) {</span>
+<span class="nc" id="L326">                    MotionEvent.ACTION_DOWN -&gt; itemTouchHelper.startDrag(holder)</span>
+<span class="nc" id="L327">                    MotionEvent.ACTION_UP -&gt; v.performClick()</span>
+                    else -&gt; { }
+                }
+<span class="nc" id="L330">                false</span>
+            }
+<span class="nc" id="L332">            holder.templatesItemView.callback = this</span>
+<span class="nc" id="L333">        }</span>
+
+        override fun onViewDetachedFromWindow(holder: TalkTemplatesItemViewHolder) {
+<span class="nc" id="L336">            holder.templatesItemView.setDragHandleTouchListener(null)</span>
+<span class="nc" id="L337">            holder.templatesItemView.callback = null</span>
+<span class="nc" id="L338">            super.onViewDetachedFromWindow(holder)</span>
+<span class="nc" id="L339">        }</span>
+
+        override fun onClick(position: Int) {
+<span class="nc bnc" id="L342" title="All 2 branches missed.">            val inExampleMessagesTab = binding.talkTemplatesTabLayout.selectedTabPosition == 1</span>
+<span class="nc bnc" id="L343" title="All 4 branches missed.">            if (position == 0 &amp;&amp; inExampleMessagesTab) {</span>
+<span class="nc" id="L344">                return</span>
+            }
+<span class="nc bnc" id="L346" title="All 2 branches missed.">            if (actionMode != null) {</span>
+<span class="nc" id="L347">                toggleSelectedItem(templatesList[position])</span>
+<span class="nc" id="L348">                adapter.notifyItemChanged(position)</span>
+            } else {
+<span class="nc bnc" id="L350" title="All 2 branches missed.">                val logAction = if (inExampleMessagesTab) &quot;example_message_select_click&quot; else &quot;saved_message_select_click&quot;</span>
+<span class="nc" id="L351">                PatrollerExperienceEvent.logAction(logAction, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L352">                requestEditTemplate.launch(TalkReplyActivity.newIntent(requireContext(), viewModel.pageTitle, null, null, invokeSource = Constants.InvokeSource.DIFF_ACTIVITY,</span>
+<span class="nc" id="L353">                    fromDiff = true, selectedTemplate = templatesList[position], templateManagementMode = viewModel.templateManagementMode, fromRevisionId = viewModel.fromRevisionId,</span>
+<span class="nc" id="L354">                    toRevisionId = viewModel.toRevisionId, isExampleTemplate = inExampleMessagesTab))</span>
+            }
+<span class="nc" id="L356">        }</span>
+
+        override fun onCheckedChanged(position: Int) {
+<span class="nc" id="L359">            toggleSelectedItem(templatesList[position])</span>
+<span class="nc" id="L360">        }</span>
+
+        override fun onLongPress(position: Int) {
+<span class="nc bnc" id="L363" title="All 2 branches missed.">            if (binding.talkTemplatesTabLayout.selectedTabPosition == 1) {</span>
+<span class="nc" id="L364">                return</span>
+            }
+<span class="nc bnc" id="L366" title="All 2 branches missed.">            if (actionMode == null) {</span>
+<span class="nc" id="L367">                beginRemoveItemsMode()</span>
+            }
+<span class="nc" id="L369">            toggleSelectedItem(templatesList[position])</span>
+<span class="nc" id="L370">            adapter.notifyItemChanged(position)</span>
+<span class="nc" id="L371">        }</span>
+
+        fun onMoveItem(oldPosition: Int, newPosition: Int) {
+<span class="nc" id="L374">            viewModel.swapList(oldPosition, newPosition)</span>
+<span class="nc" id="L375">            viewModel.updateItemOrder()</span>
+<span class="nc" id="L376">            notifyItemMoved(oldPosition, newPosition)</span>
+<span class="nc" id="L377">        }</span>
+
+        fun onCheckboxEnabled(enabled: Boolean) {
+<span class="nc" id="L380">            checkboxEnabled = enabled</span>
+<span class="nc" id="L381">        }</span>
+    }
+
+    private fun setMultiSelectEnabled(enabled: Boolean) {
+<span class="nc" id="L385">        adapter.onCheckboxEnabled(enabled)</span>
+<span class="nc" id="L386">        adapter.notifyItemRangeChanged(0, viewModel.talkTemplatesList.size)</span>
+<span class="nc" id="L387">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L388">    }</span>
+
+    private fun beginRemoveItemsMode() {
+<span class="nc" id="L391">        (requireActivity() as AppCompatActivity).startSupportActionMode(multiSelectCallback)</span>
+<span class="nc" id="L392">        setMultiSelectEnabled(true)</span>
+<span class="nc" id="L393">    }</span>
+
+    private fun toggleSelectedItem(talkTemplate: TalkTemplate) {
+<span class="nc bnc" id="L396" title="All 2 branches missed.">        if (selectedItems.contains(talkTemplate)) {</span>
+<span class="nc" id="L397">            selectedItems.remove(talkTemplate)</span>
+        } else {
+<span class="nc" id="L399">            selectedItems.add(talkTemplate)</span>
+        }
+<span class="nc bnc" id="L401" title="All 2 branches missed.">        actionMode?.title = getString(R.string.multi_select_items_selected, selectedItems.size)</span>
+<span class="nc" id="L402">    }</span>
+
+    private fun unselectAllTalkTemplates() {
+<span class="nc" id="L405">        selectedItems.clear()</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">        actionMode?.title = getString(R.string.multi_select_items_selected, selectedItems.size)</span>
+<span class="nc" id="L407">        updateAndNotifyAdapter()</span>
+<span class="nc" id="L408">    }</span>
+
+    private fun selectAllTalkTemplates(mode: ActionMode) {
+<span class="nc" id="L411">        adapter.templatesList.filterNot { selectedItems.contains(it) }</span>
+<span class="nc" id="L412">            .forEach { selectedItems.add(it) }</span>
+<span class="nc" id="L413">        mode.title = getString(R.string.multi_select_items_selected, selectedItems.size)</span>
+<span class="nc" id="L414">        updateAndNotifyAdapter()</span>
+<span class="nc" id="L415">    }</span>
+
+    private fun deleteSelectedTalkTemplates() {
+<span class="nc" id="L418">        deletedItems.clear()</span>
+<span class="nc" id="L419">        deletedItems.addAll(selectedItems)</span>
+<span class="nc" id="L420">        viewModel.deleteTemplates(selectedItems)</span>
+<span class="nc" id="L421">    }</span>
+
+<span class="nc" id="L423">    private inner class MultiSelectCallback : MultiSelectActionModeCallback() {</span>
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L425">            super.onCreateActionMode(mode, menu)</span>
+<span class="nc" id="L426">            mode.setTitle(R.string.talk_templates_menu_remove_message)</span>
+<span class="nc" id="L427">            mode.menuInflater.inflate(R.menu.menu_action_mode_talk_templates, menu)</span>
+<span class="nc" id="L428">            actionMode = mode</span>
+<span class="nc" id="L429">            selectedItems.clear()</span>
+<span class="nc" id="L430">            return super.onCreateActionMode(mode, menu)</span>
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L434">            mode.title = getString(R.string.multi_select_items_selected, selectedItems.size)</span>
+<span class="nc" id="L435">            selectedItems.size.toString()</span>
+<span class="nc" id="L436">            menu.findItem(R.id.menu_check_all).isVisible = true</span>
+<span class="nc" id="L437">            menu.findItem(R.id.menu_uncheck_all).isVisible = false</span>
+<span class="nc" id="L438">            return super.onPrepareActionMode(mode, menu)</span>
+        }
+
+        override fun onActionItemClicked(mode: ActionMode, menuItem: MenuItem): Boolean {
+<span class="nc" id="L442">            super.onActionItemClicked(mode, menuItem)</span>
+<span class="nc" id="L443">            when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L444" title="All 2 branches missed.">                R.id.menu_check_all -&gt; {</span>
+<span class="nc" id="L445">                    PatrollerExperienceEvent.logAction(&quot;delete_messages_init&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L446">                    selectAllTalkTemplates(mode)</span>
+<span class="nc" id="L447">                    menuItem.isVisible = false</span>
+<span class="nc" id="L448">                    mode.menu.findItem(R.id.menu_uncheck_all).isVisible = true</span>
+<span class="nc" id="L449">                    return true</span>
+                }
+<span class="nc bnc" id="L451" title="All 2 branches missed.">                R.id.menu_uncheck_all -&gt; {</span>
+<span class="nc" id="L452">                    unselectAllTalkTemplates()</span>
+<span class="nc" id="L453">                    menuItem.isVisible = false</span>
+<span class="nc" id="L454">                    mode.menu.findItem(R.id.menu_check_all).isVisible = true</span>
+<span class="nc" id="L455">                    return true</span>
+                }
+            }
+<span class="nc" id="L458">            return false</span>
+        }
+
+        override fun onDeleteSelected() {
+<span class="nc bnc" id="L462" title="All 2 branches missed.">            if (selectedItems.size &gt; 0) {</span>
+<span class="nc" id="L463">                PatrollerExperienceEvent.logAction(&quot;delete_messages_click&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L464">                val messageStr = resources.getQuantityString(</span>
+<span class="nc" id="L465">                    R.plurals.talk_templates_message_delete_description,</span>
+<span class="nc" id="L466">                    selectedItems.size</span>
+                )
+<span class="nc" id="L468">                MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogTheme_Delete)</span>
+<span class="nc" id="L469">                    .setMessage(messageStr)</span>
+<span class="nc" id="L470">                    .setPositiveButton(R.string.talk_templates_edit_message_dialog_delete) { _, _ -&gt;</span>
+<span class="nc" id="L471">                        PatrollerExperienceEvent.logAction(&quot;message_delete_click&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc" id="L472">                        deleteSelectedTalkTemplates()</span>
+<span class="nc" id="L473">                    }</span>
+<span class="nc" id="L474">                    .setNegativeButton(R.string.talk_templates_new_message_dialog_cancel) { _, _ -&gt;</span>
+<span class="nc" id="L475">                        PatrollerExperienceEvent.logAction(&quot;message_delete_cancel&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc" id="L476">                    }</span>
+<span class="nc" id="L477">                    .show()</span>
+            } else {
+<span class="nc bnc" id="L479" title="All 2 branches missed.">                actionMode?.finish()</span>
+            }
+<span class="nc" id="L481">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L484">            unselectAllTalkTemplates()</span>
+<span class="nc" id="L485">            setMultiSelectEnabled(false)</span>
+<span class="nc" id="L486">            actionMode = null</span>
+<span class="nc" id="L487">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L488">        }</span>
+    }
+
+<span class="nc" id="L491">    private inner class RearrangeableItemTouchHelperCallback(private val adapter: RecyclerAdapter) : ItemTouchHelper.Callback() {</span>
+        override fun isLongPressDragEnabled(): Boolean {
+<span class="nc" id="L493">            return false</span>
+        }
+
+        override fun isItemViewSwipeEnabled(): Boolean {
+<span class="nc" id="L497">            return false</span>
+        }
+
+<span class="nc" id="L500">        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}</span>
+
+        override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+<span class="nc" id="L503">            return makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)</span>
+        }
+
+        override fun onMove(recyclerView: RecyclerView, source: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
+<span class="nc" id="L507">            adapter.onMoveItem(source.absoluteAdapterPosition, target.absoluteAdapterPosition)</span>
+<span class="nc" id="L508">            return true</span>
+        }
+
+        @SuppressLint(&quot;NotifyDataSetChanged&quot;)
+        override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+<span class="nc" id="L513">            super.clearView(recyclerView, viewHolder)</span>
+<span class="nc" id="L514">            recyclerView.post {</span>
+<span class="nc bnc" id="L515" title="All 2 branches missed.">                if (isAdded) {</span>
+<span class="nc" id="L516">                    updateAndNotifyAdapter()</span>
+                }
+<span class="nc" id="L518">            }</span>
+<span class="nc" id="L519">        }</span>
+    }
+
+    companion object {
+<span class="nc" id="L523">        fun newInstance(pageTitle: PageTitle?, templateManagement: Boolean = false, fromRevisionId: Long = -1, toRevisionId: Long = -1): TalkTemplatesFragment {</span>
+<span class="nc" id="L524">            return TalkTemplatesFragment().apply {</span>
+<span class="nc" id="L525">                arguments = bundleOf(Constants.ARG_TITLE to pageTitle,</span>
+<span class="nc" id="L526">                    EXTRA_TEMPLATE_MANAGEMENT to templateManagement,</span>
+<span class="nc" id="L527">                    TalkReplyActivity.FROM_REVISION_ID to fromRevisionId,</span>
+<span class="nc" id="L528">                    TalkReplyActivity.TO_REVISION_ID to toRevisionId)</span>
+<span class="nc" id="L529">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.onthisday</a> &gt; <span class="el_source">OnThisDayFragment.kt</span></div><h1>OnThisDayFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.onthisday
+
+import android.os.Bundle
+import android.util.TypedValue
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.animation.AnimationUtils
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.os.bundleOf
+import androidx.core.widget.TextViewCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.tabs.TabLayoutMediator
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.databinding.FragmentOnThisDayBinding
+import org.wikipedia.databinding.ViewEventsLayoutBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.page.PageSummary
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.CustomDatePicker
+import org.wikipedia.views.HeaderMarginItemDecoration
+import java.util.Calendar
+import java.util.Locale
+import kotlin.math.abs
+
+<span class="nc" id="L39">class OnThisDayFragment : Fragment(), CustomDatePicker.Callback {</span>
+
+    private var _binding: FragmentOnThisDayBinding? = null
+<span class="nc" id="L42">    private val binding get() = _binding!!</span>
+<span class="nc" id="L43">    private val viewModel: OnThisDayViewModel by viewModels()</span>
+
+    private val offsetChangedListener =
+<span class="nc" id="L46">        AppBarLayout.OnOffsetChangedListener { appBarLayout, verticalOffset -&gt;</span>
+<span class="nc" id="L47">            binding.headerFrameLayout.alpha = 1.0f - abs(verticalOffset / appBarLayout.totalScrollRange.toFloat())</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            if (verticalOffset &gt; -appBarLayout.totalScrollRange) {</span>
+<span class="nc" id="L49">                binding.dropDownToolbar.visibility = View.GONE</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            } else if (verticalOffset &lt;= -appBarLayout.totalScrollRange) {</span>
+<span class="nc" id="L51">                binding.dropDownToolbar.visibility = View.VISIBLE</span>
+            }
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            val newText = if (verticalOffset &lt;= -appBarLayout.totalScrollRange) DateUtil.getMonthOnlyDateString(viewModel.date.time) else &quot;&quot;</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            if (newText != binding.toolbarDay.text.toString()) {</span>
+<span class="nc" id="L55">                appBarLayout.post { binding.toolbarDay.text = newText }</span>
+            }
+<span class="nc" id="L57">        }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L60">        _binding = FragmentOnThisDayBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L61">        binding.eventsRecycler.layoutManager = LinearLayoutManager(context, RecyclerView.VERTICAL, false)</span>
+<span class="nc" id="L62">        binding.eventsRecycler.addItemDecoration(HeaderMarginItemDecoration(24, 0))</span>
+<span class="nc" id="L63">        binding.eventsRecycler.isNestedScrollingEnabled = true</span>
+<span class="nc" id="L64">        binding.eventsRecycler.clipToPadding = false</span>
+<span class="nc" id="L65">        binding.errorView.backClickListener = View.OnClickListener { requireActivity().finish() }</span>
+<span class="nc" id="L66">        binding.dayContainer.setOnClickListener { onCalendarClicked() }</span>
+<span class="nc" id="L67">        binding.toolbarDayContainer.setOnClickListener { onCalendarClicked() }</span>
+<span class="nc" id="L68">        binding.indicatorLayout.setOnClickListener { onIndicatorLayoutClicked() }</span>
+<span class="nc" id="L69">        setUpToolbar()</span>
+<span class="nc" id="L70">        setUpTransitionAnimation(savedInstanceState)</span>
+<span class="nc" id="L71">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L75">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L76">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L77">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L78">                launch {</span>
+<span class="nc" id="L79">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L80">                        when (it) {</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                            is Resource.Success -&gt; onSuccess(it.data)</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                            is Resource.Error -&gt; onError(it.throwable)</span>
+                        }
+<span class="nc" id="L85">                    }</span>
+                }
+<span class="nc" id="L87">            }</span>
+<span class="nc" id="L88">        }</span>
+<span class="nc" id="L89">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L92">        binding.progressBar.visibility = View.VISIBLE</span>
+<span class="nc" id="L93">        binding.eventsRecycler.visibility = View.GONE</span>
+<span class="nc" id="L94">        binding.errorView.visibility = View.GONE</span>
+<span class="nc" id="L95">    }</span>
+
+    private fun setUpTransitionAnimation(savedInstanceState: Bundle?) {
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        val animDelay = if (requireActivity().window.sharedElementEnterTransition != null &amp;&amp;</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            savedInstanceState == null) 500L else 0L</span>
+<span class="nc" id="L100">        binding.onThisDayTitleView.postDelayed({</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L102">                return@postDelayed</span>
+            }
+<span class="nc" id="L104">            viewModel.loadOnThisDay()</span>
+<span class="nc" id="L105">        }, animDelay)</span>
+<span class="nc" id="L106">    }</span>
+
+    private fun onSuccess(events: List&lt;OnThisDay.Event&gt;) {
+<span class="nc" id="L109">        binding.progressBar.visibility = View.GONE</span>
+<span class="nc" id="L110">        binding.eventsRecycler.visibility = View.VISIBLE</span>
+<span class="nc" id="L111">        binding.errorView.visibility = View.GONE</span>
+<span class="nc" id="L112">        binding.eventsRecycler.adapter = RecyclerAdapter(events, viewModel.wikiSite)</span>
+<span class="nc" id="L113">        binding.dayInfo.text = getString(R.string.events_count_text, events.size.toString(),</span>
+<span class="nc" id="L114">            DateUtil.yearToStringWithEra(events.last().year), events[0].year)</span>
+
+<span class="nc bnc" id="L116" title="All 8 branches missed.">        val positionToScrollTo = events.indices.find { viewModel.year == events[it].year } ?: 0</span>
+<span class="nc" id="L117">        binding.eventsRecycler.postDelayed({</span>
+<span class="nc bnc" id="L118" title="All 6 branches missed.">            if (isAdded &amp;&amp; positionToScrollTo != -1 &amp;&amp; viewModel.year != -1) {</span>
+<span class="nc" id="L119">                binding.eventsRecycler.scrollToPosition(positionToScrollTo)</span>
+            }
+<span class="nc" id="L121">        }, 500)</span>
+<span class="nc" id="L122">    }</span>
+
+    private fun onError(throwable: Throwable) {
+<span class="nc" id="L125">        L.e(throwable)</span>
+<span class="nc" id="L126">        binding.progressBar.visibility = View.GONE</span>
+<span class="nc" id="L127">        binding.eventsRecycler.visibility = View.GONE</span>
+<span class="nc" id="L128">        binding.errorView.visibility = View.VISIBLE</span>
+<span class="nc" id="L129">        binding.errorView.setError(throwable)</span>
+<span class="nc" id="L130">    }</span>
+
+    private fun setUpToolbar() {
+<span class="nc" id="L133">        (requireActivity() as AppCompatActivity).apply {</span>
+<span class="nc" id="L134">            setSupportActionBar(binding.toolbar)</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            supportActionBar?.title = &quot;&quot;</span>
+<span class="nc" id="L137">        }</span>
+<span class="nc" id="L138">        binding.collapsingToolbarLayout.setCollapsedTitleTextColor(</span>
+<span class="nc" id="L139">            ResourceUtil.getThemedColor(requireContext(), R.attr.primary_color)</span>
+        )
+<span class="nc" id="L141">        binding.day.text = DateUtil.getMonthOnlyDateString(viewModel.date.time)</span>
+<span class="nc" id="L142">        maybeHideDateIndicator()</span>
+<span class="nc" id="L143">        binding.appBar.addOnOffsetChangedListener(offsetChangedListener)</span>
+<span class="nc" id="L144">    }</span>
+
+    private fun maybeHideDateIndicator() {
+<span class="nc" id="L147">        binding.indicatorLayout.visibility =</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">            if (viewModel.date[Calendar.MONTH] == Calendar.getInstance()[Calendar.MONTH] &amp;&amp;</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                viewModel.date[Calendar.DATE] == Calendar.getInstance()[Calendar.DATE]) View.GONE else View.VISIBLE</span>
+<span class="nc" id="L150">        binding.indicatorDate.text = String.format(Locale.getDefault(), &quot;%d&quot;, Calendar.getInstance()[Calendar.DATE])</span>
+<span class="nc" id="L151">        TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(binding.indicatorDate, 4, 10, 1, TypedValue.COMPLEX_UNIT_SP)</span>
+<span class="nc" id="L152">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L155">        binding.eventsRecycler.adapter = null</span>
+<span class="nc" id="L156">        binding.appBar.removeOnOffsetChangedListener(offsetChangedListener)</span>
+<span class="nc" id="L157">        _binding = null</span>
+<span class="nc" id="L158">        super.onDestroyView()</span>
+<span class="nc" id="L159">    }</span>
+
+    override fun onDatePicked(calendar: Calendar) {
+<span class="nc" id="L162">        binding.eventsRecycler.visibility = View.GONE</span>
+<span class="nc" id="L163">        viewModel.date[CustomDatePicker.LEAP_YEAR, calendar[Calendar.MONTH], calendar[Calendar.DATE], 0] = 0</span>
+<span class="nc" id="L164">        binding.day.text = DateUtil.getMonthOnlyDateString(viewModel.date.time)</span>
+<span class="nc" id="L165">        binding.appBar.setExpanded(true)</span>
+<span class="nc" id="L166">        viewModel.loadOnThisDay(calendar)</span>
+<span class="nc" id="L167">        maybeHideDateIndicator()</span>
+<span class="nc" id="L168">    }</span>
+
+    private fun onCalendarClicked() {
+<span class="nc" id="L171">        val newFragment = CustomDatePicker()</span>
+<span class="nc" id="L172">        newFragment.setSelectedDay(viewModel.date[Calendar.MONTH], viewModel.date[Calendar.DATE])</span>
+<span class="nc" id="L173">        newFragment.callback = this@OnThisDayFragment</span>
+<span class="nc" id="L174">        newFragment.show(parentFragmentManager, &quot;datePicker&quot;)</span>
+<span class="nc" id="L175">    }</span>
+
+    private fun onIndicatorLayoutClicked() {
+<span class="nc" id="L178">        onDatePicked(Calendar.getInstance())</span>
+<span class="nc" id="L179">    }</span>
+
+<span class="nc" id="L181">    private inner class RecyclerAdapter(private val events: List&lt;OnThisDay.Event&gt;,</span>
+<span class="nc" id="L182">                                        private val wiki: WikiSite) : RecyclerView.Adapter&lt;RecyclerView.ViewHolder&gt;() {</span>
+
+        override fun onCreateViewHolder(viewGroup: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            return if (viewType == Companion.VIEW_TYPE_FOOTER) {</span>
+<span class="nc" id="L186">                val itemView = LayoutInflater.from(viewGroup.context)</span>
+<span class="nc" id="L187">                    .inflate(R.layout.view_on_this_day_footer, viewGroup, false)</span>
+<span class="nc" id="L188">                FooterViewHolder(itemView)</span>
+            } else {
+<span class="nc" id="L190">                val itemView = ViewEventsLayoutBinding.inflate(LayoutInflater.from(viewGroup.context),</span>
+<span class="nc" id="L191">                    viewGroup, false)</span>
+<span class="nc" id="L192">                EventsViewHolder(itemView, wiki)</span>
+            }
+        }
+
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+<span class="nc bnc" id="L197" title="All 2 branches missed.">            if (holder is EventsViewHolder) {</span>
+<span class="nc" id="L198">                holder.setFields(events[position])</span>
+            }
+<span class="nc" id="L200">        }</span>
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L203">            return events.size + 1</span>
+        }
+
+        override fun getItemViewType(position: Int): Int {
+<span class="nc bnc" id="L207" title="All 2 branches missed.">            return if (position &lt; events.size) Companion.VIEW_TYPE_ITEM else Companion.VIEW_TYPE_FOOTER</span>
+        }
+
+        override fun onViewAttachedToWindow(holder: RecyclerView.ViewHolder) {
+<span class="nc" id="L211">            super.onViewAttachedToWindow(holder)</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            if (holder is EventsViewHolder) {</span>
+<span class="nc" id="L213">                holder.animateRadioButton()</span>
+            }
+<span class="nc" id="L215">        }</span>
+    }
+
+<span class="nc" id="L218">    private inner class EventsViewHolder(eventBinding: ViewEventsLayoutBinding, private val wiki: WikiSite) : RecyclerView.ViewHolder(eventBinding.root) {</span>
+
+<span class="nc" id="L220">        private val otdEventLayout = eventBinding.otdEventLayout</span>
+
+<span class="nc" id="L222">        init {</span>
+<span class="nc" id="L223">            otdEventLayout.text.setTextIsSelectable(true)</span>
+<span class="nc" id="L224">        }</span>
+
+        fun setFields(event: OnThisDay.Event) {
+<span class="nc" id="L227">            otdEventLayout.text.text = event.text</span>
+<span class="nc bnc" id="L228" title="All 4 branches missed.">            otdEventLayout.text.visibility = if (event.text.isEmpty()) View.GONE else View.VISIBLE</span>
+<span class="nc" id="L229">            otdEventLayout.year.text = DateUtil.yearToStringWithEra(event.year)</span>
+<span class="nc" id="L230">            otdEventLayout.yearsText.text = DateUtil.getYearDifferenceString(requireContext(), event.year, wiki.languageCode)</span>
+<span class="nc" id="L231">            setPagesViewPager(event)</span>
+<span class="nc" id="L232">        }</span>
+
+        private fun setPagesViewPager(event: OnThisDay.Event) {
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if (event.pages.isEmpty()) {</span>
+<span class="nc" id="L236">                otdEventLayout.pagesPager.visibility = View.GONE</span>
+<span class="nc" id="L237">                otdEventLayout.pagesIndicator.visibility = View.GONE</span>
+<span class="nc" id="L238">                return</span>
+            }
+<span class="nc" id="L240">            otdEventLayout.pagesPager.adapter = ViewPagerAdapter(event.pages, wiki)</span>
+<span class="nc" id="L241">            otdEventLayout.pagesPager.offscreenPageLimit = 2</span>
+<span class="nc" id="L242">            TabLayoutMediator(otdEventLayout.pagesIndicator, otdEventLayout.pagesPager) { _, _ -&gt; }.attach()</span>
+<span class="nc" id="L243">            otdEventLayout.pagesPager.visibility = View.VISIBLE</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            otdEventLayout.pagesIndicator.visibility = if (event.pages.size == 1) View.GONE else View.VISIBLE</span>
+<span class="nc" id="L245">        }</span>
+
+        fun animateRadioButton() {
+<span class="nc" id="L248">            otdEventLayout.radioImageView.startAnimation(AnimationUtils.loadAnimation(context, R.anim.pulse))</span>
+<span class="nc" id="L249">        }</span>
+    }
+
+<span class="nc" id="L252">    private inner class FooterViewHolder(v: View) : RecyclerView.ViewHolder(v) {</span>
+<span class="nc" id="L253">        init {</span>
+<span class="nc" id="L254">            val backToFutureView = v.findViewById&lt;View&gt;(R.id.back_to_future_text_view)</span>
+<span class="nc" id="L255">            backToFutureView.setOnClickListener {</span>
+<span class="nc" id="L256">                binding.appBar.setExpanded(true)</span>
+<span class="nc" id="L257">                binding.eventsRecycler.scrollToPosition(0)</span>
+<span class="nc" id="L258">            }</span>
+<span class="nc" id="L259">        }</span>
+    }
+
+<span class="nc" id="L262">    internal inner class ViewPagerAdapter(private val pages: List&lt;PageSummary&gt;, private val wiki: WikiSite) : RecyclerView.Adapter&lt;OnThisDayPagesViewHolder&gt;() {</span>
+
+        override fun onCreateViewHolder(viewGroup: ViewGroup, i: Int): OnThisDayPagesViewHolder {
+<span class="nc" id="L265">            val itemView = LayoutInflater.from(viewGroup.context).inflate(R.layout.item_on_this_day_pages, viewGroup, false)</span>
+<span class="nc" id="L266">            return OnThisDayPagesViewHolder((viewGroup.context as AppCompatActivity), itemView, wiki)</span>
+        }
+
+        override fun onBindViewHolder(onThisDayPagesViewHolder: OnThisDayPagesViewHolder, i: Int) {
+<span class="nc" id="L270">            onThisDayPagesViewHolder.setFields(pages[i])</span>
+<span class="nc" id="L271">        }</span>
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L274">            return pages.size</span>
+        }
+    }
+
+    companion object {
+        private const val VIEW_TYPE_ITEM = 0
+        private const val VIEW_TYPE_FOOTER = 1
+
+        fun newInstance(age: Int, wikiSite: WikiSite, year: Int, invokeSource: InvokeSource): OnThisDayFragment {
+<span class="nc" id="L283">            return OnThisDayFragment().apply {</span>
+<span class="nc" id="L284">                arguments = bundleOf(</span>
+<span class="nc" id="L285">                    OnThisDayActivity.EXTRA_AGE to age,</span>
+<span class="nc" id="L286">                    Constants.ARG_WIKISITE to wikiSite,</span>
+<span class="nc" id="L287">                    OnThisDayActivity.EXTRA_YEAR to year,</span>
+<span class="nc" id="L288">                    Constants.INTENT_EXTRA_INVOKE_SOURCE to invokeSource</span>
+                )
+<span class="nc" id="L290">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

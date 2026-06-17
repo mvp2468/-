@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DailyGameHistoryDao.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.db</a> &gt; <span class="el_source">DailyGameHistoryDao.kt</span></div><h1>DailyGameHistoryDao.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.db
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import androidx.room.Upsert
+import org.wikipedia.games.PlayTypes
+import java.time.LocalDate
+import java.time.Month
+
+@Dao
+interface DailyGameHistoryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(dailyGameHistory: DailyGameHistory)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(dailyGameHistories: List&lt;DailyGameHistory&gt;)
+
+    @Query(&quot;SELECT * FROM DailyGameHistory ORDER BY year DESC, month DESC, day DESC, id DESC LIMIT 1&quot;)
+    suspend fun findLastGameHistory(): DailyGameHistory?
+
+    @Query(&quot;SELECT * FROM DailyGameHistory WHERE gameName = :gameName AND language = :language &quot; +
+            &quot;AND year = :year AND month = :month AND day = :day&quot;)
+    suspend fun findGameHistoryByDate(gameName: Int, language: String, year: Int, month: Int, day: Int): DailyGameHistory?
+
+    @Query(&quot;SELECT COUNT(*) FROM DailyGameHistory WHERE gameName = :gameName AND language = :language AND status = 1&quot;)
+    suspend fun getTotalGamesPlayed(gameName: Int, language: String): Int
+
+    @Query(&quot;SELECT AVG(score) FROM DailyGameHistory WHERE gameName = :gameName AND language = :language AND status = 1&quot;)
+    suspend fun getAverageScore(gameName: Int, language: String): Double?
+
+    @Query(&quot;SELECT * FROM DailyGameHistory WHERE gameName = :gameName AND language = :language AND status = 1 ORDER BY year DESC, month DESC, day DESC&quot;)
+    suspend fun getGameHistory(gameName: Int, language: String): List&lt;DailyGameHistory&gt;
+
+    @Update
+    suspend fun update(dailyGameHistory: DailyGameHistory)
+
+    @Delete
+    suspend fun delete(dailyGameHistory: DailyGameHistory)
+
+<span class="nc" id="L44">    suspend fun getCurrentStreak(gameName: Int, language: String): Int {</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        val history = getGameHistory(gameName, language).filter { it.playType == PlayTypes.PLAYED_ON_SAME_DAY.ordinal }</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">        if (history.isEmpty()) {</span>
+<span class="nc" id="L47">            return 0</span>
+        }
+
+<span class="nc" id="L50">        var currentStreak = 0</span>
+<span class="nc" id="L51">        var expectedDate = LocalDate.now() // Start with today's date</span>
+
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        for (record in history) {</span>
+<span class="nc" id="L54">            val recordDate = LocalDate.of(record.year, Month.of(record.month), record.day)</span>
+
+<span class="nc bnc" id="L56" title="All 2 branches missed.">            if (recordDate == expectedDate) {</span>
+<span class="nc" id="L57">                currentStreak++</span>
+<span class="nc" id="L58">                expectedDate = expectedDate.minusDays(1) // Move to the previous day</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            } else if (recordDate.isBefore(expectedDate)) {</span>
+<span class="nc" id="L60">                break</span>
+            }
+        }
+
+<span class="nc" id="L64">        return currentStreak</span>
+<span class="nc" id="L65">    }</span>
+
+<span class="nc" id="L67">    suspend fun getBestStreak(gameName: Int, language: String): Int {</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        val history = getGameHistory(gameName, language).filter { it.playType == PlayTypes.PLAYED_ON_SAME_DAY.ordinal }</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (history.isEmpty()) {</span>
+<span class="nc" id="L70">            return 0</span>
+        }
+
+<span class="nc" id="L73">        var bestStreak = 0</span>
+<span class="nc" id="L74">        var currentStreak = 0</span>
+<span class="nc" id="L75">        var expectedDate = LocalDate.now() // Start with today's date</span>
+
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        for (record in history) {</span>
+<span class="nc" id="L78">            val recordDate = LocalDate.of(record.year, Month.of(record.month), record.day)</span>
+
+<span class="nc bnc" id="L80" title="All 2 branches missed.">            if (recordDate == expectedDate) {</span>
+<span class="nc" id="L81">                currentStreak++</span>
+<span class="nc" id="L82">                expectedDate = expectedDate.minusDays(1) // Move to the previous day</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            } else if (recordDate.isBefore(expectedDate)) {</span>
+<span class="nc" id="L84">                bestStreak = maxOf(bestStreak, currentStreak)</span>
+<span class="nc" id="L85">                currentStreak = 0</span>
+<span class="nc" id="L86">                expectedDate = recordDate.minusDays(1) // Reset to the day before the record date</span>
+            }
+        }
+
+<span class="nc" id="L90">        return maxOf(bestStreak, currentStreak)</span>
+<span class="nc" id="L91">    }</span>
+
+    @Upsert
+    suspend fun upsert(dailyGameHistory: DailyGameHistory): Long
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

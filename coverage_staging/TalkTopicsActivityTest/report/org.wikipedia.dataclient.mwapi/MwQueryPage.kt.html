@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MwQueryPage.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.mwapi</a> &gt; <span class="el_source">MwQueryPage.kt</span></div><h1>MwQueryPage.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.mwapi
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import org.wikipedia.dataclient.growthtasks.GrowthImageSuggestion
+import org.wikipedia.dataclient.page.Protection
+import org.wikipedia.gallery.ImageInfo
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.Namespace
+import org.wikipedia.util.DateUtil
+
+<span class="fc" id="L16">@Serializable</span>
+class MwQueryPage {
+
+<span class="nc" id="L19">    @SerialName(&quot;descriptionsource&quot;) val descriptionSource: String? = null</span>
+    @SerialName(&quot;imageinfo&quot;) private val imageInfo: List&lt;ImageInfo&gt;? = null
+    @SerialName(&quot;videoinfo&quot;) private val videoInfo: List&lt;ImageInfo&gt;? = null
+    @SerialName(&quot;watchlistexpiry&quot;) private val watchlistExpiry: String? = null
+<span class="pc" id="L23">    @SerialName(&quot;pageviews&quot;) val pageViewsMap: Map&lt;String, Long?&gt; = emptyMap()</span>
+<span class="nc" id="L24">    @SerialName(&quot;pageid&quot;) val pageId = 0</span>
+<span class="nc" id="L25">    @SerialName(&quot;pageprops&quot;) val pageProps: PageProps? = null</span>
+<span class="nc" id="L26">    @SerialName(&quot;entityterms&quot;) val entityTerms: EntityTerms? = null</span>
+<span class="nc" id="L27">    val categories: List&lt;CategoryResponse&gt;? = null</span>
+
+<span class="nc" id="L29">    val ns = 0</span>
+<span class="nc" id="L30">    val coordinates: List&lt;Coordinates&gt;? = null</span>
+    private val thumbnail: Thumbnail? = null
+<span class="nc" id="L32">    val varianttitles: Map&lt;String, String&gt;? = null</span>
+    private val actions: Map&lt;String, List&lt;MwServiceError&gt;&gt;? = null
+    private val editintro: JsonElement? = null
+
+<span class="nc" id="L36">    val index = 0</span>
+<span class="pc" id="L37">    var title: String = &quot;&quot;</span>
+<span class="pc" id="L38">    val langlinks: List&lt;LangLink&gt; = emptyList()</span>
+<span class="pc" id="L39">    val revisions: List&lt;Revision&gt; = emptyList()</span>
+<span class="pc" id="L40">    val protection: List&lt;Protection&gt; = emptyList()</span>
+<span class="nc" id="L41">    val extract: String? = null</span>
+<span class="nc" id="L42">    val snippet: String? = null</span>
+<span class="nc" id="L43">    @SerialName(&quot;sectiontitle&quot;) val sectionTitle: String? = null</span>
+<span class="nc" id="L44">    val description: String? = null</span>
+    private val imagerepository: String? = null
+<span class="nc" id="L46">    var redirectFrom: String? = null</span>
+<span class="nc" id="L47">    var convertedFrom: String? = null</span>
+<span class="nc" id="L48">    var convertedTo: String? = null</span>
+<span class="fc" id="L49">    val watched = false</span>
+<span class="nc" id="L50">    val lastrevid: Long = 0</span>
+
+<span class="nc" id="L52">    val tasktype: String? = null</span>
+<span class="nc" id="L53">    val difficulty: String? = null</span>
+<span class="nc" id="L54">    val qualityGateIds: List&lt;String&gt;? = null</span>
+<span class="nc" id="L55">    val growthimagesuggestiondata: List&lt;GrowthImageSuggestion&gt;? = null</span>
+
+    fun namespace(): Namespace {
+<span class="nc" id="L58">        return Namespace.of(ns)</span>
+    }
+
+    fun thumbUrl(): String? {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        return thumbnail?.source</span>
+    }
+
+    fun imageInfo(): ImageInfo? {
+<span class="nc bnc" id="L66" title="All 6 branches missed.">        return imageInfo?.get(0) ?: videoInfo?.get(0)</span>
+    }
+
+    fun appendTitleFragment(fragment: String?) {
+<span class="nc" id="L70">        title += &quot;#$fragment&quot;</span>
+<span class="nc" id="L71">    }</span>
+
+    fun displayTitle(langCode: String): String {
+<span class="nc bnc" id="L74" title="All 8 branches missed.">        return varianttitles?.get(langCode).orEmpty().ifEmpty { title }</span>
+    }
+
+    val isImageShared: Boolean
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        get() = imagerepository.orEmpty() == &quot;shared&quot;</span>
+
+    fun hasWatchlistExpiry(): Boolean {
+<span class="pc bpc" id="L81" title="4 of 6 branches missed.">        return !watchlistExpiry.isNullOrEmpty()</span>
+    }
+
+    fun getErrorForAction(actionName: String): List&lt;MwServiceError&gt; {
+<span class="nc bnc" id="L85" title="All 4 branches missed.">        return actions?.get(actionName) ?: emptyList()</span>
+    }
+
+    fun getEditNotices(): Map&lt;String, String&gt; {
+<span class="nc bnc" id="L89" title="All 4 branches missed.">        return if (editintro != null &amp;&amp; editintro is JsonObject) JsonUtil.json.decodeFromJsonElement(editintro) else emptyMap()</span>
+    }
+
+<span class="nc" id="L92">    @Serializable</span>
+    class Revision {
+        private val slots: Map&lt;String, RevisionSlot&gt;? = null
+<span class="nc" id="L95">        val minor = false</span>
+<span class="nc" id="L96">        @SerialName(&quot;revid&quot;) val revId: Long = 0</span>
+<span class="nc" id="L97">        @SerialName(&quot;parentid&quot;) val parentRevId: Long = 0</span>
+<span class="nc" id="L98">        @SerialName(&quot;anon&quot;) val isAnon = false</span>
+<span class="nc" id="L99">        @SerialName(&quot;temp&quot;) val isTemp = false</span>
+<span class="nc" id="L100">        @SerialName(&quot;timestamp&quot;) val timeStamp: String = &quot;&quot;</span>
+<span class="nc" id="L101">        val size = 0</span>
+<span class="nc" id="L102">        val user: String = &quot;&quot;</span>
+<span class="nc" id="L103">        val comment: String = &quot;&quot;</span>
+<span class="nc" id="L104">        val parsedcomment: String = &quot;&quot;</span>
+
+        private val oresscores: JsonElement? = null
+        val ores: MwQueryResult.OresResult?
+<span class="nc bnc" id="L108" title="All 4 branches missed.">            get() = if (oresscores != null &amp;&amp; oresscores !is JsonArray) {</span>
+<span class="nc" id="L109">                JsonUtil.json.decodeFromJsonElement&lt;MwQueryResult.OresResult&gt;(oresscores)</span>
+<span class="nc" id="L110">            } else null</span>
+
+<span class="nc" id="L112">        val contentMain get() = getContentFromSlot(&quot;main&quot;)</span>
+
+<span class="nc" id="L114">        var diffSize = 0</span>
+
+<span class="nc" id="L116">        val localDateTime by lazy { DateUtil.iso8601LocalDateTimeParse(timeStamp) }</span>
+
+        fun getContentFromSlot(slot: String): String {
+<span class="nc bnc" id="L119" title="All 6 branches missed.">            return slots?.get(slot)?.content.orEmpty()</span>
+        }
+    }
+
+<span class="nc" id="L123">    @Serializable</span>
+<span class="nc" id="L124">    class RevisionSlot(val content: String = &quot;&quot;,</span>
+<span class="nc" id="L125">                       private val contentformat: String? = null,</span>
+<span class="nc" id="L126">                       private val contentmodel: String? = null)</span>
+
+<span class="nc" id="L128">    @Serializable</span>
+<span class="nc" id="L129">    class LangLink(val lang: String = &quot;&quot;, val title: String = &quot;&quot;)</span>
+
+<span class="nc" id="L131">    @Serializable</span>
+<span class="nc" id="L132">    class Coordinates(val lat: Double = 0.0, val lon: Double = 0.0)</span>
+
+<span class="nc" id="L134">    @Serializable</span>
+<span class="nc" id="L135">    internal class Thumbnail(val source: String? = null,</span>
+<span class="nc" id="L136">                             private val width: Int = 0,</span>
+<span class="nc" id="L137">                             private val height: Int = 0)</span>
+
+<span class="nc" id="L139">    @Serializable</span>
+    class PageProps {
+
+<span class="nc" id="L142">        @SerialName(&quot;wikibase_item&quot;) val wikiBaseItem: String = &quot;&quot;</span>
+        private val disambiguation: String? = null
+<span class="nc" id="L144">        @SerialName(&quot;displaytitle&quot;) val displayTitle: String? = null</span>
+    }
+
+<span class="nc" id="L147">    @Serializable</span>
+    class EntityTerms {
+<span class="nc" id="L149">        val alias: List&lt;String&gt; = emptyList()</span>
+<span class="nc" id="L150">        val label: List&lt;String&gt; = emptyList()</span>
+<span class="nc" id="L151">        val description: List&lt;String&gt; = emptyList()</span>
+    }
+
+<span class="nc" id="L154">    @Serializable</span>
+<span class="nc" id="L155">    data class CategoryResponse(</span>
+<span class="nc" id="L156">        val ns: Int,</span>
+<span class="nc" id="L157">        val title: String</span>
+    )
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListHelper.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.recommended</a> &gt; <span class="el_source">RecommendedReadingListHelper.kt</span></div><h1>RecommendedReadingListHelper.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.recommended
+
+import kotlinx.serialization.Serializable
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.events.NewRecommendedReadingListEvent
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.database.RecommendedPage
+import org.wikipedia.settings.Prefs
+import kotlin.math.ceil
+
+object RecommendedReadingListHelper {
+
+    private const val SUGGESTION_REQUEST_ITEMS = 50
+    private const val MAX_RETRIES = 10
+
+    suspend fun readyToGenerateList(): Boolean {
+<span class="nc bnc" id="L20" title="All 4 branches missed.">        if (!Prefs.isRecommendedReadingListEnabled || Prefs.recommendedReadingListArticlesNumber &lt;= 0) {</span>
+<span class="nc" id="L21">            return false</span>
+        }
+        // Make sure the sources have enough articles to generate a recommended reading list.
+<span class="nc bnc" id="L24" title="All 3 branches missed.">        when (Prefs.recommendedReadingListSource) {</span>
+            RecommendedReadingListSource.INTERESTS -&gt; {
+<span class="nc bnc" id="L26" title="All 2 branches missed.">                if (Prefs.recommendedReadingListInterests.isEmpty()) {</span>
+<span class="nc" id="L27">                    return false</span>
+                }
+            }
+            RecommendedReadingListSource.READING_LIST -&gt; {
+<span class="nc bnc" id="L31" title="All 2 branches missed.">                if (AppDatabase.instance.readingListPageDao().getPagesByRandom(1).isEmpty()) {</span>
+<span class="nc" id="L32">                    return false</span>
+                }
+            }
+            RecommendedReadingListSource.HISTORY -&gt; {
+<span class="nc bnc" id="L36" title="All 2 branches missed.">                if (AppDatabase.instance.historyEntryDao().getHistoryEntriesByRandom(1).isEmpty()) {</span>
+<span class="nc" id="L37">                    return false</span>
+                }
+            }
+        }
+<span class="nc" id="L41">        return true</span>
+    }
+
+<span class="nc" id="L44">    suspend fun generateRecommendedReadingList(shouldExpireOldPages: Boolean = false): List&lt;RecommendedPage&gt; {</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        if (!readyToGenerateList()) {</span>
+<span class="nc" id="L46">            return emptyList()</span>
+        }
+
+<span class="nc" id="L49">        var numberOfArticles = Prefs.recommendedReadingListArticlesNumber</span>
+
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        if (shouldExpireOldPages) {</span>
+            // Expire old recommended pages
+<span class="nc" id="L53">            AppDatabase.instance.recommendedPageDao().expireOldRecommendedPages()</span>
+<span class="nc" id="L54">            Prefs.resetRecommendedReadingList = false</span>
+        }
+
+        // Check if amount of new articles to see if we really need to generate a new list
+<span class="nc" id="L58">        val existingRecommendedPages = AppDatabase.instance.recommendedPageDao().getNewRecommendedPages()</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (existingRecommendedPages.size &gt;= numberOfArticles) {</span>
+<span class="nc" id="L60">            return existingRecommendedPages.take(numberOfArticles)</span>
+        } else {
+            // If the number of articles is less than the number of new articles, adjust the number of articles
+<span class="nc" id="L63">            numberOfArticles -= existingRecommendedPages.size</span>
+        }
+
+        // Step 1: get titles from the source by number of articles
+<span class="nc bnc" id="L67" title="All 3 branches missed.">        val titles = when (Prefs.recommendedReadingListSource) {</span>
+            RecommendedReadingListSource.INTERESTS -&gt; {
+<span class="nc" id="L69">                Prefs.recommendedReadingListInterests.shuffled().take(numberOfArticles)</span>
+            }
+            RecommendedReadingListSource.READING_LIST -&gt; {
+<span class="nc" id="L72">                AppDatabase.instance.readingListPageDao().getPagesByRandom(numberOfArticles).map {</span>
+<span class="nc" id="L73">                    PageTitle(it.apiTitle, it.wiki).apply {</span>
+<span class="nc" id="L74">                        namespace = it.namespace.name</span>
+<span class="nc" id="L75">                        displayText = it.displayTitle</span>
+<span class="nc" id="L76">                        description = it.description</span>
+<span class="nc" id="L77">                        thumbUrl = it.thumbUrl</span>
+<span class="nc" id="L78">                    }</span>
+                }
+            }
+            RecommendedReadingListSource.HISTORY -&gt; {
+<span class="nc" id="L82">                AppDatabase.instance.historyEntryDao().getHistoryEntriesByRandom(numberOfArticles).map {</span>
+<span class="nc" id="L83">                    it.title</span>
+                }
+            }
+<span class="nc" id="L86">        }.distinctBy { it.prefixedText }</span>
+
+        // If no titles are found, return an empty list
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (titles.isEmpty()) {</span>
+<span class="nc" id="L90">            return emptyList()</span>
+        }
+
+        // Step 2: combine the titles with the offsite from Prefs.
+<span class="nc" id="L94">        val originalSourceTitlesWithOffset = Prefs.recommendedReadingListSourceTitlesWithOffset.toMutableList()</span>
+<span class="nc" id="L95">        val sourcesWithOffset = mutableListOf&lt;SourceWithOffset&gt;()</span>
+<span class="nc" id="L96">        titles.forEach { pageTitle -&gt;</span>
+<span class="nc bnc" id="L97" title="All 4 branches missed.">            val titleWithOffset = Prefs.recommendedReadingListSourceTitlesWithOffset.find { it.title == pageTitle.text }</span>
+            // Remove the title with offset from the original list to avoid duplication.
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (titleWithOffset != null) {</span>
+<span class="nc" id="L100">                originalSourceTitlesWithOffset.remove(titleWithOffset)</span>
+            }
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            sourcesWithOffset.add(SourceWithOffset(pageTitle.text, pageTitle.wikiSite.languageCode, titleWithOffset?.offset ?: 0))</span>
+<span class="nc" id="L103">        }</span>
+
+        // This is the default take size for the response per source title.
+        // If the number of articles is less than the default take size, we need to adjust it.
+<span class="nc" id="L107">        var defaultTakeSize = 1</span>
+
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        if (sourcesWithOffset.size &lt; numberOfArticles) {</span>
+<span class="nc" id="L110">            defaultTakeSize = ceil(numberOfArticles.toDouble() / sourcesWithOffset.size).toInt()</span>
+        }
+
+<span class="nc" id="L113">        val newRecommendedPages = mutableListOf&lt;RecommendedPage&gt;()</span>
+        // Step 3: uses morelike API to get recommended article, but excludes the articles from database,
+        // and update the offset everytime when re-query the API.
+<span class="nc" id="L116">        sourcesWithOffset.forEach { sourceWithOffset -&gt;</span>
+<span class="nc" id="L117">            var recommendedPages = mutableListOf&lt;PageTitle&gt;()</span>
+<span class="nc" id="L118">            var retryCount = 0</span>
+<span class="nc" id="L119">            var offset = sourceWithOffset.offset</span>
+<span class="nc bnc" id="L120" title="All 6 branches missed.">            while ((recommendedPages.isEmpty() || recommendedPages.size &lt; defaultTakeSize) &amp;&amp; retryCount &lt; MAX_RETRIES) {</span>
+<span class="nc" id="L121">                recommendedPages.addAll(getRecommendedPage(sourceWithOffset, offset, defaultTakeSize))</span>
+
+                // Bump the offset if the size of the list does not meet the default take size.
+<span class="nc bnc" id="L124" title="All 4 branches missed.">                if (recommendedPages.isEmpty() || recommendedPages.size &lt; defaultTakeSize) {</span>
+<span class="nc" id="L125">                    offset += SUGGESTION_REQUEST_ITEMS</span>
+                }
+<span class="nc" id="L127">                retryCount++</span>
+            }
+
+<span class="nc" id="L130">            sourceWithOffset.offset = offset</span>
+
+            // Step 4: if the recommended page is generated, insert it into the database,
+<span class="nc" id="L133">            recommendedPages.forEach {</span>
+<span class="nc" id="L134">                val finalRecommendedPage = RecommendedPage(</span>
+<span class="nc" id="L135">                    wiki = it.wikiSite,</span>
+<span class="nc" id="L136">                    lang = it.wikiSite.languageCode,</span>
+<span class="nc" id="L137">                    namespace = it.namespace(),</span>
+<span class="nc" id="L138">                    apiTitle = it.prefixedText,</span>
+<span class="nc" id="L139">                    displayTitle = it.displayText,</span>
+<span class="nc" id="L140">                    description = it.description,</span>
+<span class="nc" id="L141">                    thumbUrl = it.thumbUrl</span>
+                )
+
+                // Insert the recommended page into the database
+<span class="nc" id="L145">                AppDatabase.instance.recommendedPageDao().insert(finalRecommendedPage)</span>
+<span class="nc" id="L146">                newRecommendedPages.add(finalRecommendedPage)</span>
+<span class="nc" id="L147">            }</span>
+<span class="nc" id="L148">        }</span>
+
+        // Update the offset for the sources in the preferences
+<span class="nc" id="L151">        Prefs.recommendedReadingListSourceTitlesWithOffset = originalSourceTitlesWithOffset + sourcesWithOffset</span>
+
+<span class="nc" id="L153">        val finalList = (newRecommendedPages + existingRecommendedPages).distinct().toMutableList()</span>
+
+        // Step 5: if the list is empty or nothing new, we can get the expired pages from the database
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (finalList.size &lt; Prefs.recommendedReadingListArticlesNumber) {</span>
+<span class="nc" id="L157">            val pagesShouldGetFromExpire = Prefs.recommendedReadingListArticlesNumber - finalList.size</span>
+<span class="nc" id="L158">            val expiredPages = AppDatabase.instance.recommendedPageDao().getExpiredRecommendedPages(pagesShouldGetFromExpire, finalList.map { it.apiTitle })</span>
+<span class="nc" id="L159">            expiredPages.map {</span>
+<span class="nc" id="L160">                it.status = 0</span>
+<span class="nc" id="L161">                it</span>
+<span class="nc" id="L162">            }.apply {</span>
+<span class="nc" id="L163">                AppDatabase.instance.recommendedPageDao().updateAll(this)</span>
+<span class="nc" id="L164">                finalList.addAll(this)</span>
+<span class="nc" id="L165">            }</span>
+        }
+<span class="nc" id="L167">        Prefs.isNewRecommendedReadingListGenerated = true</span>
+<span class="nc" id="L168">        FlowEventBus.post(NewRecommendedReadingListEvent())</span>
+<span class="nc" id="L169">        return finalList.shuffled().take(Prefs.recommendedReadingListArticlesNumber)</span>
+    }
+
+<span class="nc" id="L172">    private suspend fun getRecommendedPage(sourceWithOffset: SourceWithOffset, offset: Int, takeSize: Int): List&lt;PageTitle&gt; {</span>
+<span class="nc" id="L173">        val wikiSite = WikiSite.forLanguageCode(sourceWithOffset.language)</span>
+<span class="nc" id="L174">        val moreLikeResponse = ServiceFactory.get(wikiSite).searchMoreLike(</span>
+<span class="nc" id="L175">            searchTerm = &quot;morelike:${sourceWithOffset.title}&quot;,</span>
+<span class="nc" id="L176">            gsrLimit = SUGGESTION_REQUEST_ITEMS,</span>
+<span class="nc" id="L177">            piLimit = SUGGESTION_REQUEST_ITEMS,</span>
+<span class="nc" id="L178">            gsrOffset = offset</span>
+        )
+
+        // Logic to check if the article is already in the database, if it exists, check the next one.
+<span class="nc bnc" id="L182" title="All 4 branches missed.">        val firstRecommendedPage = moreLikeResponse.query?.pages.orEmpty()</span>
+<span class="nc" id="L183">            .sortedBy { it.index }</span>
+<span class="nc" id="L184">            .map { page -&gt;</span>
+<span class="nc" id="L185">                PageTitle(page.title, wikiSite).apply {</span>
+<span class="nc" id="L186">                    displayText = page.displayTitle(wikiSite.languageCode)</span>
+<span class="nc" id="L187">                    description = page.description</span>
+<span class="nc" id="L188">                    thumbUrl = page.thumbUrl()</span>
+<span class="nc" id="L189">                }</span>
+<span class="nc" id="L190">            }.filter {</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                AppDatabase.instance.recommendedPageDao()</span>
+<span class="nc" id="L192">                    .findIfAny(apiTitle = it.prefixedText, wiki = wikiSite) == 0</span>
+<span class="nc" id="L193">            }.take(takeSize)</span>
+<span class="nc" id="L194">        return firstRecommendedPage</span>
+    }
+}
+
+<span class="nc" id="L198">@Serializable</span>
+<span class="nc" id="L199">class SourceWithOffset(</span>
+<span class="nc" id="L200">    val title: String,</span>
+<span class="nc" id="L201">    val language: String,</span>
+<span class="nc" id="L202">    var offset: Int</span>
+)
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

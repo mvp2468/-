@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagingDataAdapterPatched.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.adapter</a> &gt; <span class="el_source">PagingDataAdapterPatched.kt</span></div><h1>PagingDataAdapterPatched.kt</h1><pre class="source lang-java linenums">package org.wikipedia.adapter
+
+import androidx.lifecycle.LifecycleCoroutineScope
+import androidx.paging.PagingData
+import androidx.paging.PagingDataAdapter
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
+
+<span class="nc" id="L13">abstract class PagingDataAdapterPatched&lt;T : Any, VH : RecyclerView.ViewHolder&gt;(</span>
+    diffCallback: DiffUtil.ItemCallback&lt;T&gt;,
+<span class="nc" id="L15">    mainDispatcher: CoroutineContext = Dispatchers.Main,</span>
+<span class="nc" id="L16">    workerDispatcher: CoroutineContext = Dispatchers.Default,</span>
+<span class="nc" id="L17">) : PagingDataAdapter&lt;T, VH&gt;(diffCallback, mainDispatcher, workerDispatcher) {</span>
+<span class="nc" id="L18">    private var submitCompleted = true</span>
+
+    // HACK: This is a workaround for a race condition that seems to be present in PagingDataAdapter,
+    // where submitting data too quickly in succession can cause the adapter to throw an exception.
+    // This method ensures that the adapter is not in the process of submitting data before attempting
+    // to submit more. This method should be used in place of the normal submitData method.
+    // NOTE: This may mean that when submitData is called multiple times quickly, certain calls
+    // may be &quot;dropped&quot;, i.e. ignored. This is a tradeoff to prevent crashes.
+    // TODO: File issue with AOSP and link here.
+    fun submitData(scope: LifecycleCoroutineScope, pagingData: PagingData&lt;T&gt;) {
+<span class="nc" id="L28">        scope.launch {</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">            if (!submitCompleted) {</span>
+<span class="nc" id="L30">                return@launch</span>
+            }
+<span class="nc" id="L32">            async {</span>
+<span class="nc" id="L33">                submitCompleted = false</span>
+<span class="nc" id="L34">                submitData(pagingData)</span>
+<span class="nc" id="L35">                submitCompleted = true</span>
+<span class="nc" id="L36">            }</span>
+<span class="nc" id="L37">        }</span>
+<span class="nc" id="L38">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

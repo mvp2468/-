@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GalleryItemViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.gallery</a> &gt; <span class="el_source">GalleryItemViewModel.kt</span></div><h1>GalleryItemViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.gallery
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.FileUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L19">class GalleryItemViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+<span class="nc" id="L20">    private var mediaListItem = savedStateHandle.get&lt;MediaListItem&gt;(GalleryItemFragment.ARG_GALLERY_ITEM)!!</span>
+<span class="nc bnc" id="L21" title="All 2 branches missed.">    private val pageTitle = savedStateHandle[Constants.ARG_TITLE] ?: PageTitle(mediaListItem.title, Constants.commonsWikiSite)</span>
+<span class="nc" id="L22">    var imageTitle = PageTitle(&quot;File:${StringUtil.removeNamespace(mediaListItem.title)}&quot;, pageTitle.wikiSite)</span>
+<span class="nc" id="L23">    var mediaPage: MwQueryPage? = null</span>
+
+<span class="nc" id="L25">    private val _uiState = MutableStateFlow(Resource&lt;Boolean&gt;())</span>
+<span class="nc" id="L26">    val uiState = _uiState.asStateFlow()</span>
+
+<span class="nc" id="L28">    init {</span>
+<span class="nc" id="L29">        loadMedia()</span>
+<span class="nc" id="L30">    }</span>
+
+    private fun loadMedia() {
+<span class="nc" id="L33">        _uiState.value = Resource.Loading()</span>
+<span class="nc" id="L34">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L35">            _uiState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L36">        }) {</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">            val wikiSite = if (mediaListItem.isInCommons) Constants.commonsWikiSite else imageTitle.wikiSite</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            val response = if (mediaListItem.isVideo) {</span>
+<span class="nc" id="L39">                ServiceFactory.get(wikiSite).getVideoInfo(imageTitle.prefixedText, WikipediaApp.instance.appOrSystemLanguageCode)</span>
+            } else {
+<span class="nc" id="L41">                ServiceFactory.get(wikiSite).getImageInfo(imageTitle.prefixedText, WikipediaApp.instance.appOrSystemLanguageCode)</span>
+            }
+<span class="nc bnc" id="L43" title="All 2 branches missed.">            mediaPage = response.query?.firstPage()</span>
+<span class="nc bnc" id="L44" title="All 6 branches missed.">            _uiState.value = Resource.Success(FileUtil.isVideo(mediaPage?.imageInfo()?.mime.orEmpty()))</span>
+<span class="nc" id="L45">        }</span>
+<span class="nc" id="L46">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingChallengeState.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">ReadingChallengeState.kt</span></div><h1>ReadingChallengeState.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import java.time.LocalDate
+
+sealed interface ReadingChallengeState {
+    object Loading : ReadingChallengeState
+    // State 1: Pre-enrollment before May 1, 2026
+    object NotLiveYet : ReadingChallengeState
+
+    // State 2: Challenge Active (May 1 to May 31, 2026)
+
+    // User has not joined
+    object NotEnrolled : ReadingChallengeState
+
+    // Joined &amp;&amp; article not opened
+    object EnrolledNotStarted : ReadingChallengeState
+
+    // Joined &amp;&amp; streak of 1+ days &amp;&amp; no article opened
+<span class="nc" id="L19">    data class StreakOngoingNeedsReading(val streak: Int) : ReadingChallengeState</span>
+
+    // Joined &amp;&amp; streak of 1+ days &amp;&amp; article opened
+<span class="nc" id="L22">    data class StreakOngoingReadToday(val streak: Int) : ReadingChallengeState</span>
+
+    // State 3: Success
+    object ChallengeCompleted : ReadingChallengeState
+
+    // State 4: Post Challenge (After May 31, 2026)
+<span class="nc" id="L28">    data class ChallengeConcludedIncomplete(val streak: Int) : ReadingChallengeState // Joined &amp;&amp; did not dit 25  streak</span>
+
+    object ChallengeConcludedNoStreak : ReadingChallengeState // Joined &amp;&amp; 0 streak
+
+    // State 5: Challenge Remove
+    object ChallengeRemoved : ReadingChallengeState
+}
+
+<span class="nc" id="L36">data class ReadingChallengeUserData(</span>
+<span class="nc" id="L37">    val currentDate: LocalDate,</span>
+<span class="nc" id="L38">    val enabled: Boolean,</span>
+<span class="nc" id="L39">    val currentStreak: Int,</span>
+<span class="nc" id="L40">    val hasReadToday: Boolean,</span>
+<span class="nc" id="L41">    val hasActiveStreak: Boolean</span>
+)
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

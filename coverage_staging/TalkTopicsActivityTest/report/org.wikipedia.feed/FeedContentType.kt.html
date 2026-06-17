@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeedContentType.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed</a> &gt; <span class="el_source">FeedContentType.kt</span></div><h1>FeedContentType.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed
+
+import androidx.annotation.StringRes
+import kotlinx.coroutines.CoroutineScope
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.feed.accessibility.AccessibilityCardClient
+import org.wikipedia.feed.aggregated.AggregatedFeedContentClient
+import org.wikipedia.feed.becauseyouread.BecauseYouReadClient
+import org.wikipedia.feed.dataclient.FeedClient
+import org.wikipedia.feed.mainpage.MainPageClient
+import org.wikipedia.feed.places.PlacesFeedClient
+import org.wikipedia.feed.random.RandomClient
+import org.wikipedia.feed.suggestededits.SuggestedEditsFeedClient
+import org.wikipedia.feed.wikigames.WikiGamesCardClient
+import org.wikipedia.model.EnumCode
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+
+<span class="nc" id="L21">enum class FeedContentType(private val code: Int,</span>
+<span class="nc" id="L22">                           @StringRes val titleId: Int,</span>
+<span class="nc" id="L23">                           @StringRes val subtitleId: Int,</span>
+<span class="nc" id="L24">                           val isPerLanguage: Boolean,</span>
+<span class="nc" id="L25">                           var showInConfig: Boolean = true) : EnumCode {</span>
+<span class="nc" id="L26">    FEATURED_ARTICLE(6, R.string.view_featured_article_card_title, R.string.feed_item_type_featured_article, true) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L28" title="All 2 branches missed.">            return if (isEnabled) AggregatedFeedContentClient.FeaturedArticle(coroutineScope, aggregatedClient) else null</span>
+        }
+    },
+<span class="nc" id="L31">    WIKI_GAMES(12, R.string.wikipedia_games_title, R.string.wikipedia_games_subtitle, true) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L33" title="All 6 branches missed.">            return if (isEnabled &amp;&amp; age == 0 &amp;&amp; WikipediaApp.instance.isOnline) WikiGamesCardClient(coroutineScope) else null</span>
+        }
+    },
+<span class="nc" id="L36">    TOP_READ_ARTICLES(3, R.string.view_top_read_card_title, R.string.feed_item_type_trending, true) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            return if (isEnabled) AggregatedFeedContentClient.TopReadArticles(coroutineScope, aggregatedClient) else null</span>
+        }
+    },
+<span class="nc" id="L41">    PLACES(11, R.string.places_title, R.string.feed_item_type_places, false) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L43" title="All 2 branches missed.">            return if (isEnabled) PlacesFeedClient(coroutineScope) else null</span>
+        }
+    },
+<span class="nc" id="L46">    FEATURED_IMAGE(7, R.string.view_featured_image_card_title, R.string.feed_item_type_featured_image, false) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            return if (isEnabled) AggregatedFeedContentClient.FeaturedImage(coroutineScope, aggregatedClient) else null</span>
+        }
+    },
+<span class="nc" id="L51">    BECAUSE_YOU_READ(8, R.string.view_because_you_read_card_title, R.string.feed_item_type_because_you_read, false) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            return if (isEnabled) BecauseYouReadClient(coroutineScope) else null</span>
+        }
+    },
+<span class="nc" id="L56">    NEWS(0, R.string.view_card_news_title, R.string.feed_item_type_news, true) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L58" title="All 4 branches missed.">            return if (isEnabled &amp;&amp; age == 0) AggregatedFeedContentClient.InTheNews(coroutineScope, aggregatedClient) else null</span>
+        }
+    },
+<span class="nc" id="L61">    ON_THIS_DAY(1, R.string.on_this_day_card_title, R.string.feed_item_type_on_this_day, true) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            return if (isEnabled) AggregatedFeedContentClient.OnThisDayFeed(coroutineScope, aggregatedClient) else null</span>
+        }
+    },
+<span class="nc" id="L66">    RANDOM(5, R.string.view_random_card_title, R.string.feed_item_type_randomizer, true) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L68" title="All 2 branches missed.">            return if (isEnabled) RandomClient(coroutineScope) else null</span>
+        }
+    },
+<span class="nc" id="L71">    MAIN_PAGE(4, R.string.view_main_page_card_title, R.string.feed_item_type_main_page, true) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L73" title="All 4 branches missed.">            return if (isEnabled &amp;&amp; age == 0) MainPageClient() else null</span>
+        }
+    },
+<span class="nc" id="L76">    SUGGESTED_EDITS(9, R.string.suggested_edits_feed_card_title, R.string.feed_item_type_suggested_edits, false) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L78" title="All 6 branches missed.">            return if (isEnabled &amp;&amp; AccountUtil.isLoggedIn &amp;&amp; WikipediaApp.instance.isOnline) SuggestedEditsFeedClient(coroutineScope) else null</span>
+        }
+    },
+<span class="nc" id="L81">    ACCESSIBILITY(10, 0, 0, false, false) {</span>
+        override fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient? {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            return if (DeviceUtil.isAccessibilityEnabled) AccessibilityCardClient() else null</span>
+        }
+    };
+
+<span class="nc" id="L87">    var order = code</span>
+<span class="nc" id="L88">    var isEnabled = true</span>
+<span class="nc" id="L89">    val langCodesSupported = mutableListOf&lt;String&gt;()</span>
+<span class="nc" id="L90">    val langCodesDisabled = mutableListOf&lt;String&gt;()</span>
+
+    abstract fun newClient(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient, age: Int): FeedClient?
+
+    override fun code(): Int {
+<span class="nc" id="L95">        return code</span>
+    }
+
+    companion object {
+
+        fun saveState() {
+<span class="nc" id="L101">            val enabledList = mutableListOf&lt;Boolean&gt;()</span>
+<span class="nc" id="L102">            val orderList = mutableListOf&lt;Int&gt;()</span>
+<span class="nc" id="L103">            val langSupportedMap = mutableMapOf&lt;Int, List&lt;String&gt;&gt;()</span>
+<span class="nc" id="L104">            val langDisabledMap = mutableMapOf&lt;Int, List&lt;String&gt;&gt;()</span>
+<span class="nc" id="L105">            entries.forEach {</span>
+<span class="nc" id="L106">                enabledList.add(it.isEnabled)</span>
+<span class="nc" id="L107">                orderList.add(it.order)</span>
+<span class="nc" id="L108">                langSupportedMap[it.code] = it.langCodesSupported</span>
+<span class="nc" id="L109">                langDisabledMap[it.code] = it.langCodesDisabled</span>
+<span class="nc" id="L110">            }</span>
+<span class="nc" id="L111">            Prefs.feedCardsEnabled = enabledList</span>
+<span class="nc" id="L112">            Prefs.feedCardsOrder = orderList</span>
+<span class="nc" id="L113">            Prefs.feedCardsLangSupported = langSupportedMap</span>
+<span class="nc" id="L114">            Prefs.feedCardsLangDisabled = langDisabledMap</span>
+<span class="nc" id="L115">        }</span>
+
+        fun restoreState() {
+<span class="nc" id="L118">            val enabledList = Prefs.feedCardsEnabled</span>
+<span class="nc" id="L119">            val orderList = Prefs.feedCardsOrder</span>
+<span class="nc" id="L120">            val langSupportedMap = Prefs.feedCardsLangSupported</span>
+<span class="nc" id="L121">            val langDisabledMap = Prefs.feedCardsLangDisabled</span>
+<span class="nc" id="L122">            entries.forEachIndexed { i, type -&gt;</span>
+<span class="nc bnc" id="L123" title="All 6 branches missed.">                type.isEnabled = enabledList.getOrElse(i) { true }</span>
+<span class="nc bnc" id="L124" title="All 6 branches missed.">                type.order = orderList.getOrElse(i) { i }</span>
+<span class="nc" id="L125">                type.langCodesSupported.clear()</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                langSupportedMap[type.code]?.let {</span>
+<span class="nc" id="L127">                    type.langCodesSupported.addAll(it)</span>
+                }
+<span class="nc" id="L129">                type.langCodesDisabled.clear()</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                langDisabledMap[type.code]?.let {</span>
+<span class="nc" id="L131">                    type.langCodesDisabled.addAll(it)</span>
+<span class="nc" id="L132">                }</span>
+<span class="nc" id="L133">            }</span>
+<span class="nc" id="L134">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

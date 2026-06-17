@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserInfo.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.mwapi</a> &gt; <span class="el_source">UserInfo.kt</span></div><h1>UserInfo.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.mwapi
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import org.wikipedia.dataclient.mwapi.MwServiceError.BlockInfo
+import org.wikipedia.util.DateUtil
+import java.util.*
+
+<span class="nc" id="L10">@Serializable</span>
+class UserInfo : BlockInfo() {
+<span class="nc" id="L12">    val id = 0</span>
+    private val groups: List&lt;String&gt;? = null
+    @SerialName(&quot;latestcontrib&quot;) private val latestContrib: String? = null
+    @SerialName(&quot;registrationdate&quot;) private val regDate: String? = null
+    @SerialName(&quot;registration&quot;) private val registration: String? = null
+<span class="nc" id="L17">    @SerialName(&quot;editcount&quot;) val editCount = -1</span>
+<span class="nc" id="L18">    val name: String = &quot;&quot;</span>
+<span class="nc" id="L19">    val anon: Boolean = false</span>
+<span class="nc" id="L20">    val messages: Boolean = false</span>
+<span class="nc" id="L21">    val rights: List&lt;String&gt; = emptyList()</span>
+<span class="nc" id="L22">    @SerialName(&quot;cancreate&quot;) val canCreate: Boolean = false</span>
+    @SerialName(&quot;cancreateerror&quot;) private val canCreateError: List&lt;MwServiceError&gt;? = null
+<span class="nc" id="L24">    val options: Options? = null</span>
+
+<span class="nc bnc" id="L26" title="All 6 branches missed.">    val error get() = canCreateError?.get(0)?.key.orEmpty()</span>
+<span class="nc" id="L27">    val hasBlockError get() = error.contains(&quot;block&quot;)</span>
+
+    fun groups(): Set&lt;String&gt; {
+<span class="nc bnc" id="L30" title="All 4 branches missed.">        return groups?.toSet() ?: emptySet()</span>
+    }
+
+    val latestContribDate: Date
+        get() {
+<span class="nc" id="L35">            var date = Date(0)</span>
+<span class="nc bnc" id="L36" title="All 6 branches missed.">            if (!latestContrib.isNullOrEmpty()) {</span>
+<span class="nc" id="L37">                date = DateUtil.iso8601DateParse(latestContrib)</span>
+            }
+<span class="nc" id="L39">            return date</span>
+        }
+
+    val registrationDate: Date
+        get() {
+<span class="nc" id="L44">            var date = Date(0)</span>
+<span class="nc bnc" id="L45" title="All 6 branches missed.">            if (!regDate.isNullOrEmpty()) {</span>
+<span class="nc" id="L46">                date = DateUtil.iso8601DateParse(regDate)</span>
+<span class="nc bnc" id="L47" title="All 6 branches missed.">            } else if (!registration.isNullOrEmpty()) {</span>
+<span class="nc" id="L48">                date = DateUtil.iso8601DateParse(registration)</span>
+            }
+<span class="nc" id="L50">            return date</span>
+        }
+
+<span class="nc" id="L53">    @Serializable</span>
+    class Options {
+        @SerialName(&quot;watchdefault&quot;) private val watchDefault: JsonElement? = null
+        @SerialName(&quot;centralnotice-display-campaign-type-fundraising&quot;) private val fundraisingOptIn: JsonElement? = null
+
+<span class="nc" id="L58">        val watchEditedPagesByDefault get() = isExplicitOne(watchDefault)</span>
+<span class="nc" id="L59">        val optedInToFundraising get() = isExplicitOne(fundraisingOptIn)</span>
+
+<span class="nc bnc" id="L61" title="All 4 branches missed.">        private fun isExplicitOne(element: JsonElement?) = element?.toString().orEmpty().replace(&quot;\&quot;&quot;, &quot;&quot;) == &quot;1&quot;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

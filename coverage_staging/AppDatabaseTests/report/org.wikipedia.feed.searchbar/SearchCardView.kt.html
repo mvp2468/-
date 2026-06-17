@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.searchbar</a> &gt; <span class="el_source">SearchCardView.kt</span></div><h1>SearchCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.searchbar
+
+import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import androidx.core.view.isVisible
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.databinding.ViewSearchBarBinding
+import org.wikipedia.feed.view.DefaultFeedCardView
+import org.wikipedia.search.HybridSearchAbCTest
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L16">class SearchCardView(context: Context) : DefaultFeedCardView&lt;SearchCard&gt;(context) {</span>
+    interface Callback {
+        fun onSearchRequested(view: View)
+        fun onVoiceSearchRequested()
+    }
+<span class="nc" id="L21">    val binding = ViewSearchBarBinding.inflate(LayoutInflater.from(context), this, true)</span>
+
+    override var card: SearchCard? = null
+<span class="nc" id="L24">        get() = super.card</span>
+        set(value) {
+<span class="nc" id="L26">            field = value</span>
+<span class="nc" id="L27">            updateSearchHint()</span>
+<span class="nc" id="L28">        }</span>
+
+<span class="nc" id="L30">    init {</span>
+<span class="nc" id="L31">        binding.searchContainer.setCardBackgroundColor(ResourceUtil.getThemedColor(context, R.attr.background_color))</span>
+<span class="nc" id="L32">        FeedbackUtil.setButtonTooltip(binding.voiceSearchButton)</span>
+
+<span class="nc bnc" id="L34" title="All 2 branches missed.">        binding.searchContainer.setOnClickListener { callback?.onSearchRequested(it) }</span>
+<span class="nc bnc" id="L35" title="All 2 branches missed.">        binding.voiceSearchButton.setOnClickListener { callback?.onVoiceSearchRequested() }</span>
+<span class="nc" id="L36">        binding.voiceSearchButton.isVisible = WikipediaApp.instance.voiceRecognitionAvailable</span>
+
+<span class="nc" id="L38">        updateSearchHint()</span>
+<span class="nc" id="L39">    }</span>
+
+    private fun updateSearchHint() {
+<span class="nc bnc" id="L42" title="All 4 branches missed.">        if (Prefs.isHybridSearchOnboardingShown &amp;&amp; HybridSearchAbCTest().isHybridSearchEnabled(WikipediaApp.instance.languageState.appLanguageCode)) {</span>
+<span class="nc" id="L43">            binding.searchIcon.contentDescription = context.getString(R.string.hybrid_search_search_hint)</span>
+<span class="nc" id="L44">            binding.searchTextView.text = context.getString(R.string.hybrid_search_search_hint)</span>
+        } else {
+<span class="nc" id="L46">            binding.searchIcon.contentDescription = context.getString(R.string.search_hint)</span>
+<span class="nc" id="L47">            binding.searchTextView.text = context.getString(R.string.search_hint)</span>
+        }
+<span class="nc" id="L49">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

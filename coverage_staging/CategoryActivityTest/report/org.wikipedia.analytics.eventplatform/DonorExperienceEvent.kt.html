@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DonorExperienceEvent.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">DonorExperienceEvent.kt</span></div><h1>DonorExperienceEvent.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.donate.CampaignCollection
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.settings.Prefs
+
+<span class="nc" id="L10">open class DonorExperienceEvent {</span>
+
+    companion object {
+
+<span class="nc" id="L14">        fun logAction(</span>
+            action: String,
+            activeInterface: String,
+<span class="nc" id="L17">            wikiId: String = WikipediaApp.instance.appOrSystemLanguageCode,</span>
+<span class="nc" id="L18">            campaignId: String? = null</span>
+        ) {
+<span class="nc" id="L20">            submit(</span>
+<span class="nc" id="L21">                action,</span>
+<span class="nc" id="L22">                activeInterface,</span>
+<span class="nc bnc" id="L23" title="All 4 branches missed.">                campaignId?.let { &quot;campaign_id: ${CampaignCollection.getFormattedCampaignId(it)}, &quot; }.orEmpty() + &quot;banner_opt_in: ${Prefs.donationBannerOptIn}&quot;,</span>
+<span class="nc" id="L24">                wikiId</span>
+            )
+<span class="nc" id="L26">        }</span>
+
+<span class="nc" id="L28">        fun logDonationReminderAction(</span>
+            action: String,
+            activeInterface: String,
+<span class="nc" id="L31">            wikiId: String = WikipediaApp.instance.appOrSystemLanguageCode,</span>
+<span class="nc" id="L32">            defaultMilestone: Boolean? = null,</span>
+<span class="nc" id="L33">            campaignId: String? = null,</span>
+<span class="nc" id="L34">            articleFrequency: Int? = null,</span>
+<span class="nc" id="L35">            donateAmount: Float? = null,</span>
+<span class="nc" id="L36">            groupAssigned: String? = null</span>
+        ) {
+<span class="nc" id="L38">            val actionData = DonationRemindersActionData(</span>
+<span class="nc" id="L39">                defaultMilestone = defaultMilestone,</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">                campaignId = campaignId?.let { CampaignCollection.getFormattedCampaignId(campaignId) },</span>
+<span class="nc" id="L41">                articleFrequency = articleFrequency,</span>
+<span class="nc" id="L42">                donateAmount = donateAmount,</span>
+<span class="nc" id="L43">                groupAssigned = groupAssigned</span>
+            )
+<span class="nc" id="L45">            submit(</span>
+<span class="nc" id="L46">                action,</span>
+<span class="nc" id="L47">                activeInterface,</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">                JsonUtil.encodeToString(actionData).orEmpty(),</span>
+<span class="nc" id="L49">                wikiId</span>
+            )
+<span class="nc" id="L51">        }</span>
+
+<span class="nc" id="L53">        fun submit(</span>
+            action: String,
+            activeInterface: String,
+            actionData: String,
+<span class="nc" id="L57">            wikiId: String = WikipediaApp.instance.appOrSystemLanguageCode</span>
+        ) {
+<span class="nc" id="L59">            EventPlatformClient.submit(</span>
+<span class="nc" id="L60">                AppInteractionEvent(</span>
+<span class="nc" id="L61">                    action,</span>
+<span class="nc" id="L62">                    activeInterface,</span>
+<span class="nc" id="L63">                    actionData,</span>
+<span class="nc" id="L64">                    WikipediaApp.instance.languageState.appLanguageCode,</span>
+<span class="nc" id="L65">                    wikiId,</span>
+<span class="nc" id="L66">                    &quot;app_donor_experience&quot;</span>
+                )
+            )
+<span class="nc" id="L69">        }</span>
+    }
+
+<span class="nc" id="L72">    @Serializable</span>
+<span class="nc" id="L73">    class DonationRemindersActionData(</span>
+<span class="nc" id="L74">        @SerialName(&quot;milestone_default&quot;) val defaultMilestone: Boolean? = null,</span>
+<span class="nc" id="L75">        @SerialName(&quot;campaign_id&quot;) val campaignId: String? = null,</span>
+<span class="nc" id="L76">        @SerialName(&quot;read_freq&quot;) val articleFrequency: Int? = null,</span>
+<span class="nc" id="L77">        @SerialName(&quot;donate_amount&quot;) val donateAmount: Float? = null,</span>
+<span class="nc" id="L78">        @SerialName(&quot;group&quot;) val groupAssigned: String? = null</span>
+<span class="nc" id="L79">    )</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

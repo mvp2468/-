@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LongPressMenu.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">LongPressMenu.kt</span></div><h1>LongPressMenu.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.content.ContextWrapper
+import android.icu.text.ListFormatter
+import android.location.Location
+import android.os.Build
+import android.view.Gravity
+import android.view.MenuItem
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.BreadCrumbLogEvent
+import org.wikipedia.analytics.eventplatform.PlacesEvent
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.extensions.coroutineScope
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.util.ClipboardUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.GeoUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L27">class LongPressMenu(</span>
+<span class="nc" id="L28">    private val anchorView: View,</span>
+<span class="nc" id="L29">    private val existsInAnyList: Boolean = true,</span>
+<span class="nc" id="L30">    private val openPageInPlaces: Boolean = false,</span>
+<span class="nc" id="L31">    private var menuRes: Int = R.menu.menu_long_press,</span>
+<span class="nc" id="L32">    private val location: Location? = null,</span>
+<span class="nc" id="L33">    private val callback: Callback? = null</span>
+<span class="nc" id="L34">) {</span>
+    interface Callback {
+<span class="nc" id="L36">        fun onOpenLink(entry: HistoryEntry) {}</span>
+<span class="nc" id="L37">        fun onOpenInNewTab(entry: HistoryEntry) {}</span>
+<span class="nc" id="L38">        fun onOpenInPlaces(entry: HistoryEntry, location: Location) {}</span>
+        fun onAddRequest(entry: HistoryEntry, addToDefault: Boolean)
+        fun onMoveRequest(page: ReadingListPage?, entry: HistoryEntry)
+<span class="nc" id="L41">        fun onRemoveRequest() {}</span>
+<span class="nc" id="L42">        fun onShareRequest() {}</span>
+    }
+
+    private var listsContainingPage: List&lt;ReadingList&gt;? = null
+    private var entry: HistoryEntry? = null
+
+    fun show(entry: HistoryEntry?) {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        entry?.let {</span>
+<span class="nc" id="L50">            anchorView.coroutineScope().launch {</span>
+<span class="nc" id="L51">                listsContainingPage = AppDatabase.instance.readingListDao().getListsFromPageOccurrences(</span>
+<span class="nc" id="L52">                        AppDatabase.instance.readingListPageDao().getAllPageOccurrences(it.title)</span>
+                    )
+<span class="nc" id="L54">                this@LongPressMenu.entry = it</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">                if (!existsInAnyList) {</span>
+<span class="nc" id="L56">                    this@LongPressMenu.menuRes = R.menu.menu_reading_list_page_toggle</span>
+                }
+<span class="nc" id="L58">                showMenu()</span>
+<span class="nc" id="L59">            }</span>
+        }
+<span class="nc" id="L61">    }</span>
+
+    private fun showMenu() {
+<span class="nc bnc" id="L64" title="All 8 branches missed.">        if (!existsInAnyList &amp;&amp; listsContainingPage.isNullOrEmpty()) {</span>
+<span class="nc" id="L65">            return</span>
+        }
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        listsContainingPage?.let {</span>
+<span class="nc" id="L68">            PopupMenu(getActivity(), anchorView).let { menu -&gt;</span>
+<span class="nc" id="L69">                menu.menuInflater.inflate(menuRes, menu.menu)</span>
+<span class="nc" id="L70">                menu.setOnMenuItemClickListener(PageSaveMenuClickListener())</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                if (it.size == 1) {</span>
+<span class="nc" id="L72">                    val removeItem = menu.menu.findItem(R.id.menu_long_press_remove_from_lists)</span>
+<span class="nc" id="L73">                    removeItem.title = getActivity().getString(R.string.reading_list_remove_from_list, it[0].title)</span>
+<span class="nc" id="L74">                    val moveItem = menu.menu.findItem(R.id.menu_long_press_move_from_list_to_another_list)</span>
+<span class="nc" id="L75">                    moveItem.title = getActivity().getString(R.string.reading_list_move_from_to_other_list, it[0].title)</span>
+<span class="nc" id="L76">                    moveItem.isVisible = true</span>
+<span class="nc" id="L77">                    moveItem.isEnabled = true</span>
+                }
+<span class="nc bnc" id="L79" title="All 2 branches missed.">                if (existsInAnyList) {</span>
+<span class="nc" id="L80">                    menu.gravity = Gravity.END</span>
+<span class="nc" id="L81">                    val addToOtherItem = menu.menu.findItem(R.id.menu_long_press_add_to_another_list)</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                    addToOtherItem.isVisible = it.isNotEmpty()</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                    addToOtherItem.isEnabled = it.isNotEmpty()</span>
+<span class="nc" id="L84">                    val removeItem = menu.menu.findItem(R.id.menu_long_press_remove_from_lists)</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                    removeItem.isVisible = it.isNotEmpty()</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                    removeItem.isEnabled = it.isNotEmpty()</span>
+<span class="nc" id="L87">                    val saveItem = menu.menu.findItem(R.id.menu_long_press_add_to_default_list)</span>
+<span class="nc" id="L88">                    saveItem.isVisible = it.isEmpty()</span>
+<span class="nc" id="L89">                    saveItem.isEnabled = it.isEmpty()</span>
+                }
+<span class="nc bnc" id="L91" title="All 4 branches missed.">                val showOpenPageInPlaces = openPageInPlaces &amp;&amp; location != null</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                menu.menu.findItem(R.id.menu_long_press_open_in_places)?.isVisible = showOpenPageInPlaces</span>
+<span class="nc bnc" id="L93" title="All 4 branches missed.">                menu.menu.findItem(R.id.menu_long_press_open_page)?.isVisible = !showOpenPageInPlaces</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">                menu.menu.findItem(R.id.menu_long_press_get_directions)?.isVisible = location != null</span>
+<span class="nc" id="L95">                menu.show()</span>
+<span class="nc" id="L96">            }</span>
+<span class="nc" id="L97">        }</span>
+<span class="nc" id="L98">    }</span>
+
+    private fun deleteOrShowDialog() {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        listsContainingPage?.let { list -&gt;</span>
+<span class="nc" id="L102">            RemoveFromReadingListsDialog(list).deleteOrShowDialog(getActivity()) { readingLists, _ -&gt;</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                entry?.let {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                    if (!getActivity().isDestroyed) {</span>
+<span class="nc" id="L105">                        val readingListNames = readingLists.map { readingList -&gt; readingList.title }.run {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                            if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.O) {</span>
+<span class="nc" id="L107">                                ListFormatter.getInstance().format(this)</span>
+                            } else {
+<span class="nc" id="L109">                                joinToString(separator = &quot;, &quot;)</span>
+<span class="nc" id="L110">                            }</span>
+                        }
+<span class="nc" id="L112">                        FeedbackUtil.showMessage(getActivity(), getActivity().getString(R.string.reading_list_item_deleted_from_list,</span>
+<span class="nc" id="L113">                                        it.title.displayText, readingListNames))</span>
+                    }
+<span class="nc" id="L115">                }</span>
+<span class="nc" id="L116">            }</span>
+<span class="nc" id="L117">        }</span>
+<span class="nc" id="L118">    }</span>
+
+    private fun getActivity(): AppCompatActivity {
+<span class="nc bnc" id="L121" title="All 4 branches missed.">        return (if (anchorView.context !is AppCompatActivity &amp;&amp; anchorView.context is ContextWrapper) {</span>
+<span class="nc" id="L122">            (anchorView.context as ContextWrapper).baseContext</span>
+        } else {
+<span class="nc" id="L124">            anchorView.context</span>
+        }) as AppCompatActivity
+    }
+
+<span class="nc" id="L128">    private inner class PageSaveMenuClickListener : PopupMenu.OnMenuItemClickListener {</span>
+        override fun onMenuItemClick(item: MenuItem): Boolean {
+<span class="nc" id="L130">            BreadCrumbLogEvent.logClick(anchorView.context, item)</span>
+<span class="nc" id="L131">            return when (item.itemId) {</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                R.id.menu_long_press_open_page -&gt; {</span>
+<span class="nc bnc" id="L133" title="All 4 branches missed.">                    entry?.let { callback?.onOpenLink(it) }</span>
+<span class="nc" id="L134">                    true</span>
+                }
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                R.id.menu_long_press_open_in_places -&gt; {</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                    location?.let { location -&gt;</span>
+<span class="nc bnc" id="L138" title="All 4 branches missed.">                        entry?.let { callback?.onOpenInPlaces(it, location) }</span>
+                    }
+<span class="nc" id="L140">                    true</span>
+                }
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                R.id.menu_long_press_open_in_new_tab -&gt; {</span>
+<span class="nc" id="L143">                    sendPlacesEvent(&quot;new_tab_click&quot;)</span>
+<span class="nc bnc" id="L144" title="All 4 branches missed.">                    entry?.let { callback?.onOpenInNewTab(it) }</span>
+<span class="nc" id="L145">                    true</span>
+                }
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                R.id.menu_long_press_add_to_default_list -&gt; {</span>
+<span class="nc" id="L148">                    sendPlacesEvent(&quot;save_click&quot;)</span>
+<span class="nc bnc" id="L149" title="All 4 branches missed.">                    entry?.let { callback?.onAddRequest(it, true) }</span>
+<span class="nc" id="L150">                    true</span>
+                }
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                R.id.menu_long_press_add_to_another_list -&gt; {</span>
+<span class="nc" id="L153">                    sendPlacesEvent(&quot;add_to_another_list_click&quot;)</span>
+<span class="nc bnc" id="L154" title="All 6 branches missed.">                    listsContainingPage?.let { entry?.let { callback?.onAddRequest(it, false) } }</span>
+<span class="nc" id="L155">                    true</span>
+                }
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                R.id.menu_long_press_move_from_list_to_another_list -&gt; {</span>
+<span class="nc" id="L158">                    sendPlacesEvent(&quot;move_from_list_to_another_list_click&quot;)</span>
+<span class="nc bnc" id="L159" title="All 6 branches missed.">                    listsContainingPage?.let { list -&gt; entry?.let { callback?.onMoveRequest(list[0].pages[0], it) } }</span>
+<span class="nc" id="L160">                    true</span>
+                }
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                R.id.menu_long_press_remove_from_lists -&gt; {</span>
+<span class="nc" id="L163">                    sendPlacesEvent(&quot;remove_from_list_click&quot;)</span>
+<span class="nc" id="L164">                    deleteOrShowDialog()</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                    callback?.onRemoveRequest()</span>
+<span class="nc" id="L166">                    true</span>
+                }
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                R.id.menu_long_press_share_page -&gt; {</span>
+<span class="nc" id="L169">                    sendPlacesEvent(&quot;share_click&quot;)</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                    entry?.let {</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                        callback?.onShareRequest()</span>
+<span class="nc" id="L172">                        ShareUtil.shareText(getActivity(), it.title)</span>
+<span class="nc" id="L173">                    }</span>
+<span class="nc" id="L174">                    true</span>
+                }
+<span class="nc bnc" id="L176" title="All 2 branches missed.">                R.id.menu_long_press_copy_page -&gt; {</span>
+<span class="nc" id="L177">                    sendPlacesEvent(&quot;copy_link_click&quot;)</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                    entry?.let {</span>
+<span class="nc" id="L179">                        ClipboardUtil.setPlainText(getActivity(), text = it.title.uri)</span>
+<span class="nc" id="L180">                        FeedbackUtil.showMessage((getActivity()), R.string.address_copied)</span>
+<span class="nc" id="L181">                    }</span>
+<span class="nc" id="L182">                    true</span>
+                }
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                R.id.menu_long_press_get_directions -&gt; {</span>
+<span class="nc" id="L185">                    sendPlacesEvent(&quot;directions_click&quot;)</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                    location?.let {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                        entry?.let {</span>
+<span class="nc" id="L188">                            GeoUtil.sendGeoIntent(getActivity(), location, StringUtil.fromHtml(it.title.displayText).toString())</span>
+<span class="nc" id="L189">                        }</span>
+                    }
+<span class="nc" id="L191">                    true</span>
+                }
+<span class="nc" id="L193">                else -&gt; false</span>
+            }
+        }
+    }
+
+    private fun sendPlacesEvent(action: String) {
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        entry?.let {</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">            if (it.source == HistoryEntry.SOURCE_PLACES) {</span>
+<span class="nc" id="L201">                PlacesEvent.logAction(action, &quot;list_view_menu&quot;)</span>
+            }
+<span class="nc" id="L203">        }</span>
+<span class="nc" id="L204">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

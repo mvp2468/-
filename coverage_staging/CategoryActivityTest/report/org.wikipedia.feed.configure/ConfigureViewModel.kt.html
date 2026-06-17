@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConfigureViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.configure</a> &gt; <span class="el_source">ConfigureViewModel.kt</span></div><h1>ConfigureViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.configure
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.feed.FeedContentType
+import org.wikipedia.util.Resource
+
+<span class="nc" id="L15">class ConfigureViewModel() : ViewModel() {</span>
+
+<span class="nc" id="L17">    private val handler = CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L18">        _uiState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L19">    }</span>
+
+<span class="nc" id="L21">    private val _uiState = MutableStateFlow(Resource&lt;Boolean&gt;())</span>
+<span class="nc" id="L22">    val uiState = _uiState.asStateFlow()</span>
+
+<span class="nc" id="L24">    init {</span>
+<span class="nc" id="L25">        loadFeedAvailability()</span>
+<span class="nc" id="L26">    }</span>
+
+    private fun loadFeedAvailability() {
+<span class="nc" id="L29">        _uiState.value = Resource.Loading()</span>
+<span class="nc" id="L30">        viewModelScope.launch(handler) {</span>
+<span class="nc" id="L31">            val result = ServiceFactory.getRest(WikipediaApp.instance.wikiSite).feedAvailability()</span>
+            // apply the new availability rules to our content types
+<span class="nc" id="L33">            FeedContentType.NEWS.langCodesSupported.clear()</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            if (isLimitedToDomains(result.news)) {</span>
+<span class="nc" id="L35">                addDomainNamesAsLangCodes(FeedContentType.NEWS.langCodesSupported, result.news)</span>
+            }
+<span class="nc" id="L37">            FeedContentType.ON_THIS_DAY.langCodesSupported.clear()</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            if (isLimitedToDomains(result.onThisDay)) {</span>
+<span class="nc" id="L39">                addDomainNamesAsLangCodes(FeedContentType.ON_THIS_DAY.langCodesSupported, result.onThisDay)</span>
+            }
+<span class="nc" id="L41">            FeedContentType.TOP_READ_ARTICLES.langCodesSupported.clear()</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">            if (isLimitedToDomains(result.mostRead)) {</span>
+<span class="nc" id="L43">                addDomainNamesAsLangCodes(FeedContentType.TOP_READ_ARTICLES.langCodesSupported, result.mostRead)</span>
+            }
+<span class="nc" id="L45">            FeedContentType.FEATURED_ARTICLE.langCodesSupported.clear()</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">            if (isLimitedToDomains(result.featuredArticle)) {</span>
+<span class="nc" id="L47">                addDomainNamesAsLangCodes(FeedContentType.FEATURED_ARTICLE.langCodesSupported, result.featuredArticle)</span>
+            }
+<span class="nc" id="L49">            FeedContentType.FEATURED_IMAGE.langCodesSupported.clear()</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            if (isLimitedToDomains(result.featuredPicture)) {</span>
+<span class="nc" id="L51">                addDomainNamesAsLangCodes(FeedContentType.FEATURED_IMAGE.langCodesSupported, result.featuredPicture)</span>
+            }
+<span class="nc" id="L53">            FeedContentType.WIKI_GAMES.langCodesSupported.clear()</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            if (isLimitedToDomains(result.games)) {</span>
+<span class="nc" id="L55">                FeedContentType.WIKI_GAMES.langCodesSupported.addAll(result.games)</span>
+            }
+<span class="nc" id="L57">            FeedContentType.saveState()</span>
+<span class="nc" id="L58">            _uiState.value = Resource.Success(true)</span>
+<span class="nc" id="L59">        }</span>
+<span class="nc" id="L60">    }</span>
+
+    private fun isLimitedToDomains(domainNames: List&lt;String&gt;): Boolean {
+<span class="nc bnc" id="L63" title="All 6 branches missed.">        return domainNames.isNotEmpty() &amp;&amp; !domainNames[0].contains(&quot;*&quot;)</span>
+    }
+
+    private fun addDomainNamesAsLangCodes(outList: MutableList&lt;String&gt;, domainNames: List&lt;String&gt;) {
+<span class="nc" id="L67">        outList.addAll(domainNames.map { WikiSite(it).languageCode })</span>
+<span class="nc" id="L68">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

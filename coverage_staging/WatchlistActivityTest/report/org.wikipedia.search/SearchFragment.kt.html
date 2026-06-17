@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">SearchFragment.kt</span></div><h1>SearchFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import android.app.Activity.RESULT_OK
+import android.content.Intent
+import android.graphics.Color
+import android.location.Location
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
+import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.PlacesEvent
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.databinding.FragmentSearchBinding
+import org.wikipedia.extensions.instrument
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.places.PlacesActivity
+import org.wikipedia.readinglist.ReadingListBehaviorsUtil
+import org.wikipedia.search.db.RecentSearch
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.languages.WikipediaLanguagesActivity
+import org.wikipedia.settings.languages.WikipediaLanguagesFragment
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.LanguageScrollView
+import java.util.Locale
+
+<span class="nc" id="L45">class SearchFragment : Fragment(), SearchResultCallback, RecentSearchesFragment.Callback, LanguageScrollView.Callback {</span>
+    private var _binding: FragmentSearchBinding? = null
+<span class="nc" id="L47">    private val binding get() = _binding!!</span>
+<span class="nc" id="L48">    private var app = WikipediaApp.instance</span>
+    private var langBtnClicked = false
+    private var isSearchActive = false
+    private var articleTitle: String? = null
+    private var query: String? = null
+    private var returnLink = false
+    private var initiateHybridSearch = false
+    private lateinit var recentSearchesFragment: RecentSearchesFragment
+    private lateinit var searchResultsFragment: SearchResultsFragment
+    private lateinit var invokeSource: InvokeSource
+    private lateinit var initialLanguageList: String
+<span class="nc" id="L59">    var searchLanguageCode = app.languageState.appLanguageCode</span>
+        private set
+
+<span class="nc" id="L62">    private val searchCloseListener = View.OnClickListener {</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        requireActivity().instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;search_close&quot;)</span>
+<span class="nc" id="L64">        closeSearch()</span>
+<span class="nc" id="L65">        setSearchText(&quot;&quot;)</span>
+<span class="nc" id="L66">    }</span>
+
+<span class="nc" id="L68">    private fun isHybridSearchEnabled(): Boolean = HybridSearchAbCTest().isHybridSearchEnabled(searchLanguageCode)</span>
+
+<span class="nc" id="L70">    private val searchQueryListener = object : SearchView.OnQueryTextListener {</span>
+        override fun onQueryTextSubmit(queryText: String): Boolean {
+<span class="nc" id="L72">            DeviceUtil.hideSoftKeyboard(requireActivity())</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            if (isHybridSearchEnabled()) {</span>
+<span class="nc" id="L74">                searchResultsFragment.showHybridSearch = true</span>
+<span class="nc" id="L75">                startSearch(term = queryText, force = true, resetHybridSearch = false)</span>
+            }
+<span class="nc" id="L77">            return true</span>
+        }
+
+        override fun onQueryTextChange(queryText: String): Boolean {
+<span class="nc" id="L81">            binding.searchCabView.setCloseButtonVisibility(queryText)</span>
+<span class="nc" id="L82">            startSearch(queryText.trim(), force = false, resetHybridSearch = searchResultsFragment.showHybridSearch)</span>
+<span class="nc" id="L83">            return true</span>
+        }
+    }
+
+<span class="nc" id="L87">    private val requestAddLanguageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L89">            var position = 0</span>
+<span class="nc" id="L90">            val finalLanguageList = JsonUtil.encodeToString(app.languageState.appLanguageCodes)</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            if (finalLanguageList != initialLanguageList) {</span>
+<span class="nc" id="L92">                requireActivity().setResult(RESULT_LANG_CHANGED)</span>
+            }
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            it.data?.let { intent -&gt;</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                if (intent.hasExtra(WikipediaLanguagesFragment.ACTIVITY_RESULT_LANG_POSITION_DATA)) {</span>
+<span class="nc" id="L96">                    position = intent.getIntExtra(WikipediaLanguagesFragment.ACTIVITY_RESULT_LANG_POSITION_DATA, 0)</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                } else if (app.languageState.appLanguageCodes.contains(searchLanguageCode)) {</span>
+<span class="nc" id="L98">                    position = app.languageState.appLanguageCodes.indexOf(searchLanguageCode)</span>
+                }
+<span class="nc" id="L100">            }</span>
+<span class="nc" id="L101">            Prefs.selectedLanguagePositionInSearch = position</span>
+<span class="nc" id="L102">            setUpLanguageScroll(Prefs.selectedLanguagePositionInSearch)</span>
+        }
+<span class="nc" id="L104">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L107">        super.onCreate(savedInstanceState)</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (savedInstanceState == null) {</span>
+<span class="nc" id="L109">            handleIntent(requireActivity().intent)</span>
+        }
+<span class="nc" id="L111">        invokeSource = requireArguments().getSerializable(Constants.INTENT_EXTRA_INVOKE_SOURCE) as InvokeSource</span>
+<span class="nc" id="L112">        query = requireArguments().getString(ARG_QUERY)</span>
+<span class="nc" id="L113">        articleTitle = requireArguments().getString(SearchActivity.EXTRA_TITLE)</span>
+<span class="nc" id="L114">        returnLink = requireArguments().getBoolean(SearchActivity.EXTRA_RETURN_LINK, false)</span>
+<span class="nc" id="L115">        initiateHybridSearch = requireArguments().getBoolean(SearchActivity.EXTRA_SHOW_HYBRID_SEARCH, false)</span>
+<span class="nc" id="L116">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L119">        _binding = FragmentSearchBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L120">        val childFragmentManager = childFragmentManager</span>
+<span class="nc" id="L121">        recentSearchesFragment = childFragmentManager.findFragmentById(</span>
+<span class="nc" id="L122">                R.id.search_panel_recent) as RecentSearchesFragment</span>
+<span class="nc" id="L123">        recentSearchesFragment.callback = this</span>
+<span class="nc" id="L124">        searchResultsFragment = childFragmentManager.findFragmentById(</span>
+<span class="nc" id="L125">                R.id.fragment_search_results) as SearchResultsFragment</span>
+<span class="nc" id="L126">        searchResultsFragment.setInvokeSource(invokeSource)</span>
+<span class="nc bnc" id="L127" title="All 4 branches missed.">        (activity as? AppCompatActivity)?.setSupportActionBar(binding.searchToolbar)</span>
+<span class="nc" id="L128">        binding.searchToolbar.setNavigationOnClickListener {</span>
+
+<span class="nc bnc" id="L130" title="All 2 branches missed.">            requireActivity().instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;search_back&quot;)</span>
+
+<span class="nc" id="L132">            requireActivity().supportFinishAfterTransition()</span>
+<span class="nc" id="L133">        }</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        initialLanguageList = JsonUtil.encodeToString(app.languageState.appLanguageCodes).orEmpty()</span>
+<span class="nc" id="L135">        binding.searchContainer.setOnClickListener { onSearchContainerClick() }</span>
+<span class="nc" id="L136">        binding.searchLangButton.setOnClickListener { onLangButtonClick() }</span>
+<span class="nc" id="L137">        initSearchView()</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (invokeSource == InvokeSource.PLACES) {</span>
+<span class="nc" id="L139">            Prefs.selectedLanguagePositionInSearch = app.languageState.appLanguageCodes.indexOf(Prefs.placesWikiCode)</span>
+<span class="nc" id="L140">            PlacesEvent.logImpression(&quot;search_view&quot;)</span>
+        }
+
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        requireActivity().instrument?.submitInteraction(&quot;search_impression&quot;, actionSource = invokeSource.value)</span>
+
+<span class="nc" id="L145">        return binding.root</span>
+    }
+
+    override fun onStart() {
+<span class="nc" id="L149">        super.onStart()</span>
+<span class="nc bnc" id="L150" title="All 4 branches missed.">        val hybridSearchEnabled = initiateHybridSearch &amp;&amp; isHybridSearchEnabled()</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        val languagePosition = if (hybridSearchEnabled) {</span>
+<span class="nc" id="L152">            val languageCode = app.languageState.appLanguageCode</span>
+<span class="nc" id="L153">            app.languageState.appLanguageCodes.indexOf(languageCode)</span>
+<span class="nc" id="L154">        } else Prefs.selectedLanguagePositionInSearch</span>
+
+<span class="nc" id="L156">        setUpLanguageScroll(languagePosition)</span>
+<span class="nc" id="L157">        startSearch(query, langBtnClicked)</span>
+<span class="nc" id="L158">        binding.searchCabView.setCloseButtonVisibility(query)</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        recentSearchesFragment.binding.namespacesContainer.isVisible = invokeSource != InvokeSource.PLACES</span>
+<span class="nc bnc" id="L160" title="All 6 branches missed.">        if (!query.isNullOrEmpty()) {</span>
+<span class="nc" id="L161">            showPanel(PANEL_SEARCH_RESULTS)</span>
+        }
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (hybridSearchEnabled) {</span>
+<span class="nc" id="L164">            searchResultsFragment.showHybridSearch = true</span>
+        }
+<span class="nc" id="L166">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L169">        super.onPause()</span>
+<span class="nc" id="L170">        Prefs.selectedLanguagePositionInSearch = binding.searchLanguageScrollView.selectedPosition</span>
+<span class="nc bnc" id="L171" title="All 4 branches missed.">        if (searchResultsFragment.showHybridSearch &amp;&amp; !isHybridSearchEnabled()) {</span>
+<span class="nc" id="L172">            searchResultsFragment.showHybridSearch = false</span>
+        }
+<span class="nc" id="L174">    }</span>
+
+    private fun handleIntent(intent: Intent) {
+<span class="nc bnc" id="L177" title="All 4 branches missed.">        if (Intent.ACTION_SEND == intent.action &amp;&amp; Constants.PLAIN_TEXT_MIME_TYPE == intent.type) {</span>
+<span class="nc" id="L178">            requireArguments().putString(ARG_QUERY, intent.getStringExtra(Intent.EXTRA_TEXT))</span>
+<span class="nc" id="L179">            requireArguments().putSerializable(Constants.INTENT_EXTRA_INVOKE_SOURCE, InvokeSource.INTENT_SHARE)</span>
+<span class="nc bnc" id="L180" title="All 4 branches missed.">        } else if (Intent.ACTION_PROCESS_TEXT == intent.action &amp;&amp; Constants.PLAIN_TEXT_MIME_TYPE == intent.type) {</span>
+<span class="nc" id="L181">            requireArguments().putString(ARG_QUERY, intent.getStringExtra(Intent.EXTRA_PROCESS_TEXT))</span>
+<span class="nc" id="L182">            requireArguments().putSerializable(Constants.INTENT_EXTRA_INVOKE_SOURCE, InvokeSource.INTENT_PROCESS_TEXT)</span>
+        }
+<span class="nc" id="L184">    }</span>
+
+    fun setUpLanguageScroll(position: Int) {
+<span class="nc" id="L187">        var pos = position</span>
+<span class="nc" id="L188">        searchLanguageCode = app.languageState.appLanguageCode</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        if (app.languageState.appLanguageCodes.size &gt; 1) {</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">            pos = if (app.languageState.appLanguageCodes.size &gt; pos) pos else 0</span>
+<span class="nc" id="L191">            binding.searchLanguageScrollViewContainer.visibility = View.VISIBLE</span>
+<span class="nc" id="L192">            binding.searchLanguageScrollView.setUpLanguageScrollTabData(app.languageState.appLanguageCodes, pos, this)</span>
+<span class="nc" id="L193">            binding.searchLangButton.visibility = View.GONE</span>
+        } else {
+<span class="nc" id="L195">            binding.searchLanguageScrollViewContainer.visibility = View.GONE</span>
+<span class="nc" id="L196">            binding.searchLangButton.visibility = View.VISIBLE</span>
+<span class="nc" id="L197">            initLangButton()</span>
+<span class="nc" id="L198">            recentSearchesFragment.reloadRecentSearches()</span>
+        }
+<span class="nc" id="L200">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L203">        binding.searchCabView.setOnCloseListener(null)</span>
+<span class="nc" id="L204">        binding.searchCabView.setOnQueryTextListener(null)</span>
+<span class="nc" id="L205">        _binding = null</span>
+<span class="nc" id="L206">        super.onDestroyView()</span>
+<span class="nc" id="L207">    }</span>
+
+    override fun switchToSearch(text: String) {
+<span class="nc" id="L210">        startSearch(text, true)</span>
+<span class="nc" id="L211">        binding.searchCabView.setOnQueryTextListener(null)</span>
+<span class="nc" id="L212">        binding.searchCabView.setQuery(text, false)</span>
+<span class="nc" id="L213">        binding.searchCabView.setOnQueryTextListener(searchQueryListener)</span>
+<span class="nc" id="L214">        binding.searchCabView.setCloseButtonVisibility(text)</span>
+<span class="nc" id="L215">    }</span>
+
+    override fun onAddLanguageClicked() {
+<span class="nc" id="L218">        onLangButtonClick()</span>
+<span class="nc" id="L219">    }</span>
+
+    override fun getLangCode(): String {
+<span class="nc" id="L222">        return searchLanguageCode</span>
+    }
+
+    override fun setSearchText(text: String) {
+<span class="nc" id="L226">        switchToSearch(text)</span>
+<span class="nc" id="L227">    }</span>
+
+    override fun navigateToTitle(item: PageTitle, inNewTab: Boolean, position: Int, location: Location?) {
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L231">            return</span>
+        }
+
+<span class="nc bnc" id="L234" title="All 8 branches missed.">        if (returnLink &amp;&amp; (if (invokeSource == InvokeSource.PLACES) location != null else true)) {</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if (invokeSource == InvokeSource.PLACES) {</span>
+<span class="nc" id="L236">                PlacesEvent.logAction(&quot;search_result_click&quot;, &quot;search_view&quot;)</span>
+            }
+<span class="nc" id="L238">            val intent = Intent().putExtra(SearchActivity.EXTRA_RETURN_LINK_TITLE, item)</span>
+<span class="nc" id="L239">                .putExtra(PlacesActivity.EXTRA_LOCATION, location)</span>
+<span class="nc" id="L240">            requireActivity().setResult(SearchActivity.RESULT_LINK_SUCCESS, intent)</span>
+<span class="nc" id="L241">            requireActivity().finish()</span>
+        } else {
+<span class="nc" id="L243">            val historyEntry = HistoryEntry(item, HistoryEntry.SOURCE_SEARCH)</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            startActivity(if (inNewTab) PageActivity.newIntentForNewTab(requireContext(), historyEntry, historyEntry.title)</span>
+<span class="nc" id="L245">            else PageActivity.newIntentForCurrentTab(requireContext(), historyEntry, historyEntry.title, false))</span>
+        }
+<span class="nc" id="L247">        closeSearch()</span>
+<span class="nc" id="L248">        DeviceUtil.hideSoftKeyboard(requireView())</span>
+<span class="nc" id="L249">    }</span>
+
+    override fun onSearchAddPageToList(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc" id="L252">        ReadingListBehaviorsUtil.addToDefaultList(requireActivity(), entry.title, addToDefault, InvokeSource.SEARCH)</span>
+<span class="nc" id="L253">    }</span>
+
+    override fun onSearchMovePageToList(sourceReadingListId: Long, entry: HistoryEntry) {
+<span class="nc" id="L256">        ReadingListBehaviorsUtil.moveToList(requireActivity(), sourceReadingListId, entry.title, InvokeSource.SEARCH)</span>
+<span class="nc" id="L257">    }</span>
+
+    override fun onSearchProgressBar(enabled: Boolean) {
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        binding.searchProgressBar.visibility = if (enabled) View.VISIBLE else View.GONE</span>
+<span class="nc" id="L261">    }</span>
+
+    private fun onSearchContainerClick() {
+        // Give the root container view an empty click handler, so that click events won't
+        // get passed down to any underlying views (e.g. a PageFragment on top of which
+        // this fragment is shown)
+<span class="nc" id="L267">    }</span>
+
+    private fun onLangButtonClick() {
+<span class="nc" id="L270">        langBtnClicked = true</span>
+<span class="nc" id="L271">        requestAddLanguageLauncher.launch(WikipediaLanguagesActivity.newIntent(requireActivity(), InvokeSource.SEARCH))</span>
+<span class="nc" id="L272">    }</span>
+
+<span class="nc" id="L274">    private fun startSearch(term: String?, force: Boolean, resetHybridSearch: Boolean = false) {</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">        if (!isSearchActive) {</span>
+<span class="nc" id="L276">            openSearch()</span>
+        }
+<span class="nc bnc" id="L278" title="All 6 branches missed.">        if (term.isNullOrEmpty()) {</span>
+<span class="nc" id="L279">            showPanel(PANEL_RECENT_SEARCHES)</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        } else if (activePanel == PANEL_RECENT_SEARCHES) {</span>
+            // start with title search...
+<span class="nc" id="L282">            showPanel(PANEL_SEARCH_RESULTS)</span>
+        }
+<span class="nc" id="L284">        query = term</span>
+<span class="nc bnc" id="L285" title="All 8 branches missed.">        if (term.isNullOrBlank() &amp;&amp; !force) {</span>
+<span class="nc" id="L286">            return</span>
+        }
+<span class="nc" id="L288">        binding.searchContainer.postDelayed({</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L290">                return@postDelayed</span>
+            }
+<span class="nc" id="L292">            when (activePanel) {</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">                PANEL_SEARCH_RESULTS -&gt; {</span>
+<span class="nc" id="L294">                    searchResultsFragment.startSearch(term, force, resetHybridSearch)</span>
+                }
+            }
+<span class="nc bnc" id="L297" title="All 8 branches missed.">        }, if (invokeSource == InvokeSource.PLACES || invokeSource == InvokeSource.VOICE || invokeSource == InvokeSource.INTENT_SHARE || invokeSource == InvokeSource.INTENT_PROCESS_TEXT) INTENT_DELAY_MILLIS else 0)</span>
+<span class="nc" id="L298">    }</span>
+
+    private fun openSearch() {
+<span class="nc" id="L301">        isSearchActive = true</span>
+<span class="nc" id="L302">        binding.searchCabView.isIconified = false</span>
+        // if we already have a previous search query, then put it into the SearchView, and it will
+        // automatically trigger the showing of the corresponding search results.
+<span class="nc bnc" id="L305" title="All 6 branches missed.">        if (!query.isNullOrBlank()) {</span>
+<span class="nc" id="L306">            binding.searchCabView.setQuery(query, false)</span>
+        }
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        if (initiateHybridSearch) {</span>
+<span class="nc" id="L309">            binding.searchCabView.clearFocus()</span>
+        }
+<span class="nc" id="L311">    }</span>
+
+    private fun closeSearch() {
+<span class="nc" id="L314">        isSearchActive = false</span>
+<span class="nc" id="L315">        addRecentSearch(query)</span>
+<span class="nc" id="L316">    }</span>
+
+    private fun showPanel(panel: Int) {
+<span class="nc bnc" id="L319" title="All 3 branches missed.">        when (panel) {</span>
+            PANEL_RECENT_SEARCHES -&gt; {
+<span class="nc" id="L321">                searchResultsFragment.hide()</span>
+<span class="nc" id="L322">                recentSearchesFragment.show()</span>
+            }
+            PANEL_SEARCH_RESULTS -&gt; {
+<span class="nc" id="L325">                recentSearchesFragment.hide()</span>
+<span class="nc" id="L326">                searchResultsFragment.show()</span>
+            }
+        }
+<span class="nc" id="L329">    }</span>
+
+    // otherwise, the recent searches must be showing:
+    private val activePanel: Int
+<span class="nc bnc" id="L333" title="All 2 branches missed.">        get() = if (searchResultsFragment.isShowing) {</span>
+<span class="nc" id="L334">            PANEL_SEARCH_RESULTS</span>
+        } else {
+            // otherwise, the recent searches must be showing:
+<span class="nc" id="L337">            PANEL_RECENT_SEARCHES</span>
+<span class="nc" id="L338">        }</span>
+
+    private fun initSearchView() {
+<span class="nc" id="L341">        binding.searchCabView.setOnQueryTextListener(searchQueryListener)</span>
+<span class="nc" id="L342">        binding.searchCabView.setCloseButtonClickListener(searchCloseListener)</span>
+<span class="nc" id="L343">        binding.searchCabView.setSearchHintTextColor(ResourceUtil.getThemedColor(requireContext(),</span>
+<span class="nc" id="L344">                R.attr.secondary_color))</span>
+
+<span class="nc" id="L346">        binding.searchCabView.queryHint =</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">            if (invokeSource == InvokeSource.PLACES) {</span>
+<span class="nc" id="L348">                getString(R.string.places_search_hint)</span>
+<span class="nc bnc" id="L349" title="All 4 branches missed.">            } else if (Prefs.isHybridSearchOnboardingShown &amp;&amp; HybridSearchAbCTest().isHybridSearchEnabled(WikipediaApp.instance.languageState.appLanguageCode)) {</span>
+<span class="nc bnc" id="L350" title="All 6 branches missed.">                if (articleTitle.isNullOrEmpty()) {</span>
+<span class="nc" id="L351">                    getString(R.string.hybrid_search_search_hint)</span>
+                } else {
+<span class="nc" id="L353">                    getString(R.string.hybrid_search_article_search_hint, StringUtil.fromHtml(articleTitle))</span>
+                }
+            } else {
+<span class="nc" id="L356">                getString(R.string.search_hint)</span>
+            }
+
+        // remove focus line from search plate
+<span class="nc" id="L360">        val searchEditPlate = binding.searchCabView</span>
+<span class="nc" id="L361">                .findViewById&lt;View&gt;(androidx.appcompat.R.id.search_plate)</span>
+<span class="nc" id="L362">        searchEditPlate.setBackgroundColor(Color.TRANSPARENT)</span>
+<span class="nc" id="L363">    }</span>
+
+    private fun initLangButton() {
+<span class="nc" id="L366">        binding.searchLangButton.setLangCode(app.languageState.appLanguageCode.uppercase(Locale.ENGLISH))</span>
+<span class="nc" id="L367">        FeedbackUtil.setButtonTooltip(binding.searchLangButton)</span>
+<span class="nc" id="L368">    }</span>
+
+    private fun addRecentSearch(title: String?) {
+<span class="nc bnc" id="L371" title="All 6 branches missed.">        if (!title.isNullOrBlank()) {</span>
+<span class="nc" id="L372">            lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt; throwable.printStackTrace() }) {</span>
+<span class="nc" id="L373">                AppDatabase.instance.recentSearchDao().insertRecentSearch(RecentSearch(text = title))</span>
+<span class="nc" id="L374">                recentSearchesFragment.updateList()</span>
+<span class="nc" id="L375">            }</span>
+        }
+<span class="nc" id="L377">    }</span>
+
+    override fun onLanguageTabSelected(selectedLanguageCode: String) {
+<span class="nc bnc" id="L380" title="All 2 branches missed.">        if (langBtnClicked) {</span>
+            // We need to skip an event when we return back from 'add languages' screen,
+            // because it triggers two events while re-drawing the UI
+<span class="nc" id="L383">            langBtnClicked = false</span>
+        }
+<span class="nc" id="L385">        searchLanguageCode = selectedLanguageCode</span>
+
+<span class="nc" id="L387">        recentSearchesFragment.reloadRecentSearches()</span>
+<span class="nc" id="L388">        startSearch(query, false)</span>
+<span class="nc" id="L389">    }</span>
+
+    override fun onLanguageButtonClicked() {
+<span class="nc" id="L392">        onLangButtonClick()</span>
+<span class="nc" id="L393">    }</span>
+
+    companion object {
+        private const val ARG_QUERY = &quot;lastQuery&quot;
+        private const val PANEL_RECENT_SEARCHES = 0
+        private const val PANEL_SEARCH_RESULTS = 1
+        private const val INTENT_DELAY_MILLIS = 500L
+        const val RESULT_LANG_CHANGED = 98
+
+<span class="nc" id="L402">        fun newInstance(source: InvokeSource, query: String?, returnLink: Boolean = false, title: String? = null, initiateHybridSearch: Boolean = false): SearchFragment =</span>
+<span class="nc" id="L403">                SearchFragment().apply {</span>
+<span class="nc" id="L404">                    arguments = bundleOf(</span>
+<span class="nc" id="L405">                        Constants.INTENT_EXTRA_INVOKE_SOURCE to source,</span>
+<span class="nc" id="L406">                        ARG_QUERY to query,</span>
+<span class="nc" id="L407">                        SearchActivity.EXTRA_RETURN_LINK to returnLink,</span>
+<span class="nc" id="L408">                        SearchActivity.EXTRA_TITLE to title,</span>
+<span class="nc" id="L409">                        SearchActivity.EXTRA_SHOW_HYBRID_SEARCH to initiateHybridSearch</span>
+                    )
+<span class="nc" id="L411">                }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

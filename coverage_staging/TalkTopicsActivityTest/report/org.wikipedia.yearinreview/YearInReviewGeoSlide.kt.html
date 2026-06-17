@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>YearInReviewGeoSlide.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.yearinreview</a> &gt; <span class="el_source">YearInReviewGeoSlide.kt</span></div><h1>YearInReviewGeoSlide.kt</h1><pre class="source lang-java linenums">package org.wikipedia.yearinreview
+
+import android.graphics.Bitmap
+import android.graphics.Paint
+import android.view.Gravity
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.graphics.applyCanvas
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapLibreMapOptions
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.module.http.HttpRequestImpl
+import org.maplibre.android.plugins.annotation.SymbolManager
+import org.maplibre.android.plugins.annotation.SymbolOptions
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.compose.components.HtmlText
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory
+import org.wikipedia.dataclient.page.NearbyPage
+import org.wikipedia.page.PageTitle
+import org.wikipedia.places.PlacesFragment
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.views.imageservice.ImageService
+
+@Composable
+fun GeoScreenContent(
+<span class="nc bnc" id="L69" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    screenData: YearInReviewScreenData.GeoScreen,
+    requestScreenshotBitmap: ((Int, Int) -&gt; Bitmap)?,
+<span class="nc bnc" id="L72" title="All 2 branches missed.">    screenCaptureMode: Boolean = false,</span>
+<span class="nc" id="L73">    isImageResourceLoaded: ((Boolean) -&gt; Unit)? = null</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L75">    val headerAspectRatio = 3f / 2f</span>
+<span class="nc" id="L76">    val context = LocalContext.current</span>
+<span class="nc" id="L77">    val lifecycleOwner = LocalLifecycleOwner.current</span>
+<span class="nc" id="L78">    val markerRect = PlacesFragment.getMarkerRect()</span>
+
+<span class="nc" id="L80">    val mapView = remember {</span>
+<span class="nc" id="L81">        MapLibre.getInstance(context.applicationContext)</span>
+<span class="nc" id="L82">        HttpRequestImpl.setOkHttpClient(OkHttpConnectionFactory.client)</span>
+<span class="nc" id="L83">        MapView(context, MapLibreMapOptions.createFromAttributes(context))</span>
+    }
+<span class="nc" id="L85">    val markerPaintSrc: Paint = remember { PlacesFragment.getMarkerPaintSrc(context) }</span>
+<span class="nc" id="L86">    val markerPaintSrcIn: Paint = remember { PlacesFragment.getMarkerPaintSrcIn() }</span>
+<span class="nc" id="L87">    val markerBorderPaint: Paint = remember { PlacesFragment.getMarkerBorderPaint(context) }</span>
+<span class="nc" id="L88">    val markerBitmapBase: Bitmap = remember { PlacesFragment.getMarkerBitmapBase(context) }</span>
+<span class="nc" id="L89">    val mediaWikiFaqUrl = stringResource(R.string.year_in_review_media_wiki_faq_url)</span>
+
+<span class="nc" id="L91">    DisposableEffect(lifecycleOwner) {</span>
+<span class="nc" id="L92">        val observer = LifecycleEventObserver { _, event -&gt;</span>
+<span class="nc bnc" id="L93" title="All 7 branches missed.">            when (event) {</span>
+<span class="nc" id="L94">                Lifecycle.Event.ON_CREATE -&gt; mapView.onCreate(null)</span>
+<span class="nc" id="L95">                Lifecycle.Event.ON_START -&gt; mapView.onStart()</span>
+<span class="nc" id="L96">                Lifecycle.Event.ON_RESUME -&gt; mapView.onResume()</span>
+<span class="nc" id="L97">                Lifecycle.Event.ON_PAUSE -&gt; mapView.onPause()</span>
+<span class="nc" id="L98">                Lifecycle.Event.ON_STOP -&gt; mapView.onStop()</span>
+<span class="nc" id="L99">                Lifecycle.Event.ON_DESTROY -&gt; mapView.onDestroy()</span>
+                else -&gt; {}
+            }
+<span class="nc" id="L102">        }</span>
+<span class="nc" id="L103">        lifecycleOwner.lifecycle.addObserver(observer)</span>
+<span class="nc" id="L104">        onDispose {</span>
+<span class="nc" id="L105">            lifecycleOwner.lifecycle.removeObserver(observer)</span>
+<span class="nc" id="L106">            mapView.onDestroy()</span>
+<span class="nc" id="L107">        }</span>
+    }
+
+<span class="nc" id="L110">    Column(</span>
+<span class="nc" id="L111">        verticalArrangement = Arrangement.Top,</span>
+<span class="nc" id="L112">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L114">        Box(</span>
+<span class="nc" id="L115">            modifier = Modifier.clip(RoundedCornerShape(16.dp))</span>
+        ) {
+<span class="nc" id="L117">            Box(</span>
+<span class="nc" id="L118">                modifier = Modifier</span>
+<span class="nc" id="L119">                    .fillMaxWidth()</span>
+<span class="nc" id="L120">                    .aspectRatio(headerAspectRatio)</span>
+            ) {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                if (screenCaptureMode) {</span>
+<span class="nc bnc" id="L123" title="All 4 branches missed.">                    requestScreenshotBitmap?.invoke(0, 0)?.let { bitmap -&gt;</span>
+<span class="nc" id="L124">                        Image(</span>
+<span class="nc" id="L125">                            modifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L126">                            bitmap = bitmap.asImageBitmap(),</span>
+<span class="nc" id="L127">                            contentDescription = null</span>
+                        )
+<span class="nc bnc" id="L129" title="All 2 branches missed.">                        WikipediaApp.instance.mainThreadHandler.post {</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                            isImageResourceLoaded?.invoke(true)</span>
+<span class="nc" id="L131">                        }</span>
+<span class="nc" id="L132">                    }</span>
+<span class="nc" id="L133">                } else {</span>
+<span class="nc" id="L134">                    AndroidView(</span>
+<span class="nc" id="L135">                        factory = { mapView },</span>
+<span class="nc" id="L136">                        modifier = Modifier.matchParentSize(),</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                        update = { view -&gt;</span>
+<span class="nc" id="L138">                            view.getMapAsync { map -&gt;</span>
+<span class="nc" id="L139">                                map.setStyle(Style.Builder().fromUri(PlacesFragment.getStyleAsset())) { style -&gt;</span>
+<span class="nc" id="L140">                                    style.addImage(PlacesFragment.MARKER_DRAWABLE, markerBitmapBase)</span>
+<span class="nc" id="L141">                                    map.setMaxZoomPreference(20.0)</span>
+<span class="nc" id="L142">                                    map.uiSettings.isLogoEnabled = false</span>
+<span class="nc" id="L143">                                    val defMargin = DimenUtil.roundedDpToPx(16f)</span>
+
+<span class="nc" id="L145">                                    map.uiSettings.attributionGravity = Gravity.BOTTOM or Gravity.START</span>
+<span class="nc" id="L146">                                    map.uiSettings.setAttributionTintColor(ResourceUtil.getThemedColor(context, R.attr.placeholder_color))</span>
+<span class="nc" id="L147">                                    map.uiSettings.setAttributionMargins(defMargin, 0, 0, defMargin)</span>
+
+<span class="nc" id="L149">                                    map.uiSettings.isZoomGesturesEnabled = false</span>
+<span class="nc" id="L150">                                    map.uiSettings.isScrollGesturesEnabled = false</span>
+<span class="nc" id="L151">                                    map.uiSettings.isRotateGesturesEnabled = false</span>
+<span class="nc" id="L152">                                    map.uiSettings.isTiltGesturesEnabled = false</span>
+<span class="nc" id="L153">                                    map.uiSettings.isDoubleTapGesturesEnabled = false</span>
+<span class="nc" id="L154">                                    map.uiSettings.isQuickZoomGesturesEnabled = false</span>
+
+<span class="nc" id="L156">                                    val symbolManager = SymbolManager(mapView, map, style)</span>
+<span class="nc" id="L157">                                    symbolManager.iconAllowOverlap = true</span>
+<span class="nc" id="L158">                                    symbolManager.textAllowOverlap = true</span>
+
+<span class="nc" id="L160">                                    val nearbyPages = screenData.pagesWithCoordinates.map {</span>
+<span class="nc" id="L161">                                        NearbyPage(</span>
+<span class="nc" id="L162">                                            0,</span>
+<span class="nc" id="L163">                                            PageTitle(it.namespace, it.apiTitle, null, it.imageName, WikiSite.forLanguageCode(it.lang)),</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                                            it.geoLat ?: 0.0,</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                                            it.geoLon ?: 0.0</span>
+<span class="nc" id="L166">                                        )</span>
+<span class="nc" id="L167">                                    }.take(YearInReviewViewModel.MAX_ARTICLES_ON_MAP)</span>
+<span class="nc" id="L168">                                    nearbyPages.forEach { page -&gt;</span>
+<span class="nc" id="L169">                                        page.annotation = symbolManager.create(</span>
+<span class="nc" id="L170">                                            SymbolOptions()</span>
+<span class="nc" id="L171">                                                .withLatLng(LatLng(page.latitude, page.longitude))</span>
+<span class="nc" id="L172">                                                .withTextFont(PlacesFragment.MARKER_FONT_STACK)</span>
+<span class="nc" id="L173">                                                .withIconImage(PlacesFragment.MARKER_DRAWABLE)</span>
+                                        )
+<span class="nc" id="L175">                                        symbolManager.update(page.annotation)</span>
+
+<span class="nc" id="L177">                                        val url = page.pageTitle.thumbUrl</span>
+<span class="nc bnc" id="L178" title="All 8 branches missed.">                                        if (Prefs.isImageDownloadEnabled &amp;&amp; !url.isNullOrEmpty()) {</span>
+<span class="nc" id="L179">                                            ImageService.loadImage(context, url, whiteBackground = true,</span>
+                                                onSuccess = { bitmap -&gt;
+<span class="nc bnc" id="L181" title="All 2 branches missed.">                                                    if (!mapView.isAttachedToWindow) {</span>
+<span class="nc" id="L182">                                                        return@loadImage</span>
+                                                    }
+<span class="nc" id="L184">                                                    val bmp = PlacesFragment.getMarkerBitmap(bitmap, markerRect, markerPaintSrc, markerPaintSrcIn, markerBorderPaint)</span>
+<span class="nc" id="L185">                                                    page.bitmap = bmp</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                                                    map.style?.addImage(url, bmp.toDrawable(context.resources))</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                                                    page.annotation?.let { annotation -&gt;</span>
+<span class="nc" id="L188">                                                        annotation.iconImage = url</span>
+<span class="nc" id="L189">                                                        symbolManager.update(annotation)</span>
+<span class="nc" id="L190">                                                    }</span>
+<span class="nc" id="L191">                                                }</span>
+                                            )
+                                        }
+<span class="nc" id="L194">                                    }</span>
+
+<span class="nc" id="L196">                                    mapView.addOnDidFinishRenderingMapListener {</span>
+<span class="nc" id="L197">                                        map.snapshot { bitmap -&gt;</span>
+<span class="nc bnc" id="L198" title="All 4 branches missed.">                                            requestScreenshotBitmap?.invoke(bitmap.width, bitmap.height)?.applyCanvas {</span>
+<span class="nc" id="L199">                                                drawBitmap(bitmap, 0f, 0f, null)</span>
+<span class="nc" id="L200">                                            }</span>
+<span class="nc" id="L201">                                        }</span>
+<span class="nc" id="L202">                                    }</span>
+
+<span class="nc" id="L204">                                    map.moveCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().include(</span>
+<span class="nc" id="L205">                                        LatLng(screenData.largestClusterTopLeft.first, screenData.largestClusterTopLeft.second)).include(</span>
+<span class="nc" id="L206">                                        LatLng(screenData.largestClusterBottomRight.first, screenData.largestClusterBottomRight.second)).build(),</span>
+<span class="nc" id="L207">                                        DimenUtil.roundedDpToPx(16f)))</span>
+<span class="nc" id="L208">                                }</span>
+<span class="nc" id="L209">                            }</span>
+<span class="nc" id="L210">                        }</span>
+                    )
+                }
+<span class="nc" id="L213">            }</span>
+<span class="nc" id="L214">        }</span>
+<span class="nc" id="L215">        Column {</span>
+<span class="nc" id="L216">            Row(</span>
+<span class="nc" id="L217">                horizontalArrangement = Arrangement.SpaceBetween,</span>
+<span class="nc" id="L218">                modifier = Modifier.fillMaxWidth()</span>
+            ) {
+<span class="nc" id="L220">                Text(</span>
+<span class="nc" id="L221">                    modifier = Modifier</span>
+<span class="nc" id="L222">                        .padding(top = 10.dp, start = 16.dp, end = 8.dp)</span>
+<span class="nc" id="L223">                        .height(IntrinsicSize.Min)</span>
+<span class="nc" id="L224">                        .weight(1f),</span>
+<span class="nc" id="L225">                    text = processString(screenData.headlineText),</span>
+<span class="nc" id="L226">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L227">                    style = MaterialTheme.typography.headlineMedium</span>
+                )
+<span class="nc bnc" id="L229" title="All 2 branches missed.">                if (!screenCaptureMode) {</span>
+<span class="nc" id="L230">                    IconButton(</span>
+<span class="nc" id="L231">                        onClick = {</span>
+<span class="nc" id="L232">                            UriUtil.handleExternalLink(</span>
+<span class="nc" id="L233">                                context = context,</span>
+<span class="nc" id="L234">                                uri = mediaWikiFaqUrl.toUri()</span>
+                            )
+<span class="nc" id="L236">                        }) {</span>
+<span class="nc" id="L237">                        Icon(</span>
+<span class="nc" id="L238">                            painter = painterResource(R.drawable.baseline_info_24),</span>
+<span class="nc" id="L239">                            tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L240">                            contentDescription = stringResource(R.string.year_in_review_information_icon)</span>
+                        )
+<span class="nc" id="L242">                    }</span>
+<span class="nc" id="L243">                }</span>
+<span class="nc" id="L244">            }</span>
+<span class="nc" id="L245">            HtmlText(</span>
+<span class="nc" id="L246">                modifier = Modifier</span>
+<span class="nc" id="L247">                    .padding(top = 10.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)</span>
+<span class="nc" id="L248">                    .height(IntrinsicSize.Min),</span>
+<span class="nc" id="L249">                text = processString(screenData.bodyText),</span>
+<span class="nc" id="L250">                color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L251">                linkStyle = TextLinkStyles(</span>
+<span class="nc" id="L252">                    style = SpanStyle(</span>
+<span class="nc" id="L253">                        color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L254">                        fontSize = 16.sp</span>
+                    )
+                ),
+<span class="nc" id="L257">                style = MaterialTheme.typography.bodyLarge</span>
+            )
+<span class="nc" id="L259">        }</span>
+<span class="nc" id="L260">    }</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

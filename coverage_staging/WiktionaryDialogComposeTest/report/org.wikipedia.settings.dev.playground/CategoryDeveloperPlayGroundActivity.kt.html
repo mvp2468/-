@@ -1,0 +1,706 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryDeveloperPlayGroundActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings.dev.playground</a> &gt; <span class="el_source">CategoryDeveloperPlayGroundActivity.kt</span></div><h1>CategoryDeveloperPlayGroundActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings.dev.playground
+
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.coerceAtLeast
+import androidx.compose.ui.unit.dp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.categories.db.Category
+import org.wikipedia.compose.components.AppButton
+import org.wikipedia.compose.components.WikiTopAppBar
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.UiState
+
+<span class="nc" id="L61">class CategoryDeveloperPlayGround : BaseActivity() {</span>
+
+<span class="nc" id="L63">    private val viewModel: CategoryDeveloperPlayGroundViewModel by viewModels()</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L66">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L67">        setContent {</span>
+<span class="nc" id="L68">            val categoryState = viewModel.categoryState.collectAsState()</span>
+
+<span class="nc" id="L70">            BaseTheme {</span>
+<span class="nc" id="L71">                CategoryDeveloperPlayGroundScreen(</span>
+<span class="nc" id="L72">                    modifier = Modifier</span>
+<span class="nc" id="L73">                        .fillMaxSize()</span>
+<span class="nc" id="L74">                        .padding(16.dp),</span>
+<span class="nc" id="L75">                    categoryState = categoryState.value,</span>
+<span class="nc" id="L76">                    onAddToDb = { title, languageCode, year -&gt;</span>
+<span class="nc bnc" id="L77" title="All 14 branches missed.">                        if (!validateInput(title.isEmpty() || languageCode.isEmpty() || year.isEmpty())) {</span>
+<span class="nc" id="L78">                            return@CategoryDeveloperPlayGroundScreen</span>
+                        }
+<span class="nc" id="L80">                        viewModel.addTestData(this, title, languageCode, year.toInt())</span>
+<span class="nc" id="L81">                    },</span>
+<span class="nc" id="L82">                    onBulkAddToDb = { numberOfRows, year -&gt;</span>
+<span class="nc bnc" id="L83" title="All 10 branches missed.">                        if (!validateInput(numberOfRows.isEmpty() || year.isEmpty())) {</span>
+<span class="nc" id="L84">                            return@CategoryDeveloperPlayGroundScreen</span>
+                        }
+<span class="nc" id="L86">                        viewModel.addTestDataBulk(this, numberOfRows.toInt(), year.toInt())</span>
+<span class="nc" id="L87">                    },</span>
+<span class="nc" id="L88">                    onDeleteAll = {</span>
+<span class="nc" id="L89">                        viewModel.deleteAllCategories(this)</span>
+<span class="nc" id="L90">                    },</span>
+<span class="nc" id="L91">                    onDeleteBeforeYear = { yearsAgo -&gt;</span>
+<span class="nc bnc" id="L92" title="All 4 branches missed.">                        if (!validateInput(yearsAgo.isEmpty())) {</span>
+<span class="nc" id="L93">                            return@CategoryDeveloperPlayGroundScreen</span>
+                        }
+<span class="nc" id="L95">                        viewModel.deleteBeforeYear(this, yearsAgo.toInt())</span>
+<span class="nc" id="L96">                    },</span>
+<span class="nc" id="L97">                    onFilter = { year -&gt;</span>
+<span class="nc bnc" id="L98" title="All 4 branches missed.">                        if (!validateInput(year.isEmpty())) {</span>
+<span class="nc" id="L99">                            return@CategoryDeveloperPlayGroundScreen</span>
+                        }
+<span class="nc" id="L101">                        viewModel.filterBy(year.toInt())</span>
+<span class="nc" id="L102">                    },</span>
+<span class="nc" id="L103">                    onOptionSelected = { option -&gt;</span>
+<span class="nc bnc" id="L104" title="All 3 branches missed.">                        when (option) {</span>
+                            Option.ENTRY -&gt; {
+<span class="nc" id="L106">                                viewModel.loadCategories()</span>
+                            }
+
+                            Option.FILTER -&gt; {}
+                            Option.DELETE -&gt; {
+<span class="nc" id="L111">                                viewModel.loadCategories()</span>
+                            }
+                        }
+<span class="nc" id="L114">                    },</span>
+<span class="nc" id="L115">                    onBackButtonClick = {</span>
+<span class="nc" id="L116">                        onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L117">                    }</span>
+                )
+<span class="nc" id="L119">            }</span>
+<span class="nc" id="L120">        }</span>
+<span class="nc" id="L121">    }</span>
+
+    private fun validateInput(isEmpty: Boolean): Boolean {
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (isEmpty) {</span>
+<span class="nc" id="L125">            Toast.makeText(this, &quot;Please enter all information&quot;, Toast.LENGTH_SHORT).show()</span>
+<span class="nc" id="L126">            return false</span>
+        }
+<span class="nc" id="L128">        return true</span>
+    }
+}
+
+@Composable
+fun CategoryDeveloperPlayGroundScreen(
+<span class="nc" id="L134">    modifier: Modifier = Modifier,</span>
+    categoryState: UiState&lt;List&lt;Category&gt;&gt;,
+    onAddToDb: (String, String, String) -&gt; Unit,
+    onBulkAddToDb: (String, String) -&gt; Unit,
+    onFilter: (String) -&gt; Unit,
+    onDeleteAll: () -&gt; Unit,
+    onDeleteBeforeYear: (String) -&gt; Unit,
+    onOptionSelected: (Option) -&gt; Unit,
+    onBackButtonClick: () -&gt; Unit
+<span class="nc bnc" id="L143" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L144">    var selectedOption by remember { mutableStateOf(Option.ENTRY) }</span>
+<span class="nc" id="L145">    var selectedEntry by remember { mutableStateOf(ENTRY.SINGLE) }</span>
+
+    // Keep tracks of top content height to calculate remaining space for table
+<span class="nc" id="L148">    var topContentHeight by remember { mutableIntStateOf(0) }</span>
+<span class="nc" id="L149">    val topContentHeightDp = with(LocalDensity.current) { topContentHeight.toDp() }</span>
+
+    // Calculate available height for the entire screen
+<span class="nc" id="L152">    val screenHeight = LocalConfiguration.current.screenHeightDp.dp</span>
+<span class="nc" id="L153">    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()</span>
+<span class="nc" id="L154">    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()</span>
+
+<span class="nc" id="L156">    Scaffold(</span>
+<span class="nc" id="L157">        topBar = {</span>
+<span class="nc" id="L158">            WikiTopAppBar(</span>
+<span class="nc" id="L159">                title = &quot;Category Playground&quot;,</span>
+<span class="nc" id="L160">                onNavigationClick = onBackButtonClick</span>
+            )
+<span class="nc" id="L162">        },</span>
+<span class="nc" id="L163">        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L164">    ) { paddingValues -&gt;</span>
+
+<span class="nc" id="L166">        Column(</span>
+<span class="nc" id="L167">            modifier = modifier</span>
+<span class="nc" id="L168">                .fillMaxSize()</span>
+<span class="nc" id="L169">                .padding(paddingValues)</span>
+<span class="nc" id="L170">                .verticalScroll(rememberScrollState()),</span>
+<span class="nc" id="L171">            verticalArrangement = Arrangement.spacedBy(8.dp)</span>
+        ) {
+<span class="nc" id="L173">            Column(</span>
+<span class="nc" id="L174">                modifier = Modifier</span>
+<span class="nc" id="L175">                    .fillMaxWidth()</span>
+<span class="nc" id="L176">                    .onGloballyPositioned { coordinates -&gt;</span>
+                        // Measure the height of the top content
+<span class="nc" id="L178">                        topContentHeight = coordinates.size.height</span>
+<span class="nc" id="L179">                    },</span>
+<span class="nc" id="L180">                verticalArrangement = Arrangement.spacedBy(8.dp)</span>
+            ) {
+                // Main options row
+<span class="nc" id="L183">                LazyRow(</span>
+<span class="nc" id="L184">                    verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L185">                    horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+<span class="nc" id="L186">                ) {</span>
+<span class="nc" id="L187">                    item {</span>
+<span class="nc" id="L188">                        ChipButton(</span>
+<span class="nc" id="L189">                            text = &quot;Entry&quot;,</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">                            isSelected = selectedOption == Option.ENTRY,</span>
+<span class="nc" id="L191">                            onClick = {</span>
+<span class="nc" id="L192">                                onOptionSelected(Option.ENTRY)</span>
+<span class="nc" id="L193">                                selectedOption = Option.ENTRY</span>
+<span class="nc" id="L194">                            }</span>
+                        )
+<span class="nc" id="L196">                    }</span>
+<span class="nc" id="L197">                    item {</span>
+<span class="nc" id="L198">                        ChipButton(</span>
+<span class="nc" id="L199">                            text = &quot;Filter&quot;,</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                            isSelected = selectedOption == Option.FILTER,</span>
+<span class="nc" id="L201">                            onClick = {</span>
+<span class="nc" id="L202">                                onOptionSelected(Option.FILTER)</span>
+<span class="nc" id="L203">                                selectedOption = Option.FILTER</span>
+<span class="nc" id="L204">                            }</span>
+                        )
+<span class="nc" id="L206">                    }</span>
+<span class="nc" id="L207">                    item {</span>
+<span class="nc" id="L208">                        ChipButton(</span>
+<span class="nc" id="L209">                            text = &quot;Delete&quot;,</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                            isSelected = selectedOption == Option.DELETE,</span>
+<span class="nc" id="L211">                            onClick = {</span>
+<span class="nc" id="L212">                                onOptionSelected(Option.DELETE)</span>
+<span class="nc" id="L213">                                selectedOption = Option.DELETE</span>
+<span class="nc" id="L214">                            }</span>
+                        )
+<span class="nc" id="L216">                    }</span>
+<span class="nc" id="L217">                }</span>
+
+<span class="nc bnc" id="L219" title="All 4 branches missed.">                when (selectedOption) {</span>
+<span class="nc" id="L220">                    Option.ENTRY -&gt; {</span>
+<span class="nc" id="L221">                        LazyRow(</span>
+<span class="nc" id="L222">                            verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L223">                            horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+<span class="nc" id="L224">                        ) {</span>
+<span class="nc" id="L225">                            item {</span>
+<span class="nc" id="L226">                                ChipButton(</span>
+<span class="nc" id="L227">                                    text = &quot;Single&quot;,</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">                                    isSelected = selectedEntry == ENTRY.SINGLE,</span>
+<span class="nc" id="L229">                                    onClick = {</span>
+<span class="nc" id="L230">                                        selectedEntry = ENTRY.SINGLE</span>
+<span class="nc" id="L231">                                    }</span>
+                                )
+<span class="nc" id="L233">                            }</span>
+<span class="nc" id="L234">                            item {</span>
+<span class="nc" id="L235">                                ChipButton(</span>
+<span class="nc" id="L236">                                    text = &quot;Random Bulk Entries&quot;,</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                                    isSelected = selectedEntry == ENTRY.RANDOM_BULK,</span>
+<span class="nc" id="L238">                                    onClick = {</span>
+<span class="nc" id="L239">                                        selectedEntry = ENTRY.RANDOM_BULK</span>
+<span class="nc" id="L240">                                    }</span>
+                                )
+<span class="nc" id="L242">                            }</span>
+<span class="nc" id="L243">                        }</span>
+<span class="nc bnc" id="L244" title="All 3 branches missed.">                        when (selectedEntry) {</span>
+<span class="nc" id="L245">                            ENTRY.SINGLE -&gt; SingleEntryView(onAddToDb)</span>
+<span class="nc" id="L246">                            ENTRY.RANDOM_BULK -&gt; RandomBulkEntryView(onBulkAddToDb)</span>
+<span class="nc" id="L247">                        }</span>
+                    }
+<span class="nc" id="L249">                    Option.FILTER -&gt; {</span>
+<span class="nc" id="L250">                        FilterView(</span>
+<span class="nc" id="L251">                            onFilter = { year -&gt;</span>
+<span class="nc" id="L252">                                onFilter(year)</span>
+<span class="nc" id="L253">                            }</span>
+                        )
+                    }
+<span class="nc" id="L256">                    Option.DELETE -&gt; {</span>
+<span class="nc" id="L257">                        DeleteView(</span>
+<span class="nc" id="L258">                            onDeleteAll = onDeleteAll,</span>
+<span class="nc" id="L259">                            onDeleteBeforeYear = onDeleteBeforeYear</span>
+                        )
+                    }
+<span class="nc" id="L262">                }</span>
+<span class="nc" id="L263">            }</span>
+
+            // Calculates the remaining height for table
+            // We subtract topContentHeight, paddingValues, and add some buffer space
+<span class="nc" id="L267">            val tableHeight = screenHeight - topContentHeightDp - paddingValues.calculateTopPadding() -</span>
+<span class="nc" id="L268">                    paddingValues.calculateBottomPadding() - statusBarHeight - navBarHeight - 16.dp</span>
+
+<span class="nc" id="L270">            Box(</span>
+<span class="nc" id="L271">                modifier = Modifier</span>
+<span class="nc" id="L272">                    .fillMaxWidth()</span>
+<span class="nc" id="L273">                    .height(tableHeight.coerceAtLeast(300.dp))</span>
+            ) {
+<span class="nc" id="L275">                when {</span>
+<span class="nc bnc" id="L276" title="All 4 branches missed.">                    selectedOption == Option.FILTER &amp;&amp; categoryState is UiState.Success -&gt; {</span>
+<span class="nc" id="L277">                        CategoryTable(</span>
+<span class="nc" id="L278">                            modifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L279">                            categories = categoryState.data</span>
+                        )
+                    }
+
+<span class="nc bnc" id="L283" title="All 4 branches missed.">                    selectedOption != Option.FILTER &amp;&amp; categoryState is UiState.Success -&gt; {</span>
+<span class="nc" id="L284">                        CategoryTable(</span>
+<span class="nc" id="L285">                            modifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L286">                            categories = categoryState.data</span>
+                        )
+                    }
+
+<span class="nc" id="L290">                    else -&gt; {</span>
+<span class="nc" id="L291">                        CircularProgressIndicator(</span>
+<span class="nc" id="L292">                            modifier = Modifier</span>
+<span class="nc" id="L293">                                .align(Alignment.Center)</span>
+<span class="nc" id="L294">                                .padding(24.dp),</span>
+<span class="nc" id="L295">                            color = WikipediaTheme.colors.progressiveColor</span>
+                        )
+                    }
+                }
+<span class="nc" id="L299">            }</span>
+<span class="nc" id="L300">        }</span>
+<span class="nc" id="L301">    }</span>
+<span class="nc" id="L302">}</span>
+
+@Composable
+fun DeleteView(
+<span class="nc" id="L306">    modifier: Modifier = Modifier,</span>
+    onDeleteAll: () -&gt; Unit,
+    onDeleteBeforeYear: (String) -&gt; Unit
+<span class="nc bnc" id="L309" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L310">    var year by remember { mutableStateOf(&quot;&quot;) }</span>
+
+<span class="nc" id="L312">    Column(</span>
+<span class="nc" id="L313">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L315">        AppButton(</span>
+<span class="nc" id="L316">            modifier = Modifier</span>
+<span class="nc" id="L317">                .fillMaxWidth(),</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">            onClick = {</span>
+<span class="nc" id="L319">                onDeleteAll()</span>
+<span class="nc" id="L320">            }</span>
+<span class="nc" id="L321">        ) {</span>
+<span class="nc" id="L322">            Text(&quot;Delete All&quot;)</span>
+<span class="nc" id="L323">        }</span>
+
+<span class="nc" id="L325">        OutlinedTextField(</span>
+<span class="nc" id="L326">            value = year,</span>
+<span class="nc" id="L327">            singleLine = true,</span>
+<span class="nc" id="L328">            onValueChange = {</span>
+<span class="nc" id="L329">                year = it</span>
+<span class="nc" id="L330">            },</span>
+<span class="nc" id="L331">            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),</span>
+<span class="nc" id="L332">            label = { Text(&quot;Years before&quot;) },</span>
+<span class="nc" id="L333">            colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L334">                focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L335">                unfocusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L336">                focusedBorderColor = WikipediaTheme.colors.primaryColor,</span>
+            ),
+<span class="nc" id="L338">            modifier = Modifier</span>
+<span class="nc" id="L339">                .fillMaxWidth()</span>
+        )
+<span class="nc" id="L341">        AppButton(</span>
+<span class="nc" id="L342">            modifier = Modifier</span>
+<span class="nc" id="L343">                .fillMaxWidth(),</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">            onClick = {</span>
+<span class="nc" id="L345">                onDeleteBeforeYear(year)</span>
+<span class="nc" id="L346">            }</span>
+<span class="nc" id="L347">        ) {</span>
+<span class="nc" id="L348">            Text(&quot;Delete Before&quot;)</span>
+<span class="nc" id="L349">        }</span>
+<span class="nc" id="L350">    }</span>
+<span class="nc" id="L351">}</span>
+
+@Composable
+fun FilterView(
+<span class="nc" id="L355">    modifier: Modifier = Modifier,</span>
+    onFilter: (String) -&gt; Unit
+<span class="nc bnc" id="L357" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L358">    var year by remember { mutableStateOf(&quot;2025&quot;) }</span>
+
+<span class="nc" id="L360">    Column(</span>
+<span class="nc" id="L361">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L363">        OutlinedTextField(</span>
+<span class="nc" id="L364">            value = year,</span>
+<span class="nc" id="L365">            onValueChange = {</span>
+<span class="nc" id="L366">                year = it</span>
+<span class="nc" id="L367">            },</span>
+<span class="nc" id="L368">            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),</span>
+<span class="nc" id="L369">            label = { Text(&quot;Year&quot;) },</span>
+<span class="nc" id="L370">            singleLine = true,</span>
+<span class="nc" id="L371">            colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L372">                focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L373">                unfocusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L374">                focusedBorderColor = WikipediaTheme.colors.primaryColor</span>
+            ),
+<span class="nc" id="L376">            modifier = Modifier</span>
+<span class="nc" id="L377">                .fillMaxWidth()</span>
+        )
+
+<span class="nc" id="L380">        Spacer(</span>
+<span class="nc" id="L381">            modifier = Modifier</span>
+<span class="nc" id="L382">                .height(6.dp)</span>
+        )
+<span class="nc" id="L384">        AppButton(</span>
+<span class="nc" id="L385">            modifier = Modifier</span>
+<span class="nc" id="L386">                .fillMaxWidth(),</span>
+<span class="nc bnc" id="L387" title="All 2 branches missed.">            onClick = {</span>
+<span class="nc" id="L388">                onFilter(year)</span>
+<span class="nc" id="L389">            }</span>
+<span class="nc" id="L390">        ) {</span>
+<span class="nc" id="L391">            Text(&quot;Filter&quot;)</span>
+<span class="nc" id="L392">        }</span>
+<span class="nc" id="L393">    }</span>
+<span class="nc" id="L394">}</span>
+
+@Composable
+fun SingleEntryView(
+    onAddToDb: (String, String, String) -&gt; Unit,
+<span class="nc" id="L399">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L401">    var title by remember { mutableStateOf(&quot;&quot;) }</span>
+<span class="nc" id="L402">    var languageCode by remember { mutableStateOf(&quot;&quot;) }</span>
+<span class="nc" id="L403">    var year by remember { mutableStateOf(&quot;2025&quot;) }</span>
+
+<span class="nc" id="L405">    Column(</span>
+<span class="nc" id="L406">        modifier = modifier</span>
+    ) {
+        // Input field for size
+<span class="nc" id="L409">        OutlinedTextField(</span>
+<span class="nc" id="L410">            value = title,</span>
+<span class="nc" id="L411">            onValueChange = {</span>
+<span class="nc" id="L412">                title = it</span>
+<span class="nc" id="L413">            },</span>
+<span class="nc" id="L414">            singleLine = true,</span>
+<span class="nc" id="L415">            label = {</span>
+<span class="nc" id="L416">                Text(</span>
+<span class="nc" id="L417">                    text = &quot;Title&quot;,</span>
+<span class="nc" id="L418">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L420">            },</span>
+<span class="nc" id="L421">            colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L422">                focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L423">                unfocusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L424">                focusedBorderColor = WikipediaTheme.colors.primaryColor</span>
+            ),
+<span class="nc" id="L426">            modifier = Modifier</span>
+<span class="nc" id="L427">                .fillMaxWidth()</span>
+        )
+
+<span class="nc" id="L430">        OutlinedTextField(</span>
+<span class="nc" id="L431">            value = languageCode,</span>
+<span class="nc" id="L432">            onValueChange = {</span>
+<span class="nc" id="L433">                languageCode = it</span>
+<span class="nc" id="L434">            },</span>
+<span class="nc" id="L435">            singleLine = true,</span>
+<span class="nc" id="L436">            label = {</span>
+<span class="nc" id="L437">                Text(</span>
+<span class="nc" id="L438">                    text = &quot;language code&quot;,</span>
+<span class="nc" id="L439">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L441">            },</span>
+<span class="nc" id="L442">            colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L443">                focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L444">                unfocusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L445">                focusedBorderColor = WikipediaTheme.colors.primaryColor</span>
+            ),
+<span class="nc" id="L447">            modifier = Modifier</span>
+<span class="nc" id="L448">                .fillMaxWidth()</span>
+        )
+
+<span class="nc" id="L451">        OutlinedTextField(</span>
+<span class="nc" id="L452">            value = year,</span>
+<span class="nc" id="L453">            onValueChange = {</span>
+<span class="nc" id="L454">                year = it</span>
+<span class="nc" id="L455">            },</span>
+<span class="nc" id="L456">            singleLine = true,</span>
+<span class="nc" id="L457">            label = {</span>
+<span class="nc" id="L458">                Text(</span>
+<span class="nc" id="L459">                    text = &quot;Year&quot;,</span>
+<span class="nc" id="L460">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L462">            },</span>
+<span class="nc" id="L463">            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),</span>
+<span class="nc" id="L464">            colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L465">                focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L466">                unfocusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L467">                focusedBorderColor = WikipediaTheme.colors.primaryColor</span>
+            ),
+<span class="nc" id="L469">            modifier = Modifier</span>
+<span class="nc" id="L470">                .fillMaxWidth()</span>
+        )
+
+<span class="nc" id="L473">        Spacer(</span>
+<span class="nc" id="L474">            modifier = Modifier</span>
+<span class="nc" id="L475">                .height(6.dp)</span>
+        )
+<span class="nc" id="L477">        AppButton(</span>
+<span class="nc" id="L478">            modifier = Modifier</span>
+<span class="nc" id="L479">                .fillMaxWidth(),</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">            onClick = {</span>
+<span class="nc" id="L481">                onAddToDb(title, languageCode, year)</span>
+<span class="nc" id="L482">            }</span>
+<span class="nc" id="L483">        ) {</span>
+<span class="nc" id="L484">            Text(&quot;Add Entry&quot;)</span>
+<span class="nc" id="L485">        }</span>
+<span class="nc" id="L486">    }</span>
+<span class="nc" id="L487">}</span>
+
+@Composable
+fun RandomBulkEntryView(
+    onBulkAddToDb: (String, String) -&gt; Unit,
+<span class="nc" id="L492">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L493" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L494">    var numberOfRows by remember { mutableStateOf(&quot;&quot;) }</span>
+<span class="nc" id="L495">    var year by remember { mutableStateOf(&quot;2025&quot;) }</span>
+
+<span class="nc" id="L497">    Column(</span>
+<span class="nc" id="L498">        modifier = modifier</span>
+    ) {
+        // Input field for size
+<span class="nc" id="L501">        OutlinedTextField(</span>
+<span class="nc" id="L502">            value = numberOfRows,</span>
+<span class="nc" id="L503">            onValueChange = {</span>
+<span class="nc" id="L504">                numberOfRows = it</span>
+<span class="nc" id="L505">            },</span>
+<span class="nc" id="L506">            singleLine = true,</span>
+<span class="nc" id="L507">            label = {</span>
+<span class="nc" id="L508">                Text(</span>
+<span class="nc" id="L509">                    text = &quot;Number of Rows&quot;,</span>
+<span class="nc" id="L510">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L512">            },</span>
+<span class="nc" id="L513">            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),</span>
+<span class="nc" id="L514">            colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L515">                focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L516">                unfocusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L517">                focusedBorderColor = WikipediaTheme.colors.primaryColor</span>
+            ),
+<span class="nc" id="L519">            modifier = Modifier</span>
+<span class="nc" id="L520">                .fillMaxWidth()</span>
+        )
+
+<span class="nc" id="L523">        OutlinedTextField(</span>
+<span class="nc" id="L524">            value = year,</span>
+<span class="nc" id="L525">            onValueChange = {</span>
+<span class="nc" id="L526">                year = it</span>
+<span class="nc" id="L527">            },</span>
+<span class="nc" id="L528">            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),</span>
+<span class="nc" id="L529">            singleLine = true,</span>
+<span class="nc" id="L530">            label = {</span>
+<span class="nc" id="L531">                Text(</span>
+<span class="nc" id="L532">                    text = &quot;Year&quot;,</span>
+<span class="nc" id="L533">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L535">            },</span>
+<span class="nc" id="L536">            colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L537">                focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L538">                unfocusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L539">                focusedBorderColor = WikipediaTheme.colors.primaryColor</span>
+            ),
+<span class="nc" id="L541">            modifier = Modifier</span>
+<span class="nc" id="L542">                .fillMaxWidth()</span>
+        )
+
+<span class="nc" id="L545">        Spacer(</span>
+<span class="nc" id="L546">            modifier = Modifier</span>
+<span class="nc" id="L547">                .height(6.dp)</span>
+        )
+<span class="nc" id="L549">        AppButton(</span>
+<span class="nc" id="L550">            modifier = Modifier</span>
+<span class="nc" id="L551">                .fillMaxWidth(),</span>
+<span class="nc bnc" id="L552" title="All 2 branches missed.">            onClick = {</span>
+<span class="nc" id="L553">                onBulkAddToDb(numberOfRows, year)</span>
+<span class="nc" id="L554">            }</span>
+<span class="nc" id="L555">        ) {</span>
+<span class="nc" id="L556">            Text(&quot;Add Random Entries&quot;)</span>
+<span class="nc" id="L557">        }</span>
+<span class="nc" id="L558">    }</span>
+<span class="nc" id="L559">}</span>
+
+@Composable
+fun ChipButton(
+    text: String,
+    onClick: () -&gt; Unit,
+<span class="nc bnc" id="L565" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L566">    isSelected: Boolean = false,</span>
+<span class="nc bnc" id="L567" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L568">    Button(</span>
+<span class="nc" id="L569">        onClick = onClick,</span>
+<span class="nc" id="L570">        modifier = modifier.height(32.dp),</span>
+<span class="nc" id="L571">        shape = RoundedCornerShape(16.dp),</span>
+<span class="nc" id="L572">        colors = ButtonDefaults.buttonColors(</span>
+<span class="nc bnc" id="L573" title="All 2 branches missed.">            containerColor = if (isSelected) WikipediaTheme.colors.focusColor else</span>
+<span class="nc" id="L574">                WikipediaTheme.colors.progressiveColor</span>
+        ),
+<span class="nc" id="L576">        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)</span>
+<span class="nc" id="L577">    ) {</span>
+<span class="nc" id="L578">        Text(</span>
+<span class="nc" id="L579">            text = text,</span>
+        )
+<span class="nc" id="L581">    }</span>
+<span class="nc" id="L582">}</span>
+
+@Composable
+fun CategoryTable(
+<span class="nc bnc" id="L586" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L587">    categories: List&lt;Category&gt;? = null</span>
+<span class="nc bnc" id="L588" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L589">    LazyColumn(</span>
+<span class="nc" id="L590">        modifier = modifier</span>
+<span class="nc" id="L591">    ) {</span>
+        // Table header
+<span class="nc" id="L593">        item {</span>
+<span class="nc" id="L594">            Row(</span>
+<span class="nc" id="L595">                modifier = Modifier</span>
+<span class="nc" id="L596">                    .fillMaxWidth()</span>
+<span class="nc" id="L597">                    .padding(vertical = 8.dp),</span>
+<span class="nc" id="L598">                horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+            ) {
+<span class="nc" id="L600">                Text(</span>
+<span class="nc" id="L601">                    text = &quot;Title&quot;,</span>
+<span class="nc" id="L602">                    modifier = Modifier.weight(0.4f),</span>
+<span class="nc" id="L603">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L604">                    style = MaterialTheme.typography.titleMedium</span>
+                )
+<span class="nc" id="L606">                Text(</span>
+<span class="nc" id="L607">                    text = &quot;Language&quot;,</span>
+<span class="nc" id="L608">                    modifier = Modifier.weight(0.3f),</span>
+<span class="nc" id="L609">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L610">                    style = MaterialTheme.typography.titleMedium</span>
+                )
+<span class="nc" id="L612">                Text(</span>
+<span class="nc bnc" id="L613" title="All 2 branches missed.">                    text = if (categories != null) &quot;Count&quot; else &quot;Timestamp&quot;,</span>
+<span class="nc" id="L614">                    modifier = Modifier.weight(0.3f),</span>
+<span class="nc" id="L615">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L616">                    style = MaterialTheme.typography.titleMedium</span>
+                )
+<span class="nc" id="L618">            }</span>
+<span class="nc" id="L619">        }</span>
+
+<span class="nc bnc" id="L621" title="All 2 branches missed.">        if (categories != null) {</span>
+<span class="nc" id="L622">            items(categories) { categoryCount -&gt;</span>
+<span class="nc" id="L623">                Row(</span>
+<span class="nc" id="L624">                    modifier = Modifier</span>
+<span class="nc" id="L625">                        .fillMaxWidth()</span>
+<span class="nc" id="L626">                        .padding(vertical = 8.dp),</span>
+<span class="nc" id="L627">                    horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+                ) {
+<span class="nc" id="L629">                    Text(</span>
+<span class="nc" id="L630">                        text = categoryCount.title,</span>
+<span class="nc" id="L631">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L632">                        modifier = Modifier.weight(0.4f)</span>
+                    )
+<span class="nc" id="L634">                    Text(</span>
+<span class="nc" id="L635">                        text = categoryCount.lang,</span>
+<span class="nc" id="L636">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L637">                        modifier = Modifier.weight(0.3f)</span>
+                    )
+<span class="nc" id="L639">                    Text(</span>
+<span class="nc" id="L640">                        text = categoryCount.count.toString(),</span>
+<span class="nc" id="L641">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L642">                        modifier = Modifier.weight(0.3f)</span>
+                    )
+<span class="nc" id="L644">                }</span>
+<span class="nc" id="L645">            }</span>
+        }
+
+<span class="nc bnc" id="L648" title="All 2 branches missed.">        if (categories != null) {</span>
+<span class="nc" id="L649">            items(categories) { category -&gt;</span>
+<span class="nc" id="L650">                Row(</span>
+<span class="nc" id="L651">                    modifier = Modifier</span>
+<span class="nc" id="L652">                        .fillMaxWidth()</span>
+<span class="nc" id="L653">                        .padding(vertical = 8.dp),</span>
+<span class="nc" id="L654">                    horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+                ) {
+<span class="nc" id="L656">                    Text(</span>
+<span class="nc" id="L657">                        text = category.title,</span>
+<span class="nc" id="L658">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L659">                        modifier = Modifier.weight(0.4f)</span>
+                    )
+<span class="nc" id="L661">                    Text(</span>
+<span class="nc" id="L662">                        text = category.lang,</span>
+<span class="nc" id="L663">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L664">                        modifier = Modifier.weight(0.3f)</span>
+                    )
+<span class="nc" id="L666">                    Text(</span>
+<span class="nc" id="L667">                        text = category.year.toString(),</span>
+<span class="nc" id="L668">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L669">                        modifier = Modifier.weight(0.3f)</span>
+                    )
+<span class="nc" id="L671">                }</span>
+<span class="nc" id="L672">            }</span>
+        }
+<span class="nc" id="L674">    }</span>
+<span class="nc" id="L675">}</span>
+
+enum class Option {
+<span class="nc" id="L678">    ENTRY, FILTER, DELETE</span>
+}
+
+enum class ENTRY {
+<span class="nc" id="L682">    SINGLE, RANDOM_BULK</span>
+}
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L687">private fun CategoryDeveloperPlayGroundScreenPreview() {</span>
+<span class="nc" id="L688">    BaseTheme(</span>
+<span class="nc" id="L689">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L690">    ) {</span>
+<span class="nc" id="L691">        CategoryDeveloperPlayGroundScreen(</span>
+<span class="nc" id="L692">            modifier = Modifier</span>
+<span class="nc" id="L693">                .fillMaxSize()</span>
+<span class="nc" id="L694">                .padding(16.dp),</span>
+<span class="nc" id="L695">            categoryState = UiState.Loading,</span>
+<span class="nc" id="L696">            onAddToDb = { _, _, _ -&gt; },</span>
+<span class="nc" id="L697">            onDeleteAll = {},</span>
+<span class="nc" id="L698">            onDeleteBeforeYear = {},</span>
+<span class="nc" id="L699">            onBulkAddToDb = { _, _ -&gt; },</span>
+<span class="nc" id="L700">            onFilter = {},</span>
+<span class="nc" id="L701">            onOptionSelected = {},</span>
+<span class="nc" id="L702">            onBackButtonClick = {}</span>
+        )
+<span class="nc" id="L704">    }</span>
+<span class="nc" id="L705">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

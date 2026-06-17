@@ -1,0 +1,702 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingChallengeLargeWidgetContent.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">ReadingChallengeLargeWidgetContent.kt</span></div><h1>ReadingChallengeLargeWidgetContent.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
+import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.LocalContext
+import androidx.glance.LocalSize
+import androidx.glance.action.Action
+import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.color.ColorProvider
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
+import androidx.glance.layout.Column
+import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
+import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.height
+import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.layout.width
+import androidx.glance.preview.ExperimentalGlancePreviewApi
+import androidx.glance.preview.Preview
+import androidx.glance.text.FontWeight
+import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
+import org.wikipedia.R
+import org.wikipedia.widgets.readingchallenge.WidgetCombinations.forToday
+import java.time.LocalDate
+
+@Composable
+fun ReadingChallengeLargeWidgetContent(
+    state: ReadingChallengeState,
+    enrollmentDate: LocalDate
+<span class="nc" id="L43">) {</span>
+<span class="nc" id="L44">    val context = LocalContext.current</span>
+<span class="nc" id="L45">    when (state) {</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">        ReadingChallengeState.Loading -&gt; {</span>
+<span class="nc" id="L47">            ReadingChallengeWidgetLoading(</span>
+<span class="nc" id="L48">                modifier = GlanceModifier</span>
+<span class="nc" id="L49">                    .fillMaxSize()</span>
+            )
+        }
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        ReadingChallengeState.ChallengeCompleted -&gt; {</span>
+<span class="nc" id="L53">            val streakText = context.resources.getQuantityString(R.plurals.reading_challenge_small_widget_streak_final_large,</span>
+<span class="nc" id="L54">                ReadingChallengeWidgetRepository.READING_STREAK_GOAL, ReadingChallengeWidgetRepository.READING_STREAK_GOAL, ReadingChallengeWidgetRepository.READING_STREAK_GOAL)</span>
+<span class="nc" id="L55">            GeneralLargeWidget(</span>
+<span class="nc" id="L56">                modifier = GlanceModifier</span>
+<span class="nc" id="L57">                    .fillMaxSize(),</span>
+<span class="nc" id="L58">                clickAction = actionRunCallback&lt;ChallengeRewardAction&gt;(),</span>
+<span class="nc" id="L59">                backgroundColor = WidgetColors.joinChallengeBackground,</span>
+<span class="nc" id="L60">                textColor = WidgetColors.primary,</span>
+<span class="nc" id="L61">                title = context.getString(R.string.reading_challenge_widget_concluded_complete),</span>
+<span class="nc" id="L62">                subTitleContent = {</span>
+<span class="nc" id="L63">                    WidgetBadge(</span>
+<span class="nc" id="L64">                        text = streakText,</span>
+<span class="nc" id="L65">                        textSize = 16.sp,</span>
+<span class="nc" id="L66">                        iconResId = R.drawable.ic_flame_24dp,</span>
+<span class="nc" id="L67">                        iconSize = 24.dp,</span>
+<span class="nc" id="L68">                        iconTintColor = WidgetColors.primary,</span>
+<span class="nc" id="L69">                        textColor = WidgetColors.primary</span>
+                    )
+<span class="nc" id="L71">                },</span>
+<span class="nc" id="L72">                expandMascot = true,</span>
+<span class="nc" id="L73">                mainImageResId = R.drawable.wp25_babyglobe_celebration_neutral,</span>
+<span class="nc" id="L74">                bottomContent = {</span>
+<span class="nc" id="L75">                    WidgetButton(</span>
+<span class="nc" id="L76">                        text = context.getString(R.string.reading_challenge_widget_collect_your_prize_button),</span>
+<span class="nc" id="L77">                        action = actionRunCallback&lt;ChallengeRewardAction&gt;(),</span>
+<span class="nc" id="L78">                        modifier = GlanceModifier</span>
+                    )
+<span class="nc" id="L80">                }</span>
+            )
+        }
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        is ReadingChallengeState.ChallengeConcludedIncomplete -&gt; {</span>
+<span class="nc" id="L84">            val streakText = context.resources.getQuantityString(R.plurals.reading_challenge_small_widget_streak_final_large,</span>
+<span class="nc" id="L85">                ReadingChallengeWidgetRepository.READING_STREAK_GOAL, state.streak, ReadingChallengeWidgetRepository.READING_STREAK_GOAL)</span>
+<span class="nc" id="L86">            GeneralLargeWidget(</span>
+<span class="nc" id="L87">                modifier = GlanceModifier</span>
+<span class="nc" id="L88">                    .fillMaxSize(),</span>
+<span class="nc" id="L89">                clickAction = actionRunCallback&lt;HomeAction&gt;(),</span>
+<span class="nc" id="L90">                backgroundColor = WidgetColors.joinChallengeBackground,</span>
+<span class="nc" id="L91">                textColor = WidgetColors.primary,</span>
+<span class="nc" id="L92">                title = context.getString(R.string.reading_challenge_widget_concluded_incomplete),</span>
+<span class="nc" id="L93">                mainImageResId = R.drawable.wp25_babyglobe_reading,</span>
+<span class="nc" id="L94">                expandMascot = true,</span>
+<span class="nc" id="L95">                bottomContent = {</span>
+<span class="nc" id="L96">                    WidgetButton(</span>
+<span class="nc" id="L97">                        text = streakText,</span>
+<span class="nc" id="L98">                        action = actionRunCallback&lt;HomeAction&gt;(),</span>
+<span class="nc" id="L99">                        backgroundColor = WidgetColors.challengeConcludedIncompleteButtonBackground,</span>
+<span class="nc" id="L100">                        contentColor = WidgetColors.primary,</span>
+<span class="nc" id="L101">                        icon = ImageProvider(R.drawable.ic_flame_24dp),</span>
+<span class="nc" id="L102">                        modifier = GlanceModifier</span>
+                    )
+<span class="nc" id="L104">                }</span>
+            )
+        }
+<span class="nc bnc" id="L107" title="All 4 branches missed.">        ReadingChallengeState.ChallengeConcludedNoStreak, ReadingChallengeState.ChallengeRemoved -&gt; {</span>
+<span class="nc" id="L108">            GeneralLargeWidget(</span>
+<span class="nc" id="L109">                modifier = GlanceModifier</span>
+<span class="nc" id="L110">                    .fillMaxSize(),</span>
+<span class="nc" id="L111">                clickAction = actionRunCallback&lt;HomeAction&gt;(),</span>
+<span class="nc" id="L112">                backgroundColor = WidgetColors.joinChallengeBackground,</span>
+<span class="nc" id="L113">                textColor = WidgetColors.primary,</span>
+<span class="nc" id="L114">                title = context.getString(R.string.reading_challenge_widget_concluded_incomplete),</span>
+<span class="nc" id="L115">                mainImageResId = R.drawable.wp25_babyglobe_reading,</span>
+<span class="nc" id="L116">                expandMascot = true</span>
+            )
+        }
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        ReadingChallengeState.EnrolledNotStarted -&gt; {</span>
+<span class="nc" id="L120">            val combination = WidgetCombinations.enrolledNotStarted.forToday(enrollmentDate = enrollmentDate)</span>
+<span class="nc" id="L121">            EnrolledNotStartedLargeWidget(</span>
+<span class="nc" id="L122">                mainImageResId = combination.iconResId,</span>
+<span class="nc" id="L123">                backgroundColor = combination.backgroundColor,</span>
+<span class="nc" id="L124">                contentColor = combination.contentColor,</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                titleResId = combination.titleResId ?: R.string.reading_challenge_widget_enrolled_not_started_title,</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                subtitleReId = combination.subtitleResId ?: R.string.reading_challenge_widget_enrolled_not_started_subtitle</span>
+            )
+        }
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        ReadingChallengeState.NotEnrolled -&gt; {</span>
+<span class="nc" id="L130">            GeneralLargeWidget(</span>
+<span class="nc" id="L131">                modifier = GlanceModifier</span>
+<span class="nc" id="L132">                    .fillMaxSize(),</span>
+<span class="nc" id="L133">                clickAction = actionRunCallback&lt;JoinChallengeAction&gt;(),</span>
+<span class="nc" id="L134">                backgroundColor = WidgetColors.joinChallengeBackground,</span>
+<span class="nc" id="L135">                textColor = WidgetColors.primary,</span>
+<span class="nc" id="L136">                title = context.getString(R.string.reading_challenge_widget_not_opted_in_title),</span>
+<span class="nc" id="L137">                subTitle = context.getString(R.string.reading_challenge_widget_not_opted_in_description),</span>
+<span class="nc" id="L138">                mainImageResId = R.drawable.wp25_babyglobe_reading,</span>
+<span class="nc" id="L139">                bottomContent = {</span>
+<span class="nc" id="L140">                    WidgetButton(</span>
+<span class="nc" id="L141">                        text = context.getString(R.string.reading_challenge_widget_join_the_challenge_button),</span>
+<span class="nc" id="L142">                        action = actionRunCallback&lt;JoinChallengeAction&gt;()</span>
+                    )
+<span class="nc" id="L144">                }</span>
+            )
+        }
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        ReadingChallengeState.NotLiveYet -&gt; {</span>
+<span class="nc" id="L148">            GeneralLargeWidget(</span>
+<span class="nc" id="L149">                modifier = GlanceModifier</span>
+<span class="nc" id="L150">                    .fillMaxSize(),</span>
+<span class="nc" id="L151">                clickAction = actionRunCallback&lt;HomeAction&gt;(),</span>
+<span class="nc" id="L152">                backgroundColor = WidgetColors.challengeNotLiveBackground,</span>
+<span class="nc" id="L153">                textColor = WidgetColors.primary,</span>
+<span class="nc" id="L154">                title = context.getString(R.string.reading_challenge_widget_not_live_title),</span>
+<span class="nc" id="L155">                subTitle = context.getString(R.string.reading_challenge_widget_not_live_description),</span>
+<span class="nc" id="L156">                mainImageResId = R.drawable.wp25_babyglobe_reading,</span>
+<span class="nc" id="L157">                bottomContent = {</span>
+<span class="nc" id="L158">                    WidgetButton(</span>
+<span class="nc" id="L159">                        text = context.getString(R.string.reading_challenge_widget_explore_wikipedia_button),</span>
+<span class="nc" id="L160">                        action = actionRunCallback&lt;HomeAction&gt;()</span>
+                    )
+<span class="nc" id="L162">                }</span>
+            )
+        }
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        is ReadingChallengeState.StreakOngoingNeedsReading -&gt; {</span>
+<span class="nc" id="L166">            val combination = WidgetCombinations.streakNeedsReading.forToday(enrollmentDate = enrollmentDate)</span>
+<span class="nc" id="L167">            StreakOngoingNeedsReadingLargeWidget(</span>
+<span class="nc" id="L168">                modifier = GlanceModifier</span>
+<span class="nc" id="L169">                    .fillMaxSize()</span>
+<span class="nc" id="L170">                    .padding(horizontal = 16.dp, vertical = 12.dp),</span>
+<span class="nc" id="L171">                clickAction = actionRunCallback&lt;HomeAction&gt;(),</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                reminderTextResId = combination.titleResId ?: R.string.reading_challenge_widget_reminder_dont_let_today_drift,</span>
+<span class="nc" id="L173">                backgroundColor = combination.backgroundColor,</span>
+<span class="nc" id="L174">                contentColor = combination.contentColor,</span>
+<span class="nc" id="L175">                state = state,</span>
+<span class="nc" id="L176">                mascotImageResId = combination.iconResId</span>
+            )
+        }
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        is ReadingChallengeState.StreakOngoingReadToday -&gt; {</span>
+<span class="nc" id="L180">            val combination = WidgetCombinations.streakOngoing.forToday(enrollmentDate = enrollmentDate)</span>
+<span class="nc" id="L181">            StreakOngoingLargeWidget(</span>
+<span class="nc" id="L182">                modifier = GlanceModifier</span>
+<span class="nc" id="L183">                    .fillMaxSize()</span>
+<span class="nc" id="L184">                    .padding(horizontal = 16.dp, vertical = 12.dp)</span>
+<span class="nc" id="L185">                    .clickable(onClick = actionRunCallback&lt;HomeAction&gt;()),</span>
+<span class="nc" id="L186">                backgroundColor = combination.backgroundColor,</span>
+<span class="nc" id="L187">                contentColor = combination.contentColor,</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                progressColor = combination.progressColor ?: WidgetColors.phoneReadingProgressColor,</span>
+<span class="nc" id="L189">                state = state,</span>
+<span class="nc" id="L190">                mascotImageResId = combination.iconResId</span>
+            )
+        }
+<span class="nc" id="L193">    }</span>
+<span class="nc" id="L194">}</span>
+
+@Composable
+<span class="nc bnc" id="L197" title="All 2 branches missed.">fun StreakOngoingLargeWidget(</span>
+    state: ReadingChallengeState.StreakOngoingReadToday,
+    mascotImageResId: Int,
+<span class="nc bnc" id="L200" title="All 2 branches missed.">    modifier: GlanceModifier = GlanceModifier,</span>
+    backgroundColor: Color,
+    contentColor: Color,
+    progressColor: Color,
+<span class="nc" id="L204">    titleBarIcon: Int = R.drawable.ic_w_logo_shadow</span>
+<span class="nc bnc" id="L205" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L206">    val context = LocalContext.current</span>
+<span class="nc" id="L207">    val streakText = context.resources.getQuantityString(R.plurals.reading_challenge_small_widget_streak, state.streak, state.streak)</span>
+<span class="nc" id="L208">    val size = LargeWidgetSize.from(LocalSize.current)</span>
+
+<span class="nc" id="L210">    BaseWidgetContent(</span>
+<span class="nc" id="L211">        color = backgroundColor</span>
+<span class="nc" id="L212">    ) {</span>
+<span class="nc" id="L213">        Box(</span>
+<span class="nc" id="L214">            modifier = modifier</span>
+<span class="nc" id="L215">        ) {</span>
+<span class="nc" id="L216">            Column(modifier = GlanceModifier.fillMaxSize()) {</span>
+                // Top Row: Trophy, Title, W logo
+<span class="nc" id="L218">                Row(</span>
+<span class="nc" id="L219">                    modifier = GlanceModifier.fillMaxWidth()</span>
+<span class="nc" id="L220">                ) {</span>
+<span class="nc" id="L221">                    Image(</span>
+<span class="nc" id="L222">                        provider = ImageProvider(R.drawable.ic_trophy24dp),</span>
+<span class="nc" id="L223">                        contentDescription = null,</span>
+<span class="nc" id="L224">                        modifier = GlanceModifier.size(size.trophyIconSize),</span>
+<span class="nc" id="L225">                        colorFilter = ColorFilter.tint(ColorProvider(day = contentColor, night = contentColor))</span>
+                    )
+
+<span class="nc" id="L228">                    Spacer(modifier = GlanceModifier.width(12.dp))</span>
+
+<span class="nc" id="L230">                    Text(</span>
+<span class="nc" id="L231">                        text = context.getString(R.string.reading_challenge_streak_ongoing_title),</span>
+<span class="nc" id="L232">                        modifier = GlanceModifier.defaultWeight(),</span>
+<span class="nc" id="L233">                        style = TextStyle(</span>
+<span class="nc" id="L234">                            color = ColorProvider(day = contentColor, night = contentColor),</span>
+<span class="nc" id="L235">                            fontSize = size.titleBarTextSize,</span>
+<span class="nc" id="L236">                            fontWeight = FontWeight.Medium</span>
+                        )
+                    )
+
+<span class="nc" id="L240">                    Spacer(modifier = GlanceModifier.width(12.dp))</span>
+
+                    // W logo (Placeholder)
+<span class="nc" id="L243">                    Image(</span>
+<span class="nc" id="L244">                        provider = ImageProvider(titleBarIcon),</span>
+<span class="nc" id="L245">                        contentDescription = null,</span>
+<span class="nc" id="L246">                        modifier = GlanceModifier.size(size.titleBarIconSize)</span>
+                    )
+<span class="nc" id="L248">                }</span>
+
+                // Middle Row: Flame, Days. (With defaultWeight, it dynamically pushes the rows apart to match the design spacing perfectly)
+<span class="nc" id="L251">                WidgetBadge(</span>
+<span class="nc" id="L252">                    modifier = GlanceModifier</span>
+<span class="nc" id="L253">                        .defaultWeight(),</span>
+<span class="nc" id="L254">                    text = streakText,</span>
+<span class="nc" id="L255">                    iconResId = R.drawable.ic_flame_24dp,</span>
+<span class="nc" id="L256">                    textSize = size.streakBadgeTextSize,</span>
+<span class="nc" id="L257">                    iconSize = size.streakBadgeIconSize,</span>
+<span class="nc" id="L258">                    iconTintColor = contentColor,</span>
+<span class="nc" id="L259">                    textColor = contentColor</span>
+                )
+
+                // Bottom Row: Progress bar
+<span class="nc" id="L263">                BoxedStreakProgressBar(</span>
+<span class="nc" id="L264">                    modifier = GlanceModifier</span>
+<span class="nc" id="L265">                        .fillMaxWidth()</span>
+<span class="nc" id="L266">                        .padding(horizontal = 16.dp, vertical = 12.dp),</span>
+<span class="nc" id="L267">                    currentStreak = state.streak,</span>
+<span class="nc" id="L268">                    totalDays = ReadingChallengeWidgetRepository.READING_STREAK_GOAL,</span>
+<span class="nc" id="L269">                    startIconResId = R.drawable.ic_calendar_day_1,</span>
+<span class="nc" id="L270">                    endIconResId = R.drawable.ic_calendar_day_25,</span>
+<span class="nc" id="L271">                    backgroundColor = contentColor,</span>
+<span class="nc" id="L272">                    progressColor = progressColor,</span>
+<span class="nc" id="L273">                    progressBarColor = WidgetColors.white</span>
+                )
+<span class="nc" id="L275">            }</span>
+
+            // Mascot overlay positioned absolutely inside the Box bounds
+<span class="nc" id="L278">            Box(</span>
+<span class="nc" id="L279">                modifier = GlanceModifier</span>
+<span class="nc" id="L280">                    .fillMaxSize()</span>
+<span class="nc" id="L281">                    .padding(end = 24.dp, bottom = 32.dp),</span>
+<span class="nc" id="L282">                contentAlignment = Alignment.CenterEnd</span>
+<span class="nc" id="L283">            ) {</span>
+<span class="nc" id="L284">                Image(</span>
+<span class="nc" id="L285">                    provider = ImageProvider(mascotImageResId),</span>
+<span class="nc" id="L286">                    contentDescription = null,</span>
+<span class="nc" id="L287">                    modifier = GlanceModifier</span>
+<span class="nc" id="L288">                        .size(size.overlayMascotSize)</span>
+                )
+<span class="nc" id="L290">            }</span>
+<span class="nc" id="L291">        }</span>
+<span class="nc" id="L292">    }</span>
+<span class="nc" id="L293">}</span>
+
+@Composable
+<span class="nc bnc" id="L296" title="All 2 branches missed.">fun StreakOngoingNeedsReadingLargeWidget(</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">    modifier: GlanceModifier = GlanceModifier,</span>
+    clickAction: Action,
+    state: ReadingChallengeState.StreakOngoingNeedsReading,
+<span class="nc" id="L300">    titleBarIcon: Int = R.drawable.ic_w_logo_shadow,</span>
+    reminderTextResId: Int,
+    backgroundColor: Color,
+    mascotImageResId: Int,
+    contentColor: Color
+<span class="nc bnc" id="L305" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L306">    val context = LocalContext.current</span>
+<span class="nc" id="L307">    val streakText = context.resources.getQuantityString(R.plurals.reading_challenge_small_widget_streak, state.streak, state.streak)</span>
+<span class="nc" id="L308">    val reminderText = context.getString(reminderTextResId)</span>
+
+<span class="nc" id="L310">    val widgetDimension = LocalSize.current</span>
+<span class="nc" id="L311">    val size = LargeWidgetSize.from(widgetDimension)</span>
+<span class="nc" id="L312">    BaseWidgetContent(</span>
+<span class="nc" id="L313">        color = backgroundColor</span>
+<span class="nc" id="L314">    ) {</span>
+<span class="nc" id="L315">        Column (</span>
+<span class="nc" id="L316">            modifier = modifier</span>
+<span class="nc" id="L317">                .clickable(clickAction)</span>
+<span class="nc" id="L318">        ) {</span>
+<span class="nc" id="L319">            Row (</span>
+<span class="nc" id="L320">                modifier = GlanceModifier</span>
+<span class="nc" id="L321">                    .defaultWeight()</span>
+<span class="nc" id="L322">                    .fillMaxWidth()</span>
+<span class="nc" id="L323">            ) {</span>
+<span class="nc" id="L324">                LazyColumn(</span>
+<span class="nc" id="L325">                    modifier = GlanceModifier</span>
+<span class="nc" id="L326">                        .defaultWeight()</span>
+<span class="nc" id="L327">                ) {</span>
+<span class="nc" id="L328">                    item {</span>
+<span class="nc" id="L329">                        WidgetBadge(</span>
+<span class="nc" id="L330">                            modifier = GlanceModifier</span>
+<span class="nc" id="L331">                                .clickable(</span>
+<span class="nc" id="L332">                                    onClick = clickAction,</span>
+<span class="nc" id="L333">                                    rippleOverride = android.R.color.transparent</span>
+                                ),
+<span class="nc" id="L335">                            text = streakText,</span>
+<span class="nc" id="L336">                            textSize = size.streakBadgeTextSize,</span>
+<span class="nc" id="L337">                            iconResId = R.drawable.ic_streak_warning,</span>
+<span class="nc" id="L338">                            iconSize = size.streakBadgeIconSize,</span>
+<span class="nc" id="L339">                            textColor = contentColor</span>
+                        )
+<span class="nc" id="L341">                    }</span>
+<span class="nc" id="L342">                    item {</span>
+<span class="nc" id="L343">                        Text(</span>
+<span class="nc" id="L344">                            modifier = GlanceModifier</span>
+<span class="nc" id="L345">                                .clickable(</span>
+<span class="nc" id="L346">                                    onClick = clickAction,</span>
+<span class="nc" id="L347">                                    rippleOverride = android.R.color.transparent</span>
+                                ),
+<span class="nc" id="L349">                            text = reminderText,</span>
+<span class="nc" id="L350">                            style = TextStyle(</span>
+<span class="nc" id="L351">                                fontSize = size.subtitleTextSize,</span>
+<span class="nc" id="L352">                                color = ColorProvider(day = contentColor, night = contentColor),</span>
+<span class="nc" id="L353">                                fontWeight = FontWeight.Medium,</span>
+                            )
+                        )
+<span class="nc" id="L356">                    }</span>
+<span class="nc" id="L357">                }</span>
+<span class="nc" id="L358">                Spacer(modifier = GlanceModifier.width(12.dp))</span>
+<span class="nc" id="L359">                val mascotImageSize = minOf(size.sideMascotSize, widgetDimension.height - size.titleBarIconSize)</span>
+
+<span class="nc" id="L361">                Column(</span>
+<span class="nc" id="L362">                    modifier = GlanceModifier</span>
+<span class="nc" id="L363">                        .width(mascotImageSize + size.rightColumnExtraSpace)</span>
+<span class="nc" id="L364">                        .fillMaxHeight(),</span>
+<span class="nc" id="L365">                    horizontalAlignment = Alignment.End</span>
+<span class="nc" id="L366">                ) {</span>
+<span class="nc" id="L367">                    Image(</span>
+<span class="nc" id="L368">                        provider = ImageProvider(titleBarIcon),</span>
+<span class="nc" id="L369">                        contentDescription = null,</span>
+<span class="nc" id="L370">                        modifier = GlanceModifier.size(size.titleBarIconSize)</span>
+                    )
+<span class="nc" id="L372">                    Box(</span>
+<span class="nc" id="L373">                        modifier = GlanceModifier.fillMaxSize(),</span>
+<span class="nc" id="L374">                        contentAlignment = Alignment.Center</span>
+<span class="nc" id="L375">                    ) {</span>
+<span class="nc" id="L376">                        Image(</span>
+<span class="nc" id="L377">                            provider = ImageProvider(mascotImageResId),</span>
+<span class="nc" id="L378">                            contentDescription = null,</span>
+<span class="nc" id="L379">                            modifier = GlanceModifier</span>
+<span class="nc" id="L380">                                .size(mascotImageSize)</span>
+                        )
+<span class="nc" id="L382">                    }</span>
+<span class="nc" id="L383">                }</span>
+<span class="nc" id="L384">            }</span>
+<span class="nc" id="L385">            Spacer(modifier = GlanceModifier.height(2.dp))</span>
+<span class="nc" id="L386">            Row(</span>
+<span class="nc" id="L387">                modifier = GlanceModifier</span>
+<span class="nc" id="L388">                    .fillMaxWidth()</span>
+<span class="nc" id="L389">            ) {</span>
+<span class="nc" id="L390">                WidgetIconButton(</span>
+<span class="nc" id="L391">                    modifier = GlanceModifier</span>
+<span class="nc" id="L392">                        .defaultWeight(),</span>
+<span class="nc" id="L393">                    text = context.getString(R.string.reading_challenge_widget_search_button),</span>
+<span class="nc" id="L394">                    iconResId = R.drawable.outline_search_24,</span>
+<span class="nc" id="L395">                    action = actionRunCallback&lt;SearchAction&gt;()</span>
+                )
+<span class="nc" id="L397">                Spacer(modifier = GlanceModifier.width(16.dp))</span>
+<span class="nc" id="L398">                WidgetIconButton(</span>
+<span class="nc" id="L399">                    modifier = GlanceModifier</span>
+<span class="nc" id="L400">                        .defaultWeight(),</span>
+<span class="nc" id="L401">                    text = context.getString(R.string.reading_challenge_widget_random_button),</span>
+<span class="nc" id="L402">                    iconResId = R.drawable.ic_dice_24,</span>
+<span class="nc" id="L403">                    action = actionRunCallback&lt;RandomizerAction&gt;()</span>
+                )
+<span class="nc" id="L405">            }</span>
+<span class="nc" id="L406">        }</span>
+<span class="nc" id="L407">    }</span>
+<span class="nc" id="L408">}</span>
+
+@Composable
+<span class="nc bnc" id="L411" title="All 2 branches missed.">fun EnrolledNotStartedLargeWidget(</span>
+<span class="nc" id="L412">    titleBarIcon: Int = R.drawable.ic_w_logo_shadow,</span>
+    mainImageResId: Int,
+    backgroundColor: Color,
+    contentColor: Color,
+    titleResId: Int,
+    subtitleReId: Int
+<span class="nc bnc" id="L418" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L419">    val context = LocalContext.current</span>
+
+<span class="nc" id="L421">    val title = context.getString(titleResId)</span>
+<span class="nc" id="L422">    val subtitle = context.getString(subtitleReId)</span>
+
+<span class="nc" id="L424">    GeneralLargeWidget(</span>
+<span class="nc" id="L425">        modifier = GlanceModifier,</span>
+<span class="nc" id="L426">        clickAction = actionRunCallback&lt;HomeAction&gt;(),</span>
+<span class="nc" id="L427">        textColor = contentColor,</span>
+<span class="nc" id="L428">        backgroundColor = backgroundColor,</span>
+<span class="nc" id="L429">        titleBarIcon = titleBarIcon,</span>
+<span class="nc" id="L430">        title = title,</span>
+<span class="nc" id="L431">        subTitle = subtitle,</span>
+<span class="nc" id="L432">        mainImageResId = mainImageResId,</span>
+<span class="nc" id="L433">        bottomContent = {</span>
+<span class="nc" id="L434">            Row(modifier = GlanceModifier.fillMaxWidth()) {</span>
+<span class="nc" id="L435">                WidgetIconButton(</span>
+<span class="nc" id="L436">                    modifier = GlanceModifier.defaultWeight(),</span>
+<span class="nc" id="L437">                    text = context.getString(R.string.reading_challenge_widget_search_button),</span>
+<span class="nc" id="L438">                    iconResId = R.drawable.outline_search_24,</span>
+<span class="nc" id="L439">                    action = actionRunCallback&lt;SearchAction&gt;()</span>
+                )
+<span class="nc" id="L441">                Spacer(modifier = GlanceModifier.width(16.dp))</span>
+<span class="nc" id="L442">                WidgetIconButton(</span>
+<span class="nc" id="L443">                    modifier = GlanceModifier.defaultWeight(),</span>
+<span class="nc" id="L444">                    text = context.getString(R.string.reading_challenge_widget_random_button),</span>
+<span class="nc" id="L445">                    iconResId = R.drawable.ic_dice_24,</span>
+<span class="nc" id="L446">                    action = actionRunCallback&lt;RandomizerAction&gt;()</span>
+                )
+<span class="nc" id="L448">            }</span>
+<span class="nc" id="L449">        }</span>
+    )
+<span class="nc" id="L451">}</span>
+
+@Composable
+<span class="nc bnc" id="L454" title="All 2 branches missed.">fun GeneralLargeWidget(</span>
+<span class="nc bnc" id="L455" title="All 2 branches missed.">    modifier: GlanceModifier = GlanceModifier,</span>
+    clickAction: Action,
+    textColor: Color,
+    backgroundColor: Color,
+<span class="nc bnc" id="L459" title="All 2 branches missed.">    titleBarIcon: Int = R.drawable.ic_w_logo_shadow,</span>
+    title: String,
+<span class="nc bnc" id="L461" title="All 2 branches missed.">    subTitle: String? = null,</span>
+    mainImageResId: Int,
+<span class="nc bnc" id="L463" title="All 4 branches missed.">    expandMascot: Boolean = false,</span>
+<span class="nc" id="L464">    subTitleContent: @Composable () -&gt; Unit = { },</span>
+<span class="nc" id="L465">    bottomContent: @Composable () -&gt; Unit = { }</span>
+<span class="nc bnc" id="L466" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L467">    val widgetDimension = LocalSize.current</span>
+<span class="nc" id="L468">    val size = LargeWidgetSize.from(widgetDimension)</span>
+<span class="nc" id="L469">    BaseWidgetContent(</span>
+<span class="nc" id="L470">        color = backgroundColor</span>
+<span class="nc" id="L471">    ) {</span>
+<span class="nc" id="L472">        Column(</span>
+<span class="nc" id="L473">            modifier = modifier</span>
+<span class="nc" id="L474">                .clickable(clickAction)</span>
+<span class="nc" id="L475">                .fillMaxSize()</span>
+<span class="nc" id="L476">                .padding(horizontal = 16.dp, vertical = 12.dp)</span>
+<span class="nc" id="L477">        ) {</span>
+<span class="nc" id="L478">            Row(</span>
+<span class="nc" id="L479">                modifier = GlanceModifier</span>
+<span class="nc" id="L480">                    .defaultWeight()</span>
+<span class="nc" id="L481">                    .fillMaxWidth()</span>
+<span class="nc" id="L482">            ) {</span>
+                // Left column: title, optional subtitle content, optional subtitle
+<span class="nc" id="L484">                LazyColumn(</span>
+<span class="nc" id="L485">                    modifier = GlanceModifier</span>
+<span class="nc" id="L486">                        .defaultWeight()</span>
+<span class="nc" id="L487">                ) {</span>
+<span class="nc" id="L488">                    item {</span>
+<span class="nc" id="L489">                        Text(</span>
+<span class="nc" id="L490">                            modifier = GlanceModifier</span>
+<span class="nc" id="L491">                                .clickable(</span>
+<span class="nc" id="L492">                                    onClick = clickAction,</span>
+<span class="nc" id="L493">                                    rippleOverride = android.R.color.transparent</span>
+                                ),
+<span class="nc" id="L495">                            text = title,</span>
+<span class="nc" id="L496">                            style = TextStyle(</span>
+<span class="nc" id="L497">                                fontSize = size.titleTextSize,</span>
+<span class="nc" id="L498">                                color = ColorProvider(day = textColor, night = textColor),</span>
+<span class="nc" id="L499">                                fontWeight = FontWeight.Medium,</span>
+                            )
+                        )
+<span class="nc" id="L502">                    }</span>
+<span class="nc" id="L503">                    item { subTitleContent() }</span>
+<span class="nc" id="L504">                    item { Spacer(modifier = GlanceModifier.height(8.dp)) }</span>
+<span class="nc bnc" id="L505" title="All 2 branches missed.">                    subTitle?.let {</span>
+<span class="nc" id="L506">                        item {</span>
+<span class="nc" id="L507">                            Text(</span>
+<span class="nc" id="L508">                                modifier = GlanceModifier</span>
+<span class="nc" id="L509">                                    .clickable(</span>
+<span class="nc" id="L510">                                        onClick = clickAction,</span>
+<span class="nc" id="L511">                                        rippleOverride = android.R.color.transparent</span>
+                                    ),
+<span class="nc" id="L513">                                text = it,</span>
+<span class="nc" id="L514">                                style = TextStyle(</span>
+<span class="nc" id="L515">                                    fontSize = size.subtitleTextSize,</span>
+<span class="nc" id="L516">                                    color = ColorProvider(day = textColor, night = textColor),</span>
+<span class="nc" id="L517">                                    fontWeight = FontWeight.Medium,</span>
+                                )
+                            )
+<span class="nc" id="L520">                        }</span>
+<span class="nc" id="L521">                    }</span>
+<span class="nc" id="L522">                }</span>
+<span class="nc" id="L523">                Spacer(modifier = GlanceModifier.width(12.dp))</span>
+                // Right column: W logo pinned top-right, mascot centered below
+<span class="nc bnc" id="L525" title="All 2 branches missed.">                val mascotImageSize = if (expandMascot) {</span>
+<span class="nc" id="L526">                    minOf(size.expandedMascotSize, widgetDimension.height - size.titleBarIconSize)</span>
+                } else {
+<span class="nc" id="L528">                    minOf(size.sideMascotSize, widgetDimension.height - size.titleBarIconSize)</span>
+                }
+
+<span class="nc" id="L531">                Column(</span>
+<span class="nc" id="L532">                    modifier = GlanceModifier</span>
+<span class="nc" id="L533">                        .width(mascotImageSize + size.rightColumnExtraSpace)</span>
+<span class="nc" id="L534">                        .fillMaxHeight(),</span>
+<span class="nc" id="L535">                    horizontalAlignment = Alignment.End</span>
+<span class="nc" id="L536">                ) {</span>
+<span class="nc" id="L537">                    Image(</span>
+<span class="nc" id="L538">                        provider = ImageProvider(titleBarIcon),</span>
+<span class="nc" id="L539">                        contentDescription = null,</span>
+<span class="nc" id="L540">                        modifier = GlanceModifier.size(size.titleBarIconSize)</span>
+                    )
+
+<span class="nc" id="L543">                    Box(</span>
+<span class="nc" id="L544">                        modifier = GlanceModifier.fillMaxSize(),</span>
+<span class="nc" id="L545">                        contentAlignment = Alignment.Center</span>
+<span class="nc" id="L546">                    ) {</span>
+<span class="nc" id="L547">                        Image(</span>
+<span class="nc" id="L548">                            provider = ImageProvider(mainImageResId),</span>
+<span class="nc" id="L549">                            contentDescription = null,</span>
+<span class="nc" id="L550">                            modifier = GlanceModifier.size(mascotImageSize)</span>
+                        )
+<span class="nc" id="L552">                    }</span>
+<span class="nc" id="L553">                }</span>
+<span class="nc" id="L554">            }</span>
+<span class="nc" id="L555">            Spacer(modifier = GlanceModifier.height(2.dp))</span>
+            // Bottom row: optional CTA / additional content (e.g. &quot;Join the challenge&quot; button)
+<span class="nc" id="L557">            bottomContent()</span>
+<span class="nc" id="L558">        }</span>
+<span class="nc" id="L559">    }</span>
+<span class="nc" id="L560">}</span>
+
+// Loading state
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 368, heightDp = 224)
+@Composable
+<span class="nc" id="L566">fun LoadingFullPreview() {</span>
+<span class="nc" id="L567">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L568">        state = ReadingChallengeState.Loading,</span>
+<span class="nc" id="L569">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L571">}</span>
+
+// NotEnrolled: button + mascot + title + subtitle
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L582">fun NotEnrolledLargePreview() {</span>
+<span class="nc" id="L583">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L584">        state = ReadingChallengeState.NotEnrolled,</span>
+<span class="nc" id="L585">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L587">}</span>
+
+// NotLiveYet: button + mascot + title + subtitle
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L598">fun NotLiveYetLargePreview() {</span>
+<span class="nc" id="L599">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L600">        state = ReadingChallengeState.NotLiveYet,</span>
+<span class="nc" id="L601">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L603">}</span>
+
+// EnrolledNotStarted: two icon buttons + mascot + title + subtitle
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L614">fun EnrolledNotStartedLargePreview() {</span>
+<span class="nc" id="L615">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L616">        state = ReadingChallengeState.EnrolledNotStarted,</span>
+<span class="nc" id="L617">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L619">}</span>
+
+// StreakOngoingReadToday: title row + badge + progress bar + overlay mascot
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L630">fun StreakOngoingReadTodayLargePreview() {</span>
+<span class="nc" id="L631">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L632">        state = ReadingChallengeState.StreakOngoingReadToday(streak = 15),</span>
+<span class="nc" id="L633">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L635">}</span>
+
+// StreakOngoingNeedsReading: badge + reminder + side mascot + two buttons
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 368, heightDp = 123)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 224) // COMPACT
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L648">fun StreakOngoingNeedsReadingLargePreview() {</span>
+<span class="nc" id="L649">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L650">        state = ReadingChallengeState.StreakOngoingNeedsReading(streak = 7),</span>
+<span class="nc" id="L651">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L653">}</span>
+
+// ChallengeCompleted: title + badge + button + expanded mascot
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L664">fun ChallengeCompletedLargePreview() {</span>
+<span class="nc" id="L665">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L666">        state = ReadingChallengeState.ChallengeCompleted,</span>
+<span class="nc" id="L667">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L669">}</span>
+
+// ChallengeConcludedIncomplete: button-with-icon + expanded mascot
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L680">fun ChallengeConcludedIncompleteLargePreview() {</span>
+<span class="nc" id="L681">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L682">        state = ReadingChallengeState.ChallengeConcludedIncomplete(streak = 12),</span>
+<span class="nc" id="L683">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L685">}</span>
+
+// ChallengeConcludedIncomplete: button-with-icon + expanded mascot
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 320, heightDp = 130) // launcher placed below declared minHeight (rare)
+@Preview(widthDp = 320, heightDp = 156) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 330, heightDp = 176) // EXTRA_COMPACT worst-case
+@Preview(widthDp = 340, heightDp = 200) // COMPACT
+@Preview(widthDp = 368, heightDp = 184) // COMPACT, wider
+@Preview(widthDp = 368, heightDp = 234) // FULL
+@Composable
+<span class="nc" id="L696">fun ChallengeConcludedNoStreakLargePreview() {</span>
+<span class="nc" id="L697">    ReadingChallengeLargeWidgetContent(</span>
+<span class="nc" id="L698">        state = ReadingChallengeState.ChallengeConcludedNoStreak,</span>
+<span class="nc" id="L699">        enrollmentDate = LocalDate.now()</span>
+    )
+<span class="nc" id="L701">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,582 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TalkTopicsActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.talk</a> &gt; <span class="el_source">TalkTopicsActivity.kt</span></div><h1>TalkTopicsActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.talk
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.appcompat.view.ActionMode
+import androidx.core.view.MenuItemCompat
+import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.ConcatAdapter
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource.TALK_TOPICS_ACTIVITY
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.databinding.ActivityTalkTopicsBinding
+import org.wikipedia.databinding.ItemTalkTopicBinding
+import org.wikipedia.databinding.ViewTalkTopicsHeaderBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.discussiontools.ThreadItem
+import org.wikipedia.dataclient.okhttp.HttpStatusException
+import org.wikipedia.edit.EditHandler
+import org.wikipedia.edit.EditSectionActivity
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.history.SearchActionModeCallback
+import org.wikipedia.notifications.NotificationActivity
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.Namespace
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.page.action.PageActionItem
+import org.wikipedia.page.edithistory.EditHistoryListActivity
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.languages.WikipediaLanguagesActivity
+import org.wikipedia.settings.languages.WikipediaLanguagesFragment
+import org.wikipedia.staticdata.TalkAliasData
+import org.wikipedia.staticdata.UserAliasData
+import org.wikipedia.staticdata.UserTalkAliasData
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.DrawableItemDecoration
+import org.wikipedia.views.NotificationButtonView
+import org.wikipedia.views.SearchActionProvider
+import org.wikipedia.views.SwipeableItemTouchHelperCallback
+import org.wikipedia.views.TalkTopicsSortOverflowView
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.watchlist.WatchlistExpiry
+import org.wikipedia.watchlist.WatchlistExpiryDialog
+import org.wikipedia.watchlist.WatchlistViewModel
+
+<span class="nc" id="L71">class TalkTopicsActivity : BaseActivity(), WatchlistExpiryDialog.Callback {</span>
+    private lateinit var binding: ActivityTalkTopicsBinding
+    private lateinit var invokeSource: Constants.InvokeSource
+    private lateinit var notificationButtonView: NotificationButtonView
+<span class="nc" id="L75">    private val viewModel: TalkTopicsViewModel by viewModels { TalkTopicsViewModel.Factory(intent.parcelableExtra(Constants.ARG_TITLE)!!) }</span>
+<span class="nc" id="L76">    private val concatAdapter = ConcatAdapter()</span>
+<span class="nc" id="L77">    private val headerAdapter = HeaderItemAdapter()</span>
+<span class="nc" id="L78">    private val talkTopicItemAdapter = TalkTopicItemAdapter()</span>
+    private var actionMode: ActionMode? = null
+<span class="nc" id="L80">    private val searchActionModeCallback = SearchCallback()</span>
+    private var goToTopic = false
+
+<span class="nc" id="L83">    private val requestLanguageChange = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            it.data?.let { intent -&gt;</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                if (intent.hasExtra(WikipediaLanguagesFragment.ACTIVITY_RESULT_LANG_POSITION_DATA)) {</span>
+<span class="nc" id="L87">                    val pos = intent.getIntExtra(WikipediaLanguagesFragment.ACTIVITY_RESULT_LANG_POSITION_DATA, 0)</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                    if (pos &lt; WikipediaApp.instance.languageState.appLanguageCodes.size) {</span>
+
+<span class="nc" id="L90">                        val newNamespace = when {</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                            viewModel.pageTitle.namespace() == Namespace.USER -&gt; {</span>
+<span class="nc" id="L92">                                UserAliasData.valueFor(WikipediaApp.instance.languageState.appLanguageCodes[pos])</span>
+                            }
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                            viewModel.pageTitle.namespace() == Namespace.USER_TALK -&gt; {</span>
+<span class="nc" id="L95">                                UserTalkAliasData.valueFor(WikipediaApp.instance.languageState.appLanguageCodes[pos])</span>
+                            }
+<span class="nc" id="L97">                            else -&gt; viewModel.pageTitle.namespace</span>
+                        }
+
+<span class="nc" id="L100">                        val newPageTitle = PageTitle(newNamespace, StringUtil.removeNamespace(viewModel.pageTitle.prefixedText),</span>
+<span class="nc" id="L101">                            WikiSite.forLanguageCode(WikipediaApp.instance.languageState.appLanguageCodes[pos]))</span>
+
+<span class="nc" id="L103">                        resetViews()</span>
+<span class="nc" id="L104">                        viewModel.updatePageTitle(newPageTitle)</span>
+                    }
+                }
+<span class="nc" id="L107">            }</span>
+        }
+<span class="nc" id="L109">    }</span>
+
+<span class="nc" id="L111">    private val requestNewTopic = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if (it.resultCode == TalkReplyActivity.RESULT_EDIT_SUCCESS) {</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            val newRevisionId = it.data?.getLongExtra(TalkReplyActivity.RESULT_NEW_REVISION_ID, 0) ?: 0</span>
+<span class="nc bnc" id="L114" title="All 4 branches missed.">            val undoneSubject = it.data?.getCharSequenceExtra(TalkReplyActivity.EXTRA_SUBJECT) ?: &quot;&quot;</span>
+<span class="nc bnc" id="L115" title="All 4 branches missed.">            val undoneText = it.data?.getCharSequenceExtra(TalkReplyActivity.EXTRA_BODY) ?: &quot;&quot;</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            if (newRevisionId &gt; 0) {</span>
+<span class="nc" id="L117">                FeedbackUtil.makeSnackbar(this, getString(R.string.talk_new_topic_submitted))</span>
+<span class="nc" id="L118">                    .setAnchorView(binding.talkNewTopicButton)</span>
+<span class="nc" id="L119">                    .setAction(R.string.talk_snackbar_undo) {</span>
+<span class="nc" id="L120">                        binding.talkNewTopicButton.isEnabled = false</span>
+<span class="nc" id="L121">                        binding.talkNewTopicButton.alpha = 0.5f</span>
+<span class="nc" id="L122">                        binding.talkProgressBar.isVisible = true</span>
+<span class="nc" id="L123">                        binding.talkConditionContainer.isVisible = true</span>
+<span class="nc" id="L124">                        viewModel.undoSave(newRevisionId, undoneSubject, undoneText)</span>
+<span class="nc" id="L125">                    }</span>
+<span class="nc" id="L126">                    .addCallback(object : Snackbar.Callback() {</span>
+                        override fun onDismissed(transientBottomBar: Snackbar, @DismissEvent event: Int) {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                            if (!isDestroyed) {</span>
+<span class="nc" id="L129">                                AccountUtil.maybeShowTempAccountWelcome(this@TalkTopicsActivity)</span>
+                            }
+<span class="nc" id="L131">                        }</span>
+                    })
+<span class="nc" id="L133">                    .show()</span>
+<span class="nc" id="L134">                viewModel.loadTopics()</span>
+            }
+        } else {
+            // Make sure to reload the list in the case of exiting from the undo process.
+<span class="nc" id="L138">            viewModel.loadTopics()</span>
+        }
+<span class="nc" id="L140">    }</span>
+
+<span class="nc" id="L142">    private val requestEditSource = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (it.resultCode == EditHandler.RESULT_REFRESH_PAGE) {</span>
+<span class="nc" id="L144">            viewModel.loadTopics()</span>
+        }
+<span class="nc" id="L146">    }</span>
+
+<span class="nc" id="L148">    private val requestGoToTopic = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc" id="L149">        finish()</span>
+<span class="nc" id="L150">    }</span>
+
+    public override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L153">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L154">        binding = ActivityTalkTopicsBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L155">        setContentView(binding.root)</span>
+<span class="nc" id="L156">        setSupportActionBar(binding.toolbar)</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        supportActionBar?.setDisplayHomeAsUpEnabled(true)</span>
+
+<span class="nc" id="L159">        goToTopic = intent.getBooleanExtra(EXTRA_GO_TO_TOPIC, false)</span>
+<span class="nc" id="L160">        binding.talkRecyclerView.layoutManager = LinearLayoutManager(this)</span>
+<span class="nc" id="L161">        binding.talkRecyclerView.addItemDecoration(DrawableItemDecoration(this, R.attr.list_divider, drawStart = false, drawEnd = false, skipSearchBar = true))</span>
+<span class="nc" id="L162">        binding.talkRecyclerView.itemAnimator = null</span>
+
+<span class="nc" id="L164">        val touchCallback = SwipeableItemTouchHelperCallback(this,</span>
+<span class="nc" id="L165">            ResourceUtil.getThemedAttributeId(this, R.attr.progressive_color),</span>
+<span class="nc" id="L166">            R.drawable.ic_outline_drafts_24, android.R.color.white, true, binding.talkRefreshView)</span>
+
+<span class="nc" id="L168">        touchCallback.swipeableEnabled = true</span>
+<span class="nc" id="L169">        val itemTouchHelper = ItemTouchHelper(touchCallback)</span>
+<span class="nc" id="L170">        itemTouchHelper.attachToRecyclerView(binding.talkRecyclerView)</span>
+
+<span class="nc" id="L172">        binding.talkErrorView.backClickListener = View.OnClickListener {</span>
+<span class="nc" id="L173">            finish()</span>
+<span class="nc" id="L174">        }</span>
+<span class="nc" id="L175">        binding.talkErrorView.retryClickListener = View.OnClickListener {</span>
+<span class="nc" id="L176">            resetViews()</span>
+<span class="nc" id="L177">            viewModel.loadTopics()</span>
+<span class="nc" id="L178">        }</span>
+
+<span class="nc" id="L180">        binding.talkNewTopicButton.setOnClickListener {</span>
+<span class="nc" id="L181">            requestNewTopic.launch(TalkReplyActivity.newIntent(this@TalkTopicsActivity, viewModel.pageTitle, null, null, TALK_TOPICS_ACTIVITY))</span>
+<span class="nc" id="L182">        }</span>
+
+<span class="nc" id="L184">        binding.talkRefreshView.setOnRefreshListener {</span>
+<span class="nc" id="L185">            binding.talkRefreshView.isRefreshing = false</span>
+<span class="nc" id="L186">            resetViews()</span>
+<span class="nc" id="L187">            viewModel.loadTopics()</span>
+<span class="nc" id="L188">        }</span>
+
+<span class="nc" id="L190">        invokeSource = intent.getSerializableExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE) as Constants.InvokeSource</span>
+
+<span class="nc" id="L192">        binding.talkNewTopicButton.isVisible = false</span>
+
+<span class="nc" id="L194">        notificationButtonView = NotificationButtonView(this)</span>
+<span class="nc" id="L195">        Prefs.hasAnonymousNotification = false</span>
+
+<span class="nc" id="L197">        lifecycleScope.launch {</span>
+<span class="nc" id="L198">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L199">                launch {</span>
+<span class="nc" id="L200">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L201">                        when (it) {</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                            is TalkTopicsViewModel.UiState.UpdateNamespace -&gt; setToolbarTitle(it.pageTitle)</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                            is TalkTopicsViewModel.UiState.LoadTopic -&gt; updateOnSuccess(it.pageTitle, it.threadItems)</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                            is TalkTopicsViewModel.UiState.LoadError -&gt; updateOnError(it.throwable)</span>
+                        }
+<span class="nc" id="L206">                    }</span>
+                }
+
+<span class="nc" id="L209">                launch {</span>
+<span class="nc" id="L210">                    viewModel.actionState.collect {</span>
+<span class="nc" id="L211">                        when (it) {</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                            is TalkTopicsViewModel.ActionState.UndoEdit -&gt; updateOnUndoSave(it.undoneSubject, it.undoneBody)</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">                            is TalkTopicsViewModel.ActionState.DoWatch -&gt; updateOnWatch(it.message)</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                            is TalkTopicsViewModel.ActionState.OnError -&gt; FeedbackUtil.showError(this@TalkTopicsActivity, it.throwable)</span>
+                        }
+<span class="nc" id="L216">                    }</span>
+                }
+<span class="nc" id="L218">            }</span>
+<span class="nc" id="L219">        }</span>
+<span class="nc" id="L220">        resetViews()</span>
+<span class="nc" id="L221">    }</span>
+
+    public override fun onResume() {
+<span class="nc" id="L224">        super.onResume()</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        searchActionModeCallback.searchActionProvider?.selectAllQueryTexts()</span>
+<span class="nc" id="L226">    }</span>
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+<span class="nc bnc" id="L229" title="All 2 branches missed.">        if (!goToTopic) {</span>
+<span class="nc" id="L230">            menuInflater.inflate(R.menu.menu_talk, menu)</span>
+        }
+<span class="nc" id="L232">        return super.onCreateOptionsMenu(menu)</span>
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        if (!goToTopic) {</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">            menu.findItem(R.id.menu_change_language).isVisible = viewModel.pageTitle.namespace() == Namespace.USER_TALK</span>
+<span class="nc bnc" id="L238" title="All 4 branches missed.">            menu.findItem(R.id.menu_read_article).isVisible = viewModel.pageTitle.namespace() != Namespace.USER_TALK &amp;&amp; invokeSource != Constants.InvokeSource.ARCHIVED_TALK_ACTIVITY</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            menu.findItem(R.id.menu_view_user_page).isVisible = viewModel.pageTitle.namespace() == Namespace.USER_TALK</span>
+<span class="nc" id="L240">            menu.findItem(R.id.menu_view_user_page).title = getString(R.string.menu_option_user_page, StringUtil.removeHTMLTags(StringUtil.removeNamespace(viewModel.pageTitle.displayText)))</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">            menu.findItem(R.id.menu_edit_source)?.isVisible = AccountUtil.isLoggedIn</span>
+
+<span class="nc" id="L243">            val notificationMenuItem = menu.findItem(R.id.menu_notifications)</span>
+<span class="nc" id="L244">            val watchMenuItem = menu.findItem(R.id.menu_watch)</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">            if (AccountUtil.isLoggedIn) {</span>
+                // Notification
+<span class="nc" id="L247">                notificationMenuItem.isVisible = true</span>
+<span class="nc" id="L248">                notificationButtonView.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc" id="L249">                notificationButtonView.setOnClickListener {</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">                    if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L251">                        startActivity(NotificationActivity.newIntent(this))</span>
+                    }
+<span class="nc" id="L253">                }</span>
+<span class="nc" id="L254">                notificationButtonView.contentDescription =</span>
+<span class="nc" id="L255">                    getString(R.string.notifications_activity_title)</span>
+<span class="nc" id="L256">                notificationMenuItem.actionView = notificationButtonView</span>
+<span class="nc" id="L257">                notificationMenuItem.expandActionView()</span>
+<span class="nc" id="L258">                FeedbackUtil.setButtonTooltip(notificationButtonView)</span>
+
+                // Watchlist
+<span class="nc" id="L261">                watchMenuItem.isVisible = true</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">                watchMenuItem.title = getString(if (viewModel.isWatched) R.string.menu_page_unwatch else R.string.menu_page_watch)</span>
+<span class="nc" id="L263">                watchMenuItem.setIcon(PageActionItem.watchlistIcon(viewModel.isWatched, viewModel.hasWatchlistExpiry))</span>
+            } else {
+<span class="nc" id="L265">                notificationMenuItem.isVisible = false</span>
+<span class="nc" id="L266">                watchMenuItem.isVisible = false</span>
+            }
+<span class="nc" id="L268">            updateNotificationDot(false)</span>
+        }
+<span class="nc" id="L270">        return super.onPrepareOptionsMenu(menu)</span>
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L274">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">            R.id.menu_change_language -&gt; {</span>
+<span class="nc" id="L276">                requestLanguageChange.launch(WikipediaLanguagesActivity.newIntent(this, Constants.InvokeSource.TALK_TOPICS_ACTIVITY))</span>
+<span class="nc" id="L277">                true</span>
+            }
+<span class="nc bnc" id="L279" title="All 4 branches missed.">            R.id.menu_read_article, R.id.menu_view_user_page -&gt; {</span>
+<span class="nc" id="L280">                goToPage()</span>
+<span class="nc" id="L281">                true</span>
+            }
+<span class="nc bnc" id="L283" title="All 2 branches missed.">            R.id.menu_view_edit_history -&gt; {</span>
+<span class="nc" id="L284">                startActivity(EditHistoryListActivity.newIntent(this, viewModel.pageTitle))</span>
+<span class="nc" id="L285">                true</span>
+            }
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            R.id.menu_talk_topic_share -&gt; {</span>
+<span class="nc" id="L288">                ShareUtil.shareText(this, getString(R.string.talk_share_talk_page), viewModel.pageTitle.uri)</span>
+<span class="nc" id="L289">                true</span>
+            }
+<span class="nc bnc" id="L291" title="All 2 branches missed.">            R.id.menu_watch -&gt; {</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">                if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L293">                    viewModel.watchOrUnwatch(WatchlistExpiry.NEVER, viewModel.isWatched)</span>
+                }
+<span class="nc" id="L295">                true</span>
+            }
+<span class="nc bnc" id="L297" title="All 2 branches missed.">            R.id.menu_edit_source -&gt; {</span>
+<span class="nc" id="L298">                requestEditSource.launch(</span>
+<span class="nc" id="L299">                    EditSectionActivity.newIntent(this, -1, null,</span>
+<span class="nc" id="L300">                        viewModel.pageTitle, Constants.InvokeSource.TALK_TOPICS_ACTIVITY))</span>
+<span class="nc" id="L301">                true</span>
+            }
+<span class="nc bnc" id="L303" title="All 2 branches missed.">            R.id.menu_archive -&gt; {</span>
+<span class="nc" id="L304">                startActivity(ArchivedTalkPagesActivity.newIntent(this, viewModel.pageTitle))</span>
+<span class="nc" id="L305">                true</span>
+            }
+<span class="nc" id="L307">            else -&gt; super.onOptionsItemSelected(item)</span>
+        }
+    }
+
+    override fun onUnreadNotification() {
+<span class="nc" id="L312">        updateNotificationDot(true)</span>
+<span class="nc" id="L313">    }</span>
+
+    override fun onExpiryChanged(expiry: WatchlistExpiry) {
+<span class="nc bnc" id="L316" title="All 2 branches missed.">        viewModel.hasWatchlistExpiry = expiry !== WatchlistExpiry.NEVER</span>
+<span class="nc" id="L317">        invalidateOptionsMenu()</span>
+<span class="nc" id="L318">    }</span>
+
+    private fun resetViews() {
+<span class="nc" id="L321">        invalidateOptionsMenu()</span>
+<span class="nc" id="L322">        binding.talkContentsView.setLayoutDirectionByLang(viewModel.pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L323">        binding.talkProgressBar.isVisible = true</span>
+<span class="nc" id="L324">        binding.talkErrorView.isVisible = false</span>
+<span class="nc" id="L325">        binding.talkEmptyContainer.isVisible = false</span>
+<span class="nc" id="L326">        binding.talkConditionContainer.isVisible = true</span>
+<span class="nc" id="L327">    }</span>
+
+    private fun updateOnSuccess(pageTitle: PageTitle, threadItems: List&lt;ThreadItem&gt;) {
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        if (binding.talkRecyclerView.adapter == null) {</span>
+<span class="nc" id="L331">            binding.talkRecyclerView.adapter = concatAdapter.apply {</span>
+<span class="nc" id="L332">                addAdapter(0, headerAdapter)</span>
+<span class="nc" id="L333">                addAdapter(1, talkTopicItemAdapter)</span>
+<span class="nc" id="L334">            }</span>
+        }
+
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        if (intent.getBooleanExtra(EXTRA_GO_TO_TOPIC, false)) {</span>
+<span class="nc" id="L338">            intent.putExtra(EXTRA_GO_TO_TOPIC, false)</span>
+<span class="nc" id="L339">            var threadTopic: ThreadItem? = null</span>
+<span class="nc" id="L340">            var threadItem: ThreadItem? = null</span>
+<span class="nc bnc" id="L341" title="All 6 branches missed.">            if (!pageTitle.fragment.isNullOrEmpty()) {</span>
+<span class="nc" id="L342">                threadItems.forEach { topic -&gt;</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">                    if (threadTopic == null) {</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">                        if (StringUtil.addUnderscores(StringUtil.fromHtml(topic.html).toString()) == pageTitle.fragment ||</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">                                topic.name == pageTitle.fragment) {</span>
+<span class="nc" id="L346">                            threadTopic = topic</span>
+                        } else {
+<span class="nc bnc" id="L348" title="All 4 branches missed.">                            threadItem = topic.allReplies.find { it.id == pageTitle.fragment }</span>
+<span class="nc bnc" id="L349" title="All 2 branches missed.">                            if (threadItem != null) {</span>
+<span class="nc" id="L350">                                threadTopic = topic</span>
+                            }
+                        }
+                    }
+<span class="nc" id="L354">                }</span>
+            }
+<span class="nc bnc" id="L356" title="All 2 branches missed.">            if (threadTopic != null) {</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">                requestGoToTopic.launch(TalkTopicActivity.newIntent(this@TalkTopicsActivity, pageTitle, threadTopic.name, threadTopic.id, threadItem?.id, viewModel.currentSearchQuery, invokeSource))</span>
+<span class="nc" id="L358">                overridePendingTransition(0, 0)</span>
+<span class="nc" id="L359">                return</span>
+            }
+        }
+<span class="nc" id="L362">        goToTopic = false</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">        if (threadItems.isEmpty()) {</span>
+<span class="nc" id="L364">            updateOnEmpty()</span>
+        } else {
+<span class="nc" id="L366">            binding.talkErrorView.isVisible = false</span>
+<span class="nc" id="L367">            binding.talkConditionContainer.isVisible = false</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">            if (actionMode != null) {</span>
+<span class="nc" id="L369">                binding.talkNewTopicButton.hide()</span>
+            } else {
+<span class="nc" id="L371">                binding.talkNewTopicButton.show()</span>
+<span class="nc" id="L372">                binding.talkNewTopicButton.isEnabled = true</span>
+<span class="nc" id="L373">                binding.talkNewTopicButton.alpha = 1.0f</span>
+            }
+<span class="nc" id="L375">            talkTopicItemAdapter.notifyDataSetChanged()</span>
+        }
+<span class="nc" id="L377">        binding.talkProgressBar.isVisible = false</span>
+<span class="nc" id="L378">        invalidateOptionsMenu()</span>
+<span class="nc" id="L379">        setToolbarTitle(pageTitle)</span>
+<span class="nc" id="L380">    }</span>
+
+    private fun updateOnError(t: Throwable) {
+<span class="nc" id="L383">        binding.talkProgressBar.isVisible = false</span>
+<span class="nc bnc" id="L384" title="All 2 branches missed.">        binding.talkRecyclerView.adapter?.notifyDataSetChanged()</span>
+
+        // In the case of 404, it just means that the talk page hasn't been created yet.
+<span class="nc bnc" id="L387" title="All 4 branches missed.">        if (t is HttpStatusException &amp;&amp; t.code == 404) {</span>
+<span class="nc" id="L388">            updateOnEmpty()</span>
+<span class="nc" id="L389">            invalidateOptionsMenu()</span>
+        } else {
+<span class="nc" id="L391">            binding.talkNewTopicButton.hide()</span>
+<span class="nc" id="L392">            binding.talkConditionContainer.isVisible = true</span>
+<span class="nc" id="L393">            binding.talkErrorView.isVisible = true</span>
+<span class="nc" id="L394">            binding.talkErrorView.setError(t)</span>
+        }
+<span class="nc" id="L396">    }</span>
+
+    private fun updateOnEmpty() {
+<span class="nc" id="L399">        binding.talkProgressBar.isVisible = false</span>
+<span class="nc" id="L400">        binding.talkRefreshView.isRefreshing = false</span>
+<span class="nc" id="L401">        binding.talkEmptyContainer.isVisible = true</span>
+<span class="nc" id="L402">        binding.talkConditionContainer.isVisible = true</span>
+        // Allow them to create a new topic anyway
+<span class="nc" id="L404">        binding.talkNewTopicButton.show()</span>
+<span class="nc" id="L405">    }</span>
+
+    private fun updateOnUndoSave(undoneSubject: CharSequence, undoneBody: CharSequence) {
+<span class="nc" id="L408">        requestNewTopic.launch(TalkReplyActivity.newIntent(this@TalkTopicsActivity, viewModel.pageTitle, null, null, TALK_TOPICS_ACTIVITY, undoneSubject, undoneBody))</span>
+<span class="nc" id="L409">    }</span>
+
+    private fun updateOnWatch(message: String) {
+<span class="nc" id="L412">        WatchlistViewModel.showWatchlistSnackbar(this, supportFragmentManager, viewModel.pageTitle, viewModel.isWatched, message)</span>
+<span class="nc" id="L413">        invalidateOptionsMenu()</span>
+<span class="nc" id="L414">    }</span>
+
+    private fun setToolbarTitle(pageTitle: PageTitle) {
+<span class="nc bnc" id="L417" title="All 4 branches missed.">        val title = StringUtil.fromHtml(pageTitle.namespace.ifEmpty { TalkAliasData.valueFor(pageTitle.wikiSite.languageCode) } + &quot;: &quot; + &quot;&lt;a href='#'&gt;${StringUtil.removeNamespace(StringUtil.removeHTMLTags(pageTitle.displayText))}&lt;/a&gt;&quot;)</span>
+<span class="nc bnc" id="L418" title="All 2 branches missed.">        ViewUtil.getTitleViewFromToolbar(binding.toolbar)?.let {</span>
+<span class="nc" id="L419">            it.contentDescription = title</span>
+<span class="nc bnc" id="L420" title="All 2 branches missed.">            it.isVisible = !goToTopic</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">            if (invokeSource != Constants.InvokeSource.ARCHIVED_TALK_ACTIVITY) {</span>
+<span class="nc" id="L422">                it.movementMethod = LinkMovementMethodExt { _ -&gt;</span>
+<span class="nc" id="L423">                    goToPage()</span>
+<span class="nc" id="L424">                }</span>
+            }
+<span class="nc" id="L426">            FeedbackUtil.setButtonTooltip(it)</span>
+<span class="nc" id="L427">        }</span>
+<span class="nc bnc" id="L428" title="All 2 branches missed.">        supportActionBar?.title = title</span>
+<span class="nc" id="L429">    }</span>
+
+    private fun updateNotificationDot(animate: Boolean) {
+<span class="nc bnc" id="L432" title="All 4 branches missed.">        if (AccountUtil.isLoggedIn &amp;&amp; Prefs.notificationUnreadCount &gt; 0) {</span>
+<span class="nc" id="L433">            notificationButtonView.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">            if (animate) {</span>
+<span class="nc" id="L435">                notificationButtonView.runAnimation()</span>
+            }
+        } else {
+<span class="nc" id="L438">            notificationButtonView.setUnreadCount(0)</span>
+        }
+<span class="nc" id="L440">    }</span>
+
+    private fun goToPage() {
+<span class="nc" id="L443">        val entry = HistoryEntry(getNonTalkPageTitle(viewModel.pageTitle), HistoryEntry.SOURCE_TALK_TOPIC)</span>
+<span class="nc" id="L444">        startActivity(PageActivity.newIntentForNewTab(this, entry, entry.title))</span>
+<span class="nc" id="L445">    }</span>
+
+    private fun updateConcatAdapter() {
+<span class="nc bnc" id="L448" title="All 2 branches missed.">        if (actionMode == null) {</span>
+<span class="nc" id="L449">            concatAdapter.apply {</span>
+<span class="nc" id="L450">                addAdapter(0, headerAdapter)</span>
+<span class="nc" id="L451">            }</span>
+        } else {
+<span class="nc" id="L453">            concatAdapter.apply {</span>
+<span class="nc" id="L454">                removeAdapter(headerAdapter)</span>
+<span class="nc" id="L455">            }</span>
+        }
+<span class="nc" id="L457">    }</span>
+
+<span class="nc" id="L459">    private inner class HeaderItemAdapter : RecyclerView.Adapter&lt;HeaderViewHolder&gt;() {</span>
+        override fun onBindViewHolder(holder: HeaderViewHolder, position: Int) {
+<span class="nc" id="L461">            holder.bindItem()</span>
+<span class="nc" id="L462">        }</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HeaderViewHolder {
+<span class="nc" id="L465">            return HeaderViewHolder(ViewTalkTopicsHeaderBinding.inflate(layoutInflater, parent, false))</span>
+        }
+
+<span class="nc" id="L468">        override fun getItemCount(): Int { return 1 }</span>
+    }
+
+<span class="nc" id="L471">    private inner class HeaderViewHolder constructor(private val binding: ViewTalkTopicsHeaderBinding) : RecyclerView.ViewHolder(binding.root) {</span>
+<span class="nc" id="L472">        init {</span>
+<span class="nc" id="L473">            binding.searchContainer.setCardBackgroundColor(ResourceUtil.getThemedColor(this@TalkTopicsActivity, R.attr.background_color))</span>
+
+<span class="nc" id="L475">            binding.searchContainer.setOnClickListener {</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">                if (actionMode == null) {</span>
+<span class="nc" id="L477">                    actionMode = startSupportActionMode(searchActionModeCallback)</span>
+                }
+<span class="nc" id="L479">            }</span>
+
+<span class="nc" id="L481">            binding.talkSortButton.setOnClickListener {</span>
+<span class="nc" id="L482">                TalkTopicsSortOverflowView(this@TalkTopicsActivity).show(binding.talkSortButton, viewModel.currentSortMode) {</span>
+<span class="nc" id="L483">                    viewModel.currentSortMode = it</span>
+<span class="nc" id="L484">                    talkTopicItemAdapter.notifyDataSetChanged()</span>
+<span class="nc" id="L485">                }</span>
+<span class="nc" id="L486">            }</span>
+
+<span class="nc" id="L488">            FeedbackUtil.setButtonTooltip(binding.talkSortButton)</span>
+<span class="nc" id="L489">        }</span>
+
+        fun bindItem() {
+<span class="nc bnc" id="L492" title="All 2 branches missed.">            binding.talkLeadImageContainer.isVisible = viewModel.pageTitle.namespace() != Namespace.USER_TALK</span>
+<span class="nc bnc" id="L493" title="All 2 branches missed.">            viewModel.pageTitle.thumbUrl?.let {</span>
+<span class="nc" id="L494">                binding.talkLeadImage.contentDescription = StringUtil.removeNamespace(viewModel.pageTitle.displayText)</span>
+<span class="nc" id="L495">                binding.talkLeadImage.loadImage(Uri.parse(ImageUrlUtil.getUrlForPreferredSize(it, Constants.PREFERRED_CARD_THUMBNAIL_SIZE)))</span>
+<span class="nc" id="L496">            } ?: run {</span>
+<span class="nc" id="L497">                binding.talkLeadImageContainer.isVisible = false</span>
+<span class="nc" id="L498">            }</span>
+<span class="nc" id="L499">        }</span>
+    }
+
+<span class="nc" id="L502">    internal inner class TalkTopicItemAdapter : RecyclerView.Adapter&lt;RecyclerView.ViewHolder&gt;() {</span>
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L505">            return viewModel.sortedThreadItems.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, type: Int): RecyclerView.ViewHolder {
+<span class="nc" id="L509">            return TalkTopicHolder(ItemTalkTopicBinding.inflate(layoutInflater, parent, false), this@TalkTopicsActivity, viewModel, invokeSource)</span>
+        }
+
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, pos: Int) {
+<span class="nc bnc" id="L513" title="All 2 branches missed.">            if (holder is TalkTopicHolder) {</span>
+<span class="nc" id="L514">                holder.bindItem(viewModel.sortedThreadItems[pos])</span>
+            }
+<span class="nc" id="L516">        }</span>
+    }
+
+<span class="nc" id="L519">    private inner class SearchCallback : SearchActionModeCallback() {</span>
+<span class="nc" id="L520">        var searchActionProvider: SearchActionProvider? = null</span>
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L522">            searchActionProvider = SearchActionProvider(this@TalkTopicsActivity, getSearchHintString()) { onQueryChange(it) }</span>
+
+<span class="nc" id="L524">            val menuItem = menu.add(getSearchHintString())</span>
+
+<span class="nc" id="L526">            MenuItemCompat.setActionProvider(menuItem, searchActionProvider)</span>
+
+<span class="nc" id="L528">            actionMode = mode</span>
+<span class="nc" id="L529">            binding.talkNewTopicButton.hide()</span>
+<span class="nc" id="L530">            updateConcatAdapter()</span>
+<span class="nc" id="L531">            return super.onCreateActionMode(mode, menu)</span>
+        }
+
+        override fun onQueryChange(s: String) {
+<span class="nc" id="L535">            viewModel.currentSearchQuery = s</span>
+<span class="nc" id="L536">            talkTopicItemAdapter.notifyDataSetChanged()</span>
+<span class="nc bnc" id="L537" title="All 4 branches missed.">            binding.talkSearchNoResult.isVisible = binding.talkRecyclerView.adapter?.itemCount == 0</span>
+<span class="nc" id="L538">            binding.talkConditionContainer.isVisible = binding.talkSearchNoResult.isVisible</span>
+<span class="nc" id="L539">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L542">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L543">            actionMode = null</span>
+<span class="nc" id="L544">            viewModel.currentSearchQuery = null</span>
+<span class="nc" id="L545">            binding.talkNewTopicButton.show()</span>
+<span class="nc" id="L546">            binding.talkConditionContainer.isVisible = false</span>
+<span class="nc" id="L547">            binding.talkSearchNoResult.isVisible = false</span>
+<span class="nc" id="L548">            talkTopicItemAdapter.notifyDataSetChanged()</span>
+<span class="nc" id="L549">            updateConcatAdapter()</span>
+<span class="nc" id="L550">        }</span>
+
+        override fun getSearchHintString(): String {
+<span class="nc" id="L553">            return getString(R.string.talk_search_topics_hint)</span>
+        }
+
+        override fun getParentContext(): Context {
+<span class="nc" id="L557">            return this@TalkTopicsActivity</span>
+        }
+    }
+
+    companion object {
+        private const val EXTRA_GO_TO_TOPIC = &quot;goToTopic&quot;
+
+        fun newIntent(context: Context, pageTitle: PageTitle, invokeSource: Constants.InvokeSource): Intent {
+<span class="nc" id="L565">            return Intent(context, TalkTopicsActivity::class.java)</span>
+<span class="nc" id="L566">                .putExtra(Constants.ARG_TITLE, pageTitle)</span>
+<span class="nc bnc" id="L567" title="All 6 branches missed.">                .putExtra(EXTRA_GO_TO_TOPIC, !pageTitle.fragment.isNullOrEmpty())</span>
+<span class="nc" id="L568">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, invokeSource)</span>
+        }
+
+        fun getNonTalkPageTitle(title: PageTitle): PageTitle {
+<span class="nc" id="L572">            val newTitle = title.copy()</span>
+<span class="nc bnc" id="L573" title="All 2 branches missed.">            if (title.namespace() == Namespace.USER_TALK) {</span>
+<span class="nc" id="L574">                newTitle.namespace = UserAliasData.valueFor(title.wikiSite.languageCode)</span>
+<span class="nc bnc" id="L575" title="All 2 branches missed.">            } else if (title.namespace() == Namespace.TALK) {</span>
+<span class="nc" id="L576">                newTitle.namespace = &quot;&quot;</span>
+            }
+<span class="nc" id="L578">            return newTitle</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

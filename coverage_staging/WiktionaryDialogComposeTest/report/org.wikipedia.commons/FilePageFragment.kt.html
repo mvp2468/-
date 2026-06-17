@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FilePageFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.commons</a> &gt; <span class="el_source">FilePageFragment.kt</span></div><h1>FilePageFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.commons
+
+import android.Manifest
+import android.app.Activity.RESULT_OK
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
+import androidx.core.view.MenuProvider
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.ImageRecommendationsEvent
+import org.wikipedia.databinding.FragmentFilePageBinding
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.descriptions.DescriptionEditActivity.Action
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.gallery.MediaDownloadReceiver
+import org.wikipedia.page.PageTitle
+import org.wikipedia.suggestededits.PageSummaryForEdit
+import org.wikipedia.suggestededits.SuggestedEditsImageTagEditActivity
+import org.wikipedia.suggestededits.SuggestedEditsSnackbars
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ShareUtil.shareImage
+import org.wikipedia.views.imageservice.ImageService
+import java.io.File
+
+<span class="nc" id="L45">class FilePageFragment : Fragment(), FilePageView.Callback, MenuProvider {</span>
+    private var _binding: FragmentFilePageBinding? = null
+<span class="nc" id="L47">    private val binding get() = _binding!!</span>
+<span class="nc" id="L48">    private val viewModel: FilePageViewModel by viewModels()</span>
+
+<span class="nc" id="L50">    private val downloadReceiver = MediaDownloadReceiver()</span>
+<span class="nc" id="L51">    private val downloadReceiverCallback = MediaDownloadReceiverCallback()</span>
+
+<span class="nc" id="L53">    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean -&gt;</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (isGranted) {</span>
+<span class="nc" id="L55">            downloadImage()</span>
+        } else {
+<span class="nc" id="L57">            FeedbackUtil.showMessage(requireActivity(), R.string.gallery_save_image_write_permission_rationale)</span>
+        }
+<span class="nc" id="L59">    }</span>
+
+<span class="nc" id="L61">    private val addImageCaptionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L63">            SuggestedEditsSnackbars.show(requireActivity(), Action.ADD_CAPTION, true)</span>
+<span class="nc" id="L64">            viewModel.loadImageInfo()</span>
+        }
+<span class="nc" id="L66">    }</span>
+
+<span class="nc" id="L68">    private val addImageTagsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L70">            SuggestedEditsSnackbars.show(requireActivity(), Action.ADD_IMAGE_TAGS, true)</span>
+<span class="nc" id="L71">            viewModel.loadImageInfo()</span>
+        }
+<span class="nc" id="L73">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L76">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L77">        _binding = FragmentFilePageBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L78">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+<span class="nc" id="L79">        (requireActivity() as AppCompatActivity).setSupportActionBar(binding.toolbar)</span>
+
+<span class="nc" id="L81">        binding.root.setLayoutDirectionByLang(viewModel.pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L82">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L86">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L87">        binding.swipeRefreshLayout.setOnRefreshListener {</span>
+<span class="nc" id="L88">            binding.swipeRefreshLayout.isRefreshing = false</span>
+<span class="nc" id="L89">            viewModel.loadImageInfo()</span>
+<span class="nc" id="L90">        }</span>
+<span class="nc" id="L91">        binding.errorView.backClickListener = View.OnClickListener { requireActivity().finish() }</span>
+<span class="nc" id="L92">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L93">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L94">                launch {</span>
+<span class="nc" id="L95">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L96">                        when (it) {</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                            is Resource.Success -&gt; onSuccess(it.data)</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                            is Resource.Error -&gt; onError(it.throwable)</span>
+                        }
+<span class="nc" id="L101">                    }</span>
+                }
+<span class="nc" id="L103">            }</span>
+<span class="nc" id="L104">        }</span>
+<span class="nc" id="L105">        ImageRecommendationsEvent.logImpression(&quot;imagedetails_dialog&quot;, ImageRecommendationsEvent.getActionDataString(filename = viewModel.pageTitle.prefixedText))</span>
+<span class="nc" id="L106">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L109">        _binding = null</span>
+<span class="nc" id="L110">        super.onDestroyView()</span>
+<span class="nc" id="L111">    }</span>
+
+    private fun onError(caught: Throwable?) {
+<span class="nc" id="L114">        binding.progressBar.visibility = View.GONE</span>
+<span class="nc" id="L115">        binding.filePageView.visibility = View.GONE</span>
+<span class="nc" id="L116">        binding.errorView.visibility = View.VISIBLE</span>
+<span class="nc" id="L117">        binding.errorView.setError(caught)</span>
+<span class="nc" id="L118">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L121">        binding.errorView.visibility = View.GONE</span>
+<span class="nc" id="L122">        binding.filePageView.visibility = View.GONE</span>
+<span class="nc" id="L123">        binding.progressBar.visibility = View.VISIBLE</span>
+<span class="nc" id="L124">    }</span>
+
+    private fun onSuccess(filePage: FilePage) {
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        viewModel.pageSummaryForEdit?.let {</span>
+<span class="nc" id="L128">            binding.filePageView.visibility = View.VISIBLE</span>
+<span class="nc" id="L129">            binding.progressBar.visibility = View.GONE</span>
+<span class="nc" id="L130">            binding.filePageView.setup(</span>
+<span class="nc" id="L131">                it,</span>
+<span class="nc" id="L132">                filePage.imageTags,</span>
+<span class="nc" id="L133">                filePage.page,</span>
+<span class="nc" id="L134">                DimenUtil.displayWidthPx,</span>
+<span class="nc" id="L135">                filePage.thumbnailWidth,</span>
+<span class="nc" id="L136">                filePage.thumbnailHeight,</span>
+<span class="nc" id="L137">                imageFromCommons = filePage.imageFromCommons,</span>
+<span class="nc" id="L138">                showFilename = filePage.showFilename,</span>
+<span class="nc" id="L139">                showEditButton = filePage.showEditButton,</span>
+<span class="nc" id="L140">                callback = this</span>
+            )
+<span class="nc" id="L142">        }</span>
+<span class="nc" id="L143">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L144">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L147">        super.onPause()</span>
+<span class="nc" id="L148">        downloadReceiver.unregister(requireContext())</span>
+<span class="nc" id="L149">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L152">        super.onResume()</span>
+<span class="nc" id="L153">        downloadReceiver.register(requireContext(), downloadReceiverCallback)</span>
+<span class="nc" id="L154">    }</span>
+
+    override fun onImageCaptionClick(summaryForEdit: PageSummaryForEdit) {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        viewModel.pageSummaryForEdit?.let {</span>
+<span class="nc" id="L158">            addImageCaptionLauncher.launch(</span>
+<span class="nc" id="L159">                DescriptionEditActivity.newIntent(requireContext(),</span>
+<span class="nc" id="L160">                    it.pageTitle, null, summaryForEdit, null,</span>
+<span class="nc" id="L161">                    Action.ADD_CAPTION, Constants.InvokeSource.FILE_PAGE_ACTIVITY)</span>
+            )
+<span class="nc" id="L163">        }</span>
+<span class="nc" id="L164">    }</span>
+
+    override fun onImageTagsClick(page: MwQueryPage) {
+<span class="nc" id="L167">        addImageTagsLauncher.launch(</span>
+<span class="nc" id="L168">            SuggestedEditsImageTagEditActivity.newIntent(requireContext(), page, Constants.InvokeSource.FILE_PAGE_ACTIVITY)</span>
+        )
+<span class="nc" id="L170">    }</span>
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+<span class="nc" id="L173">        menuInflater.inflate(R.menu.menu_file_page, menu)</span>
+<span class="nc" id="L174">    }</span>
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L178">            return</span>
+        }
+<span class="nc bnc" id="L180" title="All 8 branches missed.">        val enableShareAndSave = viewModel.mediaInfo?.thumbUrl?.isNotEmpty() == true</span>
+<span class="nc" id="L181">        menu.findItem(R.id.menu_file_save).isEnabled = enableShareAndSave</span>
+<span class="nc" id="L182">        menu.findItem(R.id.menu_file_share).isEnabled = enableShareAndSave</span>
+<span class="nc" id="L183">    }</span>
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+<span class="nc" id="L186">        return when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            R.id.menu_file_save -&gt; {</span>
+<span class="nc" id="L188">                handleImageSaveRequest()</span>
+<span class="nc" id="L189">                true</span>
+            }
+<span class="nc bnc" id="L191" title="All 2 branches missed.">            R.id.menu_file_share -&gt; {</span>
+<span class="nc" id="L192">                shareImage()</span>
+<span class="nc" id="L193">                true</span>
+            }
+<span class="nc" id="L195">            else -&gt; false</span>
+        }
+    }
+
+    private fun handleImageSaveRequest() {
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.TIRAMISU ||</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {</span>
+<span class="nc" id="L202">            downloadImage()</span>
+        } else {
+<span class="nc" id="L204">            requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)</span>
+        }
+<span class="nc" id="L206">    }</span>
+
+    private fun shareImage() {
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        viewModel.pageSummaryForEdit?.let { summary -&gt;</span>
+<span class="nc" id="L210">            val thumbUrl = summary.getPreferredSizeThumbnailUrl()</span>
+<span class="nc" id="L211">            ImageService.loadImage(requireContext(), thumbUrl) { bitmap -&gt;</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                if (!isAdded) {</span>
+<span class="nc" id="L213">                    return@loadImage</span>
+                }
+<span class="nc" id="L215">                shareImage(lifecycleScope, requireContext(), bitmap, File(thumbUrl).name,</span>
+<span class="nc" id="L216">                    summary.displayTitle, summary.pageTitle.uri)</span>
+<span class="nc" id="L217">            }</span>
+<span class="nc" id="L218">        }</span>
+<span class="nc" id="L219">    }</span>
+
+    private fun downloadImage() {
+<span class="nc bnc" id="L222" title="All 4 branches missed.">        viewModel.pageSummaryForEdit?.let { summary -&gt;</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">            viewModel.mediaInfo?.let { info -&gt;</span>
+<span class="nc" id="L224">                downloadReceiver.download(requireContext(), summary.pageTitle, info)</span>
+<span class="nc" id="L225">                FeedbackUtil.showMessage(this, R.string.gallery_save_progress)</span>
+<span class="nc" id="L226">            }</span>
+<span class="nc" id="L227">        } ?: run {</span>
+<span class="nc" id="L228">            FeedbackUtil.showMessage(this, R.string.err_cannot_save_file)</span>
+<span class="nc" id="L229">        }</span>
+<span class="nc" id="L230">    }</span>
+
+<span class="nc" id="L232">    private inner class MediaDownloadReceiverCallback : MediaDownloadReceiver.Callback {</span>
+        override fun onSuccess() {
+<span class="nc" id="L234">            FeedbackUtil.showMessage(this@FilePageFragment, R.string.gallery_save_success)</span>
+<span class="nc" id="L235">        }</span>
+    }
+
+    companion object {
+        fun newInstance(pageTitle: PageTitle, allowEdit: Boolean): FilePageFragment {
+<span class="nc" id="L240">            return FilePageFragment().apply {</span>
+<span class="nc" id="L241">                arguments = bundleOf(Constants.ARG_TITLE to pageTitle,</span>
+<span class="nc" id="L242">                        FilePageActivity.INTENT_EXTRA_ALLOW_EDIT to allowEdit)</span>
+<span class="nc" id="L243">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

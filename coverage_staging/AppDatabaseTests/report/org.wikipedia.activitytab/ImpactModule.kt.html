@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ImpactModule.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab</a> &gt; <span class="el_source">ImpactModule.kt</span></div><h1>ImpactModule.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.wikipedia.R
+import org.wikipedia.compose.components.LineChart
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.growthtasks.GrowthUserImpact
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.UiState
+import java.text.NumberFormat
+import java.util.Date
+import java.util.Locale
+
+@Composable
+fun ImpactModule(
+<span class="nc bnc" id="L48" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    uiState: UiState&lt;Pair&lt;GrowthUserImpact, Int&gt;&gt;,
+<span class="nc bnc" id="L50" title="All 2 branches missed.">    onTotalEditsClick: () -&gt; Unit = {},</span>
+<span class="nc" id="L51">    wikiErrorClickEvents: WikiErrorClickEvents? = null</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L53">    when (uiState) {</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        UiState.Loading -&gt; {</span>
+<span class="nc" id="L55">            ActivityTabShimmerView(size = 340.dp)</span>
+        }
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        is UiState.Success -&gt; {</span>
+<span class="nc" id="L58">            val impact = uiState.data.first</span>
+<span class="nc" id="L59">            AllTimeImpactCard(</span>
+<span class="nc" id="L60">                modifier = modifier.fillMaxWidth(),</span>
+<span class="nc" id="L61">                totalEdits = impact.totalEditsCount,</span>
+<span class="nc" id="L62">                totalThanks = impact.receivedThanksCount,</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">                longestEditingStreak = impact.longestEditingStreak?.datePeriod?.days ?: 0,</span>
+<span class="nc" id="L64">                lastEditTimestamp = impact.lastEditTimestamp,</span>
+<span class="nc" id="L65">                lastThirtyDaysEdits = impact.lastThirtyDaysEdits,</span>
+<span class="nc" id="L66">                totalPageviewsCount = impact.totalPageviewsCount,</span>
+<span class="nc" id="L67">                dailyTotalViews = impact.dailyTotalViews</span>
+            )
+<span class="nc" id="L69">            val totalEdits = uiState.data.second</span>
+<span class="nc" id="L70">            TotalEditsCard(</span>
+<span class="nc" id="L71">                modifier = Modifier</span>
+<span class="nc" id="L72">                    .fillMaxWidth()</span>
+<span class="nc" id="L73">                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),</span>
+<span class="nc" id="L74">                totalEdits = totalEdits,</span>
+<span class="nc" id="L75">                onClickListener = onTotalEditsClick,</span>
+            )
+        }
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        is UiState.Error -&gt; {</span>
+<span class="nc" id="L80">            Box(</span>
+<span class="nc" id="L81">                modifier = modifier</span>
+<span class="nc" id="L82">                    .fillMaxSize(),</span>
+<span class="nc" id="L83">                contentAlignment = Alignment.Center</span>
+            ) {
+<span class="nc" id="L85">                WikiErrorView(</span>
+<span class="nc" id="L86">                    modifier = Modifier</span>
+<span class="nc" id="L87">                        .fillMaxWidth(),</span>
+<span class="nc" id="L88">                    caught = uiState.error,</span>
+<span class="nc" id="L89">                    errorClickEvents = wikiErrorClickEvents,</span>
+<span class="nc" id="L90">                    retryForGenericError = true</span>
+                )
+<span class="nc" id="L92">            }</span>
+        }
+<span class="nc" id="L94">    }</span>
+<span class="nc" id="L95">}</span>
+
+@Composable
+fun AllTimeImpactCard(
+<span class="nc bnc" id="L99" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">    totalEdits: Int = 0,</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">    totalThanks: Int = 0,</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">    longestEditingStreak: Int = 0,</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">    lastEditTimestamp: Long = 0,</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">    lastThirtyDaysEdits: Map&lt;String, Int&gt; = emptyMap(),</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">    totalPageviewsCount: Long = 0,</span>
+<span class="nc" id="L106">    dailyTotalViews: Map&lt;String, Int&gt; = emptyMap()</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L108">    val formatter = remember { NumberFormat.getNumberInstance(Locale.getDefault()) }</span>
+<span class="nc" id="L109">    WikiCard(</span>
+<span class="nc" id="L110">        modifier = modifier,</span>
+<span class="nc" id="L111">        colors = CardDefaults.cardColors(</span>
+<span class="nc" id="L112">            containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L113">            contentColor = WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L115">        elevation = 0.dp,</span>
+<span class="nc" id="L116">        border = BorderStroke(</span>
+<span class="nc" id="L117">            width = 1.dp,</span>
+<span class="nc" id="L118">            color = WikipediaTheme.colors.borderColor</span>
+        )
+<span class="nc" id="L120">    ) {</span>
+<span class="nc" id="L121">        Column(</span>
+<span class="nc" id="L122">            modifier = Modifier.padding(16.dp)</span>
+        ) {
+<span class="nc" id="L124">            Text(</span>
+<span class="nc" id="L125">                text = stringResource(R.string.activity_tab_impact_all_time),</span>
+<span class="nc" id="L126">                style = MaterialTheme.typography.labelMedium.copy(</span>
+<span class="nc" id="L127">                    fontWeight = FontWeight.SemiBold</span>
+                ),
+<span class="nc" id="L129">                color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L130">                lineHeight = MaterialTheme.typography.labelMedium.lineHeight</span>
+            )
+<span class="nc" id="L132">            Row(</span>
+<span class="nc" id="L133">                modifier = Modifier</span>
+<span class="nc" id="L134">                    .fillMaxWidth()</span>
+<span class="nc" id="L135">                    .padding(top = 16.dp),</span>
+<span class="nc" id="L136">                horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+            ) {
+<span class="nc" id="L138">                ImpactStatView(</span>
+<span class="nc" id="L139">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L140">                    iconResource = R.drawable.ic_mode_edit_white_24dp,</span>
+<span class="nc" id="L141">                    statValue = totalEdits.toString(),</span>
+<span class="nc" id="L142">                    statLabel = pluralStringResource(R.plurals.activity_tab_impact_total_edits, totalEdits)</span>
+                )
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                val bestStreakString = if (longestEditingStreak &gt; 0) {</span>
+<span class="nc" id="L145">                    pluralStringResource(R.plurals.activity_tab_impact_best_streak_text, longestEditingStreak, longestEditingStreak)</span>
+<span class="nc" id="L146">                } else {</span>
+<span class="nc" id="L147">                    &quot;-&quot;</span>
+<span class="nc" id="L148">                }</span>
+<span class="nc" id="L149">                ImpactStatView(</span>
+<span class="nc" id="L150">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L151">                    iconResource = R.drawable.baseline_stars_24,</span>
+<span class="nc" id="L152">                    statValue = bestStreakString,</span>
+<span class="nc" id="L153">                    statLabel = stringResource(R.string.activity_tab_impact_best_streak)</span>
+                )
+<span class="nc" id="L155">            }</span>
+<span class="nc" id="L156">            Row(</span>
+<span class="nc" id="L157">                modifier = Modifier</span>
+<span class="nc" id="L158">                    .fillMaxWidth()</span>
+<span class="nc" id="L159">                    .padding(top = 16.dp),</span>
+<span class="nc" id="L160">                horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+            ) {
+<span class="nc" id="L162">                ImpactStatView(</span>
+<span class="nc" id="L163">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L164">                    iconResource = R.drawable.ic_notification_thanks,</span>
+<span class="nc" id="L165">                    statValue = totalThanks.toString(),</span>
+<span class="nc" id="L166">                    statLabel = pluralStringResource(R.plurals.activity_tab_impact_thanks, totalThanks)</span>
+                )
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                val lastEditedDateString = if (lastEditTimestamp &gt; 0) {</span>
+<span class="nc" id="L169">                    DateUtil.getMDYDateString(Date(lastEditTimestamp * 1000))</span>
+                } else {
+<span class="nc" id="L171">                    &quot;-&quot;</span>
+                }
+<span class="nc" id="L173">                ImpactStatView(</span>
+<span class="nc" id="L174">                    modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L175">                    iconResource = R.drawable.edit_history_ooui,</span>
+<span class="nc" id="L176">                    statValue = lastEditedDateString,</span>
+<span class="nc" id="L177">                    statLabel = stringResource(R.string.activity_tab_impact_last_edited)</span>
+                )
+<span class="nc" id="L179">            }</span>
+
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (totalEdits &gt; 0) {</span>
+<span class="nc" id="L182">                HorizontalDivider(</span>
+<span class="nc" id="L183">                    modifier = Modifier.padding(top = 16.dp),</span>
+<span class="nc" id="L184">                    color = WikipediaTheme.colors.borderColor</span>
+                )
+
+<span class="nc" id="L187">                Column(</span>
+<span class="nc" id="L188">                    modifier = Modifier.padding(top = 16.dp)</span>
+                ) {
+<span class="nc" id="L190">                    Text(</span>
+<span class="nc" id="L191">                        text = stringResource(R.string.activity_tab_impact_recent_activity),</span>
+<span class="nc" id="L192">                        style = MaterialTheme.typography.labelMedium.copy(</span>
+<span class="nc" id="L193">                            fontWeight = FontWeight.SemiBold</span>
+                        ),
+<span class="nc" id="L195">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L196">                        lineHeight = MaterialTheme.typography.labelMedium.lineHeight</span>
+                    )
+<span class="nc" id="L198">                    Row(</span>
+<span class="nc" id="L199">                        modifier = Modifier</span>
+<span class="nc" id="L200">                            .fillMaxWidth()</span>
+<span class="nc" id="L201">                            .padding(top = 16.dp),</span>
+<span class="nc" id="L202">                        horizontalArrangement = Arrangement.spacedBy(4.dp),</span>
+<span class="nc" id="L203">                        verticalAlignment = Alignment.Bottom</span>
+                    ) {
+<span class="nc" id="L205">                        val recentEditsCount = lastThirtyDaysEdits.values.sum()</span>
+<span class="nc" id="L206">                        Text(</span>
+<span class="nc" id="L207">                            text = recentEditsCount.toString(),</span>
+<span class="nc" id="L208">                            modifier = Modifier.align(Alignment.Bottom),</span>
+<span class="nc" id="L209">                            style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L210">                            fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L211">                            color = WikipediaTheme.colors.primaryColor</span>
+                        )
+<span class="nc" id="L213">                        Text(</span>
+<span class="nc" id="L214">                            text = pluralStringResource(</span>
+<span class="nc" id="L215">                                R.plurals.activity_tab_impact_recent_activity_edits,</span>
+<span class="nc" id="L216">                                recentEditsCount</span>
+<span class="nc" id="L217">                            ).lowercase(),</span>
+<span class="nc" id="L218">                            style = MaterialTheme.typography.bodySmall.copy(</span>
+<span class="nc" id="L219">                                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L220">                                lineHeight = 22.sp</span>
+                            ),
+<span class="nc" id="L222">                            color = WikipediaTheme.colors.secondaryColor</span>
+                        )
+<span class="nc" id="L224">                    }</span>
+<span class="nc" id="L225">                    Row(</span>
+<span class="nc" id="L226">                        modifier = Modifier</span>
+<span class="nc" id="L227">                            .fillMaxWidth()</span>
+<span class="nc" id="L228">                            .padding(top = 8.dp)</span>
+                    ) {
+<span class="nc" id="L230">                        val totalSize = lastThirtyDaysEdits.size</span>
+<span class="nc" id="L231">                        lastThirtyDaysEdits.forEach { (_, editCount) -&gt;</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                            val pileColor = if (editCount &gt; 0) {</span>
+<span class="nc" id="L233">                                WikipediaTheme.colors.progressiveColor</span>
+<span class="nc" id="L234">                            } else {</span>
+<span class="nc" id="L235">                                WikipediaTheme.colors.borderColor</span>
+                            }
+<span class="nc" id="L237">                            Box(</span>
+<span class="nc" id="L238">                                modifier = Modifier</span>
+<span class="nc" id="L239">                                    .weight(1f / totalSize)</span>
+<span class="nc" id="L240">                                    .height(24.dp)</span>
+<span class="nc" id="L241">                                    .padding(horizontal = 1.dp)</span>
+<span class="nc" id="L242">                                    .background(color = pileColor, shape = RoundedCornerShape(8.dp))</span>
+                            )
+<span class="nc" id="L244">                        }</span>
+<span class="nc" id="L245">                    }</span>
+<span class="nc" id="L246">                    Row(</span>
+<span class="nc" id="L247">                        modifier = Modifier</span>
+<span class="nc" id="L248">                            .fillMaxWidth()</span>
+<span class="nc" id="L249">                            .padding(top = 8.dp)</span>
+                    ) {
+<span class="nc" id="L251">                        Text(</span>
+<span class="nc" id="L252">                            modifier = Modifier.weight(1f),</span>
+<span class="nc" id="L253">                            text = DateUtil.getMonthOnlyDateStringFromTimeString(lastThirtyDaysEdits.keys.first()),</span>
+<span class="nc" id="L254">                            style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L255">                            color = WikipediaTheme.colors.secondaryColor</span>
+                        )
+<span class="nc" id="L257">                        Text(</span>
+<span class="nc" id="L258">                            text = DateUtil.getMonthOnlyDateStringFromTimeString(lastThirtyDaysEdits.keys.last()),</span>
+<span class="nc" id="L259">                            style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L260">                            color = WikipediaTheme.colors.secondaryColor</span>
+                        )
+<span class="nc" id="L262">                    }</span>
+
+<span class="nc" id="L264">                    HorizontalDivider(</span>
+<span class="nc" id="L265">                        modifier = Modifier.padding(top = 16.dp),</span>
+<span class="nc" id="L266">                        color = WikipediaTheme.colors.borderColor</span>
+                    )
+
+<span class="nc" id="L269">                    Row(</span>
+<span class="nc" id="L270">                        modifier = Modifier</span>
+<span class="nc" id="L271">                            .fillMaxWidth()</span>
+<span class="nc" id="L272">                            .padding(top = 16.dp),</span>
+<span class="nc" id="L273">                        horizontalArrangement = Arrangement.spacedBy(4.dp),</span>
+<span class="nc" id="L274">                        verticalAlignment = Alignment.Bottom</span>
+                    ) {
+<span class="nc" id="L276">                        Text(</span>
+<span class="nc" id="L277">                            text = formatter.format(totalPageviewsCount),</span>
+<span class="nc" id="L278">                            modifier = Modifier.align(Alignment.Bottom),</span>
+<span class="nc" id="L279">                            style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L280">                            fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L281">                            color = WikipediaTheme.colors.primaryColor</span>
+                        )
+<span class="nc" id="L283">                        Text(</span>
+<span class="nc" id="L284">                            text = pluralStringResource(</span>
+<span class="nc" id="L285">                                R.plurals.activity_tab_impact_recent_activity_views,</span>
+<span class="nc" id="L286">                                totalPageviewsCount.toInt()</span>
+<span class="nc" id="L287">                            ).lowercase(),</span>
+<span class="nc" id="L288">                            style = MaterialTheme.typography.bodySmall.copy(</span>
+<span class="nc" id="L289">                                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L290">                                lineHeight = 22.sp</span>
+                            ),
+<span class="nc" id="L292">                            color = WikipediaTheme.colors.secondaryColor</span>
+                        )
+<span class="nc" id="L294">                    }</span>
+
+<span class="nc" id="L296">                    LineChart(</span>
+<span class="nc" id="L297">                        map = dailyTotalViews,</span>
+<span class="nc" id="L298">                        modifier = Modifier</span>
+<span class="nc" id="L299">                            .fillMaxWidth()</span>
+<span class="nc" id="L300">                            .height(32.dp)</span>
+<span class="nc" id="L301">                            .padding(top = 8.dp),</span>
+<span class="nc" id="L302">                        chartSampleSize = 90,</span>
+<span class="nc" id="L303">                        strokeWidth = 2.dp,</span>
+<span class="nc" id="L304">                        strokeColor = WikipediaTheme.colors.progressiveColor</span>
+                    )
+<span class="nc" id="L306">                }</span>
+<span class="nc" id="L307">            }</span>
+<span class="nc" id="L308">        }</span>
+<span class="nc" id="L309">    }</span>
+<span class="nc" id="L310">}</span>
+
+@Composable
+fun TotalEditsCard(
+<span class="nc bnc" id="L314" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    totalEdits: Int,
+<span class="nc" id="L316">    onClickListener: () -&gt; Unit = {}</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L318">    val formatter = remember { NumberFormat.getNumberInstance(Locale.getDefault()) }</span>
+<span class="nc" id="L319">    WikiCard(</span>
+<span class="nc" id="L320">        modifier = modifier,</span>
+<span class="nc" id="L321">        elevation = 0.dp,</span>
+<span class="nc" id="L322">        border = BorderStroke(width = 1.dp, color = WikipediaTheme.colors.borderColor),</span>
+<span class="nc" id="L323">        onClick = onClickListener</span>
+<span class="nc" id="L324">    ) {</span>
+<span class="nc" id="L325">        Column(</span>
+<span class="nc" id="L326">            modifier = Modifier.padding(16.dp)</span>
+        ) {
+<span class="nc" id="L328">            CommonCardHeader(</span>
+<span class="nc" id="L329">                icon = painterResource(R.drawable.ic_public_24),</span>
+<span class="nc" id="L330">                title = stringResource(R.string.activity_tab_total_edits_all_projects),</span>
+<span class="nc" id="L331">                showChevron = true</span>
+            )
+
+<span class="nc" id="L334">            Text(</span>
+<span class="nc" id="L335">                modifier = Modifier.padding(top = 16.dp),</span>
+<span class="nc" id="L336">                text = formatter.format(totalEdits),</span>
+<span class="nc" id="L337">                style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L338">                color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L339">                fontWeight = FontWeight.Medium</span>
+            )
+<span class="nc" id="L341">        }</span>
+<span class="nc" id="L342">    }</span>
+<span class="nc" id="L343">}</span>
+
+@Composable
+fun ImpactStatView(
+    modifier: Modifier,
+    iconResource: Int,
+    statValue: String,
+    statLabel: String
+<span class="nc" id="L351">) {</span>
+<span class="nc" id="L352">    Row(</span>
+<span class="nc" id="L353">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L355">        Icon(</span>
+<span class="nc" id="L356">            modifier = Modifier.size(28.dp),</span>
+<span class="nc" id="L357">            painter = painterResource(iconResource),</span>
+<span class="nc" id="L358">            tint = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L359">            contentDescription = null</span>
+        )
+<span class="nc" id="L361">        Column(</span>
+<span class="nc" id="L362">            modifier = Modifier.padding(horizontal = 12.dp)</span>
+        ) {
+<span class="nc" id="L364">            Text(</span>
+<span class="nc" id="L365">                text = statValue,</span>
+<span class="nc" id="L366">                style = MaterialTheme.typography.labelLarge.copy(</span>
+<span class="nc" id="L367">                    fontWeight = FontWeight.SemiBold</span>
+                ),
+<span class="nc" id="L369">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L371">            Text(</span>
+<span class="nc" id="L372">                text = statLabel.lowercase(),</span>
+<span class="nc" id="L373">                style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L374">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L376">        }</span>
+<span class="nc" id="L377">    }</span>
+<span class="nc" id="L378">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L382">private fun AllTimeImpactCardPreview() {</span>
+<span class="nc" id="L383">    BaseTheme(</span>
+<span class="nc" id="L384">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L385">    ) {</span>
+<span class="nc" id="L386">        AllTimeImpactCard(</span>
+<span class="nc" id="L387">            modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L388">            totalEdits = 123,</span>
+<span class="nc" id="L389">            totalThanks = 56,</span>
+<span class="nc" id="L390">            longestEditingStreak = 15,</span>
+<span class="nc" id="L391">            lastEditTimestamp = System.currentTimeMillis() - 86400000L,</span>
+<span class="nc" id="L392">            lastThirtyDaysEdits = mapOf(</span>
+<span class="nc" id="L393">                &quot;2023-10-01&quot; to 5,</span>
+<span class="nc" id="L394">                &quot;2023-10-02&quot; to 3,</span>
+<span class="nc" id="L395">                &quot;2023-10-03&quot; to 7,</span>
+<span class="nc" id="L396">                &quot;2023-10-04&quot; to 0,</span>
+<span class="nc" id="L397">                &quot;2023-10-05&quot; to 4,</span>
+<span class="nc" id="L398">                &quot;2023-10-06&quot; to 6,</span>
+<span class="nc" id="L399">                &quot;2023-10-07&quot; to 2,</span>
+<span class="nc" id="L400">                &quot;2023-10-08&quot; to 1,</span>
+<span class="nc" id="L401">                &quot;2023-10-09&quot; to 0,</span>
+<span class="nc" id="L402">                &quot;2023-10-10&quot; to 8,</span>
+<span class="nc" id="L403">                &quot;2023-10-11&quot; to 0,</span>
+<span class="nc" id="L404">                &quot;2023-10-12&quot; to 3,</span>
+<span class="nc" id="L405">                &quot;2023-10-13&quot; to 5,</span>
+<span class="nc" id="L406">                &quot;2023-10-14&quot; to 2,</span>
+<span class="nc" id="L407">                &quot;2023-10-15&quot; to 4,</span>
+<span class="nc" id="L408">                &quot;2023-10-16&quot; to 0,</span>
+<span class="nc" id="L409">                &quot;2023-10-17&quot; to 1,</span>
+<span class="nc" id="L410">                &quot;2023-10-18&quot; to 0,</span>
+<span class="nc" id="L411">                &quot;2023-10-19&quot; to 6,</span>
+<span class="nc" id="L412">                &quot;2023-10-20&quot; to 2,</span>
+<span class="nc" id="L413">                &quot;2023-10-21&quot; to 3,</span>
+<span class="nc" id="L414">                &quot;2023-10-22&quot; to 0,</span>
+<span class="nc" id="L415">                &quot;2023-10-23&quot; to 4,</span>
+<span class="nc" id="L416">                &quot;2023-10-24&quot; to 5,</span>
+<span class="nc" id="L417">                &quot;2023-10-25&quot; to 0,</span>
+<span class="nc" id="L418">                &quot;2023-10-26&quot; to 1,</span>
+<span class="nc" id="L419">                &quot;2023-10-27&quot; to 2,</span>
+<span class="nc" id="L420">                &quot;2023-10-28&quot; to 0,</span>
+<span class="nc" id="L421">                &quot;2023-10-29&quot; to 3,</span>
+<span class="nc" id="L422">                &quot;2023-10-30&quot; to 4,</span>
+<span class="nc" id="L423">                &quot;2023-10-31&quot; to 0</span>
+            ),
+<span class="nc" id="L425">            totalPageviewsCount = 7890,</span>
+<span class="nc" id="L426">            dailyTotalViews = mapOf(</span>
+<span class="nc" id="L427">                &quot;2023-10-01&quot; to 100,</span>
+<span class="nc" id="L428">                &quot;2023-10-02&quot; to 150,</span>
+<span class="nc" id="L429">                &quot;2023-10-03&quot; to 200,</span>
+<span class="nc" id="L430">                &quot;2023-10-04&quot; to 120,</span>
+<span class="nc" id="L431">                &quot;2023-10-05&quot; to 180,</span>
+<span class="nc" id="L432">                &quot;2023-10-06&quot; to 220</span>
+            )
+        )
+<span class="nc" id="L435">    }</span>
+<span class="nc" id="L436">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L440">private fun TotalEditsCardPreview() {</span>
+<span class="nc" id="L441">    BaseTheme(</span>
+<span class="nc" id="L442">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L443">    ) {</span>
+<span class="nc" id="L444">        TotalEditsCard(</span>
+<span class="nc" id="L445">            modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L446">            totalEdits = 1234</span>
+        )
+<span class="nc" id="L448">    }</span>
+<span class="nc" id="L449">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

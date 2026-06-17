@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HistoryFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.history</a> &gt; <span class="el_source">HistoryFragment.kt</span></div><h1>HistoryFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.history
+
+import android.content.Context
+import android.graphics.Typeface
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
+import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updateMarginsRelative
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import org.wikipedia.BackPressedHandler
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.databinding.FragmentHistoryBinding
+import org.wikipedia.main.MainActivity
+import org.wikipedia.main.MainFragment
+import org.wikipedia.page.PageAvailableOfflineHandler
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.search.HybridSearchAbCTest
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.DefaultViewHolder
+import org.wikipedia.views.PageItemView
+import org.wikipedia.views.SwipeableItemTouchHelperCallback
+import org.wikipedia.views.WikiCardView
+
+<span class="nc" id="L52">class HistoryFragment : Fragment(), BackPressedHandler {</span>
+    interface Callback {
+        fun onLoadPage(entry: HistoryEntry)
+    }
+
+    private var _binding: FragmentHistoryBinding? = null
+<span class="nc" id="L58">    private val binding get() = _binding!!</span>
+<span class="nc" id="L59">    private val viewModel: HistoryViewModel by viewModels()</span>
+
+<span class="nc" id="L61">    private val adapter = HistoryEntryItemAdapter()</span>
+<span class="nc" id="L62">    private val itemCallback = ItemCallback()</span>
+    private var actionMode: ActionMode? = null
+<span class="nc" id="L64">    private val searchActionModeCallback = HistorySearchCallback()</span>
+<span class="nc" id="L65">    private val selectedEntries = mutableSetOf&lt;HistoryEntry&gt;()</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L68">        _binding = FragmentHistoryBinding.inflate(inflater, container, false)</span>
+
+<span class="nc" id="L70">        binding.searchEmptyView.setEmptyText(R.string.search_history_no_results)</span>
+<span class="nc" id="L71">        val touchCallback = SwipeableItemTouchHelperCallback(requireContext())</span>
+<span class="nc" id="L72">        touchCallback.swipeableEnabled = true</span>
+<span class="nc" id="L73">        val itemTouchHelper = ItemTouchHelper(touchCallback)</span>
+<span class="nc" id="L74">        itemTouchHelper.attachToRecyclerView(binding.historyList)</span>
+<span class="nc" id="L75">        binding.historyList.layoutManager = LinearLayoutManager(context)</span>
+<span class="nc" id="L76">        binding.historyList.adapter = adapter</span>
+<span class="nc" id="L77">        binding.historyEmptyContainer.visibility = View.GONE</span>
+<span class="nc" id="L78">        setUpScrollListener()</span>
+<span class="nc" id="L79">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L83">        super.onViewCreated(view, savedInstanceState)</span>
+
+<span class="nc" id="L85">        viewModel.historyItems.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L87">                onLoadItemsFinished(it.data)</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L89">                onError(it.throwable)</span>
+            }
+<span class="nc" id="L91">        }</span>
+
+<span class="nc" id="L93">        viewModel.deleteHistoryItemsAction.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L95">                onPagesDeleted()</span>
+            }
+<span class="nc" id="L97">        }</span>
+<span class="nc" id="L98">    }</span>
+
+    private fun setUpScrollListener() {
+<span class="nc" id="L101">        binding.historyList.addOnScrollListener(object : RecyclerView.OnScrollListener() {</span>
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+<span class="nc" id="L103">                super.onScrolled(recyclerView, dx, dy)</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                (requireActivity() as MainActivity).updateToolbarElevation(binding.historyList.computeVerticalScrollOffset() != 0)</span>
+<span class="nc" id="L105">            }</span>
+        })
+<span class="nc" id="L107">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L110">        super.onResume()</span>
+<span class="nc" id="L111">        viewModel.reloadHistoryItems()</span>
+<span class="nc" id="L112">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L115">        super.onPause()</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        actionMode?.finish()</span>
+<span class="nc" id="L117">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L120">        binding.historyList.adapter = null</span>
+<span class="nc" id="L121">        binding.historyList.clearOnScrollListeners()</span>
+<span class="nc" id="L122">        adapter.clearList()</span>
+<span class="nc" id="L123">        _binding = null</span>
+<span class="nc" id="L124">        super.onDestroyView()</span>
+<span class="nc" id="L125">    }</span>
+
+    override fun onBackPressed(): Boolean {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        actionMode?.run {</span>
+<span class="nc" id="L129">            finish()</span>
+<span class="nc" id="L130">            return@onBackPressed true</span>
+        }
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (selectedEntries.size &gt; 0) {</span>
+<span class="nc" id="L133">            unselectAllPages()</span>
+<span class="nc" id="L134">            return true</span>
+        }
+<span class="nc" id="L136">        return false</span>
+    }
+
+    private fun updateEmptyState(searchQuery: String?) {
+<span class="nc bnc" id="L140" title="All 6 branches missed.">        if (searchQuery.isNullOrEmpty()) {</span>
+<span class="nc" id="L141">            binding.searchEmptyView.visibility = View.GONE</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            binding.historyEmptyContainer.visibility = if (adapter.isEmpty) View.VISIBLE else View.GONE</span>
+        } else {
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            binding.searchEmptyView.visibility = if (adapter.isEmpty) View.VISIBLE else View.GONE</span>
+<span class="nc" id="L145">            binding.historyEmptyContainer.visibility = View.GONE</span>
+        }
+<span class="nc" id="L147">    }</span>
+
+    private fun onPageClick(entry: HistoryEntry) {
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        callback()?.onLoadPage(entry)</span>
+<span class="nc" id="L151">    }</span>
+
+    private fun finishActionMode() {
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        actionMode?.finish()</span>
+<span class="nc" id="L155">    }</span>
+
+    private fun beginMultiSelect() {
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        if (SearchActionModeCallback.matches(actionMode)) {</span>
+<span class="nc" id="L159">            finishActionMode()</span>
+        }
+<span class="nc" id="L161">    }</span>
+
+    private fun toggleSelectPage(entry: HistoryEntry?) {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (entry == null) {</span>
+<span class="nc" id="L165">            return</span>
+        }
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        if (selectedEntries.contains(entry)) {</span>
+<span class="nc" id="L168">            selectedEntries.remove(entry)</span>
+        } else {
+<span class="nc" id="L170">            selectedEntries.add(entry)</span>
+        }
+<span class="nc" id="L172">        val selectedCount = selectedEntries.size</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (selectedCount == 0) {</span>
+<span class="nc" id="L174">            finishActionMode()</span>
+        } else {
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            actionMode?.title = resources.getQuantityString(R.plurals.multi_items_selected, selectedCount, selectedCount)</span>
+        }
+<span class="nc" id="L178">        val position = adapter.getPosition(entry)</span>
+<span class="nc" id="L179">        adapter.notifyItemChanged(position)</span>
+<span class="nc" id="L180">    }</span>
+
+    fun refresh() {
+<span class="nc" id="L183">        adapter.notifyItemRangeChanged(0, adapter.itemCount)</span>
+<span class="nc bnc" id="L184" title="All 4 branches missed.">        if (!WikipediaApp.instance.isOnline &amp;&amp; Prefs.showHistoryOfflineArticlesToast) {</span>
+<span class="nc" id="L185">            Toast.makeText(requireContext(), R.string.history_offline_articles_toast, Toast.LENGTH_SHORT).show()</span>
+<span class="nc" id="L186">            Prefs.showHistoryOfflineArticlesToast = false</span>
+        }
+<span class="nc" id="L188">    }</span>
+
+    private fun unselectAllPages() {
+<span class="nc" id="L191">        selectedEntries.clear()</span>
+<span class="nc" id="L192">        adapter.notifyItemRangeChanged(0, adapter.itemCount)</span>
+<span class="nc" id="L193">    }</span>
+
+    private fun deleteSelectedPages() {
+<span class="nc" id="L196">        viewModel.deleteHistoryItems(selectedEntries.toList())</span>
+<span class="nc" id="L197">    }</span>
+
+    private fun onPagesDeleted() {
+<span class="nc" id="L200">        showDeleteItemsUndoSnackbar(selectedEntries.toList())</span>
+<span class="nc" id="L201">        selectedEntries.clear()</span>
+<span class="nc" id="L202">        viewModel.reloadHistoryItems()</span>
+<span class="nc" id="L203">    }</span>
+
+    private fun showDeleteItemsUndoSnackbar(entries: List&lt;HistoryEntry&gt;) {
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        val message = if (entries.size == 1) getString(R.string.history_item_deleted, entries[0].title.displayText) else getString(R.string.history_items_deleted, entries.size)</span>
+<span class="nc" id="L207">        val snackbar = FeedbackUtil.makeSnackbar(requireActivity(), message)</span>
+<span class="nc" id="L208">        snackbar.setAction(R.string.history_item_delete_undo) {</span>
+<span class="nc" id="L209">            viewModel.insertHistoryItem(entries)</span>
+<span class="nc" id="L210">        }</span>
+<span class="nc" id="L211">        snackbar.show()</span>
+<span class="nc" id="L212">    }</span>
+
+    private fun onLoadItemsFinished(items: List&lt;Any&gt;) {
+<span class="nc" id="L215">        val list = mutableListOf&lt;Any&gt;()</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if (!SearchActionModeCallback.matches(actionMode)) {</span>
+<span class="nc" id="L217">            list.add(SearchBar())</span>
+        }
+<span class="nc" id="L219">        list.addAll(items)</span>
+<span class="nc" id="L220">        adapter.setList(list)</span>
+<span class="nc" id="L221">        updateEmptyState(viewModel.searchQuery)</span>
+<span class="nc" id="L222">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L223">    }</span>
+
+    private fun onError(throwable: Throwable) {
+<span class="nc" id="L226">        L.e(throwable)</span>
+<span class="nc" id="L227">        onLoadItemsFinished(emptyList())</span>
+<span class="nc" id="L228">    }</span>
+
+<span class="nc" id="L230">    private class HeaderViewHolder(itemView: View) : DefaultViewHolder&lt;View&gt;(itemView) {</span>
+<span class="nc" id="L231">        var headerText = itemView.findViewById&lt;TextView&gt;(R.id.section_header_text)!!</span>
+
+        fun bindItem(date: String) {
+<span class="nc" id="L234">            headerText.text = date</span>
+<span class="nc" id="L235">        }</span>
+    }
+
+<span class="nc" id="L238">    private inner class SearchCardViewHolder(itemView: View) : DefaultViewHolder&lt;View&gt;(itemView) {</span>
+        private val historyFilterButton: ImageView
+        private val clearHistoryButton: ImageView
+
+        fun bindItem() {
+<span class="nc bnc" id="L243" title="All 2 branches missed.">            clearHistoryButton.visibility = if (adapter.isEmpty) View.GONE else View.VISIBLE</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            historyFilterButton.visibility = if (adapter.isEmpty) View.GONE else View.VISIBLE</span>
+<span class="nc" id="L245">        }</span>
+
+        private fun adjustSearchCardView(searchCardView: WikiCardView) {
+<span class="nc" id="L248">            searchCardView.post {</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">                if (!isAdded) {</span>
+<span class="nc" id="L250">                    return@post</span>
+                }
+<span class="nc" id="L252">                searchCardView.updateLayoutParams&lt;LinearLayout.LayoutParams&gt; {</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">                    val horizontalMargin = if (DimenUtil.isLandscape(requireContext())) {</span>
+<span class="nc" id="L254">                        searchCardView.width / 6 + DimenUtil.roundedDpToPx(30f)</span>
+                    } else {
+<span class="nc" id="L256">                        DimenUtil.roundedDpToPx(16f)</span>
+                    }
+<span class="nc" id="L258">                    updateMarginsRelative(start = horizontalMargin, end = horizontalMargin,</span>
+<span class="nc" id="L259">                        top = DimenUtil.roundedDpToPx(3f))</span>
+<span class="nc" id="L260">                }</span>
+<span class="nc" id="L261">            }</span>
+<span class="nc" id="L262">            searchCardView.setCardBackgroundColor(ResourceUtil.getThemedColor(requireContext(), R.attr.background_color))</span>
+<span class="nc" id="L263">        }</span>
+
+<span class="nc" id="L265">        init {</span>
+<span class="nc" id="L266">            val searchCardView = itemView.findViewById&lt;WikiCardView&gt;(R.id.search_card)</span>
+<span class="nc" id="L267">            val voiceSearchButton = itemView.findViewById&lt;View&gt;(R.id.voice_search_button)</span>
+<span class="nc" id="L268">            historyFilterButton = itemView.findViewById(R.id.history_filter)</span>
+<span class="nc" id="L269">            clearHistoryButton = itemView.findViewById(R.id.history_delete)</span>
+<span class="nc" id="L270">            searchCardView.setOnClickListener { (requireParentFragment() as MainFragment).openSearchActivity(Constants.InvokeSource.NAV_MENU, null, it) }</span>
+<span class="nc" id="L271">            voiceSearchButton.isVisible = WikipediaApp.instance.voiceRecognitionAvailable</span>
+<span class="nc" id="L272">            voiceSearchButton.setOnClickListener { (requireParentFragment() as MainFragment).onFeedVoiceSearchRequested() }</span>
+<span class="nc" id="L273">            historyFilterButton.setOnClickListener {</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                if (actionMode == null) {</span>
+<span class="nc" id="L275">                    actionMode = (requireActivity() as AppCompatActivity)</span>
+<span class="nc" id="L276">                            .startSupportActionMode(searchActionModeCallback)</span>
+                }
+<span class="nc" id="L278">            }</span>
+<span class="nc" id="L279">            clearHistoryButton.setOnClickListener {</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">                if (selectedEntries.isEmpty()) {</span>
+<span class="nc" id="L281">                    clearAllHistory(requireContext(), lifecycleScope) {</span>
+<span class="nc" id="L282">                        viewModel.afterDeleteAllHistoryItems()</span>
+<span class="nc" id="L283">                    }</span>
+                } else {
+<span class="nc" id="L285">                    deleteSelectedPages()</span>
+                }
+<span class="nc" id="L287">            }</span>
+<span class="nc" id="L288">            FeedbackUtil.setButtonTooltip(historyFilterButton, clearHistoryButton)</span>
+<span class="nc" id="L289">            adjustSearchCardView(searchCardView)</span>
+<span class="nc" id="L290">            updateSearchHint(searchCardView.findViewById(R.id.search_icon), searchCardView.findViewById(R.id.search_text_view))</span>
+<span class="nc" id="L291">        }</span>
+
+        private fun updateSearchHint(searchIcon: ImageView, searchTextView: TextView) {
+<span class="nc bnc" id="L294" title="All 4 branches missed.">            val showHybridSearch = Prefs.isHybridSearchOnboardingShown &amp;&amp; HybridSearchAbCTest().isHybridSearchEnabled(WikipediaApp.instance.appOrSystemLanguageCode)</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            searchIcon.contentDescription = getString(if (showHybridSearch) R.string.hybrid_search_search_hint else R.string.search_hint)</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">            searchTextView.text = getString(if (showHybridSearch) R.string.hybrid_search_search_hint else R.string.search_hint)</span>
+<span class="nc" id="L297">        }</span>
+    }
+
+<span class="nc" id="L300">    private inner class HistoryEntryItemHolder(itemView: PageItemView&lt;HistoryEntry&gt;) : DefaultViewHolder&lt;PageItemView&lt;HistoryEntry&gt;&gt;(itemView), SwipeableItemTouchHelperCallback.Callback {</span>
+        private lateinit var entry: HistoryEntry
+
+        fun bindItem(entry: HistoryEntry) {
+<span class="nc" id="L304">            this.entry = entry</span>
+<span class="nc" id="L305">            view.item = entry</span>
+<span class="nc" id="L306">            view.setTitle(entry.title.displayText)</span>
+<span class="nc" id="L307">            view.setTitleTypeface(Typeface.NORMAL)</span>
+<span class="nc" id="L308">            view.setDescription(entry.title.description)</span>
+<span class="nc" id="L309">            view.setImageUrl(entry.title.thumbUrl)</span>
+<span class="nc" id="L310">            view.setSearchQuery(viewModel.searchQuery)</span>
+<span class="nc" id="L311">            view.isSelected = selectedEntries.contains(entry)</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">            PageAvailableOfflineHandler.check(lifecycleScope, entry.title) { view.setViewsGreyedOut(!it) }</span>
+<span class="nc" id="L313">        }</span>
+
+        override fun onSwipe() {
+<span class="nc" id="L316">            selectedEntries.add(entry)</span>
+<span class="nc" id="L317">            deleteSelectedPages()</span>
+<span class="nc" id="L318">        }</span>
+
+<span class="nc" id="L320">        override fun isSwipeable(): Boolean { return true }</span>
+    }
+
+<span class="nc" id="L323">    private inner class HistoryEntryItemAdapter : RecyclerView.Adapter&lt;DefaultViewHolder&lt;*&gt;&gt;() {</span>
+<span class="nc" id="L324">        private var historyEntries = mutableListOf&lt;Any&gt;()</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L326">            return historyEntries.size</span>
+        }
+
+        val isEmpty
+<span class="nc bnc" id="L330" title="All 6 branches missed.">            get() = (itemCount == 0 || itemCount == 1 &amp;&amp; historyEntries[0] is SearchBar)</span>
+
+        override fun getItemViewType(position: Int): Int {
+<span class="nc" id="L333">            return when {</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">                historyEntries[position] is SearchBar -&gt; VIEW_TYPE_SEARCH_CARD</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">                historyEntries[position] is String -&gt; VIEW_TYPE_HEADER</span>
+<span class="nc" id="L336">                else -&gt; VIEW_TYPE_ITEM</span>
+            }
+        }
+
+        fun setList(list: MutableList&lt;Any&gt;) {
+<span class="nc" id="L341">            historyEntries = list</span>
+<span class="nc" id="L342">            adapter.notifyDataSetChanged()</span>
+<span class="nc" id="L343">        }</span>
+
+        fun clearList() {
+<span class="nc" id="L346">            historyEntries.clear()</span>
+<span class="nc" id="L347">        }</span>
+
+        fun getPosition(entry: HistoryEntry): Int {
+<span class="nc" id="L350">            return historyEntries.indexOf(entry)</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DefaultViewHolder&lt;*&gt; {
+<span class="nc bnc" id="L354" title="All 3 branches missed.">            return when (viewType) {</span>
+                VIEW_TYPE_SEARCH_CARD -&gt; {
+<span class="nc" id="L356">                    val view = LayoutInflater.from(requireContext()).inflate(R.layout.view_history_header_with_search, parent, false)</span>
+<span class="nc" id="L357">                    SearchCardViewHolder(view)</span>
+                }
+                VIEW_TYPE_HEADER -&gt; {
+<span class="nc" id="L360">                    val view = LayoutInflater.from(requireContext()).inflate(R.layout.view_section_header, parent, false)</span>
+<span class="nc" id="L361">                    HeaderViewHolder(view)</span>
+                }
+<span class="nc" id="L363">                else -&gt; HistoryEntryItemHolder(PageItemView(requireContext()))</span>
+            }
+        }
+
+        override fun onBindViewHolder(holder: DefaultViewHolder&lt;*&gt;, pos: Int) {
+<span class="nc" id="L368">            when (holder) {</span>
+<span class="nc bnc" id="L369" title="All 2 branches missed.">                is SearchCardViewHolder -&gt; holder.bindItem()</span>
+<span class="nc bnc" id="L370" title="All 2 branches missed.">                is HistoryEntryItemHolder -&gt; holder.bindItem(historyEntries[pos] as HistoryEntry)</span>
+<span class="nc" id="L371">                else -&gt; (holder as HeaderViewHolder).bindItem(historyEntries[pos] as String)</span>
+            }
+<span class="nc" id="L373">        }</span>
+
+        override fun onViewAttachedToWindow(holder: DefaultViewHolder&lt;*&gt;) {
+<span class="nc" id="L376">            super.onViewAttachedToWindow(holder)</span>
+<span class="nc bnc" id="L377" title="All 2 branches missed.">            if (holder is HistoryEntryItemHolder) {</span>
+<span class="nc" id="L378">                holder.view.callback = itemCallback</span>
+            }
+<span class="nc" id="L380">        }</span>
+
+        override fun onViewDetachedFromWindow(holder: DefaultViewHolder&lt;*&gt;) {
+<span class="nc bnc" id="L383" title="All 2 branches missed.">            if (holder is HistoryEntryItemHolder) {</span>
+<span class="nc" id="L384">                holder.view.callback = null</span>
+            }
+<span class="nc" id="L386">            super.onViewDetachedFromWindow(holder)</span>
+<span class="nc" id="L387">        }</span>
+
+        fun hideHeader() {
+<span class="nc bnc" id="L390" title="All 6 branches missed.">            if (historyEntries.isNotEmpty() &amp;&amp; historyEntries[0] is SearchBar) {</span>
+<span class="nc" id="L391">                historyEntries.removeAt(0)</span>
+<span class="nc" id="L392">                adapter.notifyItemRemoved(0)</span>
+            }
+<span class="nc" id="L394">        }</span>
+    }
+
+<span class="nc" id="L397">    private inner class ItemCallback : PageItemView.Callback&lt;HistoryEntry?&gt; {</span>
+        override fun onClick(item: HistoryEntry?) {
+<span class="nc bnc" id="L399" title="All 4 branches missed.">            if (selectedEntries.isNotEmpty()) {</span>
+<span class="nc" id="L400">                toggleSelectPage(item)</span>
+<span class="nc bnc" id="L401" title="All 2 branches missed.">            } else if (item != null) {</span>
+<span class="nc" id="L402">                onPageClick(HistoryEntry(item.title, HistoryEntry.SOURCE_HISTORY))</span>
+            }
+<span class="nc" id="L404">        }</span>
+
+        override fun onLongClick(item: HistoryEntry?): Boolean {
+<span class="nc bnc" id="L407" title="All 2 branches missed.">            if (actionMode != null) {</span>
+<span class="nc" id="L408">                return false</span>
+            }
+<span class="nc" id="L410">            beginMultiSelect()</span>
+<span class="nc" id="L411">            toggleSelectPage(item)</span>
+<span class="nc" id="L412">            return true</span>
+        }
+
+<span class="nc" id="L415">        override fun onActionClick(item: HistoryEntry?, view: View) {}</span>
+<span class="nc" id="L416">        override fun onListChipClick(readingList: ReadingList) {}</span>
+    }
+
+<span class="nc" id="L419">    private inner class HistorySearchCallback : SearchActionModeCallback() {</span>
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L421">            actionMode = mode</span>
+<span class="nc" id="L422">            (requireParentFragment() as MainFragment).setBottomNavVisible(false)</span>
+<span class="nc" id="L423">            (binding.historyList.adapter as HistoryEntryItemAdapter).hideHeader()</span>
+<span class="nc" id="L424">            return super.onCreateActionMode(mode, menu)</span>
+        }
+
+        override fun onQueryChange(s: String) {
+<span class="nc" id="L428">            viewModel.searchQuery = s.trim()</span>
+<span class="nc" id="L429">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L432">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L433">            viewModel.searchQuery = &quot;&quot;</span>
+<span class="nc" id="L434">            actionMode = null</span>
+<span class="nc" id="L435">            (requireParentFragment() as MainFragment).setBottomNavVisible(true)</span>
+<span class="nc" id="L436">        }</span>
+
+        override fun getSearchHintString(): String {
+<span class="nc" id="L439">            return requireContext().resources.getString(R.string.history_filter_list_hint)</span>
+        }
+
+        override fun getParentContext(): Context {
+<span class="nc" id="L443">            return requireContext()</span>
+        }
+    }
+
+    private fun callback(): Callback? {
+<span class="nc" id="L448">        return FragmentUtil.getCallback(this, Callback::class.java)</span>
+    }
+
+<span class="nc" id="L451">    private class SearchBar</span>
+
+    companion object {
+        private const val VIEW_TYPE_SEARCH_CARD = 0
+        private const val VIEW_TYPE_HEADER = 1
+        private const val VIEW_TYPE_ITEM = 2
+
+        fun clearAllHistory(context: Context, coroutineScope: CoroutineScope, action: () -&gt; Unit) {
+<span class="nc" id="L459">            MaterialAlertDialogBuilder(context)</span>
+<span class="nc" id="L460">                .setTitle(R.string.dialog_title_clear_history)</span>
+<span class="nc" id="L461">                .setMessage(R.string.dialog_message_clear_history)</span>
+<span class="nc" id="L462">                .setPositiveButton(R.string.dialog_message_clear_history_yes) { _, _ -&gt;</span>
+<span class="nc" id="L463">                    coroutineScope.launch(</span>
+<span class="nc" id="L464">                        CoroutineExceptionHandler { _, t -&gt; L.e(t) }</span>
+                    ) {
+<span class="nc" id="L466">                        AppDatabase.instance.historyEntryDao().deleteAll()</span>
+<span class="nc" id="L467">                        AppDatabase.instance.pageImagesDao().deleteAll()</span>
+<span class="nc" id="L468">                        AppDatabase.instance.categoryDao().deleteAll()</span>
+<span class="nc" id="L469">                        action()</span>
+<span class="nc" id="L470">                    }</span>
+<span class="nc" id="L471">                }</span>
+<span class="nc" id="L472">                .setNegativeButton(R.string.dialog_message_clear_history_no, null).show()</span>
+<span class="nc" id="L473">        }</span>
+
+        fun newInstance(): HistoryFragment {
+<span class="nc" id="L476">            return HistoryFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DescriptionEditView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.descriptions</a> &gt; <span class="el_source">DescriptionEditView.kt</span></div><h1>DescriptionEditView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.descriptions
+
+import android.app.Activity
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.inputmethod.EditorInfo
+import android.widget.LinearLayout
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.graphics.BlendModeColorFilterCompat
+import androidx.core.graphics.BlendModeCompat
+import androidx.core.net.toUri
+import androidx.core.view.isVisible
+import androidx.core.widget.ImageViewCompat
+import androidx.core.widget.addTextChangedListener
+import androidx.swiperefreshlayout.widget.CircularProgressDrawable
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.MachineGeneratedArticleDescriptionsAnalyticsHelper
+import org.wikipedia.databinding.GroupCaptchaBinding
+import org.wikipedia.databinding.ViewDescriptionEditBinding
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.language.LanguageUtil
+import org.wikipedia.mlkit.MlKitLanguageDetector
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.suggestededits.PageSummaryForEdit
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.views.SuggestedArticleDescriptionsDialog
+import java.util.Locale
+
+<span class="nc" id="L39">class DescriptionEditView(context: Context, attrs: AttributeSet?) : LinearLayout(context, attrs), MlKitLanguageDetector.Callback {</span>
+    interface Callback {
+        fun onSaveClick()
+        fun onCancelClick()
+        fun onBottomBarClick()
+        fun onVoiceInputClick()
+        fun getAnalyticsHelper(): MachineGeneratedArticleDescriptionsAnalyticsHelper
+    }
+
+    private lateinit var pageTitle: PageTitle
+    private lateinit var pageSummaryForEdit: PageSummaryForEdit
+    private var action: DescriptionEditActivity.Action? = null
+<span class="nc" id="L51">    private val binding = ViewDescriptionEditBinding.inflate(LayoutInflater.from(context), this)</span>
+<span class="nc" id="L52">    private val mlKitLanguageDetector = MlKitLanguageDetector()</span>
+<span class="nc" id="L53">    private val languageDetectRunnable = Runnable { mlKitLanguageDetector.detectLanguageFromText(binding.viewDescriptionEditText.text.toString()) }</span>
+<span class="nc" id="L54">    private val textValidateRunnable = Runnable { validateText() }</span>
+    private var originalDescription: String? = null
+    private var isTranslationEdit = false
+    private var isLanguageWrong = false
+    private var isTextValid = false
+<span class="nc" id="L59">    var callback: Callback? = null</span>
+
+<span class="nc" id="L61">    var isSuggestionButtonEnabled = false</span>
+<span class="nc" id="L62">    var wasSuggestionChosen = false</span>
+<span class="nc" id="L63">    var wasSuggestionModified = false</span>
+
+    var description: String?
+<span class="nc" id="L66">        get() = binding.viewDescriptionEditText.text.toString().trim()</span>
+        set(text) {
+<span class="nc" id="L68">            binding.viewDescriptionEditText.setText(text)</span>
+<span class="nc bnc" id="L69" title="All 6 branches missed.">            if (!text.isNullOrEmpty()) {</span>
+<span class="nc" id="L70">                binding.viewDescriptionEditText.setSelection(text.length)</span>
+            }
+<span class="nc" id="L72">        }</span>
+
+<span class="nc" id="L74">    init {</span>
+<span class="nc" id="L75">        FeedbackUtil.setButtonTooltip(binding.viewDescriptionEditSaveButton, binding.viewDescriptionEditCancelButton)</span>
+<span class="nc" id="L76">        orientation = VERTICAL</span>
+<span class="nc" id="L77">        mlKitLanguageDetector.callback = this</span>
+
+<span class="nc" id="L79">        binding.viewDescriptionEditSaveButton.setOnClickListener {</span>
+<span class="nc" id="L80">            validateText()</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (it.isEnabled) {</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                callback?.onSaveClick()</span>
+            }
+<span class="nc" id="L84">        }</span>
+
+<span class="nc" id="L86">        binding.viewDescriptionEditCancelButton.setOnClickListener {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            callback?.onCancelClick()</span>
+<span class="nc" id="L88">        }</span>
+
+<span class="nc" id="L90">        binding.viewDescriptionEditPageSummaryContainer.setOnClickListener {</span>
+<span class="nc" id="L91">            performReadArticleClick()</span>
+<span class="nc" id="L92">        }</span>
+
+<span class="nc" id="L94">        binding.viewDescriptionEditText.addTextChangedListener {</span>
+<span class="nc" id="L95">            if (wasSuggestionChosen) {</span>
+<span class="nc" id="L96">                wasSuggestionModified = true</span>
+            }
+<span class="nc" id="L98">            enqueueValidateText()</span>
+<span class="nc" id="L99">            isLanguageWrong = false</span>
+<span class="nc" id="L100">            removeCallbacks(languageDetectRunnable)</span>
+<span class="nc" id="L101">            postDelayed(languageDetectRunnable, TEXT_VALIDATE_DELAY_MILLIS / 2)</span>
+<span class="nc" id="L102">        }</span>
+
+<span class="nc" id="L104">        binding.viewDescriptionEditText.setOnEditorActionListener { _, actionId, _ -&gt;</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            if (actionId == EditorInfo.IME_ACTION_DONE) {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                if (binding.viewDescriptionEditSaveButton.isEnabled) {</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                    callback?.onSaveClick()</span>
+                }
+<span class="nc" id="L109">                return@setOnEditorActionListener true</span>
+            }
+<span class="nc" id="L111">            false</span>
+        }
+
+<span class="nc" id="L114">        binding.learnMoreButton.setOnClickListener {</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            UriUtil.visitInExternalBrowser(context, WikipediaApp.instance.getString(if (action == DescriptionEditActivity.Action.ADD_DESCRIPTION ||</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">                action == DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION)</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                if (pageTitle.wikiSite.languageCode == &quot;en&quot;) R.string.short_description_help_url_en else R.string.description_edit_description_learn_more_url</span>
+<span class="nc" id="L118">            else R.string.description_edit_image_caption_learn_more_url).toUri())</span>
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+
+    override fun onDetachedFromWindow() {
+<span class="nc" id="L123">        super.onDetachedFromWindow()</span>
+<span class="nc" id="L124">        removeCallbacks(languageDetectRunnable)</span>
+<span class="nc" id="L125">        removeCallbacks(textValidateRunnable)</span>
+<span class="nc" id="L126">    }</span>
+
+    fun setLoginCallback(callback: DescriptionEditLicenseView.Callback) {
+<span class="nc" id="L129">        binding.viewDescriptionEditReviewContainer.setLoginCallback(callback)</span>
+<span class="nc" id="L130">    }</span>
+
+    fun setPageTitle(pageTitle: PageTitle) {
+<span class="nc" id="L133">        this.pageTitle = pageTitle</span>
+<span class="nc" id="L134">        originalDescription = pageTitle.description</span>
+<span class="nc" id="L135">        setVoiceInput()</span>
+<span class="nc" id="L136">        setHintText()</span>
+<span class="nc" id="L137">        description = originalDescription</span>
+<span class="nc" id="L138">        setReviewHeaderText(false)</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        binding.viewDescriptionEditTextLayout.counterMaxLength = resources.getInteger(if (pageTitle.wikiSite.languageCode == &quot;en&quot;) R.integer.description_max_chars_en else R.integer.description_max_chars)</span>
+<span class="nc" id="L140">    }</span>
+
+    private fun setVoiceInput() {
+<span class="nc" id="L143">        binding.viewDescriptionEditTextLayout.isEndIconVisible = WikipediaApp.instance.voiceRecognitionAvailable</span>
+<span class="nc" id="L144">        binding.viewDescriptionEditTextLayout.setEndIconOnClickListener {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">            callback?.onVoiceInputClick()</span>
+<span class="nc" id="L146">        }</span>
+<span class="nc" id="L147">    }</span>
+
+    private fun setHintText() {
+<span class="nc" id="L150">        binding.viewDescriptionEditTextLayout.setHintTextAppearance(R.style.Small)</span>
+<span class="nc" id="L151">        binding.viewDescriptionEditTextLayout.hintTextColor = ResourceUtil.getThemedColorStateList(context, R.attr.progressive_color)</span>
+<span class="nc" id="L152">        binding.viewDescriptionEditTextLayout.hint = getHintText(pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L153">    }</span>
+
+    private fun getHeaderTextRes(inReview: Boolean): Int {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (inReview) {</span>
+<span class="nc bnc" id="L157" title="All 4 branches missed.">            return if (action == DescriptionEditActivity.Action.ADD_CAPTION || action == DescriptionEditActivity.Action.TRANSLATE_CAPTION) {</span>
+<span class="nc" id="L158">                R.string.suggested_edits_review_image_caption</span>
+            } else {
+<span class="nc" id="L160">                R.string.suggested_edits_review_description</span>
+            }
+        }
+<span class="nc bnc" id="L163" title="All 6 branches missed.">        return if (originalDescription.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L164" title="All 4 branches missed.">            when (action) {</span>
+<span class="nc" id="L165">                DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION -&gt; R.string.description_edit_translate_description</span>
+<span class="nc" id="L166">                DescriptionEditActivity.Action.ADD_CAPTION -&gt; R.string.description_edit_add_image_caption</span>
+<span class="nc" id="L167">                DescriptionEditActivity.Action.TRANSLATE_CAPTION -&gt; R.string.description_edit_translate_image_caption</span>
+<span class="nc" id="L168">                else -&gt; R.string.suggested_edits_add_description_button</span>
+            }
+        } else {
+<span class="nc bnc" id="L171" title="All 4 branches missed.">            if (action == DescriptionEditActivity.Action.ADD_CAPTION || action == DescriptionEditActivity.Action.TRANSLATE_CAPTION) {</span>
+<span class="nc" id="L172">                R.string.description_edit_edit_image_caption</span>
+            } else {
+<span class="nc" id="L174">                R.string.description_edit_edit_description</span>
+            }
+        }
+    }
+
+    private fun getLabelText(lang: String): CharSequence {
+<span class="nc bnc" id="L180" title="All 4 branches missed.">        return when (action) {</span>
+<span class="nc" id="L181">            DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION -&gt; {</span>
+<span class="nc" id="L182">                context.getString(R.string.description_edit_translate_article_description_label_per_language,</span>
+<span class="nc" id="L183">                    WikipediaApp.instance.languageState.getAppLanguageLocalizedName(lang))</span>
+            }
+<span class="nc" id="L185">            DescriptionEditActivity.Action.TRANSLATE_CAPTION -&gt; {</span>
+<span class="nc" id="L186">                context.getString(R.string.description_edit_translate_caption_label_per_language,</span>
+<span class="nc" id="L187">                    WikipediaApp.instance.languageState.getAppLanguageLocalizedName(lang))</span>
+            }
+<span class="nc" id="L189">            DescriptionEditActivity.Action.ADD_CAPTION -&gt; context.getString(R.string.description_edit_add_caption_label)</span>
+<span class="nc" id="L190">            else -&gt; context.getString(R.string.description_edit_article_description_label)</span>
+        }
+    }
+
+    private fun getHintText(lang: String): CharSequence {
+<span class="nc bnc" id="L195" title="All 3 branches missed.">        return when (action) {</span>
+<span class="nc" id="L196">            DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION -&gt; {</span>
+<span class="nc" id="L197">                context.getString(R.string.description_edit_translate_article_description_hint_per_language,</span>
+<span class="nc" id="L198">                    WikipediaApp.instance.languageState.getAppLanguageLocalizedName(lang))</span>
+            }
+<span class="nc" id="L200">            DescriptionEditActivity.Action.ADD_CAPTION, DescriptionEditActivity.Action.TRANSLATE_CAPTION -&gt; {</span>
+<span class="nc" id="L201">                context.getString(R.string.description_edit_translate_caption_hint_per_language,</span>
+<span class="nc" id="L202">                    WikipediaApp.instance.languageState.getAppLanguageLocalizedName(lang))</span>
+            }
+<span class="nc" id="L204">            else -&gt; {</span>
+<span class="nc" id="L205">                context.getString(R.string.description_edit_text_hint)</span>
+            }
+        }
+    }
+
+    private fun setReviewHeaderText(inReview: Boolean) {
+<span class="nc" id="L211">        binding.viewDescriptionEditHeader.text = context.getString(getHeaderTextRes(inReview))</span>
+<span class="nc" id="L212">    }</span>
+
+    private fun setDarkReviewScreen(enabled: Boolean) {
+<span class="nc" id="L215">        val context = context</span>
+<span class="nc" id="L216">        val actions = listOf(DescriptionEditActivity.Action.ADD_CAPTION, DescriptionEditActivity.Action.TRANSLATE_CAPTION)</span>
+
+<span class="nc bnc" id="L218" title="All 4 branches missed.">        if (context is DescriptionEditActivity &amp;&amp; action in actions) {</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            binding.viewDescriptionEditToolbarContainer.setBackgroundResource(if (enabled) android.R.color.black else ResourceUtil.getThemedAttributeId(context, R.attr.paper_color))</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            binding.viewDescriptionEditSaveButton.setTextColor(if (enabled) Color.WHITE else ResourceUtil.getThemedColor(context, R.attr.progressive_color))</span>
+<span class="nc" id="L221">            ImageViewCompat.setImageTintList(binding.viewDescriptionEditCancelButton,</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                ColorStateList.valueOf(if (enabled) Color.WHITE else ResourceUtil.getThemedColor(context, R.attr.placeholder_color)))</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">            binding.viewDescriptionEditHeader.setTextColor(if (enabled) Color.WHITE else ResourceUtil.getThemedColor(context, R.attr.primary_color))</span>
+
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            val barColor = if (enabled) Color.BLACK else ResourceUtil.getThemedColor(context, R.attr.paper_color)</span>
+<span class="nc" id="L226">            context.updateStatusBarColor(barColor)</span>
+<span class="nc" id="L227">            DeviceUtil.updateStatusBarTheme(context, null, enabled)</span>
+<span class="nc" id="L228">            context.updateNavigationBarColor(barColor)</span>
+        }
+<span class="nc" id="L230">    }</span>
+
+    fun setSummaries(sourceSummary: PageSummaryForEdit, targetSummary: PageSummaryForEdit?) {
+        // the summary data that will bring to the review screen
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        pageSummaryForEdit = if (isTranslationEdit) targetSummary!! else sourceSummary</span>
+<span class="nc" id="L235">        binding.viewDescriptionEditPageSummaryContainer.visibility = VISIBLE</span>
+<span class="nc" id="L236">        binding.viewDescriptionEditPageSummaryLabel.text = getLabelText(sourceSummary.lang)</span>
+<span class="nc bnc" id="L237" title="All 4 branches missed.">        binding.viewDescriptionEditPageSummary.text = StringUtil.removeHTMLTags(if (isTranslationEdit || action == DescriptionEditActivity.Action.ADD_CAPTION) sourceSummary.description else sourceSummary.extractHtml).trim()</span>
+<span class="nc bnc" id="L238" title="All 6 branches missed.">        if (binding.viewDescriptionEditPageSummary.text.toString().isEmpty() || action == DescriptionEditActivity.Action.ADD_CAPTION &amp;&amp;</span>
+<span class="nc bnc" id="L239" title="All 6 branches missed.">            !sourceSummary.pageTitle.description.isNullOrEmpty()) {</span>
+<span class="nc" id="L240">            binding.viewDescriptionEditPageSummaryContainer.visibility = GONE</span>
+        }
+<span class="nc bnc" id="L242" title="All 2 branches missed.">        setLayoutDirectionByLang(if (isTranslationEdit) sourceSummary.lang else pageTitle.wikiSite.languageCode)</span>
+
+<span class="nc" id="L244">        binding.viewDescriptionEditReadArticleBarContainer.setSummary(pageSummaryForEdit)</span>
+<span class="nc" id="L245">        binding.viewDescriptionEditReadArticleBarContainer.setOnClickListener { performReadArticleClick() }</span>
+<span class="nc" id="L246">    }</span>
+
+    fun setEditAllowed(allowed: Boolean) {
+<span class="nc" id="L249">        enableSaveButton(enabled = allowed, saveInProgress = false)</span>
+<span class="nc" id="L250">        binding.viewDescriptionEditTextLayout.isEnabled = allowed</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        if (allowed) {</span>
+<span class="nc" id="L252">            binding.viewDescriptionEditText.requestFocus()</span>
+<span class="nc" id="L253">            DeviceUtil.showSoftKeyboard(binding.viewDescriptionEditText)</span>
+        }
+<span class="nc" id="L255">    }</span>
+
+    fun setSaveState(saving: Boolean) {
+<span class="nc" id="L258">        showProgressBar(saving)</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        if (saving) {</span>
+<span class="nc" id="L260">            enableSaveButton(enabled = false, saveInProgress = true)</span>
+        } else {
+<span class="nc" id="L262">            updateSaveButtonEnabled()</span>
+        }
+<span class="nc" id="L264">    }</span>
+
+    fun loadReviewContent(enabled: Boolean) {
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        if (enabled) {</span>
+<span class="nc bnc" id="L268" title="All 6 branches missed.">            binding.viewDescriptionEditReviewContainer.setSummary(pageSummaryForEdit, description.orEmpty(), action == DescriptionEditActivity.Action.ADD_CAPTION || action == DescriptionEditActivity.Action.TRANSLATE_CAPTION)</span>
+<span class="nc" id="L269">            binding.viewDescriptionEditReviewContainer.show()</span>
+<span class="nc" id="L270">            binding.viewDescriptionEditReadArticleBarContainer.hide()</span>
+<span class="nc" id="L271">            binding.viewDescriptionEditContainer.visibility = GONE</span>
+<span class="nc" id="L272">            DeviceUtil.hideSoftKeyboard(binding.viewDescriptionEditReviewContainer)</span>
+        } else {
+<span class="nc" id="L274">            binding.viewDescriptionEditReviewContainer.hide()</span>
+<span class="nc" id="L275">            binding.viewDescriptionEditReadArticleBarContainer.show()</span>
+<span class="nc" id="L276">            binding.viewDescriptionEditContainer.visibility = VISIBLE</span>
+        }
+<span class="nc" id="L278">        setReviewHeaderText(enabled)</span>
+<span class="nc" id="L279">        setDarkReviewScreen(enabled)</span>
+<span class="nc" id="L280">    }</span>
+
+    fun showingReviewContent(): Boolean {
+<span class="nc" id="L283">        return binding.viewDescriptionEditReviewContainer.isShowing</span>
+    }
+
+    fun setError(text: CharSequence?) {
+<span class="nc" id="L287">        binding.viewDescriptionEditTextLayout.setErrorIconDrawable(R.drawable.ic_error_black_24dp)</span>
+<span class="nc" id="L288">        val colorStateList = ResourceUtil.getThemedColorStateList(context, androidx.appcompat.R.attr.colorError)</span>
+<span class="nc" id="L289">        binding.viewDescriptionEditTextLayout.setErrorIconTintList(colorStateList)</span>
+<span class="nc" id="L290">        binding.viewDescriptionEditTextLayout.setErrorTextColor(colorStateList)</span>
+<span class="nc" id="L291">        binding.viewDescriptionEditTextLayout.boxStrokeErrorColor = colorStateList</span>
+<span class="nc" id="L292">        layoutErrorState(text)</span>
+<span class="nc" id="L293">    }</span>
+
+    private fun setWarning(text: CharSequence?) {
+<span class="nc" id="L296">        binding.viewDescriptionEditTextLayout.setErrorIconDrawable(R.drawable.ic_warning_24)</span>
+<span class="nc" id="L297">        val colorStateList = AppCompatResources.getColorStateList(context, R.color.yellow700)</span>
+<span class="nc" id="L298">        binding.viewDescriptionEditTextLayout.setErrorIconTintList(colorStateList)</span>
+<span class="nc" id="L299">        binding.viewDescriptionEditTextLayout.setErrorTextColor(colorStateList)</span>
+<span class="nc" id="L300">        binding.viewDescriptionEditTextLayout.boxStrokeErrorColor = colorStateList</span>
+<span class="nc" id="L301">        layoutErrorState(text)</span>
+<span class="nc" id="L302">    }</span>
+
+    private fun clearError() {
+<span class="nc" id="L305">        binding.viewDescriptionEditTextLayout.error = null</span>
+<span class="nc" id="L306">        binding.viewDescriptionEditTextLayout.isErrorEnabled = false</span>
+<span class="nc" id="L307">    }</span>
+
+    private fun layoutErrorState(text: CharSequence?) {
+        // explicitly clear the error, to prevent a glitch in the Material library.
+<span class="nc" id="L311">        clearError()</span>
+<span class="nc" id="L312">        binding.viewDescriptionEditTextLayout.isErrorEnabled = true</span>
+<span class="nc" id="L313">        binding.viewDescriptionEditTextLayout.error = text</span>
+<span class="nc bnc" id="L314" title="All 6 branches missed.">        if (!text.isNullOrEmpty()) {</span>
+<span class="nc" id="L315">            post {</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">                if (isAttachedToWindow) {</span>
+<span class="nc" id="L317">                    binding.viewDescriptionEditScrollview.fullScroll(FOCUS_DOWN)</span>
+                }
+<span class="nc" id="L319">            }</span>
+        }
+<span class="nc" id="L321">    }</span>
+
+    private fun enqueueValidateText() {
+<span class="nc" id="L324">        removeCallbacks(textValidateRunnable)</span>
+<span class="nc" id="L325">        postDelayed(textValidateRunnable, TEXT_VALIDATE_DELAY_MILLIS)</span>
+<span class="nc" id="L326">    }</span>
+
+    private fun validateText() {
+<span class="nc" id="L329">        isTextValid = true</span>
+        // T317462: accept ending punctuation for Czech descriptions
+<span class="nc bnc" id="L331" title="All 2 branches missed.">        val punctuationList = if (pageTitle.wikiSite.languageCode == &quot;cs&quot;) {</span>
+<span class="nc" id="L332">            listOf(&quot;,&quot;, &quot;!&quot;, &quot;?&quot;)</span>
+        } else {
+<span class="nc" id="L334">            listOf(&quot;.&quot;, &quot;,&quot;, &quot;!&quot;, &quot;?&quot;)</span>
+        }
+<span class="nc" id="L336">        val text = binding.viewDescriptionEditText.text.toString().lowercase(Locale.getDefault()).trim()</span>
+<span class="nc bnc" id="L337" title="All 4 branches missed.">        if (text.isEmpty()) {</span>
+<span class="nc" id="L338">            isTextValid = false</span>
+<span class="nc" id="L339">            clearError()</span>
+<span class="nc bnc" id="L340" title="All 2 branches missed.">        } else if (text.length &lt; 2) {</span>
+<span class="nc" id="L341">            isTextValid = false</span>
+<span class="nc" id="L342">            setError(context.getString(R.string.description_too_short))</span>
+<span class="nc bnc" id="L343" title="All 4 branches missed.">        } else if ((action == DescriptionEditActivity.Action.ADD_DESCRIPTION || action == DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION) &amp;&amp;</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">            punctuationList.any { text.endsWith(it) }) {</span>
+<span class="nc" id="L345">            isTextValid = false</span>
+<span class="nc" id="L346">            setError(context.getString(R.string.description_ends_with_punctuation))</span>
+<span class="nc bnc" id="L347" title="All 4 branches missed.">        } else if (pageTitle.wikiSite.languageCode == &quot;en&quot; &amp;&amp; text.length &gt; resources.getInteger(R.integer.description_max_chars_en)) {</span>
+<span class="nc" id="L348">            setWarning(context.getString(R.string.description_too_long))</span>
+<span class="nc bnc" id="L349" title="All 4 branches missed.">        } else if ((action == DescriptionEditActivity.Action.ADD_DESCRIPTION || action == DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION) &amp;&amp;</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">            LanguageUtil.startsWithArticle(text, pageTitle.wikiSite.languageCode)) {</span>
+<span class="nc" id="L351">            setWarning(context.getString(R.string.description_starts_with_article))</span>
+<span class="nc bnc" id="L352" title="All 4 branches missed.">        } else if ((action == DescriptionEditActivity.Action.ADD_DESCRIPTION || action == DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION) &amp;&amp;</span>
+<span class="nc bnc" id="L353" title="All 4 branches missed.">            pageTitle.wikiSite.languageCode == &quot;en&quot; &amp;&amp; Character.isLowerCase(binding.viewDescriptionEditText.text.toString()[0])) {</span>
+<span class="nc" id="L354">            setWarning(context.getString(R.string.description_starts_with_lowercase))</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">        } else if (isLanguageWrong) {</span>
+<span class="nc" id="L356">            val localizedName = WikipediaApp.instance.languageState.getAppLanguageLocalizedName(pageSummaryForEdit.lang)</span>
+<span class="nc" id="L357">            setWarning(context.getString(R.string.description_verification_notice, localizedName, localizedName))</span>
+        } else {
+<span class="nc" id="L359">            clearError()</span>
+        }
+<span class="nc" id="L361">        updateSaveButtonEnabled()</span>
+<span class="nc" id="L362">        updateSuggestedDescriptionsButtonVisibility()</span>
+<span class="nc" id="L363">    }</span>
+
+    fun setHighlightText(text: String?) {
+<span class="nc bnc" id="L366" title="All 4 branches missed.">        if (text != null &amp;&amp; originalDescription != null) {</span>
+<span class="nc" id="L367">            postDelayed({</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">                if (isAttachedToWindow) {</span>
+<span class="nc" id="L369">                    StringUtil.highlightEditText(binding.viewDescriptionEditText, originalDescription!!, text)</span>
+                }
+<span class="nc" id="L371">            }, 500)</span>
+        }
+<span class="nc" id="L373">    }</span>
+
+    private fun updateSaveButtonEnabled() {
+<span class="nc bnc" id="L376" title="All 6 branches missed.">        if (!binding.viewDescriptionEditText.text.isNullOrEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L377" title="All 4 branches missed.">            originalDescription.orEmpty() != binding.viewDescriptionEditText.text.toString() &amp;&amp;</span>
+<span class="nc bnc" id="L378" title="All 2 branches missed.">            isTextValid) {</span>
+<span class="nc" id="L379">            enableSaveButton(enabled = true, saveInProgress = false)</span>
+        } else {
+<span class="nc" id="L381">            enableSaveButton(enabled = false, saveInProgress = false)</span>
+        }
+<span class="nc" id="L383">    }</span>
+
+    private fun enableSaveButton(enabled: Boolean, saveInProgress: Boolean) {
+<span class="nc bnc" id="L386" title="All 2 branches missed.">        if (saveInProgress) {</span>
+<span class="nc" id="L387">            binding.viewDescriptionEditSaveButton.setTextColor(ResourceUtil.getThemedColor(context, R.attr.progressive_color))</span>
+<span class="nc" id="L388">            binding.viewDescriptionEditSaveButton.isEnabled = false</span>
+<span class="nc" id="L389">            binding.viewDescriptionEditSaveButton.alpha = 1 / 2f</span>
+        } else {
+<span class="nc" id="L391">            binding.viewDescriptionEditSaveButton.alpha = 1f</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">            if (enabled) {</span>
+<span class="nc" id="L393">                binding.viewDescriptionEditSaveButton.setTextColor(ResourceUtil.getThemedColor(context, R.attr.progressive_color))</span>
+<span class="nc" id="L394">                binding.viewDescriptionEditSaveButton.isEnabled = true</span>
+            } else {
+<span class="nc" id="L396">                binding.viewDescriptionEditSaveButton.setTextColor(ResourceUtil.getThemedColorStateList(context, R.attr.placeholder_color))</span>
+<span class="nc" id="L397">                binding.viewDescriptionEditSaveButton.isEnabled = false</span>
+            }
+        }
+<span class="nc" id="L400">    }</span>
+
+    fun showProgressBar(show: Boolean) {
+<span class="nc bnc" id="L403" title="All 2 branches missed.">        binding.viewDescriptionEditProgressBar.visibility = if (show) VISIBLE else GONE</span>
+<span class="nc" id="L404">    }</span>
+
+    fun setAction(action: DescriptionEditActivity.Action) {
+<span class="nc" id="L407">        this.action = action</span>
+<span class="nc bnc" id="L408" title="All 4 branches missed.">        isTranslationEdit = action == DescriptionEditActivity.Action.TRANSLATE_CAPTION || action == DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION</span>
+<span class="nc" id="L409">    }</span>
+
+    private fun performReadArticleClick() {
+<span class="nc bnc" id="L412" title="All 2 branches missed.">        callback?.onBottomBarClick()</span>
+<span class="nc" id="L413">    }</span>
+
+    override fun onLanguageDetectionSuccess(languageCodes: List&lt;String&gt;) {
+<span class="nc bnc" id="L416" title="All 2 branches missed.">        if (!languageCodes.contains(pageSummaryForEdit.lang) &amp;&amp;</span>
+<span class="nc bnc" id="L417" title="All 2 branches missed.">            !languageCodes.contains(WikipediaApp.instance.languageState.getDefaultLanguageCode(pageSummaryForEdit.lang))) {</span>
+<span class="nc" id="L418">            isLanguageWrong = true</span>
+<span class="nc" id="L419">            enqueueValidateText()</span>
+        }
+<span class="nc" id="L421">    }</span>
+
+    fun getDescriptionEditTextView(): LinearLayout {
+<span class="nc" id="L424">        return binding.viewDescriptionEditTextLayout</span>
+    }
+
+    fun updateInfoText() {
+<span class="nc" id="L428">        binding.learnMoreButton.text =</span>
+<span class="nc bnc" id="L429" title="All 2 branches missed.">            if (action == DescriptionEditActivity.Action.ADD_DESCRIPTION ||</span>
+<span class="nc bnc" id="L430" title="All 2 branches missed.">                action == DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION) context.getString(R.string.description_edit_learn_more)</span>
+<span class="nc" id="L431">            else context.getString(R.string.description_edit_image_caption_learn_more)</span>
+<span class="nc" id="L432">    }</span>
+
+    fun showSuggestedDescriptionsLoadingProgress() {
+<span class="nc" id="L435">        binding.suggestedDescButton.isVisible = true</span>
+<span class="nc" id="L436">        binding.suggestedDescButton.isEnabled = false</span>
+<span class="nc" id="L437">        val drawable = CircularProgressDrawable(context)</span>
+<span class="nc" id="L438">        drawable.strokeWidth = DimenUtil.dpToPx(1.5f)</span>
+<span class="nc" id="L439">        drawable.colorFilter = BlendModeColorFilterCompat.createBlendModeColorFilterCompat(ResourceUtil.getThemedColor(context, R.attr.primary_color), BlendModeCompat.SRC_IN)</span>
+<span class="nc" id="L440">        binding.suggestedDescButton.chipIcon = drawable</span>
+<span class="nc" id="L441">        drawable.start()</span>
+<span class="nc" id="L442">    }</span>
+
+     fun updateSuggestedDescriptionsButtonVisibility() {
+<span class="nc bnc" id="L445" title="All 8 branches missed.">        binding.suggestedDescButton.isVisible = binding.viewDescriptionEditTextLayout.error.isNullOrEmpty() &amp;&amp; isSuggestionButtonEnabled</span>
+<span class="nc" id="L446">    }</span>
+
+    fun showSuggestedDescriptionsButton(firstSuggestion: String, secondSuggestion: String?) {
+<span class="nc" id="L449">        binding.suggestedDescButton.isEnabled = true</span>
+<span class="nc" id="L450">        binding.suggestedDescButton.chipIcon = AppCompatResources.getDrawable(context, R.drawable.ic_robot_24)</span>
+<span class="nc" id="L451">        binding.suggestedDescButton.setOnClickListener {</span>
+<span class="nc" id="L452">            SuggestedArticleDescriptionsDialog(context as Activity, firstSuggestion, secondSuggestion, pageTitle, callback!!.getAnalyticsHelper()) { suggestion -&gt;</span>
+<span class="nc" id="L453">                binding.viewDescriptionEditText.setText(suggestion)</span>
+<span class="nc bnc" id="L454" title="All 2 branches missed.">                binding.viewDescriptionEditText.setSelection(binding.viewDescriptionEditText.text?.length ?: 0)</span>
+<span class="nc bnc" id="L455" title="All 4 branches missed.">                callback?.getAnalyticsHelper()?.logSuggestionChosen(context, pageTitle)</span>
+<span class="nc" id="L456">                wasSuggestionChosen = true</span>
+<span class="nc" id="L457">                wasSuggestionModified = false</span>
+<span class="nc" id="L458">            }.show()</span>
+<span class="nc" id="L459">        }</span>
+<span class="nc bnc" id="L460" title="All 2 branches missed.">        if (!Prefs.suggestedEditsMachineGeneratedDescriptionTooltipShown) {</span>
+<span class="nc" id="L461">            binding.root.postDelayed({</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">                if (!isAttachedToWindow) {</span>
+<span class="nc" id="L463">                    return@postDelayed</span>
+                }
+<span class="nc" id="L465">                DeviceUtil.hideSoftKeyboard(context as Activity)</span>
+<span class="nc" id="L466">                FeedbackUtil.showTooltip(</span>
+<span class="nc" id="L467">                    context as Activity, binding.suggestedDescButton,</span>
+<span class="nc" id="L468">                    context.getString(R.string.description_edit_suggested_description_button_tooltip),</span>
+<span class="nc" id="L469">                    aboveOrBelow = false, autoDismiss = true, showDismissButton = true</span>
+<span class="nc" id="L470">                ).apply {</span>
+<span class="nc" id="L471">                    setOnBalloonDismissListener {</span>
+<span class="nc" id="L472">                        binding.root.postDelayed({</span>
+<span class="nc bnc" id="L473" title="All 2 branches missed.">                            if (isAttachedToWindow) {</span>
+<span class="nc" id="L474">                                DeviceUtil.showSoftKeyboard(binding.viewDescriptionEditText)</span>
+                            }
+<span class="nc" id="L476">                        }, 500)</span>
+<span class="nc" id="L477">                    }</span>
+<span class="nc" id="L478">                }</span>
+<span class="nc" id="L479">                Prefs.suggestedEditsMachineGeneratedDescriptionTooltipShown = true</span>
+<span class="nc" id="L480">            }, 500)</span>
+        }
+<span class="nc" id="L482">    }</span>
+
+    fun getCaptchaContainer(): GroupCaptchaBinding {
+<span class="nc" id="L485">        return binding.captchaContainer</span>
+    }
+
+    companion object {
+        private const val TEXT_VALIDATE_DELAY_MILLIS = 1000L
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

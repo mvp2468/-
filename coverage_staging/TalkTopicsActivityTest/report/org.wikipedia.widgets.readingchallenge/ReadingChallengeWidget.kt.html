@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingChallengeWidget.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.widgets.readingchallenge</a> &gt; <span class="el_source">ReadingChallengeWidget.kt</span></div><h1>ReadingChallengeWidget.kt</h1><pre class="source lang-java linenums">package org.wikipedia.widgets.readingchallenge
+
+import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.glance.ButtonDefaults
+import androidx.glance.ColorFilter
+import androidx.glance.GlanceId
+import androidx.glance.GlanceModifier
+import androidx.glance.GlanceTheme
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.LocalSize
+import androidx.glance.action.Action
+import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.components.FilledButton
+import androidx.glance.appwidget.provideContent
+import androidx.glance.color.ColorProvider
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
+import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.layout.width
+import androidx.glance.text.FontWeight
+import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
+import org.wikipedia.R
+import org.wikipedia.settings.Prefs
+import java.time.LocalDate
+
+<span class="nc" id="L43">class ReadingChallengeWidget : GlanceAppWidget() {</span>
+    companion object {
+<span class="nc" id="L45">        private val fullWidthThreshold = 320.dp</span>
+    }
+
+<span class="nc" id="L48">    override val sizeMode: SizeMode = SizeMode.Exact</span>
+
+    override suspend fun provideGlance(
+        context: Context,
+        id: GlanceId
+    ) {
+<span class="nc" id="L54">        val repository = ReadingChallengeWidgetRepository(context)</span>
+
+<span class="nc" id="L56">        provideContent {</span>
+<span class="nc" id="L57">            val state by repository.observeState().collectAsState(initial = ReadingChallengeState.Loading)</span>
+
+<span class="nc" id="L59">            GlanceTheme {</span>
+<span class="nc" id="L60">                val size = LocalSize.current</span>
+<span class="nc bnc" id="L61" title="All 4 branches missed.">                val enrollmentDate = if (Prefs.readingChallengeEnrollmentDate.isNotEmpty()) LocalDate.parse(Prefs.readingChallengeEnrollmentDate) else LocalDate.now()</span>
+
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                if (size.width &gt;= fullWidthThreshold) {</span>
+<span class="nc" id="L64">                    ReadingChallengeLargeWidgetContent(state, enrollmentDate)</span>
+<span class="nc" id="L65">                } else {</span>
+<span class="nc" id="L66">                    ReadingChallengeSmallWidgetContent(state, enrollmentDate)</span>
+                }
+<span class="nc" id="L68">            }</span>
+<span class="nc" id="L69">        }</span>
+    }
+}
+
+/**
+ * Should be used as the base wrapper for all content in the widget to ensure a consistent corner radius background
+ * across all api level
+ */
+@Composable
+fun BaseWidgetContent(
+    color: Color,
+    content: @Composable () -&gt; Unit
+<span class="nc" id="L81">) {</span>
+<span class="nc" id="L82">    Box(</span>
+<span class="nc" id="L83">        modifier = GlanceModifier</span>
+<span class="nc" id="L84">            .fillMaxSize()</span>
+<span class="nc" id="L85">    ) {</span>
+        // base background color for widget
+<span class="nc" id="L87">        Image(</span>
+<span class="nc" id="L88">            provider = ImageProvider(R.drawable.widget_shape_background),</span>
+<span class="nc" id="L89">            contentDescription = null,</span>
+<span class="nc" id="L90">            modifier = GlanceModifier.fillMaxSize(),</span>
+<span class="nc" id="L91">            colorFilter = ColorFilter.tint(</span>
+<span class="nc" id="L92">                ColorProvider(day = color, night = color)</span>
+            )
+        )
+<span class="nc" id="L95">        content()</span>
+<span class="nc" id="L96">    }</span>
+<span class="nc" id="L97">}</span>
+
+@Composable
+<span class="nc bnc" id="L100" title="All 2 branches missed.">fun WidgetButton(</span>
+    text: String,
+    action: Action,
+<span class="nc bnc" id="L103" title="All 2 branches missed.">    backgroundColor: Color = WidgetColors.progressive,</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">    contentColor: Color = WidgetColors.white,</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">    icon: ImageProvider? = null,</span>
+<span class="nc" id="L106">    modifier: GlanceModifier = GlanceModifier.fillMaxWidth()</span>
+<span class="nc bnc" id="L107" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L108">    FilledButton(</span>
+<span class="nc" id="L109">        text = text,</span>
+<span class="nc" id="L110">        onClick = action,</span>
+<span class="nc" id="L111">        colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L112">            backgroundColor = ColorProvider(day = backgroundColor, night = backgroundColor),</span>
+<span class="nc" id="L113">            contentColor = ColorProvider(day = contentColor, night = contentColor)</span>
+        ),
+<span class="nc" id="L115">        icon = icon,</span>
+<span class="nc" id="L116">        modifier = modifier</span>
+    )
+<span class="nc" id="L118">}</span>
+
+@Composable
+fun WidgetBadge(
+    text: String,
+<span class="nc bnc" id="L123" title="All 2 branches missed.">    textSize: TextUnit = 32.sp,</span>
+    iconResId: Int,
+<span class="nc" id="L125">    iconSize: Dp = 16.dp,</span>
+<span class="nc" id="L126">    spacerWidth: Dp = 4.dp,</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">    iconTintColor: Color? = null,</span>
+    textColor: Color,
+<span class="nc" id="L129">    modifier: GlanceModifier = GlanceModifier</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L131">    Row(</span>
+<span class="nc" id="L132">        modifier = modifier,</span>
+<span class="nc" id="L133">        verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L134">        horizontalAlignment = Alignment.CenterHorizontally</span>
+<span class="nc" id="L135">    ) {</span>
+<span class="nc" id="L136">        Image(</span>
+<span class="nc" id="L137">            provider = ImageProvider(iconResId),</span>
+<span class="nc" id="L138">            contentDescription = null,</span>
+<span class="nc" id="L139">            modifier = GlanceModifier</span>
+<span class="nc" id="L140">                .size(iconSize),</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            colorFilter = iconTintColor?.let { ColorFilter.tint(ColorProvider(day = iconTintColor, night = iconTintColor)) }</span>
+        )
+<span class="nc" id="L143">        Spacer(</span>
+<span class="nc" id="L144">            modifier = GlanceModifier.width(spacerWidth)</span>
+        )
+<span class="nc" id="L146">        Text(</span>
+<span class="nc" id="L147">            text = text,</span>
+<span class="nc" id="L148">            style = TextStyle(</span>
+<span class="nc" id="L149">                fontSize = textSize,</span>
+<span class="nc" id="L150">                color = ColorProvider(day = textColor, night = textColor),</span>
+<span class="nc" id="L151">                fontWeight = FontWeight.Medium</span>
+            )
+        )
+<span class="nc" id="L154">    }</span>
+<span class="nc" id="L155">}</span>
+
+@Composable
+fun WidgetIconButton(
+    text: String,
+    action: Action,
+    iconResId: Int,
+<span class="nc" id="L162">    modifier: GlanceModifier = GlanceModifier</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L164">    FilledButton(</span>
+<span class="nc" id="L165">        text = text,</span>
+<span class="nc" id="L166">        onClick = action,</span>
+<span class="nc" id="L167">        icon = ImageProvider(iconResId),</span>
+<span class="nc" id="L168">        colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L169">            backgroundColor = ColorProvider(day = WidgetColors.progressive, night = WidgetColors.progressive),</span>
+<span class="nc" id="L170">            contentColor = ColorProvider(day = WidgetColors.white, night = WidgetColors.white)</span>
+        ),
+<span class="nc" id="L172">        modifier = modifier</span>
+    )
+<span class="nc" id="L174">}</span>
+
+@Composable
+fun ReadingChallengeWidgetLoading(
+<span class="nc bnc" id="L178" title="All 2 branches missed.">    modifier: GlanceModifier = GlanceModifier,</span>
+<span class="nc" id="L179">    backgroundColorResId: Int = WidgetBackground.challengeNotOptInRadialGradient</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L181">    Box(</span>
+<span class="nc" id="L182">        modifier = modifier</span>
+<span class="nc" id="L183">    ) {</span>
+        // base background color for widget
+<span class="nc" id="L185">        Image(</span>
+<span class="nc" id="L186">            provider = ImageProvider(backgroundColorResId),</span>
+<span class="nc" id="L187">            contentDescription = null,</span>
+<span class="nc" id="L188">            modifier = GlanceModifier.fillMaxSize()</span>
+        )
+<span class="nc" id="L190">        Row(</span>
+<span class="nc" id="L191">            modifier = GlanceModifier</span>
+<span class="nc" id="L192">                .fillMaxWidth()</span>
+<span class="nc" id="L193">                .padding(16.dp),</span>
+<span class="nc" id="L194">            horizontalAlignment = Alignment.End</span>
+<span class="nc" id="L195">        ) {</span>
+<span class="nc" id="L196">            Image(</span>
+<span class="nc" id="L197">                provider = ImageProvider(R.drawable.ic_w_logo_shadow),</span>
+<span class="nc" id="L198">                contentDescription = null,</span>
+<span class="nc" id="L199">                modifier = GlanceModifier.size(36.dp)</span>
+            )
+<span class="nc" id="L201">        }</span>
+<span class="nc" id="L202">    }</span>
+<span class="nc" id="L203">}</span>
+
+enum class SmallWidgetSize {
+<span class="nc" id="L206">    TINY,</span>
+<span class="nc" id="L207">    EXTRA_COMPACT,</span>
+<span class="nc" id="L208">    COMPACT,</span>
+<span class="nc" id="L209">    FULL;</span>
+
+    val mascotSize: Dp
+<span class="nc bnc" id="L212" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L213">            TINY -&gt; 46.dp</span>
+<span class="nc" id="L214">            EXTRA_COMPACT -&gt; 56.dp</span>
+<span class="nc" id="L215">            COMPACT -&gt; 80.dp</span>
+<span class="nc" id="L216">            FULL -&gt; 120.dp</span>
+<span class="nc" id="L217">        }</span>
+
+    val compactMascotSize: Dp
+<span class="nc bnc" id="L220" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L221">            TINY -&gt; 36.dp</span>
+<span class="nc" id="L222">            EXTRA_COMPACT -&gt; 46.dp</span>
+<span class="nc" id="L223">            COMPACT -&gt; 70.dp</span>
+<span class="nc" id="L224">            FULL -&gt; 120.dp</span>
+<span class="nc" id="L225">        }</span>
+
+    val badgeTextSize: TextUnit
+<span class="nc bnc" id="L228" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L229">            TINY -&gt; 18.sp</span>
+<span class="nc" id="L230">            EXTRA_COMPACT -&gt; 22.sp</span>
+<span class="nc" id="L231">            COMPACT -&gt; 26.sp</span>
+<span class="nc" id="L232">            FULL -&gt; 32.sp</span>
+<span class="nc" id="L233">        }</span>
+
+    val badgeIconSize: Dp
+<span class="nc bnc" id="L236" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L237">            TINY -&gt; 22.dp</span>
+<span class="nc" id="L238">            EXTRA_COMPACT -&gt; 28.dp</span>
+<span class="nc" id="L239">            COMPACT -&gt; 36.dp</span>
+<span class="nc" id="L240">            FULL -&gt; 40.dp</span>
+<span class="nc" id="L241">        }</span>
+
+    val paddingBetweenMascotAndTitleIcon: Dp
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L245">            TINY, EXTRA_COMPACT -&gt; 0.dp</span>
+<span class="nc" id="L246">            COMPACT, FULL -&gt; 16.dp</span>
+<span class="nc" id="L247">        }</span>
+
+    val titleBarIconSize: Dp
+<span class="nc bnc" id="L250" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L251">            TINY -&gt; 22.dp</span>
+<span class="nc" id="L252">            EXTRA_COMPACT -&gt; 28.dp</span>
+<span class="nc" id="L253">            COMPACT -&gt; 32.dp</span>
+<span class="nc" id="L254">            FULL -&gt; 36.dp</span>
+<span class="nc" id="L255">        }</span>
+
+    companion object {
+        fun from(size: DpSize): SmallWidgetSize {
+<span class="nc" id="L259">            val constraint = minOf(size.width, size.height)</span>
+<span class="nc" id="L260">            return when {</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                constraint &lt;= 140.dp -&gt; TINY</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">                constraint &lt;= 176.dp -&gt; EXTRA_COMPACT</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                constraint &lt;= 230.dp -&gt; COMPACT</span>
+<span class="nc" id="L264">                else -&gt; FULL</span>
+            }
+        }
+    }
+}
+
+enum class LargeWidgetSize {
+<span class="nc" id="L271">    TINY,</span>
+<span class="nc" id="L272">    EXTRA_COMPACT,</span>
+<span class="nc" id="L273">    COMPACT,</span>
+<span class="nc" id="L274">    FULL;</span>
+
+    val titleTextSize: TextUnit
+<span class="nc bnc" id="L277" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L278">            TINY -&gt; 16.sp</span>
+<span class="nc" id="L279">            EXTRA_COMPACT -&gt; 18.sp</span>
+<span class="nc" id="L280">            COMPACT -&gt; 24.sp</span>
+<span class="nc" id="L281">            FULL -&gt; 32.sp</span>
+<span class="nc" id="L282">        }</span>
+
+    val subtitleTextSize: TextUnit
+<span class="nc bnc" id="L285" title="All 3 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L286">            TINY -&gt; 12.sp</span>
+<span class="nc" id="L287">            EXTRA_COMPACT, COMPACT -&gt; 14.sp</span>
+<span class="nc" id="L288">            FULL -&gt; 16.sp</span>
+<span class="nc" id="L289">        }</span>
+
+    val trophyIconSize: Dp
+<span class="nc bnc" id="L292" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L293">            TINY -&gt; 18.dp</span>
+<span class="nc" id="L294">            EXTRA_COMPACT -&gt; 20.dp</span>
+<span class="nc" id="L295">            COMPACT -&gt; 22.dp</span>
+<span class="nc" id="L296">            FULL -&gt; 24.dp</span>
+<span class="nc" id="L297">        }</span>
+
+    val titleBarTextSize: TextUnit
+<span class="nc bnc" id="L300" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L301">            TINY -&gt; 12.sp</span>
+<span class="nc" id="L302">            EXTRA_COMPACT -&gt; 13.sp</span>
+<span class="nc" id="L303">            COMPACT -&gt; 14.sp</span>
+<span class="nc" id="L304">            FULL -&gt; 16.sp</span>
+<span class="nc" id="L305">        }</span>
+
+    val streakBadgeTextSize: TextUnit
+<span class="nc bnc" id="L308" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L309">            TINY -&gt; 18.sp</span>
+<span class="nc" id="L310">            EXTRA_COMPACT -&gt; 20.sp</span>
+<span class="nc" id="L311">            COMPACT -&gt; 26.sp</span>
+<span class="nc" id="L312">            FULL -&gt; 32.sp</span>
+<span class="nc" id="L313">        }</span>
+
+    val streakBadgeIconSize: Dp
+<span class="nc bnc" id="L316" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L317">            TINY -&gt; 22.dp</span>
+<span class="nc" id="L318">            EXTRA_COMPACT -&gt; 28.dp</span>
+<span class="nc" id="L319">            COMPACT -&gt; 36.dp</span>
+<span class="nc" id="L320">            FULL -&gt; 40.dp</span>
+<span class="nc" id="L321">        }</span>
+
+    val titleBarIconSize: Dp
+<span class="nc bnc" id="L324" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L325">            TINY -&gt; 22.dp</span>
+<span class="nc" id="L326">            EXTRA_COMPACT -&gt; 24.dp</span>
+<span class="nc" id="L327">            COMPACT -&gt; 32.dp</span>
+<span class="nc" id="L328">            FULL -&gt; 36.dp</span>
+<span class="nc" id="L329">        }</span>
+
+    // Mascot size when bottom content is not empty.
+    val sideMascotSize: Dp
+<span class="nc bnc" id="L333" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L334">            TINY -&gt; 40.dp</span>
+<span class="nc" id="L335">            EXTRA_COMPACT -&gt; 60.dp</span>
+<span class="nc" id="L336">            COMPACT -&gt; 80.dp</span>
+<span class="nc" id="L337">            FULL -&gt; 100.dp</span>
+<span class="nc" id="L338">        }</span>
+
+    val rightColumnExtraSpace: Dp
+<span class="nc bnc" id="L341" title="All 2 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L342">            TINY, EXTRA_COMPACT -&gt; 8.dp</span>
+<span class="nc" id="L343">            COMPACT, FULL -&gt; 18.dp</span>
+<span class="nc" id="L344">        }</span>
+
+    // Mascot size when bottom content is empty/spacer-only. Can expand down further.
+    val expandedMascotSize: Dp
+<span class="nc bnc" id="L348" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L349">            TINY -&gt; 48.dp</span>
+<span class="nc" id="L350">            EXTRA_COMPACT -&gt; 64.dp</span>
+<span class="nc" id="L351">            COMPACT -&gt; 95.dp</span>
+<span class="nc" id="L352">            FULL -&gt; 120.dp</span>
+<span class="nc" id="L353">        }</span>
+
+    val overlayMascotSize: Dp
+<span class="nc bnc" id="L356" title="All 4 branches missed.">        get() = when (this) {</span>
+<span class="nc" id="L357">            TINY -&gt; 40.dp</span>
+<span class="nc" id="L358">            EXTRA_COMPACT -&gt; 60.dp</span>
+<span class="nc" id="L359">            COMPACT -&gt; 80.dp</span>
+<span class="nc" id="L360">            FULL -&gt; 100.dp</span>
+<span class="nc" id="L361">        }</span>
+
+    companion object {
+<span class="nc" id="L364">        fun from(size: DpSize): LargeWidgetSize = when {</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">            size.height &lt;= 140.dp -&gt; TINY</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">            size.height &lt;= 176.dp -&gt; EXTRA_COMPACT</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">            size.height &lt;= 230.dp -&gt; COMPACT</span>
+<span class="nc" id="L368">            else -&gt; FULL</span>
+<span class="nc" id="L369">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

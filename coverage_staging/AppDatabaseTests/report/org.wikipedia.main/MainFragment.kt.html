@@ -1,0 +1,638 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MainFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.main</a> &gt; <span class="el_source">MainFragment.kt</span></div><h1>MainFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.main
+
+import android.Manifest
+import android.app.Activity
+import android.app.ActivityOptions
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.util.Pair
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.view.MenuProvider
+import androidx.core.view.descendants
+import androidx.core.view.get
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.BackPressedHandler
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.activity.FragmentUtil.getCallback
+import org.wikipedia.activitytab.ActivityTabFragment
+import org.wikipedia.activitytab.ActivityTabOnboardingActivity
+import org.wikipedia.analytics.eventplatform.ReadingListsAnalyticsHelper
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.databinding.FragmentMainBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.events.ImportReadingListsEvent
+import org.wikipedia.events.LoggedOutEvent
+import org.wikipedia.events.LoggedOutInBackgroundEvent
+import org.wikipedia.events.NewRecommendedReadingListEvent
+import org.wikipedia.feed.FeedFragment
+import org.wikipedia.feed.image.FeaturedImage
+import org.wikipedia.feed.image.FeaturedImageCard
+import org.wikipedia.feed.news.NewsActivity
+import org.wikipedia.feed.news.NewsCard
+import org.wikipedia.feed.news.NewsItemView
+import org.wikipedia.gallery.GalleryActivity
+import org.wikipedia.gallery.MediaDownloadReceiver
+import org.wikipedia.games.GamesHubActivity
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.history.HistoryFragment
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.navtab.MenuNavTabDialog
+import org.wikipedia.navtab.NavTab
+import org.wikipedia.navtab.NavTabFragmentPagerAdapter
+import org.wikipedia.notifications.NotificationActivity
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.page.tabs.TabActivity
+import org.wikipedia.places.PlacesActivity
+import org.wikipedia.random.RandomActivity
+import org.wikipedia.readinglist.ReadingListBehaviorsUtil
+import org.wikipedia.readinglist.ReadingListsFragment
+import org.wikipedia.search.SearchActivity
+import org.wikipedia.search.SearchFragment
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.SettingsActivity
+import org.wikipedia.staticdata.MainPageNameData
+import org.wikipedia.staticdata.UserAliasData
+import org.wikipedia.staticdata.UserTalkAliasData
+import org.wikipedia.suggestededits.SuggestedEditsTasksActivity
+import org.wikipedia.suggestededits.SuggestedEditsTasksFragment
+import org.wikipedia.talk.TalkTopicsActivity
+import org.wikipedia.usercontrib.UserContribListActivity
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.TabUtil
+import org.wikipedia.views.NotificationButtonView
+import org.wikipedia.views.TabCountsView
+import org.wikipedia.views.imageservice.ImageService
+import org.wikipedia.watchlist.WatchlistActivity
+import org.wikipedia.yearinreview.YearInReviewDialog
+import org.wikipedia.yearinreview.YearInReviewOnboardingActivity
+import org.wikipedia.yearinreview.YearInReviewViewModel
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+<span class="nc" id="L103">class MainFragment : Fragment(), BackPressedHandler, MenuProvider, FeedFragment.Callback, HistoryFragment.Callback, MenuNavTabDialog.Callback, ActivityTabFragment.Callback {</span>
+    interface Callback {
+        fun onTabChanged(tab: NavTab)
+        fun updateToolbarElevation(elevate: Boolean)
+    }
+
+    private var _binding: FragmentMainBinding? = null
+<span class="nc" id="L110">    val binding get() = _binding!!</span>
+
+    private lateinit var notificationButtonView: NotificationButtonView
+    private var tabCountsView: TabCountsView? = null
+    private var showTabCountsAnimation = false
+<span class="nc" id="L115">    private val downloadReceiver = MediaDownloadReceiver()</span>
+<span class="nc" id="L116">    private val downloadReceiverCallback = MediaDownloadReceiverCallback()</span>
+<span class="nc" id="L117">    private val pageChangeCallback = PageChangeCallback()</span>
+
+    // The permissions request API doesn't take a callback, so in the event we have to
+    // ask for permission to download a featured image from the feed, we'll have to hold
+    // the image we're waiting for permission to download as a bit of state here. :(
+    private var pendingDownloadImage: FeaturedImage? = null
+
+<span class="nc" id="L124">    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean -&gt;</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        if (isGranted) {</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">            pendingDownloadImage?.let { download(it) }</span>
+        } else {
+<span class="nc" id="L128">            FeedbackUtil.showMessage(this, R.string.gallery_save_image_write_permission_rationale)</span>
+        }
+<span class="nc" id="L130">    }</span>
+
+<span class="nc" id="L132">    private val activityTabOnboardingLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result -&gt;</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (result.resultCode == Activity.RESULT_OK) {</span>
+<span class="nc" id="L134">            onNavigateTo(NavTab.EDITS)</span>
+        }
+<span class="nc" id="L136">    }</span>
+
+<span class="nc" id="L138">    var navTabBackStack = mutableListOf&lt;NavTab&gt;()</span>
+<span class="nc" id="L139">    val currentFragment get() = (binding.mainViewPager.adapter as NavTabFragmentPagerAdapter).getFragmentAt(binding.mainViewPager.currentItem)</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L142">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L143">        _binding = FragmentMainBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L144">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+
+<span class="nc" id="L146">        lifecycleScope.launch {</span>
+<span class="nc" id="L147">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L148">                FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc" id="L149">                    when (event) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                        is LoggedOutEvent,</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                        is LoggedOutInBackgroundEvent -&gt; {</span>
+<span class="nc" id="L152">                            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L153">                            ExclusiveBottomSheetPresenter.dismiss(childFragmentManager)</span>
+<span class="nc" id="L154">                            refreshContents()</span>
+                        }
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                        is ImportReadingListsEvent -&gt; {</span>
+<span class="nc" id="L157">                            maybeShowImportReadingListsNewInstallDialog()</span>
+                        }
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                        is NewRecommendedReadingListEvent -&gt; {</span>
+<span class="nc bnc" id="L160" title="All 4 branches missed.">                            binding.mainNavTabLayout.setOverlayDot(NavTab.READING_LISTS, Prefs.isRecommendedReadingListEnabled &amp;&amp; Prefs.isNewRecommendedReadingListGenerated)</span>
+                        }
+                    }
+<span class="nc" id="L163">                }</span>
+<span class="nc" id="L164">            }</span>
+<span class="nc" id="L165">        }</span>
+
+<span class="nc" id="L167">        binding.mainViewPager.isUserInputEnabled = false</span>
+<span class="nc" id="L168">        binding.mainViewPager.adapter = NavTabFragmentPagerAdapter(this)</span>
+<span class="nc" id="L169">        binding.mainViewPager.registerOnPageChangeCallback(pageChangeCallback)</span>
+<span class="nc" id="L170">        binding.mainNavTabLayout.descendants.filterIsInstance&lt;TextView&gt;().forEach {</span>
+<span class="nc" id="L171">            it.maxLines = 2</span>
+<span class="nc" id="L172">        }</span>
+<span class="nc bnc" id="L173" title="All 6 branches missed.">        val shouldShowRedDotForRecommendedReadingList = (!Prefs.isRecommendedReadingListOnboardingShown) || (Prefs.isRecommendedReadingListEnabled &amp;&amp; Prefs.isNewRecommendedReadingListGenerated)</span>
+<span class="nc" id="L174">        binding.mainNavTabLayout.setOverlayDot(NavTab.READING_LISTS, shouldShowRedDotForRecommendedReadingList)</span>
+<span class="nc" id="L175">        binding.mainNavTabLayout.setOnItemSelectedListener { item -&gt;</span>
+<span class="nc" id="L176">            navTabBackStack.clear()</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">            if (item.order == NavTab.EDITS.code()) {</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                if (!Prefs.isActivityTabOnboardingShown) {</span>
+<span class="nc" id="L179">                    activityTabOnboardingLauncher.launch(ActivityTabOnboardingActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L180">                    binding.mainNavTabLayout.setOverlayDot(NavTab.EDITS, false)</span>
+<span class="nc" id="L181">                    return@setOnItemSelectedListener false</span>
+                }
+            }
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (item.order == NavTab.MORE.code()) {</span>
+<span class="nc" id="L185">                ExclusiveBottomSheetPresenter.show(childFragmentManager, MenuNavTabDialog.newInstance())</span>
+<span class="nc" id="L186">                return@setOnItemSelectedListener false</span>
+            }
+<span class="nc" id="L188">            val fragment = currentFragment</span>
+<span class="nc bnc" id="L189" title="All 4 branches missed.">            if (item.order == NavTab.EXPLORE.code() &amp;&amp; fragment is FeedFragment) {</span>
+<span class="nc" id="L190">                fragment.scrollToTop()</span>
+            }
+<span class="nc bnc" id="L192" title="All 4 branches missed.">            if (fragment is HistoryFragment &amp;&amp; item.order == NavTab.SEARCH.code()) {</span>
+<span class="nc" id="L193">                openSearchActivity(InvokeSource.NAV_MENU, null, null)</span>
+<span class="nc" id="L194">                return@setOnItemSelectedListener true</span>
+            }
+<span class="nc" id="L196">            binding.mainViewPager.setCurrentItem(item.order, false)</span>
+<span class="nc" id="L197">            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L198">            true</span>
+        }
+
+<span class="nc bnc" id="L201" title="All 2 branches missed.">        binding.mainNavTabLayout.setOverlayDot(NavTab.EDITS, !Prefs.isActivityTabOnboardingShown)</span>
+
+<span class="nc" id="L203">        notificationButtonView = NotificationButtonView(requireActivity())</span>
+
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (savedInstanceState == null) {</span>
+<span class="nc" id="L206">            handleIntent(requireActivity().intent)</span>
+        }
+<span class="nc" id="L208">        return binding.root</span>
+    }
+
+    override fun onPause() {
+<span class="nc" id="L212">        super.onPause()</span>
+<span class="nc" id="L213">        downloadReceiver.unregister(requireContext())</span>
+<span class="nc" id="L214">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L217">        super.onResume()</span>
+<span class="nc" id="L218">        downloadReceiver.register(requireContext(), downloadReceiverCallback)</span>
+        // reset the last-page-viewed timer
+<span class="nc" id="L220">        Prefs.pageLastShown = 0</span>
+<span class="nc" id="L221">        YearInReviewDialog.maybeShowYearInReviewFeedbackDialog(requireActivity())</span>
+<span class="nc bnc" id="L222" title="All 6 branches missed.">        if (YearInReviewViewModel.getYearInReviewModel()?.isReadingListCreated == true) {</span>
+<span class="nc" id="L223">            onNavigateTo(NavTab.READING_LISTS) // Navigate to reading lists only if Year in Review reading list is created</span>
+<span class="nc" id="L224">            YearInReviewViewModel.updateYearInReviewModel { it.copy(isReadingListCreated = false) }</span>
+        }
+<span class="nc" id="L226">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L229">        Prefs.isSuggestedEditsHighestPriorityEnabled = false</span>
+<span class="nc" id="L230">        binding.mainViewPager.adapter = null</span>
+<span class="nc" id="L231">        binding.mainViewPager.unregisterOnPageChangeCallback(pageChangeCallback)</span>
+<span class="nc" id="L232">        _binding = null</span>
+<span class="nc" id="L233">        super.onDestroyView()</span>
+<span class="nc" id="L234">    }</span>
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+<span class="nc bnc" id="L237" title="All 8 branches missed.">        if (requestCode == Constants.ACTIVITY_REQUEST_VOICE_SEARCH &amp;&amp; resultCode == Activity.RESULT_OK &amp;&amp; data != null &amp;&amp; data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) != null) {</span>
+<span class="nc" id="L238">            val searchQuery = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)!![0]</span>
+<span class="nc" id="L239">            openSearchActivity(InvokeSource.VOICE, searchQuery, null)</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        } else if (requestCode == Constants.ACTIVITY_REQUEST_GALLERY &amp;&amp;</span>
+<span class="nc bnc" id="L241" title="All 4 branches missed.">                resultCode == GalleryActivity.ACTIVITY_RESULT_PAGE_SELECTED &amp;&amp; data != null) {</span>
+<span class="nc" id="L242">            startActivity(data)</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        } else if (requestCode == Constants.ACTIVITY_REQUEST_LOGIN &amp;&amp;</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                resultCode == LoginActivity.RESULT_LOGIN_SUCCESS) {</span>
+<span class="nc" id="L245">            refreshContents()</span>
+<span class="nc" id="L246">            FeedbackUtil.showMessage(this, R.string.login_success_toast)</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        } else if (requestCode == Constants.ACTIVITY_REQUEST_BROWSE_TABS) {</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">            if (WikipediaApp.instance.tabCount == 0) {</span>
+                // They browsed the tabs and cleared all of them, without wanting to open a new tab.
+<span class="nc" id="L250">                return</span>
+            }
+<span class="nc bnc" id="L252" title="All 3 branches missed.">            if (resultCode == TabActivity.RESULT_NEW_TAB) {</span>
+<span class="nc" id="L253">                val entry = HistoryEntry(PageTitle(</span>
+<span class="nc" id="L254">                    MainPageNameData.valueFor(WikipediaApp.instance.appOrSystemLanguageCode),</span>
+<span class="nc" id="L255">                        WikipediaApp.instance.wikiSite), HistoryEntry.SOURCE_MAIN_PAGE)</span>
+<span class="nc" id="L256">                startActivity(PageActivity.newIntentForNewTab(requireContext(), entry, entry.title))</span>
+            } else if (resultCode == TabActivity.RESULT_LOAD_FROM_BACKSTACK) {
+<span class="nc" id="L258">                startActivity(PageActivity.newIntent(requireContext()))</span>
+            }
+<span class="nc bnc" id="L260" title="All 4 branches missed.">        } else if (requestCode == Constants.ACTIVITY_REQUEST_OPEN_SEARCH_ACTIVITY &amp;&amp; resultCode == SearchFragment.RESULT_LANG_CHANGED ||</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                (requestCode == Constants.ACTIVITY_REQUEST_SETTINGS &amp;&amp;</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">                        (resultCode == SettingsActivity.ACTIVITY_RESULT_LANGUAGE_CHANGED ||</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                                resultCode == SettingsActivity.ACTIVITY_RESULT_FEED_CONFIGURATION_CHANGED ||</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                                resultCode == SettingsActivity.ACTIVITY_RESULT_LOG_OUT))) {</span>
+<span class="nc" id="L265">            refreshContents()</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">            if (resultCode == SettingsActivity.ACTIVITY_RESULT_FEED_CONFIGURATION_CHANGED) {</span>
+<span class="nc" id="L267">                updateFeedHiddenCards()</span>
+            }
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            if (resultCode == SettingsActivity.ACTIVITY_RESULT_LOG_OUT) {</span>
+<span class="nc" id="L270">                FeedbackUtil.showMessage(requireActivity(), R.string.toast_logout_complete)</span>
+            }
+        } else {
+<span class="nc" id="L273">            super.onActivityResult(requestCode, resultCode, data)</span>
+        }
+<span class="nc" id="L275">    }</span>
+
+    override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
+<span class="nc" id="L278">        inflater.inflate(R.menu.menu_main, menu)</span>
+<span class="nc" id="L279">    }</span>
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+<span class="nc" id="L282">        val fragment = currentFragment</span>
+<span class="nc" id="L283">        return when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">            R.id.menu_search_lists -&gt; {</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">                if (fragment is ReadingListsFragment) {</span>
+<span class="nc" id="L286">                    fragment.startSearchActionMode()</span>
+                }
+<span class="nc" id="L288">                true</span>
+            }
+<span class="nc bnc" id="L290" title="All 2 branches missed.">            R.id.menu_overflow_button -&gt; {</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">                if (fragment is ReadingListsFragment) {</span>
+<span class="nc" id="L292">                    fragment.showReadingListsOverflowMenu()</span>
+                }
+<span class="nc" id="L294">                true</span>
+            }
+<span class="nc" id="L296">            else -&gt; false</span>
+        }
+    }
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc" id="L301">        requestUpdateToolbarElevation()</span>
+
+<span class="nc" id="L303">        menu.findItem(R.id.menu_search_lists).isVisible = currentFragment is ReadingListsFragment</span>
+<span class="nc" id="L304">        menu.findItem(R.id.menu_overflow_button).isVisible = currentFragment is ReadingListsFragment</span>
+
+<span class="nc" id="L306">        val tabsItem = menu.findItem(R.id.menu_tabs)</span>
+<span class="nc bnc" id="L307" title="All 4 branches missed.">        if (WikipediaApp.instance.tabCount &lt; 1 || currentFragment is SuggestedEditsTasksFragment) {</span>
+<span class="nc" id="L308">            tabsItem.isVisible = false</span>
+<span class="nc" id="L309">            tabCountsView = null</span>
+        } else {
+<span class="nc" id="L311">            tabsItem.isVisible = true</span>
+<span class="nc" id="L312">            tabCountsView = TabCountsView(requireActivity(), null)</span>
+<span class="nc" id="L313">            tabCountsView!!.setOnClickListener {</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                if (WikipediaApp.instance.tabCount == 1) {</span>
+<span class="nc" id="L315">                    startActivity(PageActivity.newIntent(requireActivity()))</span>
+                } else {
+<span class="nc" id="L317">                    startActivityForResult(TabActivity.newIntent(requireActivity()), Constants.ACTIVITY_REQUEST_BROWSE_TABS)</span>
+                }
+<span class="nc" id="L319">            }</span>
+<span class="nc" id="L320">            tabCountsView!!.updateTabCount(showTabCountsAnimation)</span>
+<span class="nc" id="L321">            tabCountsView!!.contentDescription = getString(R.string.menu_page_show_tabs)</span>
+<span class="nc" id="L322">            tabsItem.actionView = tabCountsView</span>
+<span class="nc" id="L323">            tabsItem.expandActionView()</span>
+<span class="nc" id="L324">            FeedbackUtil.setButtonTooltip(tabCountsView!!)</span>
+<span class="nc" id="L325">            showTabCountsAnimation = false</span>
+        }
+<span class="nc" id="L327">        val notificationMenuItem = menu.findItem(R.id.menu_notifications)</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L329">            notificationMenuItem.isVisible = true</span>
+<span class="nc" id="L330">            notificationButtonView.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc" id="L331">            notificationButtonView.setOnClickListener {</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L333">                    startActivity(NotificationActivity.newIntent(requireActivity()))</span>
+                }
+<span class="nc" id="L335">            }</span>
+<span class="nc" id="L336">            notificationButtonView.contentDescription = getString(R.string.notifications_activity_title)</span>
+<span class="nc" id="L337">            notificationMenuItem.actionView = notificationButtonView</span>
+<span class="nc" id="L338">            notificationMenuItem.expandActionView()</span>
+<span class="nc" id="L339">            FeedbackUtil.setButtonTooltip(notificationButtonView)</span>
+        } else {
+<span class="nc" id="L341">            notificationMenuItem.isVisible = false</span>
+        }
+<span class="nc" id="L343">        updateNotificationDot(false)</span>
+<span class="nc" id="L344">    }</span>
+
+    fun handleIntent(intent: Intent) {
+<span class="nc bnc" id="L347" title="All 2 branches missed.">        if (intent.hasExtra(Constants.INTENT_APP_SHORTCUT_RANDOMIZER)) {</span>
+<span class="nc" id="L348">            startActivity(RandomActivity.newIntent(requireActivity(), WikipediaApp.instance.wikiSite, InvokeSource.APP_SHORTCUTS))</span>
+<span class="nc bnc" id="L349" title="All 2 branches missed.">        } else if (intent.hasExtra(Constants.INTENT_APP_SHORTCUT_SEARCH)) {</span>
+<span class="nc" id="L350">            openSearchActivity(InvokeSource.APP_SHORTCUTS, null, null)</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        } else if (intent.hasExtra(Constants.INTENT_APP_SHORTCUT_CONTINUE_READING)) {</span>
+<span class="nc" id="L352">            startActivity(PageActivity.newIntent(requireActivity()))</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">        } else if (intent.hasExtra(Constants.INTENT_APP_SHORTCUT_PLACES)) {</span>
+<span class="nc" id="L354">            startActivity(PlacesActivity.newIntent(requireActivity()))</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">        } else if (intent.hasExtra(Constants.INTENT_EXTRA_DELETE_READING_LIST)) {</span>
+<span class="nc" id="L356">            onNavigateTo(NavTab.READING_LISTS)</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">        } else if (intent.hasExtra(Constants.INTENT_EXTRA_GO_TO_MAIN_TAB) &amp;&amp;</span>
+<span class="nc bnc" id="L358" title="All 2 branches missed.">                !(binding.mainNavTabLayout.selectedItemId == NavTab.EXPLORE.code() &amp;&amp;</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">                        intent.getIntExtra(Constants.INTENT_EXTRA_GO_TO_MAIN_TAB, NavTab.EXPLORE.code()) == NavTab.EXPLORE.code())) {</span>
+<span class="nc" id="L360">            onNavigateTo(NavTab.of(intent.getIntExtra(Constants.INTENT_EXTRA_GO_TO_MAIN_TAB, NavTab.EXPLORE.code())))</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">        } else if (intent.hasExtra(Constants.INTENT_EXTRA_GO_TO_SE_TAB)) {</span>
+<span class="nc" id="L362">            onNavigateTo(NavTab.of(intent.getIntExtra(Constants.INTENT_EXTRA_GO_TO_SE_TAB, NavTab.EDITS.code())))</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">        } else if (intent.hasExtra(Constants.INTENT_EXTRA_PREVIEW_SAVED_READING_LISTS)) {</span>
+<span class="nc" id="L364">            onNavigateTo(NavTab.READING_LISTS)</span>
+<span class="nc bnc" id="L365" title="All 6 branches missed.">        } else if (lastPageViewedWithin(1) &amp;&amp; !intent.hasExtra(Constants.INTENT_RETURN_TO_MAIN) &amp;&amp; WikipediaApp.instance.tabCount &gt; 0) {</span>
+<span class="nc" id="L366">            startActivity(PageActivity.newIntent(requireContext()))</span>
+        }
+<span class="nc" id="L368">    }</span>
+
+    override fun onFeedSearchRequested(view: View) {
+<span class="nc" id="L371">        openSearchActivity(InvokeSource.FEED_BAR, null, view)</span>
+<span class="nc" id="L372">    }</span>
+
+    override fun onFeedVoiceSearchRequested() {
+<span class="nc" id="L375">        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)</span>
+<span class="nc" id="L376">                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)</span>
+<span class="nc" id="L377">        try {</span>
+<span class="nc" id="L378">            startActivityForResult(intent, Constants.ACTIVITY_REQUEST_VOICE_SEARCH)</span>
+<span class="nc" id="L379">        } catch (a: ActivityNotFoundException) {</span>
+<span class="nc" id="L380">            FeedbackUtil.showMessage(this, R.string.error_voice_search_not_available)</span>
+        }
+<span class="nc" id="L382">    }</span>
+
+    override fun onFeedSelectPage(entry: HistoryEntry, openInNewBackgroundTab: Boolean) {
+<span class="nc bnc" id="L385" title="All 2 branches missed.">        if (openInNewBackgroundTab) {</span>
+<span class="nc" id="L386">            TabUtil.openInNewBackgroundTab(entry)</span>
+<span class="nc" id="L387">            showTabCountsAnimation = true</span>
+<span class="nc" id="L388">            requireActivity().invalidateOptionsMenu()</span>
+        } else {
+<span class="nc" id="L390">            startActivity(PageActivity.newIntentForNewTab(requireContext(), entry, entry.title))</span>
+        }
+<span class="nc" id="L392">    }</span>
+
+    override fun onFeedSelectPageWithAnimation(entry: HistoryEntry, sharedElements: Array&lt;Pair&lt;View, String&gt;&gt;) {
+<span class="nc" id="L395">        val options = ActivityOptions.makeSceneTransitionAnimation(requireActivity(), *sharedElements)</span>
+<span class="nc" id="L396">        val intent = PageActivity.newIntentForNewTab(requireContext(), entry, entry.title)</span>
+<span class="nc bnc" id="L397" title="All 6 branches missed.">        if (sharedElements.isNotEmpty()) {</span>
+<span class="nc" id="L398">            intent.putExtra(Constants.INTENT_EXTRA_HAS_TRANSITION_ANIM, true)</span>
+        }
+<span class="nc bnc" id="L400" title="All 6 branches missed.">        startActivity(intent, if (DimenUtil.isLandscape(requireContext()) || sharedElements.isEmpty()) null else options.toBundle())</span>
+<span class="nc" id="L401">    }</span>
+
+    override fun onFeedAddPageToList(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc" id="L404">        ReadingListBehaviorsUtil.addToDefaultList(requireActivity(), entry.title, addToDefault, InvokeSource.FEED)</span>
+<span class="nc" id="L405">    }</span>
+
+    override fun onFeedMovePageToList(sourceReadingListId: Long, entry: HistoryEntry) {
+<span class="nc" id="L408">        ReadingListBehaviorsUtil.moveToList(requireActivity(), sourceReadingListId, entry.title, InvokeSource.FEED)</span>
+<span class="nc" id="L409">    }</span>
+
+    override fun onFeedNewsItemSelected(card: NewsCard, view: NewsItemView) {
+<span class="nc" id="L412">        val options = ActivityOptions.makeSceneTransitionAnimation(requireActivity(), view.imageView, getString(R.string.transition_news_item))</span>
+<span class="nc bnc" id="L413" title="All 2 branches missed.">        view.newsItem?.let {</span>
+<span class="nc bnc" id="L414" title="All 2 branches missed.">            startActivity(NewsActivity.newIntent(requireActivity(), it, card.wikiSite()), if (it.thumb() != null) options.toBundle() else null)</span>
+<span class="nc" id="L415">        }</span>
+<span class="nc" id="L416">    }</span>
+
+    override fun onFeedSeCardFooterClicked() {
+<span class="nc" id="L419">        startActivity(SuggestedEditsTasksActivity.newIntent(requireActivity()))</span>
+<span class="nc" id="L420">    }</span>
+
+    override fun onFeedShareImage(card: FeaturedImageCard) {
+<span class="nc" id="L423">        val thumbUrl = card.baseImage().thumbnailUrl</span>
+<span class="nc" id="L424">        val fullSizeUrl = card.baseImage().original.source</span>
+<span class="nc" id="L425">        ImageService.loadImage(requireContext(), thumbUrl, onSuccess = { bitmap -&gt;</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">            if (!isAdded) {</span>
+<span class="nc" id="L427">                return@loadImage</span>
+            }
+<span class="nc" id="L429">            ShareUtil.shareImage(lifecycleScope, requireContext(), bitmap, File(thumbUrl).name,</span>
+<span class="nc" id="L430">                ShareUtil.getFeaturedImageShareSubject(requireContext(), card.age()), fullSizeUrl)</span>
+<span class="nc" id="L431">        })</span>
+<span class="nc" id="L432">    }</span>
+
+    override fun onFeedDownloadImage(image: FeaturedImage) {
+<span class="nc" id="L435">        pendingDownloadImage = image</span>
+<span class="nc bnc" id="L436" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.TIRAMISU ||</span>
+<span class="nc bnc" id="L437" title="All 2 branches missed.">            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {</span>
+<span class="nc" id="L438">            download(image)</span>
+        } else {
+<span class="nc" id="L440">            requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)</span>
+        }
+<span class="nc" id="L442">    }</span>
+
+    override fun onFeaturedImageSelected(card: FeaturedImageCard) {
+<span class="nc" id="L445">        startActivity(FilePageActivity.newIntent(requireActivity(), PageTitle(card.filename(), card.wikiSite())))</span>
+<span class="nc" id="L446">    }</span>
+
+    override fun onLoginRequested() {
+<span class="nc" id="L449">        startActivityForResult(LoginActivity.newIntent(requireContext(), LoginActivity.SOURCE_NAV),</span>
+<span class="nc" id="L450">                Constants.ACTIVITY_REQUEST_LOGIN)</span>
+<span class="nc" id="L451">    }</span>
+
+    override fun updateToolbarElevation(elevate: Boolean) {
+<span class="nc bnc" id="L454" title="All 2 branches missed.">        callback()?.updateToolbarElevation(elevate)</span>
+<span class="nc" id="L455">    }</span>
+
+    override fun onWikiGamesCardFooterClicked() {
+<span class="nc" id="L458">        WikiGamesEvent.submit(action = &quot;more_click&quot;, &quot;game_feed&quot;)</span>
+<span class="nc" id="L459">        startActivity(GamesHubActivity.newIntent(requireActivity()))</span>
+<span class="nc" id="L460">    }</span>
+
+    fun requestUpdateToolbarElevation() {
+<span class="nc" id="L463">        val fragment = currentFragment</span>
+<span class="nc bnc" id="L464" title="All 4 branches missed.">        updateToolbarElevation(fragment is FeedFragment &amp;&amp; fragment.shouldElevateToolbar())</span>
+<span class="nc" id="L465">    }</span>
+
+    override fun onLoadPage(entry: HistoryEntry) {
+<span class="nc" id="L468">        startActivity(PageActivity.newIntentForCurrentTab(requireContext(), entry, entry.title))</span>
+<span class="nc" id="L469">    }</span>
+
+    override fun onBackPressed(): Boolean {
+<span class="nc bnc" id="L472" title="All 8 branches missed.">        if ((currentFragment as? BackPressedHandler)?.onBackPressed() == true) {</span>
+<span class="nc" id="L473">            return true</span>
+<span class="nc bnc" id="L474" title="All 4 branches missed.">        } else if (navTabBackStack.isNotEmpty()) {</span>
+<span class="nc" id="L475">            onNavigateTo(navTabBackStack.removeLastOrNull()!!)</span>
+<span class="nc" id="L476">            return true</span>
+        }
+<span class="nc" id="L478">        return false</span>
+    }
+
+    override fun usernameClick() {
+<span class="nc" id="L482">        val pageTitle = PageTitle(UserAliasData.valueFor(WikipediaApp.instance.languageState.appLanguageCode), AccountUtil.userName, WikipediaApp.instance.wikiSite)</span>
+<span class="nc" id="L483">        val entry = HistoryEntry(pageTitle, HistoryEntry.SOURCE_MAIN_PAGE)</span>
+<span class="nc" id="L484">        startActivity(PageActivity.newIntentForNewTab(requireContext(), entry, pageTitle))</span>
+<span class="nc" id="L485">    }</span>
+
+    override fun loginClick() {
+<span class="nc" id="L488">        onLoginRequested()</span>
+<span class="nc" id="L489">    }</span>
+
+    override fun talkClick() {
+<span class="nc bnc" id="L492" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L493">            startActivity(TalkTopicsActivity.newIntent(requireActivity(),</span>
+<span class="nc" id="L494">                PageTitle(UserTalkAliasData.valueFor(WikipediaApp.instance.languageState.appLanguageCode), AccountUtil.userName,</span>
+<span class="nc" id="L495">                    WikiSite.forLanguageCode(WikipediaApp.instance.appOrSystemLanguageCode)), InvokeSource.NAV_MENU))</span>
+        }
+<span class="nc" id="L497">    }</span>
+
+    override fun settingsClick() {
+<span class="nc" id="L500">        startActivityForResult(SettingsActivity.newIntent(requireActivity()), Constants.ACTIVITY_REQUEST_SETTINGS)</span>
+<span class="nc" id="L501">    }</span>
+
+    override fun watchlistClick() {
+<span class="nc bnc" id="L504" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L505">            startActivity(WatchlistActivity.newIntent(requireActivity()))</span>
+        }
+<span class="nc" id="L507">    }</span>
+
+    override fun contribsClick() {
+<span class="nc bnc" id="L510" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L511">            startActivity(UserContribListActivity.newIntent(requireActivity(), AccountUtil.userName))</span>
+        }
+<span class="nc" id="L513">    }</span>
+
+    override fun donateClick(campaignId: String?) {
+<span class="nc bnc" id="L516" title="All 4 branches missed.">        (requireActivity() as? BaseActivity)?.launchDonateDialog(campaignId = campaignId)</span>
+<span class="nc" id="L517">    }</span>
+
+    override fun yearInReviewClick() {
+<span class="nc" id="L520">        startActivity(YearInReviewOnboardingActivity.newIntent(requireActivity()))</span>
+<span class="nc" id="L521">    }</span>
+
+    fun setBottomNavVisible(visible: Boolean) {
+<span class="nc" id="L524">        binding.mainNavTabBorder.isVisible = visible</span>
+<span class="nc" id="L525">        binding.mainNavTabLayout.isVisible = visible</span>
+<span class="nc" id="L526">    }</span>
+
+    fun onGoOffline() {
+<span class="nc" id="L529">        val fragment = currentFragment</span>
+<span class="nc bnc" id="L530" title="All 2 branches missed.">        if (fragment is FeedFragment) {</span>
+<span class="nc" id="L531">            fragment.onGoOffline()</span>
+<span class="nc bnc" id="L532" title="All 2 branches missed.">        } else if (fragment is HistoryFragment) {</span>
+<span class="nc" id="L533">            fragment.refresh()</span>
+        }
+<span class="nc" id="L535">    }</span>
+
+    fun onGoOnline() {
+<span class="nc" id="L538">        val fragment = currentFragment</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">        if (fragment is FeedFragment) {</span>
+<span class="nc" id="L540">            fragment.onGoOnline()</span>
+<span class="nc bnc" id="L541" title="All 2 branches missed.">        } else if (fragment is HistoryFragment) {</span>
+<span class="nc" id="L542">            fragment.refresh()</span>
+        }
+<span class="nc" id="L544">    }</span>
+
+    fun updateNotificationDot(animate: Boolean) {
+<span class="nc bnc" id="L547" title="All 4 branches missed.">        if (AccountUtil.isLoggedIn &amp;&amp; Prefs.notificationUnreadCount &gt; 0) {</span>
+<span class="nc" id="L548">            notificationButtonView.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc bnc" id="L549" title="All 2 branches missed.">            if (animate) {</span>
+<span class="nc" id="L550">                notificationButtonView.runAnimation()</span>
+            }
+        } else {
+<span class="nc" id="L553">            notificationButtonView.setUnreadCount(0)</span>
+        }
+<span class="nc" id="L555">    }</span>
+
+    @Suppress(&quot;SameParameterValue&quot;)
+    private fun lastPageViewedWithin(days: Int): Boolean {
+<span class="nc bnc" id="L559" title="All 2 branches missed.">        return TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - Prefs.pageLastShown) &lt; days</span>
+    }
+
+    private fun download(image: FeaturedImage) {
+<span class="nc" id="L563">        pendingDownloadImage = null</span>
+<span class="nc" id="L564">        downloadReceiver.download(requireContext(), image)</span>
+<span class="nc" id="L565">        FeedbackUtil.showMessage(this, R.string.gallery_save_progress)</span>
+<span class="nc" id="L566">    }</span>
+
+    fun openSearchActivity(source: InvokeSource, query: String?, transitionView: View?) {
+<span class="nc" id="L569">        val intent = SearchActivity.newIntent(requireActivity(), source, query)</span>
+<span class="nc bnc" id="L570" title="All 2 branches missed.">        val options = transitionView?.let {</span>
+<span class="nc bnc" id="L571" title="All 4 branches missed.">            if (intent.component?.className == SearchActivity::class.java.name) {</span>
+<span class="nc" id="L572">                ActivityOptions.makeSceneTransitionAnimation(requireActivity(), it, getString(R.string.transition_search_bar))</span>
+<span class="nc" id="L573">            } else null</span>
+        }
+<span class="nc bnc" id="L575" title="All 2 branches missed.">        startActivityForResult(intent, Constants.ACTIVITY_REQUEST_OPEN_SEARCH_ACTIVITY, options?.toBundle())</span>
+<span class="nc" id="L576">    }</span>
+
+    private fun refreshContents() {
+<span class="nc" id="L579">        when (val fragment = currentFragment) {</span>
+<span class="nc bnc" id="L580" title="All 2 branches missed.">            is FeedFragment -&gt; fragment.refresh()</span>
+<span class="nc bnc" id="L581" title="All 2 branches missed.">            is ReadingListsFragment -&gt; fragment.updateLists()</span>
+<span class="nc bnc" id="L582" title="All 2 branches missed.">            is HistoryFragment -&gt; fragment.refresh()</span>
+<span class="nc bnc" id="L583" title="All 2 branches missed.">            is SuggestedEditsTasksFragment -&gt; fragment.refreshContents()</span>
+        }
+<span class="nc" id="L585">    }</span>
+
+    private fun updateFeedHiddenCards() {
+<span class="nc" id="L588">        val fragment = currentFragment</span>
+<span class="nc bnc" id="L589" title="All 2 branches missed.">        if (fragment is FeedFragment) {</span>
+<span class="nc" id="L590">            fragment.updateHiddenCards()</span>
+        }
+<span class="nc" id="L592">    }</span>
+
+    private fun maybeShowImportReadingListsNewInstallDialog() {
+<span class="nc bnc" id="L595" title="All 2 branches missed.">        if (!Prefs.importReadingListsNewInstallDialogShown) {</span>
+<span class="nc" id="L596">            ReadingListsAnalyticsHelper.logReceiveStart(requireActivity())</span>
+<span class="nc" id="L597">            MaterialAlertDialogBuilder(requireContext())</span>
+<span class="nc" id="L598">                .setTitle(R.string.shareable_reading_lists_new_install_dialog_title)</span>
+<span class="nc" id="L599">                .setMessage(R.string.shareable_reading_lists_new_install_dialog_content)</span>
+<span class="nc" id="L600">                .setNegativeButton(R.string.shareable_reading_lists_new_install_dialog_got_it, null)</span>
+<span class="nc" id="L601">                .show()</span>
+<span class="nc" id="L602">            Prefs.importReadingListsNewInstallDialogShown = true</span>
+        }
+<span class="nc" id="L604">    }</span>
+
+<span class="nc" id="L606">    private inner class PageChangeCallback : OnPageChangeCallback() {</span>
+        override fun onPageSelected(position: Int) {
+<span class="nc bnc" id="L608" title="All 2 branches missed.">            callback()?.onTabChanged(NavTab.of(position))</span>
+<span class="nc" id="L609">        }</span>
+    }
+
+<span class="nc" id="L612">    private inner class MediaDownloadReceiverCallback : MediaDownloadReceiver.Callback {</span>
+        override fun onSuccess() {
+<span class="nc" id="L614">            FeedbackUtil.showMessage(requireActivity(), R.string.gallery_save_success)</span>
+<span class="nc" id="L615">        }</span>
+    }
+
+    private fun callback(): Callback? {
+<span class="nc" id="L619">        return getCallback(this, Callback::class.java)</span>
+    }
+
+    override fun onNavigateTo(navTab: NavTab) {
+<span class="nc bnc" id="L623" title="All 6 branches missed.">        val lastNavTab = NavTab.entries.find { binding.mainNavTabLayout.selectedItemId == binding.mainNavTabLayout.menu[it.code()].itemId }</span>
+<span class="nc" id="L624">        binding.mainNavTabLayout.selectedItemId = binding.mainNavTabLayout.menu[navTab.code()].itemId</span>
+<span class="nc bnc" id="L625" title="All 4 branches missed.">        if (lastNavTab == NavTab.EDITS &amp;&amp; navTab != NavTab.EDITS) {</span>
+<span class="nc" id="L626">            navTabBackStack.add(NavTab.EDITS)</span>
+        }
+<span class="nc" id="L628">    }</span>
+
+    companion object {
+        fun newInstance(): MainFragment {
+<span class="nc" id="L632">            return MainFragment().apply {</span>
+<span class="nc" id="L633">                retainInstance = true</span>
+<span class="nc" id="L634">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

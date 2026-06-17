@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DescriptionEditViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.descriptions</a> &gt; <span class="el_source">DescriptionEditViewModel.kt</span></div><h1>DescriptionEditViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.descriptions
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.csrf.CsrfTokenClient
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.liftwing.DescriptionSuggestion
+import org.wikipedia.dataclient.liftwing.LiftWingModelService
+import org.wikipedia.dataclient.mwapi.MwException
+import org.wikipedia.dataclient.mwapi.MwServiceError
+import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory
+import org.wikipedia.dataclient.wikidata.EntityPostResponse
+import org.wikipedia.edit.Edit
+import org.wikipedia.language.AppLanguageLookUpTable
+import org.wikipedia.page.PageTitle
+import org.wikipedia.suggestededits.PageSummaryForEdit
+import org.wikipedia.util.L10nUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L34">class DescriptionEditViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+
+<span class="nc" id="L36">    val pageTitle = savedStateHandle.get&lt;PageTitle&gt;(Constants.ARG_TITLE)!!</span>
+<span class="nc" id="L37">    val highlightText = savedStateHandle.get&lt;String&gt;(DescriptionEditActivity.EXTRA_HIGHLIGHT_TEXT)</span>
+<span class="nc" id="L38">    val action = savedStateHandle.get&lt;DescriptionEditActivity.Action&gt;(Constants.INTENT_EXTRA_ACTION)!!</span>
+<span class="nc" id="L39">    val invokeSource = savedStateHandle.get&lt;Constants.InvokeSource&gt;(Constants.INTENT_EXTRA_INVOKE_SOURCE)!!</span>
+<span class="nc" id="L40">    val sourceSummary = savedStateHandle.get&lt;PageSummaryForEdit&gt;(DescriptionEditActivity.EXTRA_SOURCE_SUMMARY)</span>
+<span class="nc" id="L41">    val targetSummary = savedStateHandle.get&lt;PageSummaryForEdit&gt;(DescriptionEditActivity.EXTRA_TARGET_SUMMARY)</span>
+<span class="nc" id="L42">    var editingAllowed = true</span>
+
+    private var clientJob: Job? = null
+
+<span class="nc" id="L46">    private val _loadPageSummaryState = MutableStateFlow(Resource&lt;MwServiceError?&gt;())</span>
+<span class="nc" id="L47">    val loadPageSummaryState = _loadPageSummaryState.asStateFlow()</span>
+
+<span class="nc" id="L49">    private val _requestSuggestionState = MutableStateFlow(Resource&lt;Triple&lt;DescriptionSuggestion.Response, Int, List&lt;String&gt;&gt;&gt;())</span>
+<span class="nc" id="L50">    val requestSuggestionState = _requestSuggestionState.asStateFlow()</span>
+
+<span class="nc" id="L52">    private val _postDescriptionState = MutableStateFlow(Resource&lt;Any&gt;())</span>
+<span class="nc" id="L53">    val postDescriptionState = _postDescriptionState.asStateFlow()</span>
+
+<span class="nc" id="L55">    private val _waitForRevisionState = MutableStateFlow(Resource&lt;Boolean&gt;())</span>
+<span class="nc" id="L56">    val waitForRevisionState = _waitForRevisionState.asStateFlow()</span>
+
+    fun loadPageSummary() {
+<span class="nc" id="L59">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L60">            L.e(throwable)</span>
+<span class="nc" id="L61">        }) {</span>
+<span class="nc" id="L62">            _loadPageSummaryState.value = Resource.Loading()</span>
+<span class="nc" id="L63">            editingAllowed = false</span>
+<span class="nc" id="L64">            val summaryResponse = async { ServiceFactory.getRest(pageTitle.wikiSite).getPageSummary(pageTitle.prefixedText) }</span>
+<span class="nc" id="L65">            val infoResponse = async { ServiceFactory.get(pageTitle.wikiSite).getWikiTextForSectionWithInfo(pageTitle.prefixedText, 0) }</span>
+
+<span class="nc bnc" id="L67" title="All 4 branches missed.">            val editError = infoResponse.await().query?.firstPage()?.getErrorForAction(&quot;edit&quot;)</span>
+<span class="nc" id="L68">            var error: MwServiceError? = null</span>
+<span class="nc bnc" id="L69" title="All 6 branches missed.">            if (editError.isNullOrEmpty()) {</span>
+<span class="nc" id="L70">                editingAllowed = true</span>
+            } else {
+<span class="nc" id="L72">                error = editError[0]</span>
+            }
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            sourceSummary?.extractHtml = summaryResponse.await().extractHtml</span>
+<span class="nc" id="L75">            _loadPageSummaryState.value = Resource.Success(error)</span>
+<span class="nc" id="L76">        }</span>
+<span class="nc" id="L77">    }</span>
+
+    fun requestSuggestion() {
+<span class="nc" id="L80">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L81">            L.e(throwable)</span>
+<span class="nc" id="L82">            _requestSuggestionState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L83">        }) {</span>
+<span class="nc" id="L84">            _requestSuggestionState.value = Resource.Loading()</span>
+<span class="nc" id="L85">            val responseCall = async { ServiceFactory[pageTitle.wikiSite, LiftWingModelService.API_URL, LiftWingModelService::class.java]</span>
+<span class="nc" id="L86">                .getDescriptionSuggestion(DescriptionSuggestion.Request(pageTitle.wikiSite.languageCode, pageTitle.prefixedText, 2)) }</span>
+<span class="nc" id="L87">            val userInfoCall = async { ServiceFactory.get(WikipediaApp.instance.wikiSite)</span>
+<span class="nc" id="L88">                .globalUserInfo(AccountUtil.userName) }</span>
+
+<span class="nc" id="L90">            val response = responseCall.await()</span>
+<span class="nc bnc" id="L91" title="All 4 branches missed.">            val userTotalEdits = userInfoCall.await().query?.globalUserInfo?.editCount ?: 0</span>
+
+            // Perform some post-processing on the predictions.
+            // 1) Capitalize them, if we're dealing with enwiki.
+            // 2) Remove duplicates.
+<span class="nc bnc" id="L96" title="All 2 branches missed.">            val list = (if (pageTitle.wikiSite.languageCode == &quot;en&quot;) {</span>
+<span class="nc" id="L97">                response.prediction.map { StringUtil.capitalize(it)!! }</span>
+<span class="nc" id="L98">            } else response.prediction).distinct()</span>
+
+<span class="nc" id="L100">            _requestSuggestionState.value = Resource.Success(Triple(response, userTotalEdits, list))</span>
+<span class="nc" id="L101">        }</span>
+<span class="nc" id="L102">    }</span>
+
+    fun postDescription(currentDescription: String,
+                        editComment: String?,
+                        editTags: String?,
+                        captchaId: String?,
+                        captchaWord: String?) {
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        clientJob?.cancel()</span>
+<span class="nc" id="L110">        clientJob = viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L111">            L.e(throwable)</span>
+<span class="nc" id="L112">            _postDescriptionState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L113">        }) {</span>
+<span class="nc" id="L114">            _postDescriptionState.value = Resource.Loading()</span>
+
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            val csrfSite = if (action == DescriptionEditActivity.Action.ADD_CAPTION ||</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                action == DescriptionEditActivity.Action.TRANSLATE_CAPTION) {</span>
+<span class="nc" id="L118">                Constants.commonsWikiSite</span>
+            } else {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                if (shouldWriteToLocalWiki()) pageTitle.wikiSite else Constants.wikidataWikiSite</span>
+            }
+
+<span class="nc" id="L123">            val csrfToken = CsrfTokenClient.getToken(csrfSite)</span>
+
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            val response = if (shouldWriteToLocalWiki()) {</span>
+                // If the description is being applied to an article on English Wikipedia, it
+                // should be written directly to the article instead of Wikidata.
+<span class="nc" id="L128">                postDescriptionToArticle(csrfToken, currentDescription, editComment, editTags, captchaId, captchaWord)</span>
+            } else {
+<span class="nc" id="L130">                postDescriptionToWikidata(csrfToken, currentDescription, editComment, editTags)</span>
+            }
+
+<span class="nc" id="L133">            _postDescriptionState.value = Resource.Success(response)</span>
+<span class="nc" id="L134">        }</span>
+<span class="nc" id="L135">    }</span>
+
+    fun waitForRevisionUpdate(newRevision: Long) {
+<span class="nc" id="L138">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L139">            L.e(throwable)</span>
+<span class="nc" id="L140">            _waitForRevisionState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L141">        }) {</span>
+<span class="nc" id="L142">            _waitForRevisionState.value = Resource.Loading()</span>
+            // Implement a retry mechanism to wait for the revision to be available.
+<span class="nc" id="L144">            var retry = 0</span>
+<span class="nc" id="L145">            var revision = -1L</span>
+<span class="nc bnc" id="L146" title="All 4 branches missed.">            while (revision &lt; newRevision &amp;&amp; retry &lt; 10) {</span>
+<span class="nc" id="L147">                delay(2000)</span>
+<span class="nc" id="L148">                val pageSummary = ServiceFactory.getRest(pageTitle.wikiSite).getPageSummary(pageTitle.prefixedText, cacheControl = OkHttpConnectionFactory.CACHE_CONTROL_FORCE_NETWORK.toString())</span>
+<span class="nc" id="L149">                revision = pageSummary.revision</span>
+<span class="nc" id="L150">                retry++</span>
+            }
+<span class="nc" id="L152">            _waitForRevisionState.value = Resource.Success(true)</span>
+<span class="nc" id="L153">        }</span>
+<span class="nc" id="L154">    }</span>
+
+<span class="nc" id="L156">    private suspend fun postDescriptionToArticle(csrfToken: String,</span>
+                                                 currentDescription: String,
+                                                 editComment: String?,
+                                                 editTags: String?,
+                                                 captchaId: String?,
+                                                 captchaWord: String?): Edit {
+<span class="nc" id="L162">        val wikiSectionInfoResponse = ServiceFactory.get(pageTitle.wikiSite)</span>
+<span class="nc" id="L163">            .getWikiTextForSectionWithInfo(pageTitle.prefixedText, 0)</span>
+<span class="nc bnc" id="L164" title="All 4 branches missed.">        val errorForAction = wikiSectionInfoResponse.query?.firstPage()?.getErrorForAction(&quot;edit&quot;)</span>
+<span class="nc bnc" id="L165" title="All 6 branches missed.">        if (!errorForAction.isNullOrEmpty()) {</span>
+<span class="nc" id="L166">            val error = errorForAction.first()</span>
+<span class="nc" id="L167">            throw MwException(error)</span>
+        }
+<span class="nc bnc" id="L169" title="All 6 branches missed.">        val firstRevision = wikiSectionInfoResponse.query?.firstPage()?.revisions?.firstOrNull()</span>
+<span class="nc bnc" id="L170" title="All 4 branches missed.">        var text = firstRevision?.contentMain.orEmpty()</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        val baseRevId = firstRevision?.revId ?: 0</span>
+<span class="nc" id="L172">        text = updateDescriptionInArticle(text, currentDescription)</span>
+<span class="nc" id="L173">        val automaticallyAddedEditSummary = L10nUtil.getString(pageTitle,</span>
+<span class="nc bnc" id="L174" title="All 6 branches missed.">            if (pageTitle.description.isNullOrEmpty()) R.string.edit_summary_added_short_description</span>
+<span class="nc" id="L175">            else R.string.edit_summary_updated_short_description)</span>
+<span class="nc" id="L176">        var editSummary = automaticallyAddedEditSummary</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        editComment?.let {</span>
+<span class="nc" id="L178">            editSummary += &quot;, $it&quot;</span>
+<span class="nc" id="L179">        }</span>
+
+<span class="nc" id="L181">        return ServiceFactory.get(pageTitle.wikiSite).postEditSubmit(</span>
+<span class="nc" id="L182">            title = pageTitle.prefixedText,</span>
+<span class="nc" id="L183">            section = &quot;0&quot;,</span>
+<span class="nc" id="L184">            newSectionTitle = null,</span>
+<span class="nc" id="L185">            summary = editSummary,</span>
+<span class="nc" id="L186">            user = AccountUtil.assertUser,</span>
+<span class="nc" id="L187">            text = text,</span>
+<span class="nc" id="L188">            appendText = null,</span>
+<span class="nc" id="L189">            baseRevId = baseRevId,</span>
+<span class="nc" id="L190">            token = csrfToken,</span>
+<span class="nc" id="L191">            captchaId = captchaId,</span>
+<span class="nc" id="L192">            captchaWord = captchaWord,</span>
+<span class="nc" id="L193">            tags = editTags</span>
+        )
+    }
+
+<span class="nc" id="L197">    private suspend fun postDescriptionToWikidata(csrfToken: String,</span>
+                                                  currentDescription: String,
+                                                  editComment: String?,
+                                                  editTags: String?): EntityPostResponse {
+<span class="nc" id="L201">        val wikiSectionInfoResponse = ServiceFactory.get(pageTitle.wikiSite).getWikiTextForSectionWithInfo(pageTitle.prefixedText, 0)</span>
+<span class="nc bnc" id="L202" title="All 4 branches missed.">        val errorForAction = wikiSectionInfoResponse.query?.firstPage()?.getErrorForAction(&quot;edit&quot;)</span>
+<span class="nc bnc" id="L203" title="All 6 branches missed.">        if (!errorForAction.isNullOrEmpty()) {</span>
+<span class="nc" id="L204">            val error = errorForAction.first()</span>
+<span class="nc" id="L205">            throw MwException(error)</span>
+        }
+
+<span class="nc" id="L208">        var languageCode = pageTitle.wikiSite.languageCode</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        if (action != DescriptionEditActivity.Action.ADD_CAPTION &amp;&amp;</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">            action != DescriptionEditActivity.Action.TRANSLATE_CAPTION) {</span>
+<span class="nc bnc" id="L211" title="All 6 branches missed.">            ServiceFactory.get(pageTitle.wikiSite).getSiteInfo().query?.siteInfo?.lang?.let {</span>
+<span class="nc bnc" id="L212" title="All 6 branches missed.">                if (it.isNotEmpty() &amp;&amp; it != AppLanguageLookUpTable.CHINESE_LANGUAGE_CODE) {</span>
+<span class="nc" id="L213">                    languageCode = it</span>
+                }
+<span class="nc" id="L215">            }</span>
+        }
+
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        return if (action == DescriptionEditActivity.Action.ADD_CAPTION ||</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            action == DescriptionEditActivity.Action.TRANSLATE_CAPTION) {</span>
+<span class="nc" id="L220">            ServiceFactory.get(Constants.commonsWikiSite).postLabelEdit(</span>
+<span class="nc" id="L221">                language = languageCode,</span>
+<span class="nc" id="L222">                useLang = languageCode,</span>
+<span class="nc" id="L223">                site = Constants.COMMONS_DB_NAME,</span>
+<span class="nc" id="L224">                title = pageTitle.prefixedText,</span>
+<span class="nc" id="L225">                newDescription = currentDescription,</span>
+<span class="nc" id="L226">                summary = editComment,</span>
+<span class="nc" id="L227">                token = csrfToken,</span>
+<span class="nc" id="L228">                user = AccountUtil.assertUser,</span>
+<span class="nc" id="L229">                tags = editTags</span>
+            )
+        } else {
+<span class="nc" id="L232">            ServiceFactory.get(Constants.wikidataWikiSite).postDescriptionEdit(</span>
+<span class="nc" id="L233">                language = languageCode,</span>
+<span class="nc" id="L234">                useLang = languageCode,</span>
+<span class="nc" id="L235">                site = pageTitle.wikiSite.dbName(),</span>
+<span class="nc" id="L236">                title = pageTitle.prefixedText,</span>
+<span class="nc" id="L237">                newDescription = currentDescription,</span>
+<span class="nc" id="L238">                summary = editComment,</span>
+<span class="nc" id="L239">                token = csrfToken,</span>
+<span class="nc" id="L240">                user = AccountUtil.assertUser,</span>
+<span class="nc" id="L241">                tags = editTags</span>
+            )
+        }
+<span class="nc" id="L244">    }</span>
+
+    fun shouldWriteToLocalWiki(): Boolean {
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        return (action == DescriptionEditActivity.Action.ADD_DESCRIPTION ||</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">                action == DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION) &amp;&amp;</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">                DescriptionEditUtil.wikiUsesLocalDescriptions(pageTitle.wikiSite.languageCode)</span>
+    }
+
+    private fun updateDescriptionInArticle(articleText: String, newDescription: String): String {
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        return if (articleText.contains(TEMPLATE_PARSE_REGEX.toRegex())) {</span>
+            // update existing description template
+<span class="nc" id="L255">            articleText.replaceFirst(TEMPLATE_PARSE_REGEX.toRegex(), &quot;$1$newDescription$3&quot;)</span>
+        } else {
+            // add new description template
+<span class="nc" id="L258">            &quot;{{${DESCRIPTION_TEMPLATES[0]}|$newDescription}}\n$articleText&quot;.trimIndent()</span>
+        }
+    }
+
+    companion object {
+<span class="nc" id="L263">        val DESCRIPTION_TEMPLATES = arrayOf(&quot;Short description&quot;, &quot;SHORTDESC&quot;)</span>
+        // Don't remove the ending escaped `\\}`
+        @Suppress(&quot;RegExpRedundantEscape&quot;)
+        const val TEMPLATE_PARSE_REGEX = &quot;(\\{\\{[Ss]hort description\\|(?:1=)?)([^}|]+)([^}]*\\}\\})&quot;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

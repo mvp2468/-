@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LangCodeView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">LangCodeView.kt</span></div><h1>LangCodeView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.content.res.ColorStateList
+import android.util.AttributeSet
+import android.util.TypedValue
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.annotation.ColorInt
+import androidx.core.content.res.use
+import androidx.core.view.ViewCompat
+import androidx.core.widget.TextViewCompat
+import org.wikipedia.R
+import org.wikipedia.databinding.ViewLangCodeBinding
+import org.wikipedia.language.LanguageUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L20">class LangCodeView(context: Context, attrs: AttributeSet? = null) : FrameLayout(context, attrs) {</span>
+
+<span class="nc" id="L22">    private val binding = ViewLangCodeBinding.inflate(LayoutInflater.from(context), this)</span>
+<span class="nc" id="L23">    private val primaryColor = ResourceUtil.getThemedColor(context, R.attr.primary_color)</span>
+<span class="nc" id="L24">    init {</span>
+<span class="nc" id="L25">        val (textColor, backgroundTint, fillBackground) = context</span>
+<span class="nc" id="L26">            .obtainStyledAttributes(attrs, R.styleable.LangCodeView)</span>
+<span class="nc" id="L27">            .use {</span>
+<span class="nc" id="L28">                Triple(</span>
+<span class="nc" id="L29">                    it.getColor(R.styleable.LangCodeView_textColor, primaryColor),</span>
+<span class="nc" id="L30">                    it.getColor(R.styleable.LangCodeView_backgroundTint, primaryColor),</span>
+<span class="nc" id="L31">                    it.getBoolean(R.styleable.LangCodeView_fillBackground, false)</span>
+<span class="nc" id="L32">                )</span>
+            }
+
+<span class="nc" id="L35">        layoutParams = ViewGroup.LayoutParams(DimenUtil.roundedDpToPx(48.0f), ViewGroup.LayoutParams.MATCH_PARENT)</span>
+
+<span class="nc" id="L37">        setTextColor(textColor)</span>
+<span class="nc" id="L38">        setBackgroundTint(backgroundTint)</span>
+<span class="nc" id="L39">        fillBackground(fillBackground)</span>
+<span class="nc" id="L40">        isFocusable = true</span>
+<span class="nc" id="L41">    }</span>
+
+    fun setLangCode(langCode: String) {
+<span class="nc" id="L44">        binding.langCodeText.text = LanguageUtil.formatLangCodeForButton(langCode.uppercase())</span>
+<span class="nc" id="L45">        TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(binding.langCodeText, 1, 10, 1, TypedValue.COMPLEX_UNIT_SP)</span>
+<span class="nc" id="L46">    }</span>
+
+    fun setTextColor(@ColorInt textColor: Int) {
+<span class="nc" id="L49">        binding.langCodeText.setTextColor(textColor)</span>
+<span class="nc" id="L50">    }</span>
+
+    fun setTextColor(colors: ColorStateList) {
+<span class="nc" id="L53">        binding.langCodeText.setTextColor(colors)</span>
+<span class="nc" id="L54">    }</span>
+
+    fun fillBackground(fillBackground: Boolean) {
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        binding.langCodeText.setBackgroundResource(if (fillBackground) R.drawable.square_shape_border_filled else R.drawable.square_shape_border)</span>
+<span class="nc" id="L58">    }</span>
+
+    fun setBackgroundTint(@ColorInt tintColor: Int) {
+<span class="nc" id="L61">        ViewCompat.setBackgroundTintList(binding.langCodeText, ColorStateList.valueOf(tintColor))</span>
+<span class="nc" id="L62">    }</span>
+
+    fun setBackgroundTint(colors: ColorStateList) {
+<span class="nc" id="L65">        ViewCompat.setBackgroundTintList(binding.langCodeText, colors)</span>
+<span class="nc" id="L66">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

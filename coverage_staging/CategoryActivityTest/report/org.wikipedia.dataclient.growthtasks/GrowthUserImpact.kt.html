@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GrowthUserImpact.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.growthtasks</a> &gt; <span class="el_source">GrowthUserImpact.kt</span></div><h1>GrowthUserImpact.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.growthtasks
+
+import android.text.format.DateUtils
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.PageTitle
+import java.time.LocalDate
+
+<span class="nc" id="L13">@Suppress(&quot;unused&quot;)</span>
+@Serializable
+<span class="nc" id="L15">class GrowthUserImpact(</span>
+<span class="nc" id="L16">    @SerialName(&quot;@version&quot;) val version: Int = 0,</span>
+<span class="nc" id="L17">    val userId: Int = 0,</span>
+<span class="nc" id="L18">    val userName: String = &quot;&quot;,</span>
+<span class="nc" id="L19">    val receivedThanksCount: Int = 0,</span>
+<span class="nc" id="L20">    val givenThanksCount: Int = 0,</span>
+<span class="nc" id="L21">    @SerialName(&quot;editCountByNamespace&quot;) private val mEditCountByNamespace: JsonElement? = null,</span>
+<span class="nc" id="L22">    @SerialName(&quot;editCountByDay&quot;) private val mEditCountByDay: JsonElement? = null,</span>
+<span class="nc" id="L23">    @SerialName(&quot;editCountByTaskType&quot;) private val mEditCountByTaskType: JsonElement? = null,</span>
+<span class="nc" id="L24">    val totalUserEditCount: Int = 0,</span>
+<span class="nc" id="L25">    val totalEditsCount: Int = 0,</span>
+<span class="nc" id="L26">    val newcomerTaskEditCount: Int = 0,</span>
+<span class="nc" id="L27">    val revertedEditCount: Int = 0,</span>
+<span class="nc" id="L28">    val lastEditTimestamp: Long = 0,</span>
+<span class="nc" id="L29">    val totalArticlesCreatedCount: Int = 0,</span>
+<span class="nc" id="L30">    @SerialName(&quot;longestEditingStreak&quot;) private val mLongestEditingStreak: JsonElement? = null,</span>
+<span class="nc" id="L31">    @SerialName(&quot;dailyTotalViews&quot;) private val mDailyTotalViews: JsonElement? = null,</span>
+<span class="nc" id="L32">    val totalPageviewsCount: Long = 0,</span>
+<span class="nc" id="L33">    @SerialName(&quot;topViewedArticles&quot;) private val mTopViewedArticles: JsonElement? = null,</span>
+<span class="nc" id="L34">) {</span>
+    // All of these properties need to be lazily initialized from a generic JsonElement because
+    // of an annoying quirk in the way PHP serializes JSON objects. If the object is empty, it
+    // serializes as an empty array, not an empty object, which causes kotlinx.serialization to
+    // fail. Therefore we need to conditionally deserialize these items at runtime.
+<span class="nc bnc" id="L39" title="All 4 branches missed.">    val editCountByNamespace: Map&lt;Int, Int&gt; by lazy { if (mEditCountByNamespace is JsonObject) { JsonUtil.json.decodeFromJsonElement(mEditCountByNamespace) } else { emptyMap() } }</span>
+<span class="nc bnc" id="L40" title="All 4 branches missed.">    val editCountByDay: Map&lt;String, Int&gt; by lazy { if (mEditCountByDay is JsonObject) { JsonUtil.json.decodeFromJsonElement(mEditCountByDay) } else { emptyMap() } }</span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">    val editCountByTaskType: Map&lt;String, Int&gt; by lazy { if (mEditCountByTaskType is JsonObject) { JsonUtil.json.decodeFromJsonElement(mEditCountByTaskType) } else { emptyMap() } }</span>
+<span class="nc bnc" id="L42" title="All 4 branches missed.">    val dailyTotalViews: Map&lt;String, Int&gt; by lazy { if (mDailyTotalViews is JsonObject) { JsonUtil.json.decodeFromJsonElement(mDailyTotalViews) } else { emptyMap() } }</span>
+<span class="nc bnc" id="L43" title="All 4 branches missed.">    val topViewedArticles: Map&lt;String, ArticleViews&gt; by lazy { if (mTopViewedArticles is JsonObject) { JsonUtil.json.decodeFromJsonElement(mTopViewedArticles) } else { emptyMap() } }</span>
+<span class="nc bnc" id="L44" title="All 4 branches missed.">    val longestEditingStreak: EditStreak? by lazy { if (mLongestEditingStreak is JsonObject) { JsonUtil.json.decodeFromJsonElement(mLongestEditingStreak) } else { null } }</span>
+
+<span class="nc" id="L46">    val groupEditsByMonth: Map&lt;String, Int&gt; by lazy {</span>
+<span class="nc" id="L47">        editCountByDay.entries.groupBy { it.key.substring(0, 7) }</span>
+<span class="nc bnc" id="L48" title="All 4 branches missed.">            .mapValues { it.value.sumOf { entry -&gt; entry.value } }</span>
+    }
+
+<span class="nc" id="L51">    var topViewedArticlesWithPageTitle: Map&lt;PageTitle, ArticleViews&gt; = emptyMap()</span>
+
+<span class="nc bnc" id="L53" title="All 4 branches missed.">    val editsThisMonth by lazy { groupEditsByMonth[LocalDate.now().toString().substring(0, 7)] ?: 0 }</span>
+<span class="nc bnc" id="L54" title="All 4 branches missed.">    val editsLastMonth by lazy { groupEditsByMonth[LocalDate.now().minusMonths(1).toString().substring(0, 7)] ?: 0 }</span>
+
+<span class="nc" id="L56">    val lastThirtyDaysEdits by lazy {</span>
+<span class="nc" id="L57">        val thirtyDaysAgo = LocalDate.now().minusDays(30)</span>
+        // Some days do not have a key, fill them with 0
+<span class="nc" id="L59">        val filledEditCountByDay = (0..30).associate {</span>
+<span class="nc" id="L60">            val date = thirtyDaysAgo.plusDays(it.toLong()).toString()</span>
+<span class="nc bnc" id="L61" title="All 4 branches missed.">            date to (editCountByDay[date] ?: 0)</span>
+        }
+<span class="nc" id="L63">        filledEditCountByDay</span>
+    }
+
+<span class="nc" id="L66">    val lastEditRelativeTime by lazy {</span>
+<span class="nc" id="L67">        DateUtils.getRelativeTimeSpanString(</span>
+<span class="nc" id="L68">            lastEditTimestamp * 1000,</span>
+<span class="nc" id="L69">            System.currentTimeMillis(),</span>
+<span class="nc" id="L70">            0L</span>
+<span class="nc" id="L71">        ).toString()</span>
+    }
+
+<span class="nc" id="L74">    @Serializable</span>
+<span class="nc" id="L75">    class ArticleViews(</span>
+<span class="nc" id="L76">        val firstEditDate: String = &quot;&quot;,</span>
+<span class="nc" id="L77">        val newestEdit: String = &quot;&quot;,</span>
+<span class="nc" id="L78">        val imageUrl: String = &quot;&quot;,</span>
+<span class="nc" id="L79">        val viewsCount: Long = 0,</span>
+<span class="nc" id="L80">        private val views: JsonElement? = null</span>
+<span class="nc" id="L81">    ) {</span>
+<span class="nc bnc" id="L82" title="All 4 branches missed.">        val viewsByDay: Map&lt;String, Int&gt; by lazy { if (views is JsonObject) { JsonUtil.json.decodeFromJsonElement(views) } else { emptyMap() } }</span>
+    }
+
+<span class="nc" id="L85">    @Serializable</span>
+<span class="nc" id="L86">    class EditStreak(</span>
+<span class="nc" id="L87">        val datePeriod: EditDateRange? = null,</span>
+<span class="nc" id="L88">        val totalEditCountForPeriod: Int = 0</span>
+<span class="nc" id="L89">    )</span>
+
+<span class="nc" id="L91">    @Serializable</span>
+<span class="nc" id="L92">    class EditDateRange(</span>
+<span class="nc" id="L93">        val start: String = &quot;&quot;,</span>
+<span class="nc" id="L94">        val end: String = &quot;&quot;,</span>
+<span class="nc" id="L95">        val days: Int = 0,</span>
+<span class="nc" id="L96">    )</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

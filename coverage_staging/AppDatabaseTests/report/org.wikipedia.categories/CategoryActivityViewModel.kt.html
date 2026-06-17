@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryActivityViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.categories</a> &gt; <span class="el_source">CategoryActivityViewModel.kt</span></div><h1>CategoryActivityViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.categories
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.paging.*
+import org.wikipedia.Constants
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.page.PageTitle
+
+<span class="nc" id="L12">class CategoryActivityViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+<span class="nc" id="L13">    val pageTitle = savedStateHandle.get&lt;PageTitle&gt;(Constants.ARG_TITLE)!!</span>
+<span class="nc" id="L14">    var showSubcategories = false</span>
+
+<span class="nc" id="L16">    val categoryMembersFlow = Pager(PagingConfig(pageSize = 10)) {</span>
+<span class="nc" id="L17">        CategoryMembersPagingSource(&quot;page&quot;)</span>
+<span class="nc" id="L18">    }.flow.cachedIn(viewModelScope)</span>
+
+<span class="nc" id="L20">    val subcategoriesFlow = Pager(PagingConfig(pageSize = 10)) {</span>
+<span class="nc" id="L21">        CategoryMembersPagingSource(&quot;subcat&quot;)</span>
+<span class="nc" id="L22">    }.flow.cachedIn(viewModelScope)</span>
+
+<span class="nc" id="L24">    inner class CategoryMembersPagingSource(</span>
+<span class="nc" id="L25">        private val resultType: String</span>
+    ) : PagingSource&lt;String, PageTitle&gt;() {
+<span class="nc" id="L27">        override suspend fun load(params: LoadParams&lt;String&gt;): LoadResult&lt;String, PageTitle&gt; {</span>
+<span class="nc" id="L28">            return try {</span>
+<span class="nc" id="L29">                val response = ServiceFactory.get(WikiSite.forLanguageCode(pageTitle.wikiSite.languageCode))</span>
+<span class="nc" id="L30">                        .getCategoryMembers(pageTitle.prefixedText, resultType, params.loadSize, params.key)</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">                if (response.query == null) {</span>
+<span class="nc" id="L32">                    return LoadResult.Page(emptyList(), null, null)</span>
+                }
+<span class="nc" id="L34">                val titles = response.query!!.pages!!.map { page -&gt;</span>
+<span class="nc" id="L35">                    PageTitle(page.title, pageTitle.wikiSite).also {</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">                        it.description = page.description.orEmpty()</span>
+<span class="nc" id="L37">                        it.thumbUrl = page.thumbUrl()</span>
+<span class="nc" id="L38">                        it.displayText = page.displayTitle(pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L39">                    }</span>
+                }
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                LoadResult.Page(titles, null, response.continuation?.gcmContinuation)</span>
+<span class="nc" id="L42">            } catch (e: Exception) {</span>
+<span class="nc" id="L43">                LoadResult.Error(e)</span>
+            }
+        }
+
+        override fun getRefreshKey(state: PagingState&lt;String, PageTitle&gt;): String? {
+<span class="nc" id="L48">            return null</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

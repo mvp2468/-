@@ -26,6 +26,8 @@ import org.wikipedia.search.db.RecentSearch
 import org.wikipedia.search.db.RecentSearchDao
 import org.wikipedia.talk.db.TalkPageSeen
 import org.wikipedia.talk.db.TalkPageSeenDao
+import org.wikipedia.talk.db.TalkTemplate
+import org.wikipedia.talk.db.TalkTemplateDao
 import org.wikipedia.util.log.L
 import java.util.Date
 
@@ -34,6 +36,7 @@ class AppDatabaseTests {
     private lateinit var db: AppDatabase
     private lateinit var recentSearchDao: RecentSearchDao
     private lateinit var talkPageSeenDao: TalkPageSeenDao
+    private lateinit var talkTemplateDao: TalkTemplateDao
     private lateinit var notificationDao: NotificationDao
 
     @Before
@@ -42,6 +45,7 @@ class AppDatabaseTests {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         recentSearchDao = db.recentSearchDao()
         talkPageSeenDao = db.talkPageSeenDao()
+        talkTemplateDao = db.talkTemplateDao()
         notificationDao = db.notificationDao()
     }
 
@@ -132,5 +136,50 @@ class AppDatabaseTests {
 
         notificationDao.deleteNotification(notificationDao.getNotificationsByWiki(listOf("zhwiki")).first())
         assertTrue(notificationDao.getAllNotifications().isEmpty())
+    }
+
+    @Test
+    fun testTalkTemplate() = runBlocking {
+        // Insert templates
+        val template1 = TalkTemplate(type = 0, order = 1, title = "Welcome",
+            subject = "Welcome!", message = "Welcome to Wikipedia.")
+        val template2 = TalkTemplate(type = 0, order = 2, title = "Warning",
+            subject = "Warning", message = "Please stop editing.")
+        talkTemplateDao.insertTemplate(template1)
+        talkTemplateDao.insertTemplate(template2)
+
+        // Verify getAllTemplates returns in order
+        var templates = talkTemplateDao.getAllTemplates()
+        assertEquals(2, templates.size)
+        assertEquals("Welcome", templates[0].title)
+        assertEquals("Warning", templates[1].title)
+
+        // Verify getTemplateById
+        val fetched = talkTemplateDao.getTemplateById(templates[0].id)
+        assertNotNull(fetched)
+        assertEquals("Welcome!", fetched!!.subject)
+
+        // Verify getLastOrderNumber
+        val lastOrder = talkTemplateDao.getLastOrderNumber()
+        assertEquals(2, lastOrder)
+
+        // Update a template
+        templates[0].subject = "Updated Welcome"
+        talkTemplateDao.updateTemplate(templates[0])
+        val updated = talkTemplateDao.getTemplateById(templates[0].id)
+        assertEquals("Updated Welcome", updated!!.subject)
+
+        // Bulk update
+        templates[0].order = 10
+        templates[1].order = 20
+        talkTemplateDao.updateTemplates(templates)
+        val reordered = talkTemplateDao.getAllTemplates()
+        assertEquals(10, reordered[0].order)
+        assertEquals(20, reordered[1].order)
+
+        // Delete by IDs
+        talkTemplateDao.deleteTemplates(listOf(templates[0].id))
+        assertEquals(1, talkTemplateDao.getAllTemplates().size)
+        assertEquals("Warning", talkTemplateDao.getAllTemplates()[0].title)
     }
 }

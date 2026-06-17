@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchResultsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">SearchResultsFragment.kt</span></div><h1>SearchResultsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.core.net.toUri
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil.getCallback
+import org.wikipedia.analytics.eventplatform.BreadCrumbLogEvent
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.extensions.instrument
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.readinglist.LongPressMenu
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UiState
+import org.wikipedia.util.UriUtil
+
+<span class="nc" id="L39">class SearchResultsFragment : Fragment() {</span>
+
+    private var composeView: ComposeView? = null
+<span class="nc" id="L42">    private val viewModel: SearchResultsViewModel by viewModels()</span>
+<span class="nc" id="L43">    var showHybridSearch by mutableStateOf(false)</span>
+
+<span class="nc bnc" id="L45" title="All 4 branches missed.">    val isShowing get() = composeView?.visibility == View.VISIBLE</span>
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+
+<span class="nc" id="L53">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L54">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L55">                viewModel.searchTermForLogging.collectLatest { query -&gt;</span>
+<span class="nc bnc" id="L56" title="All 6 branches missed.">                    if (!query.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                        requireActivity().instrument?.submitInteraction(</span>
+<span class="nc" id="L58">                            &quot;search_init&quot;, actionContext = mapOf(&quot;query&quot; to query)</span>
+                        )
+                    }
+<span class="nc" id="L61">                }</span>
+<span class="nc" id="L62">            }</span>
+<span class="nc" id="L63">        }</span>
+<span class="nc" id="L64">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L65">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L66">                viewModel.lexicalResultsForLogging.collectLatest { data -&gt;</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">                    if (data != null) {</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                        requireActivity().instrument?.submitInteraction(</span>
+<span class="nc" id="L69">                            &quot;show_search_result&quot;,</span>
+<span class="nc" id="L70">                            actionContext = viewModel.getStandardEventActionContext()</span>
+                        )
+                    }
+<span class="nc" id="L73">                }</span>
+<span class="nc" id="L74">            }</span>
+<span class="nc" id="L75">        }</span>
+<span class="nc" id="L76">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L77">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L78">                viewModel.hybridSearchResultState.collectLatest { state -&gt;</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">                    if (state is UiState.Success) {</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                        requireActivity().instrument?.submitInteraction(</span>
+<span class="nc" id="L81">                            &quot;show_hybrid_result&quot;,</span>
+<span class="nc" id="L82">                            actionContext = viewModel.getHybridEventActionContext()</span>
+                        )
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                        if (viewModel.languageCode.value == &quot;el&quot;) {</span>
+                            // In the Greek case, we log the literal list of semantic search results
+                            // to the Breadcrumbs schema, to be cross-referenced using the x-search-id field.
+                            // (This only needs to be sent once, so let's send it upon impression.)
+<span class="nc" id="L88">                            BreadCrumbLogEvent.logMap(requireContext(), viewModel.getBreadcrumbActionContext())</span>
+                        }
+                    }
+<span class="nc" id="L91">                }</span>
+<span class="nc" id="L92">            }</span>
+<span class="nc" id="L93">        }</span>
+
+<span class="nc" id="L95">        return ComposeView(requireActivity()).apply {</span>
+<span class="nc" id="L96">            composeView = this</span>
+<span class="nc" id="L97">            setContent {</span>
+<span class="nc" id="L98">                BaseTheme {</span>
+<span class="nc bnc" id="L99" title="All 4 branches missed.">                    if (showHybridSearch &amp;&amp; viewModel.isHybridSearchExperimentOn) {</span>
+<span class="nc" id="L100">                        HybridSearchResultsScreen(</span>
+<span class="nc" id="L101">                            viewModel = viewModel,</span>
+<span class="nc" id="L102">                            modifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L103">                            onNavigateToTitle = { result, inNewTab, position, location -&gt;</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;search_result_click&quot;,</span>
+<span class="nc" id="L105">                                    elementId = &quot;lexical_search_result&quot;,</span>
+<span class="nc" id="L106">                                    pageData = TestKitchenAdapter.getPageData(result.pageTitle),</span>
+<span class="nc" id="L107">                                    actionContext = viewModel.getHybridEventActionContext(result)</span>
+                                )
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                                callback()?.navigateToTitle(result.pageTitle, inNewTab, position, location)</span>
+<span class="nc" id="L110">                            },</span>
+<span class="nc" id="L111">                            onSemanticCardImpression = { result -&gt;</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;impression&quot;,</span>
+<span class="nc" id="L113">                                    elementId = &quot;semantic_search_card&quot;,</span>
+<span class="nc" id="L114">                                    pageData = TestKitchenAdapter.getPageData(result.pageTitle),</span>
+<span class="nc" id="L115">                                    actionContext = viewModel.getHybridEventActionContext(result)</span>
+                                )
+<span class="nc" id="L117">                            },</span>
+<span class="nc" id="L118">                            onSemanticItemClick = { result, title, inNewTab, fromSnippetLink, position, location -&gt;</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;search_result_click&quot;,</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                                    elementId = if (fromSnippetLink) &quot;semantic_search_link&quot; else &quot;semantic_search_result&quot;,</span>
+<span class="nc" id="L121">                                    pageData = TestKitchenAdapter.getPageData(title),</span>
+<span class="nc" id="L122">                                    actionContext = viewModel.getHybridEventActionContext(result)</span>
+                                )
+<span class="nc bnc" id="L124" title="All 2 branches missed.">                                callback()?.navigateToTitle(title, inNewTab, position, location)</span>
+<span class="nc" id="L125">                            },</span>
+<span class="nc" id="L126">                            onItemLongClick = { view, searchResult, position -&gt;</span>
+<span class="nc" id="L127">                                val entry = HistoryEntry(searchResult.pageTitle, HistoryEntry.SOURCE_SEARCH)</span>
+<span class="nc" id="L128">                                LongPressMenu(view, callback = SearchResultLongPressHandler(callback(), position)).show(entry)</span>
+<span class="nc" id="L129">                            },</span>
+<span class="nc" id="L130">                            onInfoClick = {</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;learn_more&quot;)</span>
+
+<span class="nc" id="L133">                                UriUtil.visitInExternalBrowser(requireActivity(), getString(R.string.hybrid_search_info_link).toUri())</span>
+<span class="nc" id="L134">                            },</span>
+<span class="nc" id="L135">                            onTurnOffExperimentClick = {</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;hybrid_search_opt_out&quot;)</span>
+
+<span class="nc" id="L138">                                Prefs.isHybridSearchEnabled = false</span>
+<span class="nc" id="L139">                                showHybridSearch = false</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                                callback()?.setSearchText(StringUtil.fromHtml(it).toString())</span>
+<span class="nc" id="L141">                            },</span>
+<span class="nc" id="L142">                            onCloseSearch = { requireActivity().finish() },</span>
+<span class="nc" id="L143">                            onRetrySearch = {</span>
+<span class="nc" id="L144">                                viewModel.refreshSearchResults()</span>
+<span class="nc" id="L145">                            },</span>
+<span class="nc" id="L146">                            onLoading = { enabled -&gt;</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                                callback()?.onSearchProgressBar(enabled)</span>
+<span class="nc" id="L148">                            },</span>
+<span class="nc" id="L149">                            onRatingClick = { isPositive, result -&gt;</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;click&quot;,</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                                    elementId = if (isPositive) &quot;thumb_up&quot; else &quot;thumb_down&quot;,</span>
+<span class="nc" id="L152">                                    pageData = TestKitchenAdapter.getPageData(result.pageTitle),</span>
+<span class="nc" id="L153">                                    actionContext = viewModel.getHybridEventActionContext(result)</span>
+                                )
+<span class="nc" id="L155">                            },</span>
+<span class="nc" id="L156">                            onLexicalResultsEmpty = {</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;search_error&quot;, actionSubtype = &quot;lexical_search_error&quot;,</span>
+<span class="nc" id="L158">                                    actionContext = mapOf(&quot;error&quot; to getString(R.string.hybrid_lexical_search_results_empty))</span>
+                                )
+
+<span class="nc" id="L161">                                FeedbackUtil.showMessage(requireActivity(), R.string.hybrid_lexical_search_results_empty)</span>
+<span class="nc" id="L162">                            },</span>
+<span class="nc" id="L163">                            onSemanticResultsEmpty = {</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;search_error&quot;, actionSubtype = &quot;semantic_search_error&quot;,</span>
+<span class="nc" id="L165">                                    actionContext = mapOf(&quot;error&quot; to getString(R.string.hybrid_search_results_empty))</span>
+                                )
+
+<span class="nc" id="L168">                                FeedbackUtil.showMessage(requireActivity(), R.string.hybrid_search_results_empty)</span>
+<span class="nc" id="L169">                            },</span>
+<span class="nc" id="L170">                            onError = {</span>
+<span class="nc bnc" id="L171" title="All 4 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;search_error&quot;, actionContext = mapOf(&quot;error&quot; to it.message.orEmpty()))</span>
+<span class="nc" id="L172">                            }</span>
+                        )
+                    } else {
+<span class="nc" id="L175">                        SearchResultsScreen(</span>
+<span class="nc" id="L176">                            viewModel = viewModel,</span>
+<span class="nc" id="L177">                            modifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L178">                            onNavigateToTitle = { result, inNewTab, position, location -&gt;</span>
+
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                                requireActivity().instrument?.submitInteraction(&quot;search_result_click&quot;,</span>
+<span class="nc" id="L181">                                    pageData = TestKitchenAdapter.getPageData(result.pageTitle),</span>
+<span class="nc" id="L182">                                    actionContext = viewModel.getStandardEventActionContext(result)</span>
+                                )
+
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                                callback()?.navigateToTitle(result.pageTitle, inNewTab, position, location)</span>
+<span class="nc" id="L186">                            },</span>
+<span class="nc" id="L187">                            onItemLongClick = { view, searchResult, position -&gt;</span>
+<span class="nc" id="L188">                                val entry =</span>
+<span class="nc" id="L189">                                    HistoryEntry(searchResult.pageTitle, HistoryEntry.SOURCE_SEARCH)</span>
+<span class="nc" id="L190">                                LongPressMenu(</span>
+<span class="nc" id="L191">                                    view,</span>
+<span class="nc" id="L192">                                    callback = SearchResultLongPressHandler(callback(), position)</span>
+<span class="nc" id="L193">                                ).show(entry)</span>
+<span class="nc" id="L194">                            },</span>
+<span class="nc" id="L195">                            onSemanticSearchClick = { result, query, isSuggestion -&gt;</span>
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                                if (isSuggestion) {</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                                    requireActivity().instrument?.submitInteraction(&quot;click&quot;,</span>
+<span class="nc" id="L199">                                        elementId = &quot;semantic_search_explicit&quot;, actionContext = viewModel.getStandardEventActionContext())</span>
+                                } else {
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                                    requireActivity().instrument?.submitInteraction(&quot;search_result_click&quot;,</span>
+<span class="nc" id="L202">                                        actionContext = viewModel.getStandardEventActionContext(result)</span>
+                                    )
+                                }
+
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                                callback()?.setSearchText(StringUtil.fromHtml(query).toString())</span>
+<span class="nc" id="L207">                                showHybridSearch = true</span>
+<span class="nc" id="L208">                                DeviceUtil.hideSoftKeyboard(requireActivity())</span>
+<span class="nc" id="L209">                            },</span>
+<span class="nc" id="L210">                            onCloseSearch = { requireActivity().finish() },</span>
+<span class="nc" id="L211">                            onRetrySearch = {</span>
+<span class="nc" id="L212">                                viewModel.refreshSearchResults()</span>
+<span class="nc" id="L213">                            },</span>
+<span class="nc" id="L214">                            onLanguageClick = { position -&gt;</span>
+<span class="nc bnc" id="L215" title="All 4 branches missed.">                                if (isAdded &amp;&amp; position &gt;= 0) {</span>
+<span class="nc" id="L216">                                    (requireParentFragment() as SearchFragment).setUpLanguageScroll(</span>
+<span class="nc" id="L217">                                        position</span>
+                                    )
+                                }
+<span class="nc" id="L220">                            },</span>
+<span class="nc" id="L221">                            onLoading = { enabled -&gt;</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                                callback()?.onSearchProgressBar(enabled)</span>
+<span class="nc" id="L223">                            },</span>
+<span class="nc" id="L224">                            onNoResults = {</span>
+<span class="nc" id="L225">                                DeviceUtil.showSoftKeyboard(requireActivity())</span>
+<span class="nc" id="L226">                            }</span>
+                        )
+                    }
+<span class="nc" id="L229">                }</span>
+<span class="nc" id="L230">            }</span>
+<span class="nc" id="L231">        }</span>
+    }
+
+    fun show() {
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        composeView?.visibility = View.VISIBLE</span>
+<span class="nc" id="L236">    }</span>
+
+    fun hide() {
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        composeView?.visibility = View.GONE</span>
+<span class="nc" id="L240">    }</span>
+
+<span class="nc" id="L242">    fun startSearch(term: String?, force: Boolean, resetHybridSearch: Boolean = false) {</span>
+<span class="nc bnc" id="L243" title="All 6 branches missed.">        if (!force &amp;&amp; viewModel.searchTerm.value == term &amp;&amp; viewModel.languageCode.value == searchLanguageCode) {</span>
+<span class="nc" id="L244">            return</span>
+        }
+
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        requireActivity().instrument?.setDefaultMediaWikiData(WikiSite.forLanguageCode(searchLanguageCode).dbName())</span>
+<span class="nc" id="L248">        viewModel.updateLanguageCode(searchLanguageCode)</span>
+<span class="nc bnc" id="L249" title="All 6 branches missed.">        viewModel.updateSearchTerm(if (term.isNullOrBlank()) &quot;&quot; else term)</span>
+
+        // If user changes the language, make sure to turn off hybrid search screen.
+<span class="nc bnc" id="L252" title="All 6 branches missed.">        showHybridSearch = !resetHybridSearch &amp;&amp; showHybridSearch &amp;&amp; viewModel.isHybridSearchExperimentOn</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        if (showHybridSearch) {</span>
+<span class="nc" id="L254">            viewModel.resetHybridSearchState()</span>
+<span class="nc" id="L255">            viewModel.loadHybridSearchResults()</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">        } else if (force) {</span>
+<span class="nc" id="L257">            viewModel.refreshSearchResults()</span>
+        }
+<span class="nc" id="L259">    }</span>
+
+    private fun callback(): SearchResultCallback? {
+<span class="nc" id="L262">        return getCallback(this, SearchResultCallback::class.java)</span>
+    }
+
+    fun setInvokeSource(invokeSource: Constants.InvokeSource) {
+<span class="nc" id="L266">        viewModel.invokeSource = invokeSource</span>
+<span class="nc" id="L267">    }</span>
+
+    private val searchLanguageCode
+        get() =
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            if (isAdded) (requireParentFragment() as SearchFragment).searchLanguageCode else WikipediaApp.instance.languageState.appLanguageCode</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L274">        super.onDestroyView()</span>
+<span class="nc" id="L275">        composeView = null</span>
+<span class="nc" id="L276">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

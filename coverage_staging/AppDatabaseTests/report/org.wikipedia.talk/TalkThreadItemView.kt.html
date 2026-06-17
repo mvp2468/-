@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TalkThreadItemView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.talk</a> &gt; <span class="el_source">TalkThreadItemView.kt</span></div><h1>TalkThreadItemView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.talk
+
+import android.animation.ArgbEvaluator
+import android.animation.ValueAnimator
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.text.method.MovementMethod
+import android.util.AttributeSet
+import android.view.*
+import androidx.appcompat.view.menu.MenuBuilder
+import androidx.appcompat.view.menu.MenuPopupHelper
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.isInvisible
+import androidx.core.view.isVisible
+import org.wikipedia.R
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.databinding.ItemTalkThreadItemBinding
+import org.wikipedia.dataclient.discussiontools.ThreadItem
+import org.wikipedia.richtext.CustomHtmlParser
+import org.wikipedia.util.*
+
+<span class="nc" id="L25">@SuppressLint(&quot;RestrictedApi&quot;)</span>
+<span class="nc" id="L26">class TalkThreadItemView(context: Context, attrs: AttributeSet? = null) : ConstraintLayout(context, attrs) {</span>
+    interface Callback {
+        fun onExpandClick(item: ThreadItem)
+        fun onReplyClick(item: ThreadItem)
+        fun onShareClick(item: ThreadItem)
+        fun onUserNameClick(item: ThreadItem, view: View)
+    }
+
+<span class="nc" id="L34">    var callback: Callback? = null</span>
+<span class="nc" id="L35">    private val binding = ItemTalkThreadItemBinding.inflate(LayoutInflater.from(context), this)</span>
+    private lateinit var item: ThreadItem
+
+<span class="nc" id="L38">    init {</span>
+<span class="nc" id="L39">        layoutParams = ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)</span>
+
+<span class="nc" id="L41">        binding.replyButton.setOnClickListener {</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">            callback?.onReplyClick(item)</span>
+<span class="nc" id="L43">        }</span>
+
+<span class="nc" id="L45">        binding.showRepliesTapTarget.setOnClickListener {</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">            callback?.onExpandClick(item)</span>
+<span class="nc" id="L47">            updateExpandedState()</span>
+<span class="nc" id="L48">        }</span>
+
+<span class="nc" id="L50">        binding.overflowButton.setOnClickListener {</span>
+<span class="nc bnc" id="L51" title="All 4 branches missed.">            (context as? Activity)?.let { activity -&gt;</span>
+<span class="nc" id="L52">                val builder = MenuBuilder(activity)</span>
+<span class="nc" id="L53">                activity.menuInflater.inflate(R.menu.menu_talk_thread_item, builder)</span>
+<span class="nc" id="L54">                builder.setCallback(overflowMenuListener)</span>
+<span class="nc" id="L55">                val helper = MenuPopupHelper(activity, builder, binding.overflowButton)</span>
+<span class="nc" id="L56">                helper.setForceShowIcon(true)</span>
+<span class="nc" id="L57">                helper.gravity = Gravity.END</span>
+<span class="nc" id="L58">                helper.show()</span>
+<span class="nc" id="L59">            }</span>
+<span class="nc" id="L60">        }</span>
+
+<span class="nc" id="L62">        binding.userNameTapTarget.setOnClickListener {</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            callback?.onUserNameClick(item, it)</span>
+<span class="nc" id="L64">        }</span>
+<span class="nc" id="L65">    }</span>
+
+<span class="nc" id="L67">    fun bindItem(item: ThreadItem, movementMethod: MovementMethod, replying: Boolean = false, searchQuery: String? = null) {</span>
+<span class="nc" id="L68">        this.item = item</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        val showAuthor = item.author.isNotEmpty()</span>
+<span class="nc" id="L70">        binding.userNameText.isVisible = showAuthor</span>
+<span class="nc" id="L71">        binding.userNameTapTarget.isVisible = showAuthor</span>
+<span class="nc" id="L72">        StringUtil.setHighlightedAndBoldenedText(binding.userNameText, item.author, searchQuery)</span>
+<span class="nc" id="L73">        binding.userNameTapTarget.contentDescription = binding.userNameText.text</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        binding.profileImage.isInvisible = !showAuthor</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        binding.profileImage.setImageResource(if (AccountUtil.isUserNameTemporary(item.author)) R.drawable.ic_temp_account else R.drawable.ic_user_avatar)</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        binding.timeStampText.isVisible = item.date != null</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        item.date?.let {</span>
+<span class="nc" id="L78">            val timestamp = DateUtil.getTimeAndDateString(context, it)</span>
+<span class="nc" id="L79">            StringUtil.setHighlightedAndBoldenedText(binding.timeStampText, timestamp, searchQuery)</span>
+<span class="nc" id="L80">        }</span>
+<span class="nc" id="L81">        val body = CustomHtmlParser.fromHtml(StringUtil.removeStyleTags(item.html), binding.bodyText).trim()</span>
+<span class="nc" id="L82">        StringUtil.setHighlightedAndBoldenedText(binding.bodyText, body, searchQuery)</span>
+<span class="nc" id="L83">        binding.bodyText.movementMethod = movementMethod</span>
+
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (replying) {</span>
+<span class="nc" id="L86">            binding.replyButton.isVisible = false</span>
+<span class="nc" id="L87">            binding.topDivider.isVisible = false</span>
+<span class="nc" id="L88">            binding.threadLineTop.isVisible = false</span>
+<span class="nc" id="L89">            binding.showRepliesContainer.isVisible = false</span>
+<span class="nc" id="L90">            binding.showRepliesTapTarget.isVisible = false</span>
+<span class="nc" id="L91">            binding.threadLineMiddle.isVisible = false</span>
+<span class="nc" id="L92">            binding.threadLineBottom.isVisible = false</span>
+<span class="nc" id="L93">            return</span>
+        }
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (item.isFirstTopLevel) {</span>
+<span class="nc" id="L97">            binding.replyButton.backgroundTintList = ResourceUtil.getThemedColorStateList(context, R.attr.progressive_color)</span>
+<span class="nc" id="L98">            binding.replyButton.iconTint = ColorStateList.valueOf(Color.WHITE)</span>
+<span class="nc" id="L99">            binding.replyButton.setTextColor(Color.WHITE)</span>
+        } else {
+<span class="nc" id="L101">            binding.replyButton.backgroundTintList = ResourceUtil.getThemedColorStateList(context, R.attr.background_color)</span>
+<span class="nc" id="L102">            binding.replyButton.iconTint = ResourceUtil.getThemedColorStateList(context, R.attr.progressive_color)</span>
+<span class="nc" id="L103">            binding.replyButton.setTextColor(ResourceUtil.getThemedColor(context, R.attr.progressive_color))</span>
+        }
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        binding.topDivider.isVisible = item.level &lt;= 2</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        binding.threadLineTop.isVisible = item.level &gt; 2</span>
+<span class="nc bnc" id="L108" title="All 6 branches missed.">        binding.showRepliesContainer.isVisible = item.level &gt; 1 &amp;&amp; item.replies.isNotEmpty()</span>
+<span class="nc" id="L109">        binding.showRepliesTapTarget.isVisible = binding.showRepliesContainer.isVisible</span>
+<span class="nc bnc" id="L110" title="All 10 branches missed.">        binding.threadLineMiddle.isVisible = item.level &gt; 1 &amp;&amp; (item.replies.isNotEmpty() || (item.level &gt; 2 &amp;&amp; !item.isLastSibling))</span>
+<span class="nc" id="L111">        updateExpandedState()</span>
+<span class="nc" id="L112">    }</span>
+
+    fun animateSelectedBackground() {
+<span class="nc" id="L115">        val colorFrom = ResourceUtil.getThemedColor(context, R.attr.placeholder_color)</span>
+<span class="nc" id="L116">        val colorTo = ResourceUtil.getThemedColor(context, R.attr.paper_color)</span>
+<span class="nc" id="L117">        val anim = ValueAnimator.ofObject(ArgbEvaluator(), colorFrom, colorTo)</span>
+<span class="nc" id="L118">        anim.duration = 1000</span>
+<span class="nc" id="L119">        anim.addUpdateListener {</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (it.isRunning) {</span>
+<span class="nc" id="L121">                setBackgroundColor(it.animatedValue as Int)</span>
+            } else {
+<span class="nc" id="L123">                setBackgroundColor(Color.TRANSPARENT)</span>
+            }
+<span class="nc" id="L125">        }</span>
+<span class="nc" id="L126">        anim.start()</span>
+<span class="nc" id="L127">    }</span>
+
+    private fun updateExpandedState() {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        binding.showRepliesArrow.setImageResource(if (item.isExpanded) R.drawable.ic_arrow_drop_down_black_24dp else R.drawable.ic_arrow_forward_24)</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        binding.showRepliesText.text = context.resources.getQuantityString(if (item.isExpanded) R.plurals.talk_hide_replies_count else R.plurals.talk_show_replies_count, item.replies.size, item.replies.size)</span>
+<span class="nc" id="L132">        binding.showRepliesTapTarget.contentDescription = binding.showRepliesText.text</span>
+<span class="nc bnc" id="L133" title="All 6 branches missed.">        binding.threadLineBottom.isVisible = item.isExpanded || (item.level &gt; 2 &amp;&amp; !item.isLastSibling)</span>
+<span class="nc" id="L134">    }</span>
+
+<span class="nc" id="L136">    private val overflowMenuListener = object : MenuBuilder.Callback {</span>
+        override fun onMenuItemSelected(menu: MenuBuilder, menuItem: MenuItem): Boolean {
+<span class="nc" id="L138">            return when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                R.id.menu_talk_topic_share -&gt; {</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                    callback?.onShareClick(item)</span>
+<span class="nc" id="L141">                    true</span>
+                }
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                R.id.menu_copy_text -&gt; {</span>
+<span class="nc" id="L144">                    ClipboardUtil.setPlainText(context, text = StringUtil.fromHtml(StringUtil.removeStyleTags(item.html)))</span>
+<span class="nc" id="L145">                    FeedbackUtil.showMessage(context as Activity, R.string.text_copied)</span>
+<span class="nc" id="L146">                    true</span>
+                }
+<span class="nc" id="L148">                else -&gt; false</span>
+            }
+        }
+
+<span class="nc" id="L152">        override fun onMenuModeChange(menu: MenuBuilder) { }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

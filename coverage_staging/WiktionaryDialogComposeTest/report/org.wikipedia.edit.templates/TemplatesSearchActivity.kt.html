@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TemplatesSearchActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.edit.templates</a> &gt; <span class="el_source">TemplatesSearchActivity.kt</span></div><h1>TemplatesSearchActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.edit.templates
+
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.viewModels
+import androidx.appcompat.widget.SearchView
+import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.paging.LoadState
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.adapter.PagingDataAdapterPatched
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.databinding.ActivityTemplatesSearchBinding
+import org.wikipedia.databinding.ItemTemplatesSearchBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.TemplateDataResponse
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L40">class TemplatesSearchActivity : BaseActivity() {</span>
+    private lateinit var binding: ActivityTemplatesSearchBinding
+    private lateinit var insertTemplateFragment: InsertTemplateFragment
+
+    private var templatesSearchAdapter: TemplatesSearchAdapter? = null
+
+<span class="nc" id="L46">    val viewModel: TemplatesSearchViewModel by viewModels()</span>
+
+<span class="nc" id="L48">    private val searchCloseListener = View.OnClickListener {</span>
+<span class="nc" id="L49">        closeSearch()</span>
+<span class="nc" id="L50">    }</span>
+
+<span class="nc" id="L52">    private val searchQueryListener = object : SearchView.OnQueryTextListener {</span>
+        override fun onQueryTextSubmit(queryText: String): Boolean {
+<span class="nc" id="L54">            DeviceUtil.hideSoftKeyboard(this@TemplatesSearchActivity)</span>
+<span class="nc" id="L55">            return true</span>
+        }
+
+        override fun onQueryTextChange(queryText: String): Boolean {
+<span class="nc" id="L59">            binding.searchCabView.setCloseButtonVisibility(queryText)</span>
+<span class="nc" id="L60">            startSearch(queryText.trim())</span>
+<span class="nc" id="L61">            return true</span>
+        }
+    }
+
+    public override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L66">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L67">        binding = ActivityTemplatesSearchBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L68">        setContentView(binding.root)</span>
+<span class="nc" id="L69">        setSupportActionBar(binding.toolbar)</span>
+<span class="nc" id="L70">        sendPatrollerExperienceEvent(&quot;search_init&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc" id="L71">        initSearchView()</span>
+
+<span class="nc" id="L73">        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)</span>
+
+<span class="nc" id="L75">        templatesSearchAdapter = TemplatesSearchAdapter()</span>
+<span class="nc" id="L76">        binding.templateRecyclerView.layoutManager = LinearLayoutManager(this)</span>
+<span class="nc" id="L77">        binding.templateRecyclerView.adapter = templatesSearchAdapter</span>
+
+<span class="nc" id="L79">        insertTemplateFragment = supportFragmentManager.findFragmentById(R.id.insertTemplateFragment) as InsertTemplateFragment</span>
+
+<span class="nc" id="L81">        binding.insertTemplateButton.setOnClickListener {</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            viewModel.selectedPageTitle?.let {</span>
+<span class="nc" id="L83">                sendPatrollerExperienceEvent(&quot;template_insert_click&quot;, &quot;pt_templates&quot;)</span>
+<span class="nc" id="L84">                Prefs.addRecentUsedTemplates(setOf(it))</span>
+<span class="nc" id="L85">                val wikiText = insertTemplateFragment.collectParamsInfoAndBuildWikiText()</span>
+<span class="nc" id="L86">                val intent = Intent().putExtra(RESULT_WIKI_TEXT, wikiText)</span>
+<span class="nc" id="L87">                setResult(RESULT_INSERT_TEMPLATE_SUCCESS, intent)</span>
+<span class="nc" id="L88">                finish()</span>
+<span class="nc" id="L89">            }</span>
+<span class="nc" id="L90">        }</span>
+
+<span class="nc" id="L92">        lifecycleScope.launch {</span>
+<span class="nc" id="L93">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L94">                launch {</span>
+<span class="nc" id="L95">                    viewModel.searchTemplatesFlow.collectLatest {</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                        templatesSearchAdapter?.submitData(lifecycleScope, it)</span>
+<span class="nc" id="L97">                    }</span>
+<span class="nc" id="L98">                }</span>
+<span class="nc" id="L99">                launch {</span>
+<span class="nc bnc" id="L100" title="All 4 branches missed.">                    templatesSearchAdapter?.loadStateFlow?.collectLatest {</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">                        binding.searchProgressBar.isVisible = it.append is LoadState.Loading || it.refresh is LoadState.Loading</span>
+<span class="nc bnc" id="L102" title="All 10 branches missed.">                        val showEmpty = (it.append is LoadState.NotLoading &amp;&amp; it.append.endOfPaginationReached &amp;&amp; templatesSearchAdapter?.itemCount == 0)</span>
+<span class="nc" id="L103">                        binding.emptyMessage.isVisible = showEmpty</span>
+<span class="nc" id="L104">                    }</span>
+<span class="nc" id="L105">                }</span>
+<span class="nc" id="L106">                launch {</span>
+<span class="nc" id="L107">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L108">                        when (it) {</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                            is TemplatesSearchViewModel.UiState.LoadTemplateData -&gt; {</span>
+<span class="nc" id="L110">                                showInsertTemplateFragment(it.pageTitle, it.templateData)</span>
+                            }
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                            is TemplatesSearchViewModel.UiState.LoadError -&gt; {</span>
+<span class="nc" id="L113">                                FeedbackUtil.showError(this@TemplatesSearchActivity, it.throwable)</span>
+                            }
+                        }
+<span class="nc" id="L116">                    }</span>
+                }
+<span class="nc" id="L118">            }</span>
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+
+    private fun initSearchView() {
+<span class="nc" id="L123">        binding.searchCabView.setOnQueryTextListener(searchQueryListener)</span>
+<span class="nc" id="L124">        binding.searchCabView.setCloseButtonClickListener(searchCloseListener)</span>
+<span class="nc" id="L125">        binding.searchCabView.setSearchHintTextColor(ResourceUtil.getThemedColor(this, R.attr.secondary_color))</span>
+<span class="nc" id="L126">        binding.searchCabView.queryHint = getString(R.string.templates_search_hint)</span>
+<span class="nc" id="L127">        val searchEditPlate = binding.searchCabView.findViewById&lt;View&gt;(androidx.appcompat.R.id.search_plate)</span>
+<span class="nc" id="L128">        searchEditPlate.setBackgroundColor(Color.TRANSPARENT)</span>
+<span class="nc" id="L129">    }</span>
+
+    private fun startSearch(term: String?) {
+<span class="nc" id="L132">        viewModel.searchQuery = term</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        templatesSearchAdapter?.refresh()</span>
+<span class="nc" id="L134">    }</span>
+
+    private fun closeSearch() {
+<span class="nc" id="L137">        binding.searchCabView.setQuery(&quot;&quot;, false)</span>
+<span class="nc" id="L138">        DeviceUtil.hideSoftKeyboard(this)</span>
+<span class="nc" id="L139">    }</span>
+
+    private fun showInsertTemplateFragment(pageTitle: PageTitle, templateData: TemplateDataResponse.TemplateData) {
+<span class="nc" id="L142">        binding.searchCabView.isVisible = false</span>
+<span class="nc" id="L143">        binding.insertTemplateButton.isVisible = true</span>
+<span class="nc" id="L144">        updateToolbarElevation(false)</span>
+<span class="nc" id="L145">        insertTemplateFragment.show(pageTitle, templateData)</span>
+<span class="nc" id="L146">    }</span>
+
+    fun updateInsertButton(enabled: Boolean) {
+<span class="nc" id="L149">        binding.insertTemplateButton.isEnabled = enabled</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        binding.insertTemplateButton.setTextColor(ResourceUtil.getThemedColor(this, if (enabled) R.attr.progressive_color else R.attr.inactive_color))</span>
+<span class="nc" id="L151">    }</span>
+
+    private fun updateToolbarElevation(enabled: Boolean) {
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        binding.toolbarContainer.elevation = if (enabled) DimenUtil.dpToPx(1f) else 0f</span>
+<span class="nc" id="L155">    }</span>
+
+<span class="nc" id="L157">    fun sendPatrollerExperienceEvent(action: String, activeInterface: String, actionData: String = &quot;&quot;) {</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        if (viewModel.isFromDiff) {</span>
+<span class="nc" id="L159">            PatrollerExperienceEvent.logAction(action, activeInterface, actionData)</span>
+        }
+<span class="nc" id="L161">    }</span>
+
+<span class="nc" id="L163">    private val onBackPressedCallback = object : OnBackPressedCallback(true) {</span>
+        override fun handleOnBackPressed() {
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (insertTemplateFragment.handleBackPressed()) {</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                if (templatesSearchAdapter != null) {</span>
+<span class="nc" id="L167">                    binding.searchCabView.isVisible = true</span>
+<span class="nc" id="L168">                    binding.insertTemplateButton.isVisible = false</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                    supportActionBar?.title = null</span>
+<span class="nc" id="L170">                    updateToolbarElevation(true)</span>
+                } else {
+<span class="nc" id="L172">                    finish()</span>
+                }
+<span class="nc" id="L174">                return</span>
+            }
+<span class="nc" id="L176">            finish()</span>
+<span class="nc" id="L177">        }</span>
+    }
+
+<span class="nc" id="L180">    private inner class TemplatesSearchDiffCallback : DiffUtil.ItemCallback&lt;PageTitle&gt;() {</span>
+        override fun areItemsTheSame(oldItem: PageTitle, newItem: PageTitle): Boolean {
+<span class="nc" id="L182">            return oldItem == newItem</span>
+        }
+
+        override fun areContentsTheSame(oldItem: PageTitle, newItem: PageTitle): Boolean {
+<span class="nc bnc" id="L186" title="All 4 branches missed.">            return oldItem.prefixedText == newItem.prefixedText &amp;&amp; oldItem.namespace == newItem.namespace</span>
+        }
+    }
+
+<span class="nc" id="L190">    private inner class TemplatesSearchAdapter : PagingDataAdapterPatched&lt;PageTitle, RecyclerView.ViewHolder&gt;(TemplatesSearchDiffCallback()) {</span>
+        override fun onCreateViewHolder(parent: ViewGroup, pos: Int): TemplatesSearchItemHolder {
+<span class="nc" id="L192">            return TemplatesSearchItemHolder(ItemTemplatesSearchBinding.inflate(layoutInflater, parent, false))</span>
+        }
+
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            getItem(position)?.let {</span>
+<span class="nc" id="L197">                (holder as TemplatesSearchItemHolder).bindItem(it)</span>
+<span class="nc" id="L198">            }</span>
+<span class="nc" id="L199">        }</span>
+    }
+
+<span class="nc" id="L202">    private inner class TemplatesSearchItemHolder(val binding: ItemTemplatesSearchBinding) : RecyclerView.ViewHolder(binding.root) {</span>
+        fun bindItem(pageTitle: PageTitle) {
+<span class="nc" id="L204">            binding.itemTitle.text = StringUtil.removeNamespace(pageTitle.displayText)</span>
+<span class="nc bnc" id="L205" title="All 6 branches missed.">            binding.itemDescription.isVisible = !pageTitle.description.isNullOrEmpty()</span>
+<span class="nc" id="L206">            binding.itemDescription.text = pageTitle.description</span>
+<span class="nc" id="L207">            StringUtil.boldenKeywordText(binding.itemTitle, binding.itemTitle.text.toString(), viewModel.searchQuery)</span>
+
+<span class="nc bnc" id="L209" title="All 6 branches missed.">            if (viewModel.searchQuery.isNullOrEmpty()) {</span>
+<span class="nc" id="L210">                binding.itemTitle.typeface = Typeface.DEFAULT_BOLD</span>
+            } else {
+<span class="nc" id="L212">                binding.itemTitle.typeface = Typeface.DEFAULT</span>
+            }
+
+<span class="nc" id="L215">            itemView.setOnClickListener {</span>
+<span class="nc" id="L216">                viewModel.loadTemplateData(pageTitle)</span>
+<span class="nc" id="L217">                viewModel.selectedPageTitle = pageTitle</span>
+<span class="nc" id="L218">            }</span>
+<span class="nc" id="L219">        }</span>
+    }
+
+    companion object {
+        const val EXTRA_FROM_DIFF = &quot;isFromDiff&quot;
+        const val RESULT_INSERT_TEMPLATE_SUCCESS = 100
+        const val RESULT_WIKI_TEXT = &quot;resultWikiText&quot;
+        fun newIntent(context: Context, wikiSite: WikiSite, isFromDiff: Boolean, invokeSource: Constants.InvokeSource): Intent {
+<span class="nc" id="L227">            return Intent(context, TemplatesSearchActivity::class.java)</span>
+<span class="nc" id="L228">                .putExtra(Constants.ARG_WIKISITE, wikiSite)</span>
+<span class="nc" id="L229">                .putExtra(EXTRA_FROM_DIFF, isFromDiff)</span>
+<span class="nc" id="L230">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, invokeSource)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

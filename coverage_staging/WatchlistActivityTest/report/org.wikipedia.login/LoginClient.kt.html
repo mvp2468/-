@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoginClient.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.login</a> &gt; <span class="el_source">LoginClient.kt</span></div><h1>LoginClient.kt</h1><pre class="source lang-java linenums">package org.wikipedia.login
+
+import android.widget.Toast
+import androidx.annotation.StringRes
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.log.L
+import java.io.IOException
+import java.time.LocalDateTime
+
+<span class="nc" id="L18">class LoginClient {</span>
+
+    interface LoginCallback {
+        fun success(result: LoginResult)
+<span class="nc" id="L22">        fun uiPrompt(result: LoginResult, caught: Throwable, captchaId: String? = null, token: String? = null)</span>
+        fun passwordResetPrompt(token: String?)
+        fun error(caught: Throwable)
+    }
+
+<span class="nc" id="L27">    fun login(coroutineScope: CoroutineScope, wiki: WikiSite, userName: String, password: String, retypedPassword: String? = null,</span>
+<span class="nc" id="L28">              token: String? = null, twoFactorCode: String? = null, emailAuthCode: String? = null,</span>
+<span class="nc" id="L29">              captchaId: String? = null, captchaWord: String? = null, isContinuation: Boolean? = false, cb: LoginCallback) {</span>
+<span class="nc" id="L30">        coroutineScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L31">            L.e(&quot;Login process failed. $throwable&quot;)</span>
+<span class="nc" id="L32">            cb.error(throwable)</span>
+<span class="nc" id="L33">        }) {</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            if (Prefs.loginForceEmailAuth) {</span>
+<span class="nc" id="L35">                enqueueForceEmailAuth = true</span>
+            }
+<span class="nc bnc" id="L37" title="All 2 branches missed.">            val loginToken = token ?: getLoginToken(wiki)</span>
+<span class="nc" id="L38">            var loginResult = ServiceFactory.get(wiki).postLogIn(user = userName, pass = password, retype = retypedPassword,</span>
+<span class="nc" id="L39">                twoFactorCode = twoFactorCode, emailAuthToken = emailAuthCode,</span>
+<span class="nc" id="L40">                captchaId = captchaId, captchaWord = captchaWord, loginToken = loginToken,</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                loginContinue = if (isContinuation == true) true else null,</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">                returnUrl = if (isContinuation == true) null else Service.WIKIPEDIA_URL).toLoginResult(wiki, password)</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">            for (attempt in 0..1) {</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">                if (loginResult == null) {</span>
+<span class="nc" id="L45">                    throw IOException(&quot;Login failed. Unexpected response.&quot;)</span>
+                }
+<span class="nc bnc" id="L47" title="All 6 branches missed.">                if (loginResult.pass() &amp;&amp; userName.isNotEmpty()) {</span>
+<span class="nc bnc" id="L48" title="All 4 branches missed.">                    ServiceFactory.get(wiki).getUserInfo().query?.userInfo?.let {</span>
+<span class="nc" id="L49">                        loginResult.userId = it.id</span>
+<span class="nc" id="L50">                        loginResult.groups = it.groups()</span>
+<span class="nc" id="L51">                        L.v(&quot;Found user ID &quot; + it.id + &quot; for &quot; + wiki.subdomain())</span>
+<span class="nc" id="L52">                    }</span>
+<span class="nc" id="L53">                    cb.success(loginResult)</span>
+                } else {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">                    if (LoginResult.STATUS_UI == loginResult.status) {</span>
+<span class="nc bnc" id="L56" title="All 6 branches missed.">                        val parsedMessage = loginResult.message?.let { ServiceFactory.get(wiki).parseText(it) }?.text ?: loginResult.message</span>
+<span class="nc" id="L57">                        when {</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                            loginResult is LoginOATHResult -&gt; cb.uiPrompt(loginResult, LoginFailedException(parsedMessage), token = loginToken)</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                            loginResult is LoginEmailAuthResult -&gt; cb.uiPrompt(loginResult, LoginFailedException(parsedMessage), token = loginToken)</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                            loginResult is LoginResetPasswordResult -&gt; cb.passwordResetPrompt(loginToken)</span>
+<span class="nc bnc" id="L61" title="All 4 branches missed.">                            loginResult is LoginModuleSelectResult &amp;&amp; attempt == 0 -&gt; {</span>
+                                // User has multi-factor authentication, and we're allowed to select the module to use.
+                                // Make an attempt to select TOTP, since this is the only MFA we support for now.
+<span class="nc" id="L64">                                loginResult = ServiceFactory.get(wiki).postLogIn(loginToken = loginToken, loginContinue = true,</span>
+<span class="nc" id="L65">                                    newModule = &quot;totp&quot;).toLoginResult(wiki, password)</span>
+<span class="nc" id="L66">                                continue</span>
+                            }
+<span class="nc" id="L68">                            else -&gt; cb.error(LoginFailedException(parsedMessage, loginResult.messageCode))</span>
+                        }
+                    } else {
+                        // Make a call to authmanager to see if we need to provide a captcha.
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                        val captchaId = ServiceFactory.get(wiki).getAuthManagerForLogin().query?.captchaId()</span>
+<span class="nc bnc" id="L73" title="All 6 branches missed.">                        if (!captchaId.isNullOrEmpty()) {</span>
+<span class="nc" id="L74">                            cb.uiPrompt(loginResult, LoginFailedException(loginResult.message), captchaId = captchaId, token = loginToken)</span>
+                        } else {
+<span class="nc" id="L76">                            cb.error(LoginFailedException(loginResult.message, loginResult.messageCode))</span>
+                        }
+                    }
+                }
+<span class="nc" id="L80">                break</span>
+            }
+<span class="nc" id="L82">        }</span>
+<span class="nc" id="L83">    }</span>
+
+<span class="nc" id="L85">    suspend fun loginBlocking(wiki: WikiSite, userName: String, password: String, twoFactorCode: String? = null,</span>
+<span class="nc" id="L86">            emailAuthCode: String? = null, captchaId: String? = null, captchaWord: String? = null): LoginResult {</span>
+
+        // Prevent the app from re-logging in more than once per 1-day period.
+        // TODO: investigate the root cause of why this happens.
+        // https://phabricator.wikimedia.org/T415675
+<span class="nc bnc" id="L91" title="All 6 branches missed.">        if (!Prefs.lastBackgroundLoginDateTime.isNullOrEmpty()) {</span>
+<span class="nc" id="L92">            val loginDate = LocalDateTime.parse(Prefs.lastBackgroundLoginDateTime)</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            if (loginDate.plusDays(1).isAfter(LocalDateTime.now())) {</span>
+<span class="nc" id="L94">                return LoginResult(wiki, LoginResult.STATUS_FAIL, userName, password, &quot;Background login limit reached.&quot;)</span>
+            }
+        }
+<span class="nc" id="L97">        Prefs.lastBackgroundLoginDateTime = LocalDateTime.now().toString()</span>
+
+<span class="nc" id="L99">        val loginToken = getLoginToken(wiki)</span>
+<span class="nc" id="L100">        val isContinuation = false</span>
+<span class="nc" id="L101">        val loginResponse = ServiceFactory.get(wiki).postLogIn(user = userName, pass = password,</span>
+<span class="nc" id="L102">            twoFactorCode = twoFactorCode, emailAuthToken = emailAuthCode,</span>
+<span class="nc" id="L103">            captchaId = captchaId, captchaWord = captchaWord, loginToken = loginToken,</span>
+<span class="nc" id="L104">            loginContinue = if (isContinuation) true else null,</span>
+<span class="nc" id="L105">            returnUrl = if (isContinuation) null else Service.WIKIPEDIA_URL)</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        val loginResult = loginResponse.toLoginResult(wiki, password) ?: throw IOException(&quot;Unexpected response when logging in.&quot;)</span>
+<span class="nc bnc" id="L107" title="All 8 branches missed.">        if (loginResult.pass() &amp;&amp; !loginResult.userName.isNullOrEmpty()) {</span>
+<span class="nc" id="L108">            return loginResult</span>
+        }
+        // Make a call to authmanager to see if we need to provide a captcha.
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        val captchaId = ServiceFactory.get(wiki).getAuthManagerForLogin().query?.captchaId()</span>
+<span class="nc bnc" id="L112" title="All 6 branches missed.">        if (!captchaId.isNullOrEmpty()) {</span>
+            // TODO: Find a better way to boil up the warning about Captcha
+<span class="nc" id="L114">            showToast(R.string.login_background_error_msg)</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        } else if (LoginResult.STATUS_UI == loginResult.status) {</span>
+<span class="nc bnc" id="L116" title="All 4 branches missed.">            if (loginResult is LoginOATHResult || loginResult is LoginModuleSelectResult) {</span>
+                // TODO: Find a better way to boil up the warning about 2FA
+<span class="nc" id="L118">                showToast(R.string.login_2fa_other_workflow_error_msg)</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">            } else if (loginResult is LoginEmailAuthResult) {</span>
+                // TODO: Find a better way to boil up the warning about Email auth
+<span class="nc" id="L121">                showToast(R.string.login_email_auth_other_workflow_error_msg)</span>
+            }
+        }
+<span class="nc" id="L124">        return loginResult</span>
+    }
+
+<span class="nc" id="L127">    private suspend fun getLoginToken(wiki: WikiSite): String {</span>
+<span class="nc" id="L128">        val response = ServiceFactory.get(wiki).getLoginToken()</span>
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        return response.query?.loginToken() ?: throw RuntimeException(&quot;Received empty login token.&quot;)</span>
+    }
+
+    private fun showToast(@StringRes stringId: Int) {
+<span class="nc" id="L133">        WikipediaApp.instance.mainThreadHandler.post {</span>
+<span class="nc" id="L134">            Toast.makeText(WikipediaApp.instance, stringId, Toast.LENGTH_LONG).show()</span>
+<span class="nc" id="L135">        }</span>
+<span class="nc" id="L136">    }</span>
+
+    companion object {
+<span class="pc" id="L139">        var enqueueForceEmailAuth = false</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

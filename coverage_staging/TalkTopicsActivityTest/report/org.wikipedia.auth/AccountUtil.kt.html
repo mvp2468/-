@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AccountUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.auth</a> &gt; <span class="el_source">AccountUtil.kt</span></div><h1>AccountUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.auth
+
+import android.accounts.Account
+import android.accounts.AccountAuthenticatorResponse
+import android.accounts.AccountManager
+import android.app.Activity
+import androidx.core.os.bundleOf
+import androidx.core.text.isDigitsOnly
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.SharedPreferenceCookieManager
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.login.LoginResult
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L.d
+import org.wikipedia.util.log.L.logRemoteErrorIfProd
+import java.time.LocalDate
+import java.util.Collections
+import kotlin.math.max
+
+object AccountUtil {
+    private const val CENTRALAUTH_USER_COOKIE_NAME = &quot;centralauth_User&quot;
+    private const val TEMP_ACCOUNT_EXPIRY_DAYS = 90
+
+    fun updateAccount(response: AccountAuthenticatorResponse?, result: LoginResult) {
+<span class="nc bnc" id="L28" title="All 2 branches missed.">        if (createAccount(result.userName!!, result.password!!)) {</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">            response?.onResult(bundleOf(AccountManager.KEY_ACCOUNT_NAME to result.userName,</span>
+<span class="nc" id="L30">                    AccountManager.KEY_ACCOUNT_TYPE to accountType()))</span>
+        } else {
+<span class="nc bnc" id="L32" title="All 2 branches missed.">            response?.onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION, &quot;&quot;)</span>
+<span class="nc" id="L33">            d(&quot;account creation failure&quot;)</span>
+<span class="nc" id="L34">            return</span>
+        }
+<span class="nc" id="L36">        setPassword(result.password)</span>
+<span class="nc" id="L37">        groups = result.groups</span>
+<span class="nc" id="L38">    }</span>
+
+    val isLoggedIn: Boolean
+<span class="pc bpc" id="L41" title="2 of 4 branches missed.">        get() = account() != null || isTemporaryAccount</span>
+
+    val isTemporaryAccount: Boolean
+<span class="pc bpc" id="L44" title="2 of 4 branches missed.">        get() = account() == null &amp;&amp; isUserNameTemporary(getUserNameFromCookie())</span>
+
+    val userName: String
+<span class="nc bnc" id="L47" title="All 4 branches missed.">        get() = account()?.name ?: getUserNameFromCookie()</span>
+
+    val password: String?
+        get() {
+<span class="nc" id="L51">            val account = account()</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            return if (account == null) null else accountManager().getPassword(account)</span>
+        }
+
+    val assertUser: String?
+<span class="nc bnc" id="L56" title="All 4 branches missed.">        get() = if (isLoggedIn &amp;&amp; !isTemporaryAccount) &quot;user&quot; else null</span>
+
+    var groups: Set&lt;String&gt;
+        get() {
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            val account = account() ?: return emptySet()</span>
+<span class="nc" id="L61">            val setStr = accountManager().getUserData(account, WikipediaApp.instance.getString(R.string.preference_key_login_groups))</span>
+<span class="nc bnc" id="L62" title="All 8 branches missed.">            return if (setStr.isNullOrEmpty()) emptySet() else (JsonUtil.decodeFromString(setStr) ?: emptySet())</span>
+        }
+        set(groups) {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            val account = account() ?: return</span>
+<span class="nc" id="L66">            accountManager().setUserData(account,</span>
+<span class="nc" id="L67">                    WikipediaApp.instance.getString(R.string.preference_key_login_groups),</span>
+<span class="nc" id="L68">                    JsonUtil.encodeToString(groups))</span>
+<span class="nc" id="L69">        }</span>
+
+    fun isMemberOf(groups: Set&lt;String?&gt;): Boolean {
+<span class="nc bnc" id="L72" title="All 6 branches missed.">        return groups.isNotEmpty() &amp;&amp; !Collections.disjoint(groups, AccountUtil.groups)</span>
+    }
+
+    fun removeAccount() {
+<span class="nc" id="L76">        val account = account()</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (account != null) {</span>
+<span class="nc" id="L78">            accountManager().removeAccountExplicitly(account)</span>
+        }
+<span class="nc" id="L80">    }</span>
+
+    fun supported(account: Account): Boolean {
+<span class="nc" id="L83">        return account == account()</span>
+    }
+
+    fun account(): Account? {
+<span class="fc" id="L87">        return try {</span>
+<span class="fc" id="L88">            accountManager().getAccountsByType(accountType()).firstOrNull()</span>
+<span class="nc" id="L89">        } catch (e: SecurityException) {</span>
+<span class="nc" id="L90">            logRemoteErrorIfProd(e)</span>
+<span class="pc" id="L91">            null</span>
+        }
+    }
+
+    fun accountType(): String {
+<span class="fc" id="L96">        return WikipediaApp.instance.getString(R.string.account_type)</span>
+    }
+
+    fun getUserNameFromCookie(): String {
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        return UriUtil.decodeURL(SharedPreferenceCookieManager.instance.getCookieValueByName(CENTRALAUTH_USER_COOKIE_NAME).orEmpty().trim())</span>
+    }
+
+    fun maybeSetTempAccountDay() {
+<span class="nc bnc" id="L104" title="All 4 branches missed.">        if (isTemporaryAccount &amp;&amp; Prefs.tempAccountCreateDay == 0L) {</span>
+<span class="nc" id="L105">            Prefs.tempAccountCreateDay = LocalDate.now().toEpochDay()</span>
+        }
+<span class="nc" id="L107">    }</span>
+
+    fun maybeShowTempAccountWelcome(activity: Activity) {
+<span class="nc bnc" id="L110" title="All 4 branches missed.">        if (!Prefs.tempAccountWelcomeShown &amp;&amp; isTemporaryAccount) {</span>
+<span class="nc" id="L111">            Prefs.tempAccountWelcomeShown = true</span>
+<span class="nc" id="L112">            Prefs.tempAccountDialogShown = false</span>
+<span class="nc" id="L113">            val expiryDays = tempAccountDaysLeft()</span>
+<span class="nc" id="L114">            FeedbackUtil.showMessage(activity, activity.resources.getQuantityString(R.plurals.temp_account_created,</span>
+<span class="nc" id="L115">                expiryDays, userName, expiryDays))</span>
+        }
+<span class="nc" id="L117">    }</span>
+
+    fun tempAccountDaysLeft(): Int {
+<span class="nc" id="L120">        return max(TEMP_ACCOUNT_EXPIRY_DAYS - (LocalDate.now().toEpochDay() - Prefs.tempAccountCreateDay), 0).toInt()</span>
+    }
+
+    fun isUserNameTemporary(userName: String): Boolean {
+<span class="pc bpc" id="L124" title="7 of 8 branches missed.">        return userName.length &gt; 6 &amp;&amp; userName[0] == '~' &amp;&amp; userName[5] == '-' &amp;&amp; userName.substring(1, 5).isDigitsOnly()</span>
+    }
+
+    private fun createAccount(userName: String, password: String): Boolean {
+<span class="nc" id="L128">        var account = account()</span>
+<span class="nc bnc" id="L129" title="All 10 branches missed.">        if (account == null || account.name.isNullOrEmpty() || account.name != userName) {</span>
+<span class="nc" id="L130">            removeAccount()</span>
+<span class="nc" id="L131">            account = Account(userName, accountType())</span>
+<span class="nc" id="L132">            return accountManager().addAccountExplicitly(account, password, null)</span>
+        }
+<span class="nc" id="L134">        return true</span>
+    }
+
+    private fun setPassword(password: String) {
+<span class="nc" id="L138">        val account = account()</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (account != null) {</span>
+<span class="nc" id="L140">            accountManager().setPassword(account, password)</span>
+        }
+<span class="nc" id="L142">    }</span>
+
+    private fun accountManager(): AccountManager {
+<span class="fc" id="L145">        return AccountManager.get(WikipediaApp.instance)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

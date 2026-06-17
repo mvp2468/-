@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Throwable.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.extensions</a> &gt; <span class="el_source">Throwable.kt</span></div><h1>Throwable.kt</h1><pre class="source lang-java linenums">package org.wikipedia.extensions
+
+import com.hcaptcha.sdk.HCaptchaException
+import org.wikipedia.createaccount.CreateAccountException
+import org.wikipedia.dataclient.mwapi.MwException
+import org.wikipedia.dataclient.okhttp.HttpStatusException
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+
+fun Throwable.getInstrumentActionContext(): Map&lt;String, String&gt; {
+<span class="nc" id="L12">    val map = mutableMapOf&lt;String, String&gt;()</span>
+<span class="nc bnc" id="L13" title="All 2 branches missed.">    this::class.simpleName?.let {</span>
+<span class="nc" id="L14">        map[&quot;class&quot;] = it</span>
+<span class="nc" id="L15">    }</span>
+    // Try to obtain the correct code, based on the type of exception
+<span class="nc" id="L17">    when (this) {</span>
+<span class="nc bnc" id="L18" title="All 2 branches missed.">        is HttpStatusException -&gt; {</span>
+<span class="nc" id="L19">            map[&quot;code&quot;] = this.code.toString()</span>
+        }
+<span class="nc bnc" id="L21" title="All 2 branches missed.">        is SocketTimeoutException -&gt; {</span>
+<span class="nc" id="L22">            map[&quot;code&quot;] = &quot;timeout&quot;</span>
+        }
+<span class="nc bnc" id="L24" title="All 4 branches missed.">        is UnknownHostException, is SocketException -&gt; {</span>
+<span class="nc" id="L25">            map[&quot;code&quot;] = &quot;network_unavailable&quot;</span>
+        }
+<span class="nc bnc" id="L27" title="All 2 branches missed.">        is CreateAccountException -&gt; {</span>
+<span class="nc bnc" id="L28" title="All 2 branches missed.">            map[&quot;code&quot;] = this.messageCode.orEmpty()</span>
+        }
+<span class="nc bnc" id="L30" title="All 2 branches missed.">        is HCaptchaException -&gt; {</span>
+<span class="nc" id="L31">            map[&quot;code&quot;] = this.statusCode.toString()</span>
+        }
+<span class="nc bnc" id="L33" title="All 2 branches missed.">        is MwException -&gt; {</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            map[&quot;code&quot;] = this.error.code.orEmpty()</span>
+        }
+    }
+    // ...and if we couldn't get a code, then use the message itself.
+<span class="nc bnc" id="L38" title="All 8 branches missed.">    if (!map.containsKey(&quot;code&quot;) &amp;&amp; !this.message.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">        map[&quot;message&quot;] = this.message.orEmpty().take(64)</span>
+    }
+<span class="nc" id="L41">    return map</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoginActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.login</a> &gt; <span class="el_source">LoginActivity.kt</span></div><h1>LoginActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.login
+
+import android.accounts.AccountAuthenticatorResponse
+import android.accounts.AccountManager
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
+import androidx.activity.addCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
+import androidx.core.view.isVisible
+import androidx.core.widget.addTextChangedListener
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.textfield.TextInputLayout
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.auth.AccountUtil.updateAccount
+import org.wikipedia.captcha.CaptchaHandler
+import org.wikipedia.captcha.CaptchaResult
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.createaccount.CreateAccountActivity
+import org.wikipedia.databinding.ActivityLoginBinding
+import org.wikipedia.events.LoggedInEvent
+import org.wikipedia.extensions.getInstrumentActionContext
+import org.wikipedia.extensions.instrument
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.notifications.PollNotificationWorker
+import org.wikipedia.push.WikipediaFirebaseMessagingService.Companion.updateSubscription
+import org.wikipedia.readinglist.sync.ReadingListSyncAdapter
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil.visitInExternalBrowser
+import org.wikipedia.util.log.L
+import org.wikipedia.views.NonEmptyValidator
+import org.wikipedia.widgets.readingchallenge.ReadingChallengeWidgetRepository
+import java.time.LocalDate
+
+<span class="nc" id="L47">class LoginActivity : BaseActivity() {</span>
+    private lateinit var binding: ActivityLoginBinding
+    private lateinit var captchaHandler: CaptchaHandler
+    private lateinit var loginSource: String
+
+<span class="nc" id="L52">    private var wiki = WikipediaApp.instance.wikiSite</span>
+    private var uiPromptResult: LoginResult? = null
+    private var captchaResult: CaptchaResult? = null
+    private var firstStepToken: String? = null
+
+<span class="nc" id="L57">    private val loginClient = LoginClient()</span>
+<span class="nc" id="L58">    private val loginCallback = LoginCallback()</span>
+<span class="nc" id="L59">    private val textEnteredEventSent = mutableMapOf&lt;View, Boolean&gt;()</span>
+
+<span class="nc" id="L61">    private val createAccountLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L62" title="All 3 branches missed.">        when (it.resultCode) {</span>
+            CreateAccountActivity.RESULT_ACCOUNT_CREATED -&gt; {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">                binding.loginUsernameText.editText?.setText(it.data!!.getStringExtra(CreateAccountActivity.CREATE_ACCOUNT_RESULT_USERNAME))</span>
+<span class="nc bnc" id="L65" title="All 4 branches missed.">                binding.loginPasswordInput.editText?.setText(it.data?.getStringExtra(CreateAccountActivity.CREATE_ACCOUNT_RESULT_PASSWORD))</span>
+<span class="nc" id="L66">                FeedbackUtil.showMessage(this, R.string.create_account_account_created_toast)</span>
+<span class="nc" id="L67">                doLogin()</span>
+            }
+<span class="nc" id="L69">            CreateAccountActivity.RESULT_ACCOUNT_NOT_CREATED -&gt; finish()</span>
+        }
+<span class="nc" id="L71">    }</span>
+
+<span class="nc" id="L73">    private val resetPasswordLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if (it.resultCode == RESULT_OK) {</span>
+<span class="nc" id="L75">            onLoginSuccess()</span>
+        }
+<span class="nc" id="L77">    }</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L80">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L81">        binding = ActivityLoginBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L82">        setContentView(binding.root)</span>
+<span class="nc" id="L83">        setSupportActionBar(binding.toolbar)</span>
+
+<span class="nc" id="L85">        _instrument = TestKitchenAdapter.client.getInstrument(&quot;apps-authentication&quot;)</span>
+<span class="nc" id="L86">            .setDefaultActionSource(&quot;login_form&quot;)</span>
+<span class="nc" id="L87">            .startFunnel(&quot;login_account&quot;)</span>
+
+<span class="nc" id="L89">        onBackPressedDispatcher.addCallback(this) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;back&quot;)</span>
+<span class="nc" id="L91">            finish()</span>
+<span class="nc" id="L92">        }</span>
+
+<span class="nc" id="L94">        captchaHandler = CaptchaHandler(this, wiki, binding.captchaContainer.root,</span>
+<span class="nc" id="L95">            binding.loginPrimaryContainer, getString(R.string.login_activity_title),</span>
+<span class="nc" id="L96">            submitButtonText = null, isModal = false, instrument = instrument)</span>
+
+<span class="nc" id="L98">        binding.viewLoginError.backClickListener = View.OnClickListener {</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;error_back_button&quot;)</span>
+<span class="nc" id="L100">            onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L101">        }</span>
+<span class="nc" id="L102">        binding.viewLoginError.retryClickListener = View.OnClickListener {</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;error_retry_button&quot;)</span>
+<span class="nc" id="L104">            binding.viewLoginError.visibility = View.GONE</span>
+<span class="nc" id="L105">        }</span>
+
+        // Don't allow user to attempt login until they've put in a username and password
+<span class="nc" id="L108">        NonEmptyValidator(binding.loginButton, binding.loginUsernameText, binding.loginPasswordInput, binding.login2faText)</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        binding.loginPasswordInput.editText?.setOnEditorActionListener { _, actionId, _ -&gt;</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            if (actionId == EditorInfo.IME_ACTION_DONE) {</span>
+<span class="nc" id="L111">                validateThenLogin()</span>
+<span class="nc" id="L112">                return@setOnEditorActionListener true</span>
+            }
+<span class="nc" id="L114">            false</span>
+        }
+
+<span class="nc" id="L117">        addFirstKeystrokeInstrumentation(binding.loginUsernameText.editText, &quot;username&quot;)</span>
+<span class="nc" id="L118">        addFirstKeystrokeInstrumentation(binding.loginPasswordInput.editText, &quot;password&quot;)</span>
+<span class="nc" id="L119">        addFirstKeystrokeInstrumentation(binding.login2faText.editText, &quot;2fa&quot;)</span>
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        loginSource = intent.getStringExtra(LOGIN_REQUEST_SOURCE).orEmpty()</span>
+<span class="nc bnc" id="L122" title="All 6 branches missed.">        if (loginSource.isNotEmpty() &amp;&amp; loginSource == SOURCE_SUGGESTED_EDITS) {</span>
+<span class="nc" id="L123">            Prefs.isSuggestedEditsHighestPriorityEnabled = true</span>
+        }
+
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (AccountUtil.isTemporaryAccount) {</span>
+<span class="nc" id="L127">            binding.footerContainer.tempAccountInfoContainer.isVisible = true</span>
+<span class="nc" id="L128">            binding.footerContainer.tempAccountInfoText.text = StringUtil.fromHtml(getString(R.string.temp_account_login_status, AccountUtil.userName))</span>
+        } else {
+<span class="nc" id="L130">            binding.footerContainer.tempAccountInfoContainer.isVisible = false</span>
+        }
+
+        // always go to account creation before logging in, unless we arrived here through the
+        // system account creation workflow
+<span class="nc bnc" id="L135" title="All 4 branches missed.">        if (savedInstanceState == null &amp;&amp; !intent.hasExtra(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE) &amp;&amp;</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                intent.getBooleanExtra(CREATE_ACCOUNT_FIRST, true)) {</span>
+<span class="nc" id="L137">            startCreateAccountActivity()</span>
+        }
+
+<span class="nc" id="L140">        setAllViewsClickListener()</span>
+<span class="nc" id="L141">        resetAuthState()</span>
+
+        // Assume no login by default
+<span class="nc" id="L144">        setResult(RESULT_LOGIN_FAIL)</span>
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        instrument?.submitInteraction(&quot;impression&quot;, actionContext = mapOf(&quot;invoke_source&quot; to loginSource))</span>
+<span class="nc" id="L147">    }</span>
+
+    override fun onStop() {
+<span class="nc" id="L150">        binding.viewProgressBar.visibility = View.GONE</span>
+<span class="nc" id="L151">        super.onStop()</span>
+<span class="nc" id="L152">    }</span>
+
+    override fun onSaveInstanceState(outState: Bundle) {
+<span class="nc" id="L155">        super.onSaveInstanceState(outState)</span>
+<span class="nc" id="L156">        outState.putBoolean(&quot;loginShowing&quot;, true)</span>
+<span class="nc" id="L157">    }</span>
+
+    private fun setAllViewsClickListener() {
+<span class="nc" id="L160">        binding.loginButton.setOnClickListener {</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;login_button&quot;)</span>
+<span class="nc" id="L162">            validateThenLogin()</span>
+<span class="nc" id="L163">        }</span>
+<span class="nc" id="L164">        binding.loginCreateAccountButton.setOnClickListener {</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;create_account_button&quot;)</span>
+<span class="nc" id="L166">            startCreateAccountActivity()</span>
+<span class="nc" id="L167">        }</span>
+<span class="nc" id="L168">        binding.footerContainer.privacyPolicyLink.setOnClickListener {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;privacy_policy_link&quot;)</span>
+<span class="nc" id="L170">            FeedbackUtil.showPrivacyPolicy(this)</span>
+<span class="nc" id="L171">        }</span>
+<span class="nc" id="L172">        binding.footerContainer.forgotPasswordLink.setOnClickListener {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;click&quot;, elementId = &quot;forgot_password_link&quot;)</span>
+<span class="nc" id="L174">            val forgotPasswordUrl = WikipediaApp.instance.getString(R.string.forget_password_link, wiki.languageCode)</span>
+<span class="nc" id="L175">            visitInExternalBrowser(this, forgotPasswordUrl.toUri())</span>
+<span class="nc" id="L176">        }</span>
+<span class="nc" id="L177">    }</span>
+
+    private fun addFirstKeystrokeInstrumentation(view: EditText?, elementId: String) {
+<span class="nc bnc" id="L180" title="All 2 branches missed.">        view?.addTextChangedListener {</span>
+<span class="nc" id="L181">            if (!it.isNullOrEmpty() &amp;&amp; !(textEnteredEventSent[view] ?: false)) {</span>
+<span class="nc" id="L182">                instrument?.submitInteraction(&quot;type&quot;, elementId = elementId)</span>
+<span class="nc" id="L183">                textEnteredEventSent[view] = true</span>
+            }
+<span class="nc" id="L185">        }</span>
+<span class="nc" id="L186">    }</span>
+
+    private fun getText(input: TextInputLayout): String {
+<span class="nc bnc" id="L189" title="All 6 branches missed.">        return input.editText?.text?.toString().orEmpty()</span>
+    }
+
+    private fun resetAuthState() {
+<span class="nc" id="L193">        binding.login2faText.isVisible = false</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        binding.login2faText.editText?.setText(&quot;&quot;)</span>
+<span class="nc" id="L195">        firstStepToken = null</span>
+<span class="nc" id="L196">        uiPromptResult = null</span>
+<span class="nc" id="L197">        captchaResult = null</span>
+<span class="nc" id="L198">        captchaHandler.hideCaptcha()</span>
+<span class="nc" id="L199">    }</span>
+
+    private fun clearErrors() {
+<span class="nc" id="L202">        binding.loginUsernameText.isErrorEnabled = false</span>
+<span class="nc" id="L203">        binding.loginPasswordInput.isErrorEnabled = false</span>
+<span class="nc" id="L204">        captchaHandler.setErrorText()</span>
+<span class="nc" id="L205">    }</span>
+
+    private fun validateThenLogin() {
+<span class="nc" id="L208">        clearErrors()</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        if (!CreateAccountActivity.USERNAME_PATTERN.matcher(getText(binding.loginUsernameText)).matches()) {</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;error&quot;, actionContext = mapOf(&quot;validation_error&quot; to &quot;username_invalid&quot;))</span>
+<span class="nc" id="L211">            binding.loginUsernameText.requestFocus()</span>
+<span class="nc" id="L212">            binding.loginUsernameText.error = getString(R.string.create_account_username_error)</span>
+<span class="nc" id="L213">            return</span>
+        }
+<span class="nc bnc" id="L215" title="All 8 branches missed.">        if (captchaHandler.isActive &amp;&amp; captchaHandler.captchaWord().isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            instrument?.submitInteraction(&quot;error&quot;, actionContext = mapOf(&quot;validation_error&quot; to &quot;fancy_captcha_empty&quot;))</span>
+<span class="nc" id="L217">            captchaHandler.setErrorText(getString(R.string.edit_section_captcha_hint))</span>
+<span class="nc" id="L218">            captchaHandler.setFocus()</span>
+<span class="nc" id="L219">            return</span>
+        }
+<span class="nc" id="L221">        doLogin()</span>
+<span class="nc" id="L222">    }</span>
+
+    private fun startCreateAccountActivity() {
+<span class="nc" id="L225">        createAccountLauncher.launch(CreateAccountActivity.newIntent(this, loginSource))</span>
+<span class="nc" id="L226">    }</span>
+
+    private fun onLoginSuccess() {
+<span class="nc" id="L229">        val isReadingChallenge = loginSource == SOURCE_READING_CHALLENGE</span>
+<span class="nc bnc" id="L230" title="All 4 branches missed.">        instrument?.submitInteraction(action = &quot;success&quot;, actionContext = if (isReadingChallenge) mapOf(&quot;invoke_source&quot; to loginSource) else null)</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if (isReadingChallenge) {</span>
+<span class="nc" id="L232">            Prefs.readingChallengeEnrolled = true</span>
+<span class="nc" id="L233">            Prefs.readingChallengeEnrollmentDate = LocalDate.now().toString()</span>
+<span class="nc" id="L234">            lifecycleScope.launch {</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                if (ReadingChallengeWidgetRepository.isWidgetInstalled()) {</span>
+<span class="nc" id="L236">                    ReadingChallengeWidgetRepository(this@LoginActivity).updateWidgetsAndSendAnalytics()</span>
+                }
+<span class="nc" id="L238">            }</span>
+<span class="nc" id="L239">            intent.removeExtra(LOGIN_REQUEST_SOURCE)</span>
+        }
+<span class="nc" id="L241">        DeviceUtil.hideSoftKeyboard(this@LoginActivity)</span>
+<span class="nc" id="L242">        setResult(RESULT_LOGIN_SUCCESS)</span>
+
+        // Set reading list syncing to enabled (without the explicit setup instruction),
+        // so that the sync adapter can run at least once and check whether syncing is enabled
+        // on the server side.
+<span class="nc" id="L247">        Prefs.isReadingListSyncEnabled = true</span>
+<span class="nc" id="L248">        Prefs.readingListPagesDeletedIds = emptySet()</span>
+<span class="nc" id="L249">        Prefs.readingListsDeletedIds = emptySet()</span>
+<span class="nc" id="L250">        Prefs.tempAccountWelcomeShown = false</span>
+<span class="nc" id="L251">        Prefs.tempAccountCreateDay = 0L</span>
+<span class="nc" id="L252">        Prefs.lastBackgroundLoginDateTime = &quot;&quot;</span>
+<span class="nc" id="L253">        ReadingListSyncAdapter.manualSyncWithForce()</span>
+<span class="nc" id="L254">        PollNotificationWorker.schedulePollNotificationJob(this)</span>
+<span class="nc" id="L255">        updateSubscription()</span>
+<span class="nc" id="L256">        FlowEventBus.post(LoggedInEvent())</span>
+<span class="nc" id="L257">        finish()</span>
+<span class="nc" id="L258">    }</span>
+
+    private fun doLogin() {
+<span class="nc" id="L261">        val username = getText(binding.loginUsernameText)</span>
+<span class="nc" id="L262">        val password = getText(binding.loginPasswordInput)</span>
+<span class="nc" id="L263">        val twoFactorCode = getText(binding.login2faText)</span>
+<span class="nc" id="L264">        showProgressBar(true)</span>
+
+<span class="nc bnc" id="L266" title="All 4 branches missed.">        if (uiPromptResult == null &amp;&amp; captchaResult == null) {</span>
+<span class="nc" id="L267">            loginClient.login(lifecycleScope, WikipediaApp.instance.wikiSite, username, password, cb = loginCallback)</span>
+        } else {
+<span class="nc" id="L269">            loginClient.login(lifecycleScope, WikipediaApp.instance.wikiSite, username, password, token = firstStepToken,</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                captchaId = if (captchaResult != null) captchaHandler.captchaId() else null,</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">                captchaWord = if (captchaResult != null) captchaHandler.captchaWord() else null,</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                twoFactorCode = if (uiPromptResult is LoginOATHResult) twoFactorCode else null,</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                emailAuthCode = if (uiPromptResult is LoginEmailAuthResult) twoFactorCode else null,</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                isContinuation = uiPromptResult != null,</span>
+<span class="nc" id="L275">                cb = loginCallback)</span>
+        }
+<span class="nc" id="L277">    }</span>
+
+<span class="nc" id="L279">    private inner class LoginCallback : LoginClient.LoginCallback {</span>
+        override fun success(result: LoginResult) {
+<span class="nc" id="L281">            showProgressBar(false)</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">            if (result.pass()) {</span>
+<span class="nc" id="L283">                val response = intent.parcelableExtra&lt;AccountAuthenticatorResponse&gt;(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE)</span>
+<span class="nc" id="L284">                updateAccount(response, result)</span>
+<span class="nc" id="L285">                onLoginSuccess()</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">            } else if (result.fail()) {</span>
+<span class="nc bnc" id="L287" title="All 4 branches missed.">                instrument?.submitInteraction(&quot;error&quot;, actionContext = mapOf(&quot;code&quot; to result.messageCode.orEmpty()))</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">                val message = result.message.orEmpty()</span>
+<span class="nc" id="L289">                FeedbackUtil.showMessage(this@LoginActivity, message)</span>
+<span class="nc" id="L290">                L.w(&quot;Login failed with result $message&quot;)</span>
+            }
+<span class="nc" id="L292">        }</span>
+
+        override fun uiPrompt(result: LoginResult, caught: Throwable, captchaId: String?, token: String?) {
+<span class="nc" id="L295">            showProgressBar(false)</span>
+<span class="nc" id="L296">            firstStepToken = token</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">            if (captchaId != null) {</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">                if (captchaResult != null) {</span>
+<span class="nc" id="L299">                    FeedbackUtil.showError(this@LoginActivity, caught)</span>
+                }
+<span class="nc" id="L301">                captchaResult = CaptchaResult(captchaId)</span>
+<span class="nc" id="L302">                captchaHandler.handleCaptcha(token, captchaResult!!)</span>
+            }
+<span class="nc bnc" id="L304" title="All 4 branches missed.">            if (result is LoginEmailAuthResult || result is LoginOATHResult) {</span>
+<span class="nc bnc" id="L305" title="All 4 branches missed.">                instrument?.submitInteraction(&quot;impression&quot;, elementId = if (result is LoginOATHResult) &quot;2fa_oath&quot; else &quot;2fa_email&quot;)</span>
+<span class="nc" id="L306">                uiPromptResult = result</span>
+<span class="nc" id="L307">                binding.login2faText.hint =</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">                    getString(if (result is LoginEmailAuthResult) R.string.login_email_auth_hint else R.string.login_2fa_hint)</span>
+<span class="nc" id="L309">                binding.login2faText.visibility = View.VISIBLE</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                binding.login2faText.editText?.setText(&quot;&quot;)</span>
+<span class="nc" id="L311">                binding.login2faText.requestFocus()</span>
+<span class="nc" id="L312">                FeedbackUtil.showError(this@LoginActivity, caught)</span>
+            }
+<span class="nc" id="L314">            DeviceUtil.hideSoftKeyboard(this@LoginActivity)</span>
+<span class="nc" id="L315">        }</span>
+
+        override fun passwordResetPrompt(token: String?) {
+<span class="nc" id="L318">            resetPasswordLauncher.launch(ResetPasswordActivity.newIntent(this@LoginActivity, getText(binding.loginUsernameText), token))</span>
+<span class="nc" id="L319">        }</span>
+
+        override fun error(caught: Throwable) {
+<span class="nc" id="L322">            showProgressBar(false)</span>
+<span class="nc" id="L323">            resetAuthState()</span>
+<span class="nc" id="L324">            DeviceUtil.hideSoftKeyboard(this@LoginActivity)</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">            if (caught is LoginFailedException) {</span>
+<span class="nc" id="L326">                FeedbackUtil.showError(this@LoginActivity, caught)</span>
+            } else {
+<span class="nc" id="L328">                showError(caught)</span>
+            }
+<span class="nc" id="L330">        }</span>
+    }
+
+    private fun showProgressBar(enable: Boolean) {
+<span class="nc bnc" id="L334" title="All 2 branches missed.">        binding.viewProgressBar.visibility = if (enable) View.VISIBLE else View.GONE</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        binding.loginButton.isEnabled = !enable</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">        binding.loginButton.setText(if (enable) R.string.login_in_progress_dialog_message else R.string.menu_login)</span>
+<span class="nc" id="L337">    }</span>
+
+    private fun showError(caught: Throwable) {
+<span class="nc bnc" id="L340" title="All 2 branches missed.">        instrument?.submitInteraction(&quot;error&quot;, actionContext = caught.getInstrumentActionContext())</span>
+<span class="nc" id="L341">        binding.viewLoginError.setError(caught)</span>
+<span class="nc" id="L342">        binding.viewLoginError.visibility = View.VISIBLE</span>
+<span class="nc" id="L343">    }</span>
+
+    companion object {
+        const val RESULT_LOGIN_SUCCESS = 1
+        const val RESULT_LOGIN_FAIL = 2
+        const val LOGIN_REQUEST_SOURCE = &quot;login_request_source&quot;
+        const val CREATE_ACCOUNT_FIRST = &quot;create_account_first&quot;
+        const val SOURCE_NAV = &quot;navigation&quot;
+        const val SOURCE_EDIT = &quot;edit&quot;
+        const val SOURCE_SYSTEM = &quot;system&quot;
+        const val SOURCE_ONBOARDING = &quot;onboarding&quot;
+        const val SOURCE_SETTINGS = &quot;settings&quot;
+        const val SOURCE_SUBSCRIBE = &quot;subscribe&quot;
+        const val SOURCE_READING_MANUAL_SYNC = &quot;reading_lists_manual_sync&quot;
+        const val SOURCE_LOGOUT_BACKGROUND = &quot;logout_background&quot;
+        const val SOURCE_SUGGESTED_EDITS = &quot;suggestededits&quot;
+        const val SOURCE_TALK = &quot;talk&quot;
+        const val SOURCE_ACTIVITY_TAB = &quot;activity_tab&quot;
+        const val SOURCE_YEAR_IN_REVIEW = &quot;yir&quot;
+        const val SOURCE_ON_THIS_DAY_GAME_RESULT = &quot;on_this_day_game_result&quot;
+        const val SOURCE_READING_CHALLENGE = &quot;widget_challenge&quot;
+
+<span class="nc" id="L365">        fun newIntent(context: Context, source: String, createAccountFirst: Boolean = true): Intent {</span>
+<span class="nc" id="L366">            return Intent(context, LoginActivity::class.java)</span>
+<span class="nc" id="L367">                    .putExtra(LOGIN_REQUEST_SOURCE, source)</span>
+<span class="nc" id="L368">                    .putExtra(CREATE_ACCOUNT_FIRST, createAccountFirst)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

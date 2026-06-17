@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LangLinksActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.language</a> &gt; <span class="el_source">LangLinksActivity.kt</span></div><h1>LangLinksActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.language
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.DeviceUtil
+
+<span class="nc" id="L23">class LangLinksActivity : BaseActivity() {</span>
+<span class="nc" id="L24">    private val viewModel: LangLinksViewModel by viewModels()</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L27">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L28">        DeviceUtil.setEdgeToEdge(this)</span>
+<span class="nc" id="L29">        setContent {</span>
+<span class="nc" id="L30">            BaseTheme {</span>
+<span class="nc" id="L31">                val uiState by viewModel.uiState.collectAsState()</span>
+<span class="nc" id="L32">                ComposeLangLinksScreen(</span>
+<span class="nc" id="L33">                    modifier = Modifier</span>
+<span class="nc" id="L34">                        .safeDrawingPadding()</span>
+<span class="nc" id="L35">                        .imePadding(),</span>
+<span class="nc" id="L36">                    uiState = uiState,</span>
+<span class="nc" id="L37">                    onLanguageSelected = { item -&gt;</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">                        val pageTitle = item.pageTitle ?: return@ComposeLangLinksScreen</span>
+<span class="nc" id="L39">                        WikipediaApp.instance.languageState</span>
+<span class="nc" id="L40">                            .addMruLanguageCode(item.languageCode)</span>
+<span class="nc" id="L41">                        val historyEntry = HistoryEntry(pageTitle, HistoryEntry.SOURCE_LANGUAGE_LINK).apply {</span>
+<span class="nc" id="L42">                            prevId = viewModel.historyEntryId</span>
+<span class="nc" id="L43">                        }</span>
+<span class="nc" id="L44">                        val intent = PageActivity.newIntentForCurrentTab(this, historyEntry, pageTitle, false)</span>
+<span class="nc" id="L45">                        setResult(ACTIVITY_RESULT_LANGLINK_SELECT, intent)</span>
+<span class="nc" id="L46">                        DeviceUtil.hideSoftKeyboard(this)</span>
+<span class="nc" id="L47">                        finish()</span>
+<span class="nc" id="L48">                    },</span>
+<span class="nc" id="L49">                    onBackButtonClick = {</span>
+<span class="nc" id="L50">                        finish()</span>
+<span class="nc" id="L51">                    },</span>
+<span class="nc" id="L52">                    onSearchQueryChange = {</span>
+<span class="nc" id="L53">                        viewModel.onSearchQueryChange(it)</span>
+<span class="nc" id="L54">                    },</span>
+<span class="nc" id="L55">                    wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L56">                        backClickListener = {</span>
+<span class="nc" id="L57">                            onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L58">                        },</span>
+<span class="nc" id="L59">                        retryClickListener = {</span>
+<span class="nc" id="L60">                            viewModel.fetchAllData()</span>
+<span class="nc" id="L61">                        }</span>
+                    )
+                )
+<span class="nc" id="L64">            }</span>
+<span class="nc" id="L65">        }</span>
+<span class="nc" id="L66">    }</span>
+
+    companion object {
+        const val ACTIVITY_RESULT_LANGLINK_SELECT = 1
+<span class="nc" id="L70">        fun newIntent(context: Context, title: PageTitle, historyEntryId: Long = -1): Intent {</span>
+<span class="nc" id="L71">            return Intent(context, LangLinksActivity::class.java)</span>
+<span class="nc" id="L72">                .putExtra(Constants.ARG_TITLE, title)</span>
+<span class="nc" id="L73">                .putExtra(Constants.ARG_NUMBER, historyEntryId)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

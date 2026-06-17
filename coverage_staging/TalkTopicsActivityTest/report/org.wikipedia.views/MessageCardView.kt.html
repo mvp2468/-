@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MessageCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">MessageCardView.kt</span></div><h1>MessageCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.net.Uri
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import org.wikipedia.R
+import org.wikipedia.databinding.ViewMessageCardBinding
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+
+<span class="nc" id="L15">class MessageCardView(context: Context, attrs: AttributeSet? = null) : WikiCardView(context, attrs) {</span>
+
+<span class="nc" id="L17">    val binding = ViewMessageCardBinding.inflate(LayoutInflater.from(context), this, true)</span>
+
+    fun setMessageTitle(title: String) {
+<span class="nc" id="L20">        binding.messageTitleView.text = title</span>
+<span class="nc" id="L21">    }</span>
+
+    fun setMessageText(text: String) {
+<span class="nc" id="L24">        binding.messageTextView.text = text</span>
+<span class="nc" id="L25">    }</span>
+
+<span class="nc" id="L27">    fun setImageResource(@DrawableRes imageResource: Int = -1, visible: Boolean) {</span>
+<span class="nc bnc" id="L28" title="All 2 branches missed.">        if (visible) {</span>
+<span class="nc" id="L29">            binding.imageView.visibility = VISIBLE</span>
+<span class="nc" id="L30">            binding.imageView.setImageResource(imageResource)</span>
+        } else {
+<span class="nc" id="L32">            binding.imageView.visibility = GONE</span>
+        }
+<span class="nc" id="L34">    }</span>
+
+    fun setPositiveButton(@StringRes stringRes: Int, listener: OnClickListener, applyListenerToContainer: Boolean) {
+<span class="nc" id="L37">        binding.positiveButton.text = context.getString(stringRes)</span>
+<span class="nc" id="L38">        binding.positiveButton.setOnClickListener(listener)</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">        if (applyListenerToContainer) {</span>
+<span class="nc" id="L40">            binding.containerClickArea.setOnClickListener(listener)</span>
+        }
+<span class="nc" id="L42">    }</span>
+
+    fun setNegativeButton(@StringRes stringRes: Int, listener: OnClickListener, applyListenerToContainer: Boolean) {
+<span class="nc" id="L45">        binding.negativeButton.text = context.getString(stringRes)</span>
+<span class="nc" id="L46">        binding.negativeButton.setOnClickListener(listener)</span>
+<span class="nc" id="L47">        binding.negativeButton.visibility = VISIBLE</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (applyListenerToContainer) {</span>
+<span class="nc" id="L49">            binding.containerClickArea.setOnClickListener(listener)</span>
+        }
+<span class="nc" id="L51">    }</span>
+
+    fun setOnboarding(message: String) {
+<span class="nc" id="L54">        setImageResource(R.drawable.ic_suggested_edits_onboarding, true)</span>
+<span class="nc" id="L55">        binding.messageTitleView.visibility = GONE</span>
+<span class="nc" id="L56">        binding.messageTextView.text = StringUtil.fromHtml(message.toString())</span>
+<span class="nc" id="L57">        binding.buttonsContainer.visibility = GONE</span>
+<span class="nc" id="L58">    }</span>
+
+    fun setPaused(message: String) {
+<span class="nc" id="L61">        setDefaultState()</span>
+<span class="nc" id="L62">        binding.messageTitleView.text = context.getString(R.string.suggested_edits_paused_title)</span>
+<span class="nc" id="L63">        binding.messageTextView.text = StringUtil.fromHtml(message)</span>
+<span class="nc" id="L64">        binding.imageView.setImageResource(R.drawable.ic_suggested_edits_paused)</span>
+<span class="nc" id="L65">    }</span>
+
+    fun setDisabled(message: String) {
+<span class="nc" id="L68">        setDefaultState()</span>
+<span class="nc" id="L69">        binding.messageTitleView.text = context.getString(R.string.suggested_edits_disabled_title)</span>
+<span class="nc" id="L70">        binding.messageTextView.text = StringUtil.fromHtml(message)</span>
+<span class="nc" id="L71">        binding.imageView.setImageResource(R.drawable.ic_suggested_edits_disabled)</span>
+<span class="nc" id="L72">    }</span>
+
+<span class="nc" id="L74">    fun setIPBlocked(message: String? = null) {</span>
+<span class="nc" id="L75">        setDefaultState()</span>
+<span class="nc" id="L76">        binding.imageView.visibility = GONE</span>
+<span class="nc bnc" id="L77" title="All 6 branches missed.">        if (message.isNullOrEmpty()) {</span>
+<span class="nc" id="L78">            binding.messageTitleView.visibility = VISIBLE</span>
+<span class="nc" id="L79">            binding.messageTitleView.text = context.getString(R.string.suggested_edits_ip_blocked_title)</span>
+<span class="nc" id="L80">            binding.messageTextView.text = context.getString(R.string.suggested_edits_ip_blocked_message)</span>
+        } else {
+<span class="nc" id="L82">            binding.messageTitleView.visibility = GONE</span>
+<span class="nc" id="L83">            binding.messageTextView.text = StringUtil.fromHtml(message)</span>
+<span class="nc" id="L84">            binding.messageTextView.movementMethod = LinkMovementMethodExt.getExternalLinkMovementMethod()</span>
+        }
+<span class="nc" id="L86">        binding.positiveButton.setOnClickListener { UriUtil.visitInExternalBrowser(context, Uri.parse(context.getString(R.string.create_account_ip_block_help_url))) }</span>
+<span class="nc" id="L87">        setOnClickListener { UriUtil.visitInExternalBrowser(context, Uri.parse(context.getString(R.string.create_account_ip_block_help_url))) }</span>
+<span class="nc" id="L88">    }</span>
+
+    fun setRequiredLogin(onClickListener: OnClickListener) {
+<span class="nc" id="L91">        binding.imageView.visibility = VISIBLE</span>
+<span class="nc" id="L92">        binding.messageTitleView.visibility = VISIBLE</span>
+<span class="nc" id="L93">        binding.buttonsContainer.visibility = VISIBLE</span>
+<span class="nc" id="L94">        binding.messageTitleView.text = context.getString(R.string.suggested_edits_encourage_account_creation_title)</span>
+<span class="nc" id="L95">        binding.messageTextView.text = context.getString(R.string.suggested_edits_encourage_account_creation_message)</span>
+<span class="nc" id="L96">        binding.imageView.setImageResource(R.drawable.ic_require_login_header)</span>
+<span class="nc" id="L97">        binding.positiveButton.text = context.getString(R.string.suggested_edits_encourage_account_creation_login_button)</span>
+<span class="nc" id="L98">        binding.positiveButton.setOnClickListener(onClickListener)</span>
+<span class="nc" id="L99">        binding.containerClickArea.setOnClickListener(onClickListener)</span>
+<span class="nc" id="L100">    }</span>
+
+    fun setMessageLabel(message: String?) {
+<span class="nc" id="L103">        binding.messageLabel.text = message</span>
+<span class="nc bnc" id="L104" title="All 6 branches missed.">        binding.messageLabel.visibility = if (message.isNullOrEmpty()) GONE else VISIBLE</span>
+<span class="nc" id="L105">    }</span>
+
+    private fun setDefaultState() {
+<span class="nc" id="L108">        binding.imageView.visibility = VISIBLE</span>
+<span class="nc" id="L109">        binding.messageTitleView.visibility = VISIBLE</span>
+<span class="nc" id="L110">        binding.buttonsContainer.visibility = VISIBLE</span>
+<span class="nc" id="L111">        binding.positiveButton.text = context.getString(R.string.suggested_edits_learn_more)</span>
+<span class="nc" id="L112">        binding.positiveButton.setIconResource(R.drawable.ic_open_in_new_black_24px)</span>
+<span class="nc" id="L113">        binding.positiveButton.setOnClickListener { UriUtil.visitInExternalBrowser(context, Uri.parse(context.getString(R.string.android_app_edit_help_url))) }</span>
+<span class="nc" id="L114">        binding.containerClickArea.setOnClickListener {</span>
+<span class="nc" id="L115">            UriUtil.visitInExternalBrowser(</span>
+<span class="nc" id="L116">                context,</span>
+<span class="nc" id="L117">                Uri.parse(context.getString(R.string.android_app_edit_help_url))</span>
+            )
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

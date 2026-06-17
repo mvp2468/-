@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EventPlatformClient.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">EventPlatformClient.kt</span></div><h1>EventPlatformClient.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import android.widget.Toast
+import androidx.core.os.postDelayed
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.wikimedia.testkitchen.config.DestinationEventService
+import org.wikimedia.testkitchen.config.StreamConfig
+import org.wikimedia.testkitchen.config.sampling.SampleConfig
+import org.wikipedia.BuildConfig
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.okhttp.HttpStatusException
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.ReleaseUtil
+import org.wikipedia.util.log.L
+import java.net.HttpURLConnection
+import java.util.Random
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+
+object EventPlatformClient {
+    /**
+     * Stream configs to be fetched on startup and stored for the duration of the app lifecycle.
+     */
+<span class="fc" id="L33">    private val STREAM_CONFIGS = ConcurrentHashMap&lt;String, StreamConfig&gt;()</span>
+
+    /**
+     * List of events that will be queued before the first time that stream configs are fetched.
+     */
+<span class="fc" id="L38">    private val INITIAL_QUEUE = mutableListOf&lt;Event&gt;()</span>
+
+    /*
+     * When ENABLED is false, items can be enqueued but not dequeued.
+     * Timers will not be set for enqueued items.
+     * QUEUE will not grow beyond MAX_QUEUE_SIZE.
+     *
+     * Inputs: network connection state on/off, connection state bad y/n?
+     * Taken out of iOS client, but flag can be set on the request object to wait until connected to send
+     */
+<span class="fc" id="L48">    private var ENABLED = WikipediaApp.instance.isOnline</span>
+
+<span class="fc" id="L50">    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)</span>
+
+    fun setStreamConfig(streamConfig: StreamConfig) {
+<span class="nc" id="L53">        STREAM_CONFIGS[streamConfig.streamName] = streamConfig</span>
+<span class="nc" id="L54">    }</span>
+
+    fun getStreamConfig(name: String): StreamConfig? {
+<span class="nc" id="L57">        return STREAM_CONFIGS[name]</span>
+    }
+
+    /**
+     * Set whether the client is enabled. This can react to device online/offline state as well
+     * as other considerations.
+     */
+    fun setEnabled(enabled: Boolean) {
+<span class="fc" id="L65">        ENABLED = enabled</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (ENABLED) {</span>
+            /*
+             * Try immediately to send any enqueued items. Otherwise another
+             * item must be enqueued before sending is triggered.
+             */
+<span class="fc" id="L71">            OutputBuffer.sendAllScheduled()</span>
+        }
+<span class="fc" id="L73">    }</span>
+
+    /**
+     * Submit an event to be enqueued and sent to the Event Platform
+     *
+     * @param event event
+     */
+    fun submit(event: Event) {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (STREAM_CONFIGS.isEmpty()) {</span>
+            // We haven't gotten stream configs yet, so queue up the event in our initial queue.
+<span class="nc" id="L83">            synchronized(INITIAL_QUEUE) {</span>
+                // We want the queue to work as a circular buffer, so if it's full, remove the oldest item.
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                if (INITIAL_QUEUE.size &gt;= Prefs.analyticsQueueSize) {</span>
+<span class="nc" id="L86">                    INITIAL_QUEUE.removeAt(0)</span>
+                }
+<span class="nc" id="L88">                INITIAL_QUEUE.add(event)</span>
+            }
+<span class="nc" id="L90">            return</span>
+        }
+<span class="nc" id="L92">        doSubmit(event)</span>
+<span class="nc" id="L93">    }</span>
+
+    private fun doSubmit(event: Event) {
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (!SamplingController.isInSample(event)) {</span>
+<span class="nc" id="L97">            return</span>
+        }
+<span class="nc" id="L99">        OutputBuffer.schedule(event)</span>
+<span class="nc" id="L100">    }</span>
+
+    fun flushCachedEvents() {
+<span class="nc bnc" id="L103" title="All 4 branches missed.">        if (STREAM_CONFIGS.isNotEmpty()) {</span>
+            // If we have events left over in our initial queue, submit them now, so they'll be send in this pass.
+<span class="nc" id="L105">            synchronized(INITIAL_QUEUE) {</span>
+<span class="nc bnc" id="L106" title="All 4 branches missed.">                if (INITIAL_QUEUE.isNotEmpty()) {</span>
+<span class="nc" id="L107">                    INITIAL_QUEUE.forEach {</span>
+<span class="nc" id="L108">                        doSubmit(it)</span>
+<span class="nc" id="L109">                    }</span>
+<span class="nc" id="L110">                    INITIAL_QUEUE.clear()</span>
+                }
+<span class="nc" id="L112">            }</span>
+        }
+<span class="nc" id="L114">        OutputBuffer.sendAllScheduled()</span>
+<span class="nc" id="L115">    }</span>
+
+    suspend fun refreshStreamConfigs() {
+<span class="fc" id="L118">        STREAM_CONFIGS.clear()</span>
+<span class="fc" id="L119">        STREAM_CONFIGS.putAll(ServiceFactory.get(WikiSite(BuildConfig.META_WIKI_BASE_URI)).getStreamConfigs().streamConfigs)</span>
+        // Ensure that serialization of configs is done off the main thread
+<span class="fc" id="L121">        withContext(Dispatchers.Default) {</span>
+<span class="fc" id="L122">            Prefs.streamConfigs = STREAM_CONFIGS</span>
+<span class="fc" id="L123">            TestKitchenAdapter.client.updateSourceConfig(STREAM_CONFIGS)</span>
+<span class="fc" id="L124">        }</span>
+<span class="fc" id="L125">    }</span>
+
+    fun setUpStreamConfigs() {
+<span class="fc" id="L128">        MainScope().launch(CoroutineExceptionHandler { _, t -&gt;</span>
+<span class="nc" id="L129">            L.e(t)</span>
+<span class="nc" id="L130">        }) {</span>
+<span class="fc" id="L131">            STREAM_CONFIGS.clear()</span>
+            // Ensure that serialization of configs is done off the main thread
+<span class="fc" id="L133">            withContext(Dispatchers.Default) {</span>
+<span class="fc" id="L134">                STREAM_CONFIGS.putAll(Prefs.streamConfigs)</span>
+<span class="fc" id="L135">                TestKitchenAdapter.client.updateSourceConfig(STREAM_CONFIGS)</span>
+<span class="fc" id="L136">            }</span>
+<span class="fc" id="L137">            refreshStreamConfigs()</span>
+<span class="fc" id="L138">        }</span>
+<span class="fc" id="L139">    }</span>
+
+    /**
+     * OutputBuffer: buffers events in a queue prior to transmission
+     *
+     * Transmissions are not sent at a uniform offset but are shaped into
+     * 'bursts' using a combination of queue size and debounce time.
+     *
+     * These concentrate requests (and hence, theoretically, radio awake state)
+     * so as not to contribute to battery drain.
+     */
+    internal object OutputBuffer {
+<span class="fc" id="L151">        private val QUEUE = mutableListOf&lt;Event&gt;()</span>
+
+        /*
+         * When an item is added to QUEUE, wait this many ms before sending.
+         * If another item is added to QUEUE during this time, reset the countdown.
+         */
+        private const val WAIT_MS = 30000L
+        private const val TOKEN = &quot;sendScheduled&quot;
+<span class="nc" id="L159">        private val MAX_QUEUE_SIZE get() = Prefs.analyticsQueueSize</span>
+
+        fun sendAllScheduled() {
+<span class="fc" id="L162">            WikipediaApp.instance.mainThreadHandler.removeCallbacksAndMessages(TOKEN)</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            if (ENABLED) {</span>
+<span class="fc" id="L164">                val eventsByStream: Map&lt;String, List&lt;Event&gt;&gt;</span>
+<span class="fc" id="L165">                synchronized(QUEUE) {</span>
+<span class="pc" id="L166">                    eventsByStream = QUEUE.groupBy { it.stream }</span>
+<span class="fc" id="L167">                    QUEUE.clear()</span>
+<span class="fc" id="L168">                }</span>
+<span class="fc" id="L169">                send(eventsByStream)</span>
+            }
+<span class="fc" id="L171">        }</span>
+
+        /**
+         * Schedule a request to be sent.
+         *
+         * @param event event data
+         */
+        fun schedule(event: Event) {
+<span class="nc bnc" id="L179" title="All 4 branches missed.">            if (ENABLED || QUEUE.size &lt;= MAX_QUEUE_SIZE) {</span>
+<span class="nc" id="L180">                synchronized(QUEUE) {</span>
+<span class="nc" id="L181">                    QUEUE.add(event)</span>
+                }
+            }
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (ENABLED) {</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                if (QUEUE.size &gt;= MAX_QUEUE_SIZE) {</span>
+<span class="nc" id="L186">                    sendAllScheduled()</span>
+                } else {
+                    // The arrival of a new item interrupts the timer and resets the countdown.
+<span class="nc" id="L189">                    WikipediaApp.instance.mainThreadHandler.removeCallbacksAndMessages(TOKEN)</span>
+<span class="nc" id="L190">                    WikipediaApp.instance.mainThreadHandler.postDelayed(WAIT_MS, TOKEN) {</span>
+<span class="nc" id="L191">                        sendAllScheduled()</span>
+<span class="nc" id="L192">                    }</span>
+                }
+            }
+<span class="nc" id="L195">        }</span>
+
+        /**
+         * If sending is enabled, attempt to send the provided events.
+         * Also batch the events ordered by their streams, as the QUEUE
+         * can contain events of different streams
+         */
+        private fun send(eventsByStream: Map&lt;String, List&lt;Event&gt;&gt;) {
+<span class="fc" id="L203">            eventsByStream.forEach { (stream, events) -&gt;</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                getStreamConfig(stream)?.let {</span>
+<span class="nc" id="L205">                    sendEventsForStream(it.destinationEventService, events)</span>
+<span class="nc" id="L206">                }</span>
+<span class="nc" id="L207">            }</span>
+<span class="fc" id="L208">        }</span>
+
+        private fun sendEventsForStream(destinationEventService: DestinationEventService, events: List&lt;Event&gt;) {
+<span class="nc" id="L211">            coroutineScope.launch(CoroutineExceptionHandler { _, caught -&gt;</span>
+<span class="nc" id="L212">                L.e(caught)</span>
+<span class="nc" id="L213">                if (caught is HttpStatusException) {</span>
+<span class="nc" id="L214">                    if (caught.code &gt;= HttpURLConnection.HTTP_INTERNAL_ERROR) {</span>
+                        // TODO: For errors &gt;= 500, queue up to retry?
+                    } else {
+                        // Something unexpected happened.
+<span class="nc" id="L218">                        if (ReleaseUtil.isPreBetaRelease &amp;&amp; caught.code != HttpURLConnection.HTTP_FORBIDDEN) {</span>
+                            // If it's a pre-beta release, show a loud toast to signal that
+                            // a potential issue should be investigated.
+<span class="nc" id="L221">                            WikipediaApp.instance.mainThreadHandler.post {</span>
+<span class="nc" id="L222">                                Toast.makeText(WikipediaApp.instance, caught.message, Toast.LENGTH_LONG).show()</span>
+<span class="nc" id="L223">                            }</span>
+                        }
+                    }
+                }
+<span class="nc" id="L227">            }) {</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">                val response = if (ReleaseUtil.isDevRelease) ServiceFactory.getAnalyticsRest(destinationEventService).postEvents(events) else</span>
+<span class="nc" id="L229">                    ServiceFactory.getAnalyticsRest(destinationEventService).postEventsHasty(events)</span>
+<span class="nc" id="L230">                when (response.code()) {</span>
+                    HttpURLConnection.HTTP_CREATED,
+                    HttpURLConnection.HTTP_ACCEPTED -&gt; {}
+                    else -&gt; {
+                        // Received successful response, but unexpected HTTP code.
+                        // TODO: queue up to retry?
+                    }
+                }
+<span class="nc" id="L238">            }</span>
+<span class="nc" id="L239">        }</span>
+    }
+
+    /**
+     * AssociationController: provides associative identifiers and manage their
+     * persistence
+     *
+     * Identifiers correspond to various scopes e.g. 'pageview', 'session', and 'device'.
+     *
+     * TODO: Possibly get rid of the pageview type?  Does it make sense on apps?  It is not in the iOS library currently.
+     * On apps, a &quot;session&quot; starts when the app is loaded, and ends when completely closed, or after 15 minutes of inactivity
+     * Save a ts when going into bg, then when returning to foreground, &amp; if it's been more than 15 mins, start a new session, else continue session from before
+     * Possible to query/track time since last interaction? (For future)
+     */
+    internal object AssociationController {
+        private var PAGEVIEW_ID: String? = null
+        private var SESSION_ID: String? = null
+
+        /**
+         * Generate a pageview identifier.
+         *
+         * @return pageview ID
+         *
+         * The identifier is a string of 20 zero-padded hexadecimal digits
+         * representing a uniformly random 80-bit integer.
+         */
+        val pageViewId: String
+            get() {
+<span class="nc bnc" id="L267" title="All 2 branches missed.">                if (PAGEVIEW_ID == null) {</span>
+<span class="nc" id="L268">                    PAGEVIEW_ID = generateRandomId()</span>
+                }
+<span class="nc" id="L270">                return PAGEVIEW_ID!!</span>
+            }
+
+        /**
+         * Generate a session identifier.
+         *
+         * @return session ID
+         *
+         * The identifier is a string of 20 zero-padded hexadecimal digits
+         * representing a uniformly random 80-bit integer.
+         */
+        val sessionId: String
+            get() {
+<span class="nc bnc" id="L283" title="All 2 branches missed.">                if (SESSION_ID == null) {</span>
+                    // If there is no runtime value for SESSION_ID, try to load a
+                    // value from persistent store.
+<span class="nc" id="L286">                    SESSION_ID = Prefs.eventPlatformSessionId</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">                    if (SESSION_ID == null) {</span>
+                        // If there is no value in the persistent store, generate a new value for
+                        // SESSION_ID, and write the update to the persistent store.
+<span class="nc" id="L290">                        SESSION_ID = generateRandomId()</span>
+<span class="nc" id="L291">                        Prefs.eventPlatformSessionId = SESSION_ID</span>
+                    }
+                }
+<span class="nc" id="L294">                return SESSION_ID!!</span>
+            }
+
+        fun beginNewSession() {
+            // Clear runtime and persisted value for SESSION_ID.
+<span class="nc" id="L299">            SESSION_ID = null</span>
+<span class="nc" id="L300">            Prefs.eventPlatformSessionId = null</span>
+
+            // A session refresh implies a pageview refresh, so clear runtime value of PAGEVIEW_ID.
+<span class="nc" id="L303">            beginNewPageView()</span>
+<span class="nc" id="L304">        }</span>
+
+        fun beginNewPageView() {
+<span class="nc" id="L307">            PAGEVIEW_ID = null</span>
+<span class="nc" id="L308">        }</span>
+
+        /**
+         * @return a string of 20 zero-padded hexadecimal digits representing a uniformly random
+         * 80-bit integer
+         */
+        private fun generateRandomId(): String {
+<span class="nc" id="L315">            val random = Random()</span>
+<span class="nc" id="L316">            return String.format(&quot;%08x&quot;, random.nextInt()) + String.format(&quot;%08x&quot;, random.nextInt()) + String.format(&quot;%04x&quot;, random.nextInt() and 0xFFFF)</span>
+        }
+    }
+
+    /**
+     * SamplingController: computes various sampling functions on the client
+     *
+     * Sampling is based on associative identifiers, each of which have a
+     * well-defined scope, and sampling config, which each stream provides as
+     * part of its configuration.
+     */
+    internal object SamplingController {
+<span class="nc" id="L328">        private var SAMPLING_CACHE = mutableMapOf&lt;String, Boolean&gt;()</span>
+
+        /**
+         * @param event event
+         * @return true if in sample or false otherwise
+         */
+        fun isInSample(event: Event): Boolean {
+<span class="nc" id="L335">            val stream = event.stream</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">            if (SAMPLING_CACHE.containsKey(stream)) {</span>
+<span class="nc" id="L337">                return SAMPLING_CACHE[stream]!!</span>
+            }
+<span class="nc bnc" id="L339" title="All 2 branches missed.">            val streamConfig = getStreamConfig(stream) ?: return false</span>
+<span class="nc" id="L340">            val samplingConfig = streamConfig.sampleConfig</span>
+<span class="nc bnc" id="L341" title="All 6 branches missed.">            if (samplingConfig == null || samplingConfig.rate == 1.0) {</span>
+<span class="nc" id="L342">                return true</span>
+            }
+<span class="nc bnc" id="L344" title="All 4 branches missed.">            if (samplingConfig.rate == 0.0) {</span>
+<span class="nc" id="L345">                return false</span>
+            }
+<span class="nc bnc" id="L347" title="All 2 branches missed.">            val inSample = getSamplingValue(samplingConfig.unit) &lt; samplingConfig.rate</span>
+<span class="nc" id="L348">            SAMPLING_CACHE[stream] = inSample</span>
+<span class="nc" id="L349">            return inSample</span>
+        }
+
+        /**
+         * @param unit Unit type from sampling config
+         * @return a floating point value between 0.0 and 1.0 (inclusive)
+         */
+        fun getSamplingValue(unit: String): Double {
+<span class="nc" id="L357">            val token = getSamplingId(unit).substring(0, 8)</span>
+<span class="nc" id="L358">            return token.toLong(16).toDouble() / 0xFFFFFFFFL.toDouble()</span>
+        }
+
+        fun getSamplingId(unit: String): String {
+<span class="nc bnc" id="L362" title="All 2 branches missed.">            if (unit == SampleConfig.UNIT_SESSION) {</span>
+<span class="nc" id="L363">                return AssociationController.sessionId</span>
+            }
+<span class="nc bnc" id="L365" title="All 2 branches missed.">            if (unit == SampleConfig.UNIT_PAGEVIEW) {</span>
+<span class="nc" id="L366">                return AssociationController.pageViewId</span>
+            }
+<span class="nc bnc" id="L368" title="All 2 branches missed.">            if (unit == SampleConfig.UNIT_DEVICE) {</span>
+<span class="nc" id="L369">                return WikipediaApp.instance.appInstallID</span>
+            }
+<span class="nc" id="L371">            L.e(&quot;Bad identifier type&quot;)</span>
+<span class="nc" id="L372">            return UUID.randomUUID().toString()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

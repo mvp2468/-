@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayGameMainMenuFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.onthisday</a> &gt; <span class="el_source">OnThisDayGameMainMenuFragment.kt</span></div><h1>OnThisDayGameMainMenuFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.onthisday
+
+import android.app.Activity
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.ImageView
+import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
+import androidx.fragment.app.activityViewModels
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.databinding.FragmentOnThisDayGameMainMenuBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.games.GamesHubActivity
+import org.wikipedia.games.WikiGames
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import java.time.LocalDate
+
+<span class="nc" id="L30">class OnThisDayGameMainMenuFragment : OnThisDayGameBaseFragment() {</span>
+    private var _binding: FragmentOnThisDayGameMainMenuBinding? = null
+<span class="nc" id="L32">    private val binding get() = _binding!!</span>
+<span class="nc" id="L33">    private val viewModel: OnThisDayGameViewModel by activityViewModels()</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L36">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L37">        _binding = FragmentOnThisDayGameMainMenuBinding.inflate(inflater, container, false)</span>
+
+<span class="nc" id="L39">        WikiGamesEvent.submit(&quot;impression&quot;, &quot;game_play&quot;, slideName = &quot;game_start&quot;, isArchive = viewModel.isArchiveGame)</span>
+<span class="nc" id="L40">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L44">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L45">        binding.errorView.retryClickListener = View.OnClickListener {</span>
+<span class="nc" id="L46">            viewModel.loadGameState()</span>
+<span class="nc" id="L47">        }</span>
+<span class="nc" id="L48">        binding.errorView.backClickListener = View.OnClickListener {</span>
+<span class="nc" id="L49">            requireActivity().finish()</span>
+<span class="nc" id="L50">        }</span>
+<span class="nc" id="L51">        observeGameState()</span>
+<span class="nc" id="L52">    }</span>
+
+    private fun observeGameState() {
+<span class="nc" id="L55">        viewModel.gameState.observe(viewLifecycleOwner) { state -&gt;</span>
+<span class="nc" id="L56">            when (state) {</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                is Resource.Loading -&gt; updateOnLoading()</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                is OnThisDayGameViewModel.GameStarted -&gt; handleGameStarted()</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                is OnThisDayGameViewModel.CurrentQuestion -&gt; handleCurrentQuestion(state.data)</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                is OnThisDayGameViewModel.GameEnded -&gt; handleGameEnded(state.data)</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                is Resource.Error -&gt; updateOnError(state.throwable)</span>
+            }
+<span class="nc" id="L63">        }</span>
+<span class="nc" id="L64">    }</span>
+
+    private fun updateOnLoading() {
+<span class="nc" id="L67">        binding.gameMenuContainer.isVisible = false</span>
+<span class="nc" id="L68">        binding.progressBar.isVisible = true</span>
+<span class="nc" id="L69">        binding.errorView.isVisible = false</span>
+<span class="nc" id="L70">    }</span>
+
+    private fun showGameMenu() {
+<span class="nc" id="L73">        binding.dateText.text = DateUtil.getShortDateString(viewModel.currentDate)</span>
+<span class="nc" id="L74">        binding.gameMenuContainer.isVisible = true</span>
+<span class="nc" id="L75">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L76">        binding.errorView.isVisible = false</span>
+<span class="nc" id="L77">    }</span>
+
+    private fun updateOnError(t: Throwable) {
+<span class="nc" id="L80">        binding.errorView.isVisible = true</span>
+<span class="nc" id="L81">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L82">        binding.gameMenuContainer.isVisible = false</span>
+<span class="nc" id="L83">        binding.errorView.setError(t)</span>
+<span class="nc" id="L84">        binding.errorView.setIconColorFilter(ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color))</span>
+<span class="nc" id="L85">        binding.errorView.setErrorTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color))</span>
+<span class="nc" id="L86">    }</span>
+
+    private fun handleGameStarted() {
+<span class="nc" id="L89">        showGameMenu()</span>
+<span class="nc" id="L90">        with(binding) {</span>
+<span class="nc" id="L91">            playGameButton.setOnClickListener {</span>
+<span class="nc" id="L92">                WikiGamesEvent.submit(&quot;play_click&quot;, &quot;game_play&quot;, slideName = &quot;game_start&quot;, isArchive = viewModel.isArchiveGame)</span>
+<span class="nc" id="L93">                requireActivity().supportFragmentManager.beginTransaction()</span>
+<span class="nc" id="L94">                    .replace(R.id.fragmentContainer, OnThisDayGamePlayFragment.newInstance(), null)</span>
+<span class="nc" id="L95">                    .commit()</span>
+<span class="nc" id="L96">            }</span>
+<span class="nc" id="L97">        }</span>
+<span class="nc" id="L98">    }</span>
+
+    private fun handleCurrentQuestion(state: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L101">        showGameMenu()</span>
+<span class="nc" id="L102">        with(binding) {</span>
+<span class="nc" id="L103">            val questionIndex = state.currentQuestionIndex + 1</span>
+<span class="nc" id="L104">            gameMessageText.text = getString(R.string.on_this_day_game_current_progress_message, questionIndex)</span>
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            val playGameButtonText = if (viewModel.isArchiveGame) getString(R.string.on_this_day_game_continue_playing_btn_text) else getString(R.string.on_this_day_game_continue_btn_text)</span>
+<span class="nc" id="L107">            playGameButton.text = playGameButtonText</span>
+
+<span class="nc" id="L109">            playGameButton.setOnClickListener {</span>
+<span class="nc" id="L110">                startGame()</span>
+<span class="nc" id="L111">            }</span>
+
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            if (viewModel.isArchiveGame) {</span>
+<span class="nc" id="L114">                playArchiveButton.isVisible = true</span>
+<span class="nc" id="L115">                playArchiveButton.setOnClickListener {</span>
+<span class="nc" id="L116">                    prepareAndOpenArchiveCalendar(viewModel.wikiSite.languageCode)</span>
+<span class="nc" id="L117">                }</span>
+            }
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+
+    private fun handleGameEnded(state: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L123">        showGameMenu()</span>
+<span class="nc" id="L124">        with(binding) {</span>
+<span class="nc" id="L125">            val score = state.answerState.count { it }</span>
+<span class="nc" id="L126">            binding.gameMessageText.text = getString(R.string.on_this_day_game_score_message, score, state.totalQuestions)</span>
+<span class="nc" id="L127">            playGameButton.text = getString(R.string.on_this_day_game_review_results_btn_text)</span>
+<span class="nc" id="L128">            playGameButton.setOnClickListener {</span>
+<span class="nc" id="L129">                showGameResults()</span>
+<span class="nc" id="L130">            }</span>
+<span class="nc" id="L131">            playArchiveButton.isVisible = true</span>
+<span class="nc" id="L132">            playArchiveButton.setOnClickListener {</span>
+<span class="nc" id="L133">                prepareAndOpenArchiveCalendar(viewModel.wikiSite.languageCode)</span>
+<span class="nc" id="L134">            }</span>
+<span class="nc" id="L135">        }</span>
+<span class="nc" id="L136">    }</span>
+
+    private fun startGame() {
+<span class="nc" id="L139">        WikiGamesEvent.submit(&quot;play_click&quot;, &quot;game_play&quot;, slideName = &quot;game_start&quot;, isArchive = viewModel.isArchiveGame)</span>
+<span class="nc" id="L140">        requireActivity().supportFragmentManager.popBackStack()</span>
+<span class="nc" id="L141">        requireActivity().supportFragmentManager.beginTransaction()</span>
+<span class="nc" id="L142">            .replace(R.id.fragmentContainer, OnThisDayGamePlayFragment.newInstance(), null)</span>
+<span class="nc" id="L143">            .commit()</span>
+<span class="nc" id="L144">    }</span>
+
+    private fun showGameResults() {
+<span class="nc" id="L147">        requireActivity().supportFragmentManager.beginTransaction()</span>
+<span class="nc" id="L148">            .replace(R.id.fragmentContainer, OnThisDayGameResultFragment.newInstance(viewModel.invokeSource), null)</span>
+<span class="nc" id="L149">            .commit()</span>
+<span class="nc" id="L150">    }</span>
+
+    override fun onArchiveDateSelected(date: LocalDate) {
+<span class="nc" id="L153">        viewModel.relaunchForDate(date)</span>
+<span class="nc" id="L154">        requireActivity().supportFragmentManager.beginTransaction()</span>
+<span class="nc" id="L155">            .replace(R.id.fragmentContainer, OnThisDayGamePlayFragment.newInstance(), null)</span>
+<span class="nc" id="L156">            .commit()</span>
+<span class="nc" id="L157">    }</span>
+
+    companion object {
+        private const val SHOW_ON_EXPLORE_FEED_COUNT = 2
+
+        fun newInstance(invokeSource: InvokeSource): OnThisDayGameMainMenuFragment {
+<span class="nc" id="L163">            return OnThisDayGameMainMenuFragment().apply {</span>
+<span class="nc" id="L164">                arguments = bundleOf(Constants.INTENT_EXTRA_INVOKE_SOURCE to invokeSource)</span>
+<span class="nc" id="L165">            }</span>
+        }
+
+<span class="nc" id="L168">        fun maybeShowOnThisDayGameDialog(activity: Activity, invokeSource: InvokeSource, articleWikiSite: WikiSite = WikipediaApp.instance.wikiSite) {</span>
+<span class="nc" id="L169">            val wikiSite = WikipediaApp.instance.wikiSite</span>
+            // Both of the primary language and the article language should be in the supported languages list.
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            if (!Prefs.otdEntryDialogShown &amp;&amp;</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                WikiGames.WHICH_CAME_FIRST.isLangSupported(wikiSite.languageCode) &amp;&amp;</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                WikiGames.WHICH_CAME_FIRST.isLangSupported(articleWikiSite.languageCode) &amp;&amp;</span>
+<span class="nc bnc" id="L174" title="All 4 branches missed.">                (invokeSource != InvokeSource.FEED || Prefs.exploreFeedVisitCount &gt;= SHOW_ON_EXPLORE_FEED_COUNT)) {</span>
+<span class="nc" id="L175">                Prefs.otdEntryDialogShown = true</span>
+<span class="nc" id="L176">                WikiGamesEvent.submit(&quot;impression&quot;, &quot;game_modal&quot;)</span>
+<span class="nc" id="L177">                val dialogView = activity.layoutInflater.inflate(R.layout.dialog_on_this_day_game, null)</span>
+<span class="nc" id="L178">                val dialog = MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L179">                    .setView(dialogView)</span>
+<span class="nc" id="L180">                    .setCancelable(false)</span>
+<span class="nc" id="L181">                    .show()</span>
+<span class="nc" id="L182">                dialogView.findViewById&lt;Button&gt;(R.id.playGameButton).setOnClickListener {</span>
+<span class="nc" id="L183">                    WikiGamesEvent.submit(&quot;enter_click&quot;, &quot;game_modal&quot;)</span>
+<span class="nc" id="L184">                    activity.startActivityForResult(GamesHubActivity.newIntent(activity), 0)</span>
+<span class="nc" id="L185">                    dialog.dismiss()</span>
+<span class="nc" id="L186">                }</span>
+<span class="nc" id="L187">                dialogView.findViewById&lt;ImageView&gt;(R.id.closeButton).setOnClickListener {</span>
+<span class="nc" id="L188">                    FeedbackUtil.showMessage(activity, activity.getString(R.string.on_this_day_game_entry_dialog_snackbar_message))</span>
+<span class="nc" id="L189">                    dialog.dismiss()</span>
+<span class="nc" id="L190">                }</span>
+            }
+<span class="nc" id="L192">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingListsReceiveHelper.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">ReadingListsReceiveHelper.kt</span></div><h1>ReadingListsReceiveHelper.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.util.Base64
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.int
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.Namespace
+import org.wikipedia.readinglist.ReadingListsShareHelper.ExportedReadingListPage
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.StringUtil
+
+object ReadingListsReceiveHelper {
+
+<span class="nc" id="L22">    suspend fun receiveReadingLists(emptyTitle: String, emptyDescription: String, json: String, encoded: Boolean): ReadingList {</span>
+<span class="nc bnc" id="L23" title="All 2 branches missed.">        val readingListData = getExportedReadingLists(json, encoded)</span>
+<span class="nc bnc" id="L24" title="All 8 branches missed.">        val listTitle = readingListData?.name.orEmpty().ifEmpty { emptyTitle }</span>
+<span class="nc bnc" id="L25" title="All 8 branches missed.">        val listDescription = readingListData?.description.orEmpty().ifEmpty { emptyDescription }</span>
+<span class="nc" id="L26">        val listPages = mutableListOf&lt;ReadingListPage&gt;()</span>
+
+        // Request API by languages
+<span class="nc bnc" id="L29" title="All 4 branches missed.">        readingListData?.list?.forEach { map -&gt;</span>
+<span class="nc" id="L30">            val wikiSite = WikiSite.forLanguageCode(map.key)</span>
+<span class="nc" id="L31">            map.value.chunked(ReadingListsShareHelper.API_MAX_SIZE).forEach { list -&gt;</span>
+
+<span class="nc bnc" id="L33" title="All 4 branches missed.">                val listOfTitles = list.filter { it is JsonPrimitive &amp;&amp; it.isString }.map { (it as JsonPrimitive).content }</span>
+<span class="nc bnc" id="L34" title="All 4 branches missed.">                val listOfIds = list.filter { it is JsonPrimitive &amp;&amp; !it.isString }.map { (it as JsonPrimitive).int }</span>
+<span class="nc" id="L35">                val listOfPages = list.filter { it is JsonObject }.map { JsonUtil.json.decodeFromJsonElement&lt;ExportedReadingListPage&gt;(it as JsonObject) }</span>
+
+<span class="nc" id="L37">                listOfPages.forEach {</span>
+<span class="nc" id="L38">                    val readingListPage = ReadingListPage(</span>
+<span class="nc" id="L39">                        wikiSite,</span>
+<span class="nc" id="L40">                        Namespace.of(it.ns),</span>
+<span class="nc" id="L41">                        it.title,</span>
+<span class="nc" id="L42">                        StringUtil.addUnderscores(it.title),</span>
+<span class="nc" id="L43">                        it.description,</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">                        ImageUrlUtil.getUrlForPreferredSize(it.thumbUrl.orEmpty(), Service.PREFERRED_THUMB_SIZE),</span>
+<span class="nc" id="L45">                        lang = wikiSite.languageCode</span>
+                    )
+<span class="nc" id="L47">                    listPages.add(readingListPage)</span>
+<span class="nc" id="L48">                }</span>
+
+<span class="nc" id="L50">                val pages = mutableListOf&lt;MwQueryPage&gt;()</span>
+<span class="nc bnc" id="L51" title="All 4 branches missed.">                if (listOfIds.isNotEmpty()) {</span>
+<span class="nc" id="L52">                    pages.addAll(ServiceFactory.get(wikiSite).getInfoByPageIdsOrTitles(pageIds = listOfIds.joinToString(separator = &quot;|&quot;))</span>
+<span class="nc bnc" id="L53" title="All 4 branches missed.">                        .query?.pages.orEmpty())</span>
+                }
+<span class="nc bnc" id="L55" title="All 4 branches missed.">                if (listOfTitles.isNotEmpty()) {</span>
+<span class="nc" id="L56">                    pages.addAll(ServiceFactory.get(wikiSite).getInfoByPageIdsOrTitles(titles = listOfTitles.joinToString(separator = &quot;|&quot;))</span>
+<span class="nc bnc" id="L57" title="All 4 branches missed.">                        .query?.pages.orEmpty())</span>
+                }
+<span class="nc" id="L59">                pages.forEach {</span>
+<span class="nc" id="L60">                    val readingListPage = ReadingListPage(</span>
+<span class="nc" id="L61">                        wikiSite,</span>
+<span class="nc" id="L62">                        it.namespace(),</span>
+<span class="nc" id="L63">                        it.displayTitle(wikiSite.languageCode),</span>
+<span class="nc" id="L64">                        StringUtil.addUnderscores(it.title),</span>
+<span class="nc" id="L65">                        it.description,</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">                        ImageUrlUtil.getUrlForPreferredSize(it.thumbUrl().orEmpty(), Service.PREFERRED_THUMB_SIZE),</span>
+<span class="nc" id="L67">                        lang = wikiSite.languageCode</span>
+                    )
+<span class="nc" id="L69">                    listPages.add(readingListPage)</span>
+<span class="nc" id="L70">                }</span>
+<span class="nc" id="L71">            }</span>
+<span class="nc" id="L72">        }</span>
+
+<span class="nc" id="L74">        listPages.sortBy { it.apiTitle }</span>
+
+<span class="nc" id="L76">        val readingList = ReadingList(listTitle, listDescription)</span>
+<span class="nc" id="L77">        readingList.pages.addAll(listPages)</span>
+
+<span class="nc" id="L79">        return readingList</span>
+    }
+
+    private fun getExportedReadingLists(json: String, encoded: Boolean): ReadingListsShareHelper.ExportedReadingList? {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        return JsonUtil.decodeFromString(if (encoded) String(Base64.decode(json, Base64.NO_WRAP)) else json)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

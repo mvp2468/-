@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PatrollerExperienceEvent.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">PatrollerExperienceEvent.kt</span></div><h1>PatrollerExperienceEvent.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import org.wikipedia.WikipediaApp
+import org.wikipedia.settings.Prefs
+
+<span class="nc" id="L6">class PatrollerExperienceEvent {</span>
+
+    companion object {
+        fun logImpression(activeInterface: String) {
+<span class="nc" id="L10">            submitPatrollerActivityEvent(&quot;impression&quot;, activeInterface)</span>
+<span class="nc" id="L11">        }</span>
+
+<span class="nc" id="L13">        fun logAction(action: String, activeInterface: String, actionData: String = &quot;&quot;) {</span>
+<span class="nc" id="L14">            submitPatrollerActivityEvent(action, activeInterface, actionData)</span>
+<span class="nc" id="L15">        }</span>
+
+<span class="nc" id="L17">        fun getActionDataString(</span>
+<span class="nc" id="L18">            revisionId: Long? = null,</span>
+<span class="nc" id="L19">            feedbackOption: String? = null,</span>
+<span class="nc" id="L20">            feedbackText: String? = null,</span>
+<span class="nc" id="L21">            messageType: String? = null,</span>
+<span class="nc" id="L22">            summaryText: String? = null,</span>
+<span class="nc" id="L23">            filterSelected: String? = null,</span>
+<span class="nc" id="L24">            filterWiki: String? = null,</span>
+<span class="nc" id="L25">            filtersList: String? = null,</span>
+<span class="nc" id="L26">            appLanguageCodeAdded: String? = null,</span>
+<span class="nc" id="L27">            appLanguageCodes: String? = null,</span>
+        ): String {
+<span class="nc bnc" id="L29" title="All 4 branches missed.">            val revisionIdStr = revisionId?.let { &quot;revision_id: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L30" title="All 4 branches missed.">            val feedbackStr = feedbackOption?.let { &quot;feedback: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L31" title="All 4 branches missed.">            val feedbackTextStr = feedbackText?.let { &quot;feedback_text: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L32" title="All 4 branches missed.">            val savedMessageStr = messageType?.let { &quot;message_type: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L33" title="All 4 branches missed.">            val summaryTextStr = summaryText?.let { &quot;summary_text: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L34" title="All 6 branches missed.">            val wasSummaryAddedStr = summaryText?.let { summaryText.isNotEmpty().toString() }.orEmpty()</span>
+<span class="nc bnc" id="L35" title="All 4 branches missed.">            val filterSelectedStr = filterSelected?.let { &quot;filter_selected: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L36" title="All 4 branches missed.">            val filterWikiStr = filterWiki?.let { &quot;filter_wiki_selected: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L37" title="All 4 branches missed.">            val filtersListStr = filtersList?.let { &quot;filters_list: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L38" title="All 4 branches missed.">            val appLanguageCodeAddedStr = appLanguageCodeAdded?.let { &quot;app_language_code_added: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L39" title="All 4 branches missed.">            val appLanguageCodesStr = appLanguageCodes?.let { &quot;app_language_codes: $it, &quot; }.orEmpty()</span>
+<span class="nc" id="L40">            return revisionIdStr + feedbackStr + feedbackTextStr + savedMessageStr + summaryTextStr + wasSummaryAddedStr +</span>
+<span class="nc" id="L41">                    filterSelectedStr + filterWikiStr + filtersListStr + appLanguageCodeAddedStr + appLanguageCodesStr</span>
+        }
+
+<span class="nc" id="L44">        fun getPublishMessageActionString(isModified: Boolean? = null, isSaved: Boolean? = null, isExample: Boolean? = null, exampleMessage: String? = null): String {</span>
+<span class="nc bnc" id="L45" title="All 4 branches missed.">            val isModifiedStr = isModified?.let { &quot;is_modified: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L46" title="All 4 branches missed.">            val isSavedStr = isSaved?.let { &quot;is_saved: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L47" title="All 4 branches missed.">            val isExampleStr = isExample?.let { &quot;is_example: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L48" title="All 4 branches missed.">            val exampleMessageStr = exampleMessage?.let { &quot;example_message: $it &quot; }.orEmpty()</span>
+<span class="nc" id="L49">            return isModifiedStr + isSavedStr + isExampleStr + exampleMessageStr</span>
+        }
+
+<span class="nc" id="L52">        private fun submitPatrollerActivityEvent(action: String, activeInterface: String, actionData: String = &quot;&quot;) {</span>
+<span class="nc" id="L53">            EventPlatformClient.submit(</span>
+<span class="nc" id="L54">                AppInteractionEvent(</span>
+<span class="nc" id="L55">                    action,</span>
+<span class="nc" id="L56">                    activeInterface,</span>
+<span class="nc" id="L57">                    actionData,</span>
+<span class="nc" id="L58">                    WikipediaApp.instance.languageState.appLanguageCode,</span>
+<span class="nc" id="L59">                    Prefs.recentEditsWikiCode,</span>
+<span class="nc" id="L60">                    &quot;app_patroller_experience&quot;</span>
+                )
+            )
+<span class="nc" id="L63">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

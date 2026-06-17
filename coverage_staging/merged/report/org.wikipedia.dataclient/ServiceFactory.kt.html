@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServiceFactory.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient</a> &gt; <span class="el_source">ServiceFactory.kt</span></div><h1>ServiceFactory.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient
+
+import androidx.collection.lruCache
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Response
+import okhttp3.logging.HttpLoggingInterceptor
+import org.wikimedia.testkitchen.config.DestinationEventService
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.EventService
+import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.settings.Prefs
+import retrofit2.Retrofit
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import retrofit2.create
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+object ServiceFactory {
+
+    private const val SERVICE_CACHE_SIZE = 8
+
+<span class="fc" id="L24">    private val SERVICE_CACHE = lruCache&lt;WikiSite, Service&gt;(SERVICE_CACHE_SIZE, create = {</span>
+        // This method is called in the get() method if a value does not already exist.
+<span class="fc" id="L26">        createRetrofit(it, getBasePath(it)).create&lt;Service&gt;()</span>
+    })
+
+<span class="fc" id="L29">    private val REST_SERVICE_CACHE = lruCache&lt;WikiSite, RestService&gt;(SERVICE_CACHE_SIZE, create = {</span>
+<span class="fc" id="L30">        createRetrofit(it, getRestBasePath(it)).create&lt;RestService&gt;()</span>
+    })
+
+<span class="fc" id="L33">    private val CORE_REST_SERVICE_CACHE = lruCache&lt;WikiSite, CoreRestService&gt;(SERVICE_CACHE_SIZE, create = {</span>
+<span class="nc" id="L34">        createRetrofit(it, it.url() + &quot;/&quot; + CoreRestService.CORE_REST_API_PREFIX).create&lt;CoreRestService&gt;()</span>
+    })
+
+<span class="fc" id="L37">    private val ANALYTICS_REST_SERVICE_CACHE = lruCache&lt;DestinationEventService, EventService&gt;(SERVICE_CACHE_SIZE, create = {</span>
+<span class="fc" id="L38">        val intakeBaseUriOverride = Prefs.eventPlatformIntakeUriOverride.orEmpty().ifEmpty { it.baseUri }</span>
+<span class="fc" id="L39">        createRetrofit(null, intakeBaseUriOverride).create&lt;EventService&gt;()</span>
+    })
+
+    fun get(wiki: WikiSite): Service {
+<span class="fc" id="L43">        return SERVICE_CACHE[wiki]!!</span>
+    }
+
+    fun getRest(wiki: WikiSite): RestService {
+<span class="fc" id="L47">        return REST_SERVICE_CACHE[wiki]!!</span>
+    }
+
+    fun getCoreRest(wiki: WikiSite): CoreRestService {
+<span class="nc" id="L51">        return CORE_REST_SERVICE_CACHE[wiki]!!</span>
+    }
+
+    fun getAnalyticsRest(destinationEventService: DestinationEventService): EventService {
+<span class="fc" id="L55">        return ANALYTICS_REST_SERVICE_CACHE[destinationEventService]!!</span>
+    }
+
+    operator fun &lt;T&gt; get(wiki: WikiSite, baseUrl: String?, service: Class&lt;T&gt;): T {
+<span class="nc bnc" id="L59" title="All 6 branches missed.">        val r = createRetrofit(wiki, baseUrl.orEmpty().ifEmpty { wiki.url() + &quot;/&quot; })</span>
+<span class="nc" id="L60">        return r.create(service)</span>
+    }
+
+    fun getBasePath(wiki: WikiSite): String {
+<span class="fc" id="L64">        var path = wiki.url()</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (!path.endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L66">            path += &quot;/&quot;</span>
+        }
+<span class="fc" id="L68">        return path</span>
+    }
+
+    fun getRestBasePath(wiki: WikiSite): String {
+<span class="pc bpc" id="L72" title="2 of 4 branches missed.">        var path = if (Prefs.restbaseUriFormat.isEmpty()) wiki.url() + &quot;/&quot; + RestService.REST_API_PREFIX</span>
+<span class="fc" id="L73">        else String.format(Prefs.restbaseUriFormat, &quot;https&quot;, wiki.authority())</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (!path.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L75">            path += &quot;/&quot;</span>
+        }
+<span class="fc" id="L77">        return path</span>
+    }
+
+<span class="fc" id="L80">    fun createRetrofit(wiki: WikiSite?, baseUrl: String, readTimeoutSec: Long = OkHttpConnectionFactory.DEFAULT_READ_TIMEOUT_SEC): Retrofit {</span>
+<span class="fc" id="L81">        val builder = OkHttpConnectionFactory.client.newBuilder()</span>
+<span class="fc" id="L82">        builder.readTimeout(readTimeoutSec, TimeUnit.SECONDS)</span>
+<span class="fc" id="L83">        builder.interceptors().add(builder.interceptors().indexOfFirst { it is HttpLoggingInterceptor }, LanguageVariantHeaderInterceptor(wiki))</span>
+
+<span class="fc" id="L85">        return Retrofit.Builder()</span>
+<span class="fc" id="L86">            .baseUrl(baseUrl)</span>
+<span class="fc" id="L87">            .client(builder.build())</span>
+<span class="fc" id="L88">            .addConverterFactory(JsonUtil.json.asConverterFactory(&quot;application/json&quot;.toMediaType()))</span>
+<span class="fc" id="L89">            .build()</span>
+    }
+
+<span class="fc" id="L92">    private class LanguageVariantHeaderInterceptor(private val wiki: WikiSite?) : Interceptor {</span>
+        @Throws(IOException::class)
+        override fun intercept(chain: Interceptor.Chain): Response {
+<span class="fc" id="L95">            var request = chain.request().newBuilder()</span>
+<span class="fc" id="L96">                .header(&quot;Accept-Language&quot;, WikipediaApp.instance.getAcceptLanguage(wiki))</span>
+<span class="fc" id="L97">                .build()</span>
+<span class="fc" id="L98">            return chain.proceed(request)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

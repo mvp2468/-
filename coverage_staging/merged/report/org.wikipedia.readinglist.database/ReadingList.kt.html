@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingList.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.database</a> &gt; <span class="el_source">ReadingList.kt</span></div><h1>ReadingList.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.database
+
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.PrimaryKey
+import org.apache.commons.lang3.StringUtils
+import org.wikipedia.R
+import org.wikipedia.util.L10nUtil
+import java.io.Serializable
+
+// TODO: create default reading list upon initial DB creation.
+
+<span class="nc" id="L13">@Entity</span>
+<span class="nc" id="L14">class ReadingList(</span>
+<span class="nc" id="L15">    var listTitle: String,</span>
+<span class="nc" id="L16">    var description: String?,</span>
+<span class="nc" id="L17">    var mtime: Long = System.currentTimeMillis(),</span>
+<span class="nc" id="L18">    var atime: Long = mtime,</span>
+<span class="nc" id="L19">    @PrimaryKey(autoGenerate = true) var id: Long = 0,</span>
+<span class="nc" id="L20">    var sizeBytes: Long = 0,</span>
+<span class="nc" id="L21">    var dirty: Boolean = true,</span>
+<span class="nc" id="L22">    var remoteId: Long = 0</span>
+<span class="nc" id="L23">) : Serializable {</span>
+
+    @Ignore
+<span class="nc" id="L26">    val pages = mutableListOf&lt;ReadingListPage&gt;()</span>
+
+    @delegate:Transient
+<span class="nc" id="L29">    val accentInvariantTitle: String by lazy {</span>
+<span class="nc" id="L30">        StringUtils.stripAccents(title)</span>
+    }
+
+    @Transient
+<span class="nc" id="L34">    var selected = false</span>
+
+    var title
+<span class="nc bnc" id="L37" title="All 4 branches missed.">        get() = listTitle.ifEmpty { L10nUtil.getString(R.string.default_reading_list_name) }</span>
+<span class="nc" id="L38">        set(value) { listTitle = value }</span>
+
+    val isDefault
+<span class="nc" id="L41">        get() = title == L10nUtil.getString(R.string.default_reading_list_name)</span>
+
+    val numPagesOffline
+<span class="nc bnc" id="L44" title="All 4 branches missed.">        get() = pages.count { it.offline &amp;&amp; it.status == ReadingListPage.STATUS_SAVED }</span>
+
+    val sizeBytesFromPages
+<span class="nc bnc" id="L47" title="All 4 branches missed.">        get() = pages.sumOf { if (it.offline) it.sizeBytes else 0 }</span>
+
+    fun touch() {
+<span class="nc" id="L50">        atime = System.currentTimeMillis()</span>
+<span class="nc" id="L51">    }</span>
+
+    fun compareTo(other: Any): Boolean {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        return (other is ReadingList &amp;&amp;</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">                id == other.id &amp;&amp;</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">                pages.size == other.pages.size &amp;&amp;</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                numPagesOffline == other.numPagesOffline &amp;&amp;</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                title == other.title &amp;&amp;</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                description == other.description)</span>
+    }
+
+    companion object {
+        const val SORT_BY_NAME_ASC = 0
+        const val SORT_BY_NAME_DESC = 1
+        const val SORT_BY_RECENT_ASC = 2
+        const val SORT_BY_RECENT_DESC = 3
+
+        fun sort(list: ReadingList, sortMode: Int) {
+<span class="nc bnc" id="L69" title="All 5 branches missed.">            when (sortMode) {</span>
+<span class="nc" id="L70">                SORT_BY_NAME_ASC -&gt; list.pages.sortWith { lhs: ReadingListPage, rhs: ReadingListPage -&gt; lhs.accentInvariantTitle.compareTo(rhs.accentInvariantTitle, true) }</span>
+<span class="nc" id="L71">                SORT_BY_NAME_DESC -&gt; list.pages.sortWith { lhs: ReadingListPage, rhs: ReadingListPage -&gt; rhs.accentInvariantTitle.compareTo(lhs.accentInvariantTitle, true) }</span>
+<span class="nc" id="L72">                SORT_BY_RECENT_ASC -&gt; list.pages.sortWith { lhs: ReadingListPage, rhs: ReadingListPage -&gt; lhs.mtime.compareTo(rhs.mtime) }</span>
+<span class="nc" id="L73">                SORT_BY_RECENT_DESC -&gt; list.pages.sortWith { lhs: ReadingListPage, rhs: ReadingListPage -&gt; rhs.mtime.compareTo(lhs.mtime) }</span>
+            }
+<span class="nc" id="L75">        }</span>
+
+        fun sort(lists: MutableList&lt;ReadingList&gt;, sortMode: Int) {
+<span class="nc bnc" id="L78" title="All 5 branches missed.">            when (sortMode) {</span>
+<span class="nc" id="L79">                SORT_BY_NAME_ASC -&gt; lists.sortWith { lhs: ReadingList, rhs: ReadingList -&gt; lhs.accentInvariantTitle.compareTo(rhs.accentInvariantTitle, true) }</span>
+<span class="nc" id="L80">                SORT_BY_NAME_DESC -&gt; lists.sortWith { lhs: ReadingList, rhs: ReadingList -&gt; rhs.accentInvariantTitle.compareTo(lhs.accentInvariantTitle, true) }</span>
+<span class="nc" id="L81">                SORT_BY_RECENT_ASC -&gt; lists.sortWith { lhs: ReadingList, rhs: ReadingList -&gt; rhs.mtime.compareTo(lhs.mtime) }</span>
+<span class="nc" id="L82">                SORT_BY_RECENT_DESC -&gt; lists.sortWith { lhs: ReadingList, rhs: ReadingList -&gt; lhs.mtime.compareTo(rhs.mtime) }</span>
+            }
+            // make the Default list sticky on top, regardless of sorting.
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            lists.firstOrNull { it.isDefault }?.let {</span>
+<span class="nc" id="L86">                lists.remove(it)</span>
+<span class="nc" id="L87">                lists.add(0, it)</span>
+<span class="nc" id="L88">            }</span>
+<span class="nc" id="L89">        }</span>
+
+        fun sortGenericList(lists: MutableList&lt;Any&gt;, sortMode: Int) {
+<span class="nc bnc" id="L92" title="All 5 branches missed.">            when (sortMode) {</span>
+<span class="nc" id="L93">                SORT_BY_NAME_ASC -&gt; lists.sortWith { lhs: Any?, rhs: Any? -&gt;</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">                    if (lhs is ReadingList &amp;&amp; rhs is ReadingList) {</span>
+<span class="nc" id="L95">                        lhs.accentInvariantTitle.compareTo(rhs.accentInvariantTitle, true)</span>
+                    } else {
+<span class="nc" id="L97">                        0</span>
+<span class="nc" id="L98">                    }</span>
+                }
+<span class="nc" id="L100">                SORT_BY_NAME_DESC -&gt; lists.sortWith { lhs: Any?, rhs: Any? -&gt;</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">                    if (lhs is ReadingList &amp;&amp; rhs is ReadingList) {</span>
+<span class="nc" id="L102">                        rhs.accentInvariantTitle.compareTo(lhs.accentInvariantTitle, true)</span>
+                    } else {
+<span class="nc" id="L104">                        0</span>
+<span class="nc" id="L105">                    }</span>
+                }
+<span class="nc" id="L107">                SORT_BY_RECENT_ASC -&gt; lists.sortWith { lhs: Any?, rhs: Any? -&gt;</span>
+<span class="nc bnc" id="L108" title="All 4 branches missed.">                    if (lhs is ReadingList &amp;&amp; rhs is ReadingList) {</span>
+<span class="nc" id="L109">                        rhs.mtime.compareTo(lhs.mtime)</span>
+                    } else {
+<span class="nc" id="L111">                        0</span>
+<span class="nc" id="L112">                    }</span>
+                }
+<span class="nc" id="L114">                SORT_BY_RECENT_DESC -&gt; lists.sortWith { lhs: Any?, rhs: Any? -&gt;</span>
+<span class="nc bnc" id="L115" title="All 4 branches missed.">                    if (lhs is ReadingList &amp;&amp; rhs is ReadingList) {</span>
+<span class="nc" id="L116">                        lhs.mtime.compareTo(rhs.mtime)</span>
+                    } else {
+<span class="nc" id="L118">                        0</span>
+<span class="nc" id="L119">                    }</span>
+                }
+            }
+
+            // make the Default list sticky on top, regardless of sorting.
+<span class="nc bnc" id="L124" title="All 6 branches missed.">            lists.firstOrNull { it is ReadingList &amp;&amp; it.isDefault }?.let {</span>
+<span class="nc" id="L125">                lists.remove(it)</span>
+<span class="nc" id="L126">                lists.add(0, it)</span>
+<span class="nc" id="L127">            }</span>
+<span class="nc" id="L128">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

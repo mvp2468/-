@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShareHandler.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.page.shareafact</a> &gt; <span class="el_source">ShareHandler.kt</span></div><h1>ShareHandler.kt</h1><pre class="source lang-java linenums">package org.wikipedia.page.shareafact
+
+import android.view.ActionMode
+import android.view.MenuItem
+import kotlinx.serialization.Serializable
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.bridge.CommunicationBridge
+import org.wikipedia.bridge.JavaScriptActionHandler
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.PageFragment
+import org.wikipedia.util.log.L
+import org.wikipedia.wiktionary.WiktionaryDialog
+
+<span class="nc" id="L15">class ShareHandler(private val fragment: PageFragment, private val bridge: CommunicationBridge) {</span>
+    private var webViewActionMode: ActionMode? = null
+
+    private fun onEditHerePayload(sectionID: Int, text: String, isEditingDescription: Boolean) {
+<span class="nc bnc" id="L19" title="All 4 branches missed.">        if (sectionID == 0 &amp;&amp; isEditingDescription) {</span>
+<span class="nc" id="L20">            fragment.verifyBeforeEditingDescription(text, Constants.InvokeSource.PAGE_EDIT_HIGHLIGHT)</span>
+        } else {
+<span class="nc bnc" id="L22" title="All 2 branches missed.">            if (sectionID &gt;= 0) {</span>
+<span class="nc" id="L23">                fragment.editHandler.startEditingSection(sectionID, text)</span>
+            }
+        }
+<span class="nc" id="L26">    }</span>
+
+    private fun finishActionMode() {
+<span class="nc bnc" id="L29" title="All 2 branches missed.">        webViewActionMode?.run {</span>
+<span class="nc" id="L30">            finish()</span>
+<span class="nc" id="L31">            webViewActionMode = null</span>
+<span class="nc" id="L32">        }</span>
+<span class="nc" id="L33">    }</span>
+
+    fun showWiktionaryDefinition(text: String) {
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        fragment.title?.let {</span>
+<span class="nc" id="L37">            fragment.showBottomSheet(WiktionaryDialog.newInstance(it, text))</span>
+<span class="nc" id="L38">        }</span>
+<span class="nc" id="L39">    }</span>
+
+    fun onTextSelected(mode: ActionMode) {
+<span class="nc" id="L42">        webViewActionMode = mode</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">        mode.menu.findItem(R.id.menu_text_select_define)?.run {</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">            if (shouldEnableWiktionaryDialog()) {</span>
+<span class="nc" id="L45">                isVisible = true</span>
+<span class="nc" id="L46">                setOnMenuItemClickListener(RequestTextSelectOnMenuItemClickListener(PAYLOAD_PURPOSE_DEFINE))</span>
+            }
+<span class="nc" id="L48">        }</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        mode.menu.findItem(R.id.menu_text_edit_here)?.run {</span>
+<span class="nc" id="L50">            setOnMenuItemClickListener(RequestTextSelectOnMenuItemClickListener(PAYLOAD_PURPOSE_EDIT_HERE))</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            fragment.page?.run {</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                if (!isArticle) {</span>
+<span class="nc" id="L53">                    isVisible = false</span>
+                }
+<span class="nc" id="L55">            }</span>
+        }
+<span class="nc" id="L57">        mode.invalidateContentRect()</span>
+<span class="nc" id="L58">    }</span>
+
+    fun shouldEnableWiktionaryDialog(): Boolean {
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        return fragment.title?.run { WiktionaryDialog.enabledLanguages.contains(wikiSite.languageCode) } ?: false</span>
+    }
+
+<span class="nc" id="L64">    private inner class RequestTextSelectOnMenuItemClickListener constructor(private val purpose: String) : MenuItem.OnMenuItemClickListener {</span>
+        override fun onMenuItemClick(item: MenuItem): Boolean {
+            // send an event to the WebView that will make it return the
+            // selected text (or first paragraph) back to us...
+<span class="nc" id="L68">            bridge.evaluate(JavaScriptActionHandler.getTextSelection()) { value -&gt;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">                if (!fragment.isAdded) {</span>
+<span class="nc" id="L70">                    return@evaluate</span>
+                }
+<span class="nc" id="L72">                finishActionMode()</span>
+<span class="nc" id="L73">                try {</span>
+<span class="nc" id="L74">                    val message = JsonUtil.decodeFromString&lt;TextSelectResponse&gt;(value)!!</span>
+<span class="nc" id="L75">                    when (purpose) {</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                        PAYLOAD_PURPOSE_DEFINE -&gt; showWiktionaryDefinition(message.text)</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                        PAYLOAD_PURPOSE_EDIT_HERE -&gt; onEditHerePayload(message.section, message.text, message.isTitleDescription)</span>
+<span class="nc" id="L78">                        else -&gt; L.d(&quot;Unknown purpose=$purpose&quot;)</span>
+                    }
+<span class="nc" id="L80">                } catch (e: Exception) {</span>
+<span class="nc" id="L81">                    e.printStackTrace()</span>
+                }
+<span class="nc" id="L83">            }</span>
+<span class="nc" id="L84">            return true</span>
+        }
+    }
+
+<span class="nc" id="L88">    @Serializable</span>
+    private class TextSelectResponse {
+<span class="nc" id="L90">        val text: String = &quot;&quot;</span>
+<span class="nc" id="L91">        val section: Int = 0</span>
+<span class="nc" id="L92">        val isTitleDescription: Boolean = false</span>
+    }
+
+    companion object {
+        private const val PAYLOAD_PURPOSE_DEFINE = &quot;define&quot;
+        private const val PAYLOAD_PURPOSE_EDIT_HERE = &quot;edit_here&quot;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

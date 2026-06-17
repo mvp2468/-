@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CoilImageServiceLoader.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views.imageservice</a> &gt; <span class="el_source">CoilImageServiceLoader.kt</span></div><h1>CoilImageServiceLoader.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views.imageservice
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.widget.ImageView
+import androidx.annotation.DrawableRes
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
+import coil3.Image
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.imageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.ErrorResult
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.allowRgb565
+import coil3.request.error
+import coil3.request.placeholder
+import coil3.request.target
+import coil3.request.transformations
+import coil3.toBitmap
+import org.wikipedia.R
+import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="fc" id="L30">class CoilImageServiceLoader : ImageServiceLoader {</span>
+<span class="fc" id="L31">    private var factory = SingletonImageLoader.Factory { context -&gt;</span>
+<span class="nc" id="L32">        ImageLoader.Builder(context)</span>
+<span class="nc" id="L33">            .components {</span>
+<span class="nc" id="L34">                add(</span>
+<span class="nc" id="L35">                    OkHttpNetworkFetcherFactory(</span>
+                        callFactory = {
+<span class="nc" id="L37">                            OkHttpConnectionFactory.client</span>
+                        }
+                    )
+                )
+<span class="nc" id="L41">            }</span>
+<span class="nc" id="L42">            .allowRgb565(true)</span>
+<span class="nc" id="L43">            .build()</span>
+    }
+
+<span class="fc" id="L46">    init {</span>
+<span class="fc" id="L47">        SingletonImageLoader.setSafe(factory)</span>
+<span class="fc" id="L48">    }</span>
+
+    override fun loadImage(
+        imageView: ImageView,
+        url: String?,
+        detectFace: Boolean?,
+        force: Boolean?,
+        @DrawableRes placeholderId: Int?,
+        listener: ImageLoadListener?
+    ) {
+<span class="nc" id="L58">        val context = imageView.context</span>
+<span class="nc" id="L59">        val request = getRequestBuilder(context, url, detectFace, force, placeholderId, listener).target(imageView).build()</span>
+<span class="nc" id="L60">        context.imageLoader.enqueue(request)</span>
+<span class="nc" id="L61">    }</span>
+
+    override fun loadImage(
+        context: Context,
+        imageUrl: String?,
+        whiteBackground: Boolean,
+        onSuccess: (Bitmap) -&gt; Unit
+    ) {
+<span class="nc" id="L69">        val request = ImageRequest.Builder(context)</span>
+<span class="nc" id="L70">            .data(imageUrl)</span>
+<span class="nc" id="L71">            .apply {</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                if (whiteBackground) {</span>
+<span class="nc" id="L73">                    transformations(WhiteBackgroundTransformation())</span>
+                }
+<span class="nc" id="L75">            }</span>
+<span class="nc" id="L76">            .target(</span>
+                onSuccess = { result -&gt;
+<span class="nc" id="L78">                    onSuccess(result.toBitmap())</span>
+<span class="nc" id="L79">                }</span>
+            )
+<span class="nc" id="L81">            .build()</span>
+<span class="nc" id="L82">        context.imageLoader.enqueue(request)</span>
+<span class="nc" id="L83">    }</span>
+
+    override fun getRequest(
+        context: Context,
+        url: String?,
+        detectFace: Boolean?,
+        force: Boolean?,
+        placeholderId: Int?,
+        listener: ImageLoadListener?
+    ): Any {
+<span class="nc" id="L93">        return getRequestBuilder(context, url, detectFace, force, placeholderId, listener).build()</span>
+    }
+
+    fun getRequestBuilder(
+        context: Context,
+        url: String?,
+        detectFace: Boolean?,
+        force: Boolean?,
+        placeholderId: Int?,
+        listener: ImageLoadListener?
+    ): ImageRequest.Builder {
+<span class="nc bnc" id="L104" title="All 10 branches missed.">        val imageUrl = if ((Prefs.isImageDownloadEnabled || force == true) &amp;&amp; !url.isNullOrEmpty()) url.toUri() else null</span>
+<span class="nc" id="L105">        val requestBuilder = ImageRequest.Builder(context)</span>
+<span class="nc" id="L106">            .data(imageUrl)</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (placeholderId != null) {</span>
+<span class="nc" id="L109">            requestBuilder.placeholder(placeholderId).error(placeholderId)</span>
+        } else {
+<span class="nc" id="L111">            val placeHolder = ResourceUtil.getThemedColor(context, R.attr.border_color).toDrawable()</span>
+<span class="nc" id="L112">            requestBuilder.placeholder(placeHolder).error(placeHolder)</span>
+        }
+<span class="nc" id="L114">        when {</span>
+<span class="nc bnc" id="L115" title="All 4 branches missed.">            (detectFace == true &amp;&amp; shouldDetectFace(url)) -&gt; requestBuilder.transformations(FaceDetectTransformation(), DimImageTransformation())</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            !ImageUrlUtil.isGif(url) -&gt; requestBuilder.transformations(WhiteBackgroundTransformation(), DimImageTransformation())</span>
+        }
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (listener != null) {</span>
+<span class="nc" id="L120">            requestBuilder.listener(object : ImageRequest.Listener {</span>
+                override fun onError(request: ImageRequest, result: ErrorResult) {
+<span class="nc" id="L122">                    listener.onError(error = result.throwable)</span>
+<span class="nc" id="L123">                }</span>
+
+                override fun onSuccess(request: ImageRequest, result: SuccessResult) {
+<span class="nc" id="L126">                    listener.onSuccess(result, result.image.width, result.image.height)</span>
+<span class="nc" id="L127">                }</span>
+            })
+        }
+<span class="nc" id="L130">        return requestBuilder</span>
+    }
+
+    override fun getBitmap(image: Any): Bitmap {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (image is Image) {</span>
+<span class="nc" id="L135">            return image.toBitmap()</span>
+        }
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        if (image is Bitmap) {</span>
+<span class="nc" id="L138">            return image</span>
+        }
+<span class="nc" id="L140">        return createBitmap(1, 1)</span>
+    }
+
+    private fun shouldDetectFace(url: String?): Boolean {
+<span class="nc bnc" id="L144" title="All 6 branches missed.">        if (url.isNullOrEmpty()) return false</span>
+        // TODO: not perfect; should ideally detect based on MIME type.
+<span class="nc bnc" id="L146" title="All 6 branches missed.">        return url.endsWith(&quot;.jpg&quot;, true) || url.endsWith(&quot;.jpeg&quot;, true) || url.endsWith(&quot;.png&quot;, true)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

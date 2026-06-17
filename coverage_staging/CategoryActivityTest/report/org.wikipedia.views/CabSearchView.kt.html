@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CabSearchView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">CabSearchView.kt</span></div><h1>CabSearchView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.text.InputFilter
+import android.text.Spanned
+import android.util.AttributeSet
+import android.util.TypedValue
+import android.widget.ImageView
+import androidx.appcompat.widget.SearchView
+import androidx.core.view.isGone
+import org.wikipedia.R
+import org.wikipedia.richtext.RichTextUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L17">class CabSearchView(</span>
+    context: Context,
+<span class="nc" id="L19">    attrs: AttributeSet? = null</span>
+<span class="nc" id="L20">) : SearchView(context, attrs, androidx.appcompat.R.attr.searchViewStyle) {</span>
+
+    private val searchCloseBtn: ImageView
+    @SuppressLint(&quot;RestrictedApi&quot;)
+    private val searchSrcTextView: SearchAutoComplete
+
+<span class="nc" id="L26">    init {</span>
+<span class="nc" id="L27">        val themedIconColor = ResourceUtil.getThemedColor(getContext(), R.attr.placeholder_color)</span>
+<span class="nc" id="L28">        searchSrcTextView = findViewById(androidx.appcompat.R.id.search_src_text)</span>
+<span class="nc" id="L29">        searchSrcTextView.setTextColor(ResourceUtil.getThemedColor(getContext(), R.attr.primary_color))</span>
+<span class="nc" id="L30">        searchSrcTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, SEARCH_TEXT_SIZE.toFloat())</span>
+<span class="nc" id="L31">        searchSrcTextView.setHintTextColor(themedIconColor)</span>
+<span class="nc" id="L32">        searchCloseBtn = findViewById(androidx.appcompat.R.id.search_close_btn)</span>
+<span class="nc" id="L33">        searchCloseBtn.visibility = GONE</span>
+<span class="nc" id="L34">        searchCloseBtn.setColorFilter(themedIconColor)</span>
+<span class="nc" id="L35">        FeedbackUtil.setButtonTooltip(searchCloseBtn)</span>
+<span class="nc" id="L36">        searchSrcTextView.filters += PlainTextInputFilter()</span>
+<span class="nc" id="L37">    }</span>
+
+    fun selectAllQueryTexts() {
+<span class="nc" id="L40">        searchSrcTextView.selectAll()</span>
+<span class="nc" id="L41">    }</span>
+
+    fun setSearchHintTextColor(color: Int) {
+<span class="nc" id="L44">        searchSrcTextView.setHintTextColor(color)</span>
+<span class="nc" id="L45">    }</span>
+
+    fun setCloseButtonVisibility(searchString: String?) {
+<span class="nc bnc" id="L48" title="All 4 branches missed.">        val isEmpty = searchString.isNullOrEmpty()</span>
+<span class="nc" id="L49">        searchCloseBtn.isGone = isEmpty</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        searchCloseBtn.setImageResource(if (isEmpty) 0 else R.drawable.ic_close_black_24dp)</span>
+<span class="nc" id="L51">        searchCloseBtn.imageTintList = ResourceUtil.getThemedColorStateList(context, R.attr.placeholder_color)</span>
+<span class="nc" id="L52">    }</span>
+
+    fun setCloseButtonClickListener(listener: OnClickListener) {
+<span class="nc" id="L55">        searchCloseBtn.setOnClickListener(listener)</span>
+<span class="nc" id="L56">    }</span>
+
+<span class="nc" id="L58">    private class PlainTextInputFilter : InputFilter {</span>
+        override fun filter(source: CharSequence, start: Int, end: Int, dest: Spanned,
+                            dstart: Int, dend: Int): CharSequence {
+<span class="nc" id="L61">            return RichTextUtil.stripRichText(source, start, end).subSequence(start, end)</span>
+        }
+    }
+
+    companion object {
+        private const val SEARCH_TEXT_SIZE = 16
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

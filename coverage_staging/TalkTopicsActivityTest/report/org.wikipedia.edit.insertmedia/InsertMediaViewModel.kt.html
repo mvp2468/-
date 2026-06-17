@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InsertMediaViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.edit.insertmedia</a> &gt; <span class="el_source">InsertMediaViewModel.kt</span></div><h1>InsertMediaViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.edit.insertmedia
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.paging.*
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.page.PageTitle
+import org.wikipedia.staticdata.FileAliasData
+import org.wikipedia.util.L10nUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L19">class InsertMediaViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+<span class="nc" id="L20">    val invokeSource = savedStateHandle.get&lt;Constants.InvokeSource&gt;(Constants.INTENT_EXTRA_INVOKE_SOURCE)!!</span>
+<span class="nc" id="L21">    val wikiSite = savedStateHandle.get&lt;WikiSite&gt;(Constants.ARG_WIKISITE)!!</span>
+<span class="nc" id="L22">    var searchQuery = StringUtil.removeHTMLTags(StringUtil.removeUnderscores(savedStateHandle[InsertMediaActivity.EXTRA_SEARCH_QUERY]!!))</span>
+<span class="nc" id="L23">    val originalSearchQuery = searchQuery</span>
+<span class="nc" id="L24">    var selectedImage = savedStateHandle.get&lt;PageTitle&gt;(InsertMediaActivity.EXTRA_IMAGE_TITLE)</span>
+<span class="nc bnc" id="L25" title="All 2 branches missed.">    var selectedImageSource = savedStateHandle[InsertMediaActivity.EXTRA_IMAGE_SOURCE] ?: &quot;&quot;</span>
+<span class="nc bnc" id="L26" title="All 2 branches missed.">    var selectedImageSourceProjects = savedStateHandle[InsertMediaActivity.EXTRA_IMAGE_SOURCE_PROJECTS] ?: &quot;&quot;</span>
+<span class="nc bnc" id="L27" title="All 2 branches missed.">    var imagePosition = savedStateHandle[InsertMediaActivity.RESULT_IMAGE_POS]</span>
+<span class="nc" id="L28">        ?: defaultImagePositionForLang(wikiSite.languageCode)</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">    var imageType = savedStateHandle[InsertMediaActivity.RESULT_IMAGE_TYPE] ?: IMAGE_TYPE_THUMBNAIL</span>
+<span class="nc bnc" id="L30" title="All 2 branches missed.">    var imageSize = savedStateHandle[InsertMediaActivity.RESULT_IMAGE_SIZE] ?: IMAGE_SIZE_DEFAULT</span>
+
+<span class="nc" id="L32">    val insertMediaFlow = Pager(PagingConfig(pageSize = 10)) {</span>
+<span class="nc" id="L33">        InsertMediaPagingSource(searchQuery)</span>
+<span class="nc" id="L34">    }.flow.cachedIn(viewModelScope)</span>
+
+<span class="nc" id="L36">    init {</span>
+<span class="nc" id="L37">        loadMagicWords()</span>
+<span class="nc" id="L38">    }</span>
+
+<span class="nc" id="L40">    class InsertMediaPagingSource(val searchQuery: String) : PagingSource&lt;Int, PageTitle&gt;() {</span>
+<span class="nc" id="L41">        override suspend fun load(params: LoadParams&lt;Int&gt;): LoadResult&lt;Int, PageTitle&gt; {</span>
+<span class="nc" id="L42">            return try {</span>
+<span class="nc" id="L43">                val wikiSite = WikiSite(Service.COMMONS_URL)</span>
+<span class="nc" id="L44">                val response = ServiceFactory.get(WikiSite(Service.COMMONS_URL))</span>
+<span class="nc" id="L45">                    .fullTextSearchCommons(searchQuery, params.loadSize, params.key)</span>
+
+<span class="nc bnc" id="L47" title="All 4 branches missed.">                return response.query?.pages?.let { list -&gt;</span>
+<span class="nc" id="L48">                    val results = list.sortedBy { it.index }.filter { it.imageInfo() != null }.map {</span>
+<span class="nc" id="L49">                        val pageTitle = PageTitle(it.title, wikiSite, it.thumbUrl())</span>
+                        // since this is an imageinfo query, the thumb URL and description will
+                        // come from image metadata.
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                        it.imageInfo()?.let { imageInfo -&gt;</span>
+<span class="nc" id="L53">                            pageTitle.thumbUrl = imageInfo.thumbUrl</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                            pageTitle.description = imageInfo.metadata?.imageDescription()</span>
+<span class="nc" id="L55">                        }</span>
+<span class="nc" id="L56">                        pageTitle</span>
+                    }
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                    LoadResult.Page(results, null, response.continuation?.gsroffset)</span>
+<span class="nc" id="L59">                } ?: run {</span>
+<span class="nc" id="L60">                    LoadResult.Page(emptyList(), null, null)</span>
+                }
+<span class="nc" id="L62">            } catch (e: Exception) {</span>
+<span class="nc" id="L63">                LoadResult.Error(e)</span>
+            }
+        }
+
+        override fun getRefreshKey(state: PagingState&lt;Int, PageTitle&gt;): Int? {
+<span class="nc" id="L68">            return null</span>
+        }
+    }
+
+    @Suppress(&quot;KotlinConstantConditions&quot;)
+    private fun loadMagicWords() {
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if (magicWordsLang == wikiSite.languageCode) {</span>
+<span class="nc" id="L75">            return</span>
+        }
+
+<span class="nc" id="L78">        initMagicWords()</span>
+
+<span class="nc" id="L80">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L81">            L.e(throwable)</span>
+<span class="nc" id="L82">        }) {</span>
+<span class="nc" id="L83">            ServiceFactory.get(wikiSite).getSiteInfoWithMagicWords()</span>
+<span class="nc bnc" id="L84" title="All 4 branches missed.">                .query?.magicwords?.let { it -&gt;</span>
+<span class="nc bnc" id="L85" title="All 10 branches missed.">                    it.find { it.name == IMAGE_POSITION_NONE }?.aliases?.first()?.let { magicWords[IMAGE_POSITION_NONE] = it }</span>
+<span class="nc bnc" id="L86" title="All 10 branches missed.">                    it.find { it.name == IMAGE_POSITION_CENTER }?.aliases?.first()?.let { magicWords[IMAGE_POSITION_CENTER] = it }</span>
+<span class="nc bnc" id="L87" title="All 10 branches missed.">                    it.find { it.name == IMAGE_POSITION_LEFT }?.aliases?.first()?.let { magicWords[IMAGE_POSITION_LEFT] = it }</span>
+<span class="nc bnc" id="L88" title="All 10 branches missed.">                    it.find { it.name == IMAGE_POSITION_RIGHT }?.aliases?.first()?.let { magicWords[IMAGE_POSITION_RIGHT] = it }</span>
+<span class="nc bnc" id="L89" title="All 10 branches missed.">                    it.find { it.name == IMAGE_TYPE_THUMBNAIL }?.aliases?.first()?.let { magicWords[IMAGE_TYPE_THUMBNAIL] = it }</span>
+<span class="nc bnc" id="L90" title="All 10 branches missed.">                    it.find { it.name == IMAGE_TYPE_FRAMELESS }?.aliases?.first()?.let { magicWords[IMAGE_TYPE_FRAMELESS] = it }</span>
+<span class="nc bnc" id="L91" title="All 10 branches missed.">                    it.find { it.name == IMAGE_TYPE_FRAME }?.aliases?.first()?.let { magicWords[IMAGE_TYPE_FRAME] = it }</span>
+<span class="nc bnc" id="L92" title="All 10 branches missed.">                    it.find { it.name == IMAGE_ALT_TEXT }?.aliases?.first()?.let { magicWords[IMAGE_ALT_TEXT] = it }</span>
+<span class="nc bnc" id="L93" title="All 10 branches missed.">                    it.find { it.name == IMAGE_POSITION_NONE }?.aliases?.first()?.let { magicWords[IMAGE_POSITION_NONE] = it }</span>
+                }
+<span class="nc" id="L95">            magicWordsLang = wikiSite.languageCode</span>
+<span class="nc" id="L96">        }</span>
+<span class="nc" id="L97">    }</span>
+
+<span class="nc" id="L99">    class InfoboxVars(</span>
+<span class="nc" id="L100">        val templateNameContains: String,</span>
+<span class="nc" id="L101">        val imageParamName: String,</span>
+<span class="nc" id="L102">        val imageCaptionParamName: String,</span>
+<span class="nc" id="L103">        val imageAltParamName: String,</span>
+    )
+
+<span class="nc" id="L106">    class InfoboxVarsCollection(</span>
+<span class="nc" id="L107">        val templateNameRegex: String,</span>
+<span class="nc" id="L108">        val defaultImageParamName: String,</span>
+<span class="nc" id="L109">        val defaultImageCaptionParamName: String,</span>
+<span class="nc" id="L110">        val defaultImageAltParamName: String,</span>
+<span class="nc" id="L111">        val possibleNameParamNames: Array&lt;String&gt;,</span>
+<span class="nc" id="L112">        val vars: List&lt;InfoboxVars&gt;</span>
+    )
+
+    companion object {
+        const val IMAGE_POSITION_NONE = &quot;img_none&quot;
+        const val IMAGE_POSITION_CENTER = &quot;img_center&quot;
+        const val IMAGE_POSITION_LEFT = &quot;img_left&quot;
+        const val IMAGE_POSITION_RIGHT = &quot;img_right&quot;
+        const val IMAGE_TYPE_THUMBNAIL = &quot;img_thumbnail&quot;
+        const val IMAGE_TYPE_FRAMELESS = &quot;img_frameless&quot;
+        const val IMAGE_TYPE_FRAME = &quot;img_framed&quot;
+        const val IMAGE_TYPE_BASIC = &quot;basic&quot;
+        const val IMAGE_ALT_TEXT = &quot;img_alt&quot;
+        const val IMAGE_SIZE_DEFAULT = &quot;220x124&quot;
+
+<span class="nc" id="L127">        private val infoboxVarsByLang = mapOf(</span>
+<span class="nc" id="L128">            &quot;en&quot; to InfoboxVarsCollection(&quot;infobox|(?:(?:automatic[ |_])?taxobox)|chembox|drugbox|speciesbox&quot;,</span>
+<span class="nc" id="L129">                &quot;image&quot;, &quot;caption&quot;, &quot;alt&quot;,</span>
+<span class="nc" id="L130">                arrayOf(&quot;name&quot;, &quot;official_name&quot;, &quot;species&quot;, &quot;taxon&quot;, &quot;drug_name&quot;, &quot;image&quot;),</span>
+<span class="nc" id="L131">                listOf(</span>
+<span class="nc" id="L132">                    InfoboxVars(&quot;taxobox&quot;, &quot;image&quot;, &quot;image_caption&quot;, &quot;image_alt&quot;),</span>
+<span class="nc" id="L133">                    InfoboxVars(&quot;chembox&quot;, &quot;ImageFile&quot;, &quot;ImageCaption&quot;, &quot;ImageAlt&quot;),</span>
+<span class="nc" id="L134">                    InfoboxVars(&quot;speciesbox&quot;, &quot;image&quot;, &quot;image_caption&quot;, &quot;image_alt&quot;),</span>
+<span class="nc" id="L135">                    InfoboxVars(&quot;infobox.*place&quot;, &quot;image_skyline&quot;, &quot;image_caption&quot;, &quot;image_alt&quot;),</span>
+<span class="nc" id="L136">                    InfoboxVars(&quot;infobox.*settlement&quot;, &quot;image_skyline&quot;, &quot;image_caption&quot;, &quot;image_alt&quot;)</span>
+                )
+            ),
+        )
+
+<span class="nc" id="L141">        private var magicWordsLang = &quot;&quot;</span>
+<span class="nc" id="L142">        private val magicWords = mutableMapOf&lt;String, String&gt;()</span>
+
+        fun initMagicWords() {
+<span class="nc" id="L145">            magicWords[IMAGE_POSITION_NONE] = &quot;none&quot;</span>
+<span class="nc" id="L146">            magicWords[IMAGE_POSITION_CENTER] = &quot;center&quot;</span>
+<span class="nc" id="L147">            magicWords[IMAGE_POSITION_LEFT] = &quot;left&quot;</span>
+<span class="nc" id="L148">            magicWords[IMAGE_POSITION_RIGHT] = &quot;right&quot;</span>
+<span class="nc" id="L149">            magicWords[IMAGE_TYPE_THUMBNAIL] = &quot;thumb&quot;</span>
+<span class="nc" id="L150">            magicWords[IMAGE_TYPE_FRAMELESS] = &quot;frameless&quot;</span>
+<span class="nc" id="L151">            magicWords[IMAGE_TYPE_FRAME] = &quot;frame&quot;</span>
+<span class="nc" id="L152">            magicWords[IMAGE_ALT_TEXT] = &quot;alt=$1&quot;</span>
+<span class="nc" id="L153">        }</span>
+
+        fun defaultImagePositionForLang(langCode: String): String {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">            return if (L10nUtil.isLangRTL(langCode)) IMAGE_POSITION_LEFT else IMAGE_POSITION_RIGHT</span>
+        }
+
+<span class="nc" id="L159">        fun insertImageIntoWikiText(langCode: String, oldWikiText: String, imageTitle: String, imageCaption: String,</span>
+                                    imageAltText: String, imageSize: String, imageType: String, imagePos: String,
+<span class="nc" id="L161">                                    cursorPos: Int = 0, autoInsert: Boolean = false, attemptInfobox: Boolean = false): Triple&lt;String, Boolean, Pair&lt;Int, Int&gt;&gt; {</span>
+<span class="nc" id="L162">            var wikiText = oldWikiText</span>
+<span class="nc" id="L163">            val namespaceName = FileAliasData.valueFor(langCode)</span>
+
+<span class="nc" id="L165">            var template = &quot;[[$namespaceName:$imageTitle&quot;</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            if (imageSize != IMAGE_SIZE_DEFAULT) {</span>
+<span class="nc" id="L167">                template += &quot;|${imageSize}px&quot;</span>
+            }
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            magicWords[imageType]?.let { type -&gt;</span>
+<span class="nc" id="L170">                template += &quot;|$type&quot;</span>
+<span class="nc" id="L171">            }</span>
+<span class="nc bnc" id="L172" title="All 4 branches missed.">            if (!(imageType == IMAGE_TYPE_THUMBNAIL &amp;&amp; imagePos == defaultImagePositionForLang(langCode))) {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                magicWords[imagePos]?.let { pos -&gt;</span>
+<span class="nc" id="L174">                    template += &quot;|$pos&quot;</span>
+<span class="nc" id="L175">                }</span>
+            }
+<span class="nc bnc" id="L177" title="All 4 branches missed.">            if (imageAltText.isNotEmpty()) {</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                template += &quot;|&quot; + magicWords[IMAGE_ALT_TEXT].orEmpty().replace(&quot;$1&quot;, imageAltText)</span>
+            }
+<span class="nc bnc" id="L180" title="All 4 branches missed.">            if (imageCaption.isNotEmpty()) {</span>
+<span class="nc" id="L181">                template += &quot;|$imageCaption&quot;</span>
+            }
+<span class="nc" id="L183">            template += &quot;]]&quot;</span>
+
+            // But before we resort to inserting the image at the top of the wikitext, let's see if
+            // the article has an infobox, and if so, see if we can inject the image right in there.
+
+<span class="nc" id="L188">            var insertedIntoInfobox = false</span>
+<span class="nc" id="L189">            var insertLocation = 0</span>
+<span class="nc" id="L190">            var insertLength = 0</span>
+
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            val infoboxVars = infoboxVarsByLang[langCode] ?: infoboxVarsByLang[&quot;en&quot;]!!</span>
+
+            // initialize template parameters to the defaults for Infobox
+<span class="nc" id="L195">            var imageParamName = infoboxVars.defaultImageParamName</span>
+<span class="nc" id="L196">            var imageCaptionParamName = infoboxVars.defaultImageCaptionParamName</span>
+<span class="nc" id="L197">            var imageAltParamName = infoboxVars.defaultImageAltParamName</span>
+
+<span class="nc" id="L199">            val infoboxMatch = &quot;&quot;&quot;\{\{\s*((${infoboxVars.templateNameRegex})[^|]*)\|.*\}\}&quot;&quot;&quot;.toRegex(setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)).find(wikiText)</span>
+<span class="nc bnc" id="L200" title="All 6 branches missed.">            val infoBoxName = infoboxMatch?.groupValues?.get(1).orEmpty().lowercase().trim()</span>
+
+<span class="nc" id="L202">            infoboxVars.vars.forEach {</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                if (infoBoxName.contains(it.templateNameContains.toRegex(RegexOption.IGNORE_CASE))) {</span>
+<span class="nc" id="L204">                    imageParamName = it.imageParamName</span>
+<span class="nc" id="L205">                    imageCaptionParamName = it.imageCaptionParamName</span>
+<span class="nc" id="L206">                    imageAltParamName = it.imageAltParamName</span>
+                }
+<span class="nc" id="L208">            }</span>
+
+            // Verify a few conditions before attempting to insert into an infobox, including
+            // whether the infobox actually exists, and whether the current language wiki is
+            // supported by our hardcoded infoboxVars.
+<span class="nc bnc" id="L213" title="All 8 branches missed.">            if (autoInsert &amp;&amp; attemptInfobox &amp;&amp; infoboxMatch != null &amp;&amp; infoboxVarsByLang.containsKey(langCode)) {</span>
+<span class="nc" id="L214">                val infoboxStartIndex = infoboxMatch.range.first</span>
+<span class="nc" id="L215">                val infoboxEndIndex = infoboxMatch.range.last</span>
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">                val haveNameParam = findNameParamInTemplate(infoboxVars.possibleNameParamNames, wikiText, infoboxStartIndex, infoboxEndIndex).first != -1</span>
+
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                if (haveNameParam) {</span>
+<span class="nc" id="L220">                    var match = &quot;&quot;&quot;\|\s*$imageParamName\s*=([^|]*)(\|)&quot;&quot;&quot;.toRegex()</span>
+<span class="nc" id="L221">                        .find(wikiText, infoboxStartIndex)</span>
+<span class="nc bnc" id="L222" title="All 4 branches missed.">                    var group1 = match?.groups?.get(1)</span>
+<span class="nc bnc" id="L223" title="All 4 branches missed.">                    var group2 = match?.groups?.get(2)</span>
+
+<span class="nc bnc" id="L225" title="All 6 branches missed.">                    if (group1 != null &amp;&amp; group2 != null &amp;&amp; group2.range.first &lt; infoboxEndIndex) {</span>
+                        // an 'image' parameter already exists, so try to insert the image into it,
+                        // provided that it's empty.
+
+<span class="nc" id="L229">                        var insertPos = group2.range.first</span>
+<span class="nc" id="L230">                        val valueStr = group1.value</span>
+
+<span class="nc bnc" id="L232" title="All 4 branches missed.">                        if (valueStr.trim().isEmpty()) {</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                            if (valueStr.contains(&quot;\n&quot;)) {</span>
+<span class="nc" id="L234">                                insertPos = group1.range.first + valueStr.indexOf(&quot;\n&quot;)</span>
+                            }
+<span class="nc" id="L236">                            insertedIntoInfobox = true</span>
+<span class="nc" id="L237">                            wikiText = wikiText.substring(0, insertPos) + imageTitle + wikiText.substring(insertPos)</span>
+                        } else {
+                            // image parameter already has a value, so do nothing.
+                        }
+                    } else {
+                        // no 'image' parameter exists, so insert one at the end of the 'name' parameter.
+<span class="nc" id="L243">                        val (paramInsertPos, paramNameSpaceConvention) = findNameParamInTemplate(infoboxVars.possibleNameParamNames, wikiText, infoboxStartIndex, infoboxEndIndex)</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                        if (paramInsertPos &gt; 0) {</span>
+<span class="nc" id="L245">                            insertedIntoInfobox = true</span>
+<span class="nc" id="L246">                            val insertText = &quot;|$paramNameSpaceConvention$imageParamName = $imageTitle\n&quot;</span>
+<span class="nc" id="L247">                            wikiText = wikiText.substring(0, paramInsertPos) + insertText + wikiText.substring(paramInsertPos)</span>
+                        }
+                    }
+
+<span class="nc bnc" id="L251" title="All 6 branches missed.">                    if (insertedIntoInfobox &amp;&amp; imageCaption.isNotEmpty()) {</span>
+                        // now try to insert the caption
+<span class="nc" id="L253">                        match = &quot;&quot;&quot;\|\s*$imageCaptionParamName\s*=([^|]*)(\|)&quot;&quot;&quot;.toRegex()</span>
+<span class="nc" id="L254">                            .find(wikiText, infoboxStartIndex)</span>
+<span class="nc bnc" id="L255" title="All 4 branches missed.">                        group1 = match?.groups?.get(1)</span>
+<span class="nc bnc" id="L256" title="All 4 branches missed.">                        group2 = match?.groups?.get(2)</span>
+<span class="nc bnc" id="L257" title="All 6 branches missed.">                        if (group1 != null &amp;&amp; group2 != null &amp;&amp; group2.range.first &lt; infoboxEndIndex) {</span>
+                            // Caption field already exists, so insert into it.
+<span class="nc" id="L259">                            var insertPos = group2.range.first</span>
+<span class="nc" id="L260">                            val valueStr = group1.value</span>
+<span class="nc bnc" id="L261" title="All 4 branches missed.">                            if (valueStr.trim().isEmpty()) {</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">                                if (valueStr.contains(&quot;\n&quot;)) {</span>
+<span class="nc" id="L263">                                    insertPos = group1.range.first + valueStr.indexOf(&quot;\n&quot;)</span>
+                                }
+<span class="nc" id="L265">                                wikiText = wikiText.substring(0, insertPos) + imageCaption + wikiText.substring(insertPos)</span>
+                            }
+                        } else {
+                            // insert a new caption field
+<span class="nc" id="L269">                            val (paramInsertPos, paramNameSpaceConvention) = findNameParamInTemplate(infoboxVars.possibleNameParamNames, wikiText, infoboxStartIndex, infoboxEndIndex)</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                            if (paramInsertPos &gt; 0) {</span>
+<span class="nc" id="L271">                                val insertText = &quot;|$paramNameSpaceConvention$imageCaptionParamName = $imageCaption\n&quot;</span>
+<span class="nc" id="L272">                                wikiText = wikiText.substring(0, paramInsertPos) + insertText + wikiText.substring(paramInsertPos)</span>
+                            }
+                        }
+                    }
+
+<span class="nc bnc" id="L277" title="All 10 branches missed.">                    if (insertedIntoInfobox &amp;&amp; imageAltText.isNotEmpty() &amp;&amp; imageAltParamName.isNotEmpty()) {</span>
+                        // now try to insert alt text!
+<span class="nc" id="L279">                        match = &quot;&quot;&quot;\|\s*$imageAltParamName\s*=([^|]*)(\|)&quot;&quot;&quot;.toRegex()</span>
+<span class="nc" id="L280">                            .find(wikiText, infoboxStartIndex)</span>
+<span class="nc bnc" id="L281" title="All 4 branches missed.">                        group1 = match?.groups?.get(1)</span>
+<span class="nc bnc" id="L282" title="All 4 branches missed.">                        group2 = match?.groups?.get(2)</span>
+<span class="nc bnc" id="L283" title="All 6 branches missed.">                        if (group1 != null &amp;&amp; group2 != null &amp;&amp; group2.range.first &lt; infoboxEndIndex) {</span>
+                            // Caption field already exists, so insert into it.
+<span class="nc" id="L285">                            var insertPos = group2.range.first</span>
+<span class="nc" id="L286">                            val valueStr = group1.value</span>
+<span class="nc bnc" id="L287" title="All 4 branches missed.">                            if (valueStr.trim().isEmpty()) {</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">                                if (valueStr.contains(&quot;\n&quot;)) {</span>
+<span class="nc" id="L289">                                    insertPos = group1.range.first + valueStr.indexOf(&quot;\n&quot;)</span>
+                                }
+<span class="nc" id="L291">                                wikiText = wikiText.substring(0, insertPos) + imageAltText + wikiText.substring(insertPos)</span>
+                            }
+                        } else {
+                            // insert a new alt-text field
+<span class="nc" id="L295">                            val (paramInsertPos, paramNameSpaceConvention) = findNameParamInTemplate(infoboxVars.possibleNameParamNames, wikiText, infoboxStartIndex, infoboxEndIndex)</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">                            if (paramInsertPos &gt; 0) {</span>
+<span class="nc" id="L297">                                val insertText = &quot;|$paramNameSpaceConvention$imageAltParamName = $imageAltText\n&quot;</span>
+<span class="nc" id="L298">                                wikiText = wikiText.substring(0, paramInsertPos) + insertText + wikiText.substring(paramInsertPos)</span>
+                            }
+                        }
+                    }
+                }
+            }
+
+<span class="nc bnc" id="L305" title="All 2 branches missed.">            if (!insertedIntoInfobox) {</span>
+                // no infobox, so insert the image at the top of the page, but after any templates
+                // that might be hatnotes, etc.
+
+<span class="nc" id="L309">                var braceLevel = 0</span>
+<span class="nc" id="L310">                insertLocation = cursorPos</span>
+
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                if (autoInsert) {</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                    for (i in wikiText.indices) {</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                        if (wikiText[i] == '{') {</span>
+<span class="nc" id="L315">                            braceLevel++</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">                        } else if (wikiText[i] == '}') {</span>
+<span class="nc" id="L317">                            braceLevel--</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">                        } else if (braceLevel == 0) {</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                            if (!wikiText[i].isWhitespace()) {</span>
+<span class="nc" id="L320">                                insertLocation = i</span>
+<span class="nc" id="L321">                                break</span>
+                            }
+                        }
+                    }
+                }
+
+<span class="nc" id="L327">                insertLocation = insertLocation.coerceIn(0, wikiText.length)</span>
+<span class="nc" id="L328">                val insertText = template + &quot;\n&quot;</span>
+<span class="nc" id="L329">                insertLength = insertText.length</span>
+<span class="nc" id="L330">                wikiText = wikiText.substring(0, insertLocation) + insertText + wikiText.substring(insertLocation)</span>
+            }
+
+<span class="nc" id="L333">            return Triple(wikiText, insertedIntoInfobox, Pair(insertLocation, insertLength))</span>
+        }
+
+        private fun findNameParamInTemplate(possibleNameParamNames: Array&lt;String&gt;, wikiText: String, startIndex: Int, endIndex: Int): Pair&lt;Int, String&gt; {
+<span class="nc" id="L337">            var paramInsertPos = -1</span>
+<span class="nc" id="L338">            var paramNameSpaceConvention = &quot;&quot;</span>
+
+<span class="nc" id="L340">            possibleNameParamNames.forEach { nameParam -&gt;</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">                if (paramInsertPos != -1) {</span>
+<span class="nc" id="L342">                    return@forEach</span>
+                }
+<span class="nc" id="L344">                val regexName = &quot;&quot;&quot;\|(\s*)$nameParam\s*=([^|]*)(\|)&quot;&quot;&quot;.toRegex()</span>
+<span class="nc" id="L345">                val nameMatch = regexName.find(wikiText, startIndex)</span>
+<span class="nc bnc" id="L346" title="All 4 branches missed.">                val group1 = nameMatch?.groups?.get(1)</span>
+<span class="nc bnc" id="L347" title="All 4 branches missed.">                val group3 = nameMatch?.groups?.get(3)</span>
+<span class="nc bnc" id="L348" title="All 6 branches missed.">                if (group1 != null &amp;&amp; group3 != null &amp;&amp; group3.range.first &lt; endIndex) {</span>
+<span class="nc" id="L349">                    paramInsertPos = group3.range.first</span>
+<span class="nc" id="L350">                    paramNameSpaceConvention = group1.value</span>
+                }
+<span class="nc" id="L352">            }</span>
+<span class="nc" id="L353">            return Pair(paramInsertPos, paramNameSpaceConvention)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

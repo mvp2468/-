@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingListFragmentViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">ReadingListFragmentViewModel.kt</span></div><h1>ReadingListFragmentViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.readinglist.recommended.RecommendedReadingListHelper
+import org.wikipedia.readinglist.recommended.RecommendedReadingListUpdateFrequency
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.L10nUtil
+import org.wikipedia.util.Resource
+
+<span class="nc" id="L22">class ReadingListFragmentViewModel : ViewModel() {</span>
+
+<span class="nc" id="L24">    private val _updateListByIdFlow = MutableSharedFlow&lt;Resource&lt;ReadingList&gt;&gt;()</span>
+<span class="nc" id="L25">    val updateListByIdFlow = _updateListByIdFlow.asSharedFlow()</span>
+
+<span class="nc" id="L27">    private val _updateListFlow = MutableSharedFlow&lt;Resource&lt;ReadingList&gt;&gt;()</span>
+<span class="nc" id="L28">    val updateListFlow = _updateListFlow.asSharedFlow()</span>
+
+<span class="nc" id="L30">    private val _saveReadingListFlow = MutableSharedFlow&lt;Resource&lt;ReadingList&gt;&gt;()</span>
+<span class="nc" id="L31">    val saveReadingListFlow = _saveReadingListFlow.asSharedFlow()</span>
+
+<span class="nc" id="L33">    private val _deleteSelectedPagesFlow = MutableSharedFlow&lt;Resource&lt;List&lt;ReadingListPage&gt;&gt;&gt;()</span>
+<span class="nc" id="L34">    val deleteSelectedPagesFlow = _deleteSelectedPagesFlow.asSharedFlow()</span>
+
+<span class="nc" id="L36">    private val _recommendedListFlow = MutableStateFlow(Resource&lt;ReadingList&gt;())</span>
+<span class="nc" id="L37">    val recommendedListFlow = _recommendedListFlow.asStateFlow()</span>
+
+<span class="nc" id="L39">    private val _yirListFlow = MutableStateFlow(Resource&lt;ReadingList&gt;())</span>
+<span class="nc" id="L40">    val yirListFlow = _yirListFlow.asStateFlow()</span>
+
+    fun updateListById(readingListId: Long) {
+<span class="nc" id="L43">         viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L44">             viewModelScope.launch {</span>
+<span class="nc" id="L45">                 _updateListByIdFlow.emit(Resource.Error(throwable))</span>
+<span class="nc" id="L46">             }</span>
+<span class="nc" id="L47">        }) {</span>
+<span class="nc" id="L48">             val list = AppDatabase.instance.readingListDao().getListById(readingListId, true)</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">             if (list == null) {</span>
+<span class="nc" id="L50">                 _updateListByIdFlow.emit(Resource.Error(Throwable(L10nUtil.getString(R.string.error_message_generic))))</span>
+             } else {
+<span class="nc" id="L52">                 _updateListByIdFlow.emit(Resource.Success(list))</span>
+             }
+<span class="nc" id="L54">        }</span>
+<span class="nc" id="L55">    }</span>
+
+    fun updateList(emptyTitle: String, emptyDescription: String, encoded: Boolean) {
+<span class="nc" id="L58">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L59">            viewModelScope.launch {</span>
+<span class="nc" id="L60">                _updateListFlow.emit(Resource.Error(throwable))</span>
+<span class="nc" id="L61">            }</span>
+<span class="nc" id="L62">        }) {</span>
+<span class="nc" id="L63">            val json = Prefs.receiveReadingListsData</span>
+<span class="nc bnc" id="L64" title="All 6 branches missed.">            if (!json.isNullOrEmpty()) {</span>
+<span class="nc" id="L65">                val list = ReadingListsReceiveHelper.receiveReadingLists(emptyTitle, emptyDescription, json, encoded)</span>
+<span class="nc" id="L66">                _updateListFlow.emit(Resource.Success(list))</span>
+            }
+<span class="nc" id="L68">        }</span>
+<span class="nc" id="L69">    }</span>
+
+    fun saveReadingList(readingList: ReadingList) {
+<span class="nc" id="L72">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L73">            viewModelScope.launch {</span>
+<span class="nc" id="L74">                _saveReadingListFlow.emit(Resource.Error(throwable))</span>
+<span class="nc" id="L75">            }</span>
+<span class="nc" id="L76">        }) {</span>
+<span class="nc" id="L77">            readingList.id = AppDatabase.instance.readingListDao().insertReadingList(readingList)</span>
+<span class="nc" id="L78">            AppDatabase.instance.readingListPageDao().addPagesToList(readingList, readingList.pages, true)</span>
+<span class="nc" id="L79">            Prefs.readingListRecentReceivedId = readingList.id</span>
+<span class="nc" id="L80">            _saveReadingListFlow.emit(Resource.Success(readingList))</span>
+<span class="nc" id="L81">        }</span>
+<span class="nc" id="L82">    }</span>
+
+    fun deleteSelectedPages(readingList: ReadingList, pages: List&lt;ReadingListPage&gt;) {
+<span class="nc" id="L85">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L86">            viewModelScope.launch {</span>
+<span class="nc" id="L87">                _deleteSelectedPagesFlow.emit(Resource.Error(throwable))</span>
+<span class="nc" id="L88">            }</span>
+<span class="nc" id="L89">        }) {</span>
+<span class="nc bnc" id="L90" title="All 4 branches missed.">            if (pages.isNotEmpty()) {</span>
+<span class="nc" id="L91">                AppDatabase.instance.readingListPageDao().markPagesForDeletion(readingList, pages)</span>
+<span class="nc" id="L92">                _deleteSelectedPagesFlow.emit(Resource.Success(pages))</span>
+            }
+<span class="nc" id="L94">        }</span>
+<span class="nc" id="L95">    }</span>
+
+    fun generateRecommendedReadingList() {
+<span class="nc" id="L98">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L99">            viewModelScope.launch {</span>
+<span class="nc" id="L100">                _recommendedListFlow.value = Resource.Error(throwable)</span>
+<span class="nc" id="L101">            }</span>
+<span class="nc" id="L102">        }) {</span>
+<span class="nc" id="L103">            _recommendedListFlow.value = Resource.Loading()</span>
+<span class="nc" id="L104">            RecommendedReadingListHelper.generateRecommendedReadingList(shouldExpireOldPages = Prefs.resetRecommendedReadingList).let { list -&gt;</span>
+<span class="nc" id="L105">                val context = WikipediaApp.instance</span>
+<span class="nc bnc" id="L106" title="All 4 branches missed.">                if (list.isNotEmpty()) {</span>
+<span class="nc bnc" id="L107" title="All 3 branches missed.">                    val description = when (Prefs.recommendedReadingListUpdateFrequency) {</span>
+<span class="nc" id="L108">                        RecommendedReadingListUpdateFrequency.DAILY -&gt; R.string.recommended_reading_list_page_description_daily</span>
+<span class="nc" id="L109">                        RecommendedReadingListUpdateFrequency.WEEKLY -&gt; R.string.recommended_reading_list_page_description_weekly</span>
+<span class="nc" id="L110">                        RecommendedReadingListUpdateFrequency.MONTHLY -&gt; R.string.recommended_reading_list_page_description_monthly</span>
+                    }
+
+                    // Get the recommended reading list from the database
+<span class="nc" id="L114">                    val recommendedListPages = list.map {</span>
+<span class="nc" id="L115">                        ReadingListPage(</span>
+<span class="nc" id="L116">                            wiki = it.wiki,</span>
+<span class="nc" id="L117">                            lang = it.wiki.languageCode,</span>
+<span class="nc" id="L118">                            namespace = it.namespace,</span>
+<span class="nc" id="L119">                            displayTitle = it.displayTitle,</span>
+<span class="nc" id="L120">                            apiTitle = it.apiTitle,</span>
+<span class="nc" id="L121">                            description = it.description,</span>
+<span class="nc" id="L122">                            thumbUrl = it.thumbUrl,</span>
+<span class="nc" id="L123">                            remoteId = 0</span>
+<span class="nc" id="L124">                        ).apply {</span>
+<span class="nc" id="L125">                            mtime = System.currentTimeMillis()</span>
+<span class="nc" id="L126">                            atime = mtime</span>
+<span class="nc" id="L127">                        }</span>
+                    }
+<span class="nc" id="L129">                    val recommendedList = ReadingList(</span>
+<span class="nc" id="L130">                        listTitle = context.getString(R.string.recommended_reading_list_title),</span>
+<span class="nc" id="L131">                        description = context.getString(description)</span>
+<span class="nc" id="L132">                    ).apply {</span>
+<span class="nc" id="L133">                        pages.addAll(recommendedListPages)</span>
+<span class="nc" id="L134">                        mtime = System.currentTimeMillis()</span>
+<span class="nc" id="L135">                        atime = mtime</span>
+<span class="nc" id="L136">                    }</span>
+<span class="nc" id="L137">                    _recommendedListFlow.value = Resource.Success(recommendedList)</span>
+                } else {
+<span class="nc" id="L139">                    _recommendedListFlow.value = Resource.Error(Throwable(context.getString(R.string.error_message_generic)))</span>
+                }
+<span class="nc" id="L141">            }</span>
+<span class="nc" id="L142">        }</span>
+<span class="nc" id="L143">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

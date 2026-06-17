@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GamesHubViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games</a> &gt; <span class="el_source">GamesHubViewModel.kt</span></div><h1>GamesHubViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.feed.wikigames.OnThisDayCardGameState
+import org.wikipedia.games.onthisday.OnThisDayGameProvider
+import org.wikipedia.util.UiState
+import java.time.LocalDate
+
+<span class="nc" id="L19">class GamesHubViewModel : ViewModel() {</span>
+<span class="nc" id="L20">    private val _onThisDayGameUiState = MutableStateFlow&lt;UiState&lt;List&lt;OnThisDayCardGameState&gt;&gt;&gt;(UiState.Loading)</span>
+<span class="nc" id="L21">    val onThisDayGameUiState: StateFlow&lt;UiState&lt;List&lt;OnThisDayCardGameState&gt;&gt;&gt; = _onThisDayGameUiState.asStateFlow()</span>
+
+<span class="nc" id="L23">    var selectedLanguage: String = WikipediaApp.instance.languageState.appLanguageCodes.first {</span>
+<span class="nc" id="L24">        WikiGames.WHICH_CAME_FIRST.isLangSupported(it)</span>
+    }
+
+<span class="nc" id="L27">    init {</span>
+<span class="nc" id="L28">        loadOnThisDayGamesPreviews(selectedLanguage)</span>
+<span class="nc" id="L29">    }</span>
+
+    fun loadOnThisDayGamesPreviews(langCode: String) {
+<span class="nc" id="L32">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+            _onThisDayGameUiState.value = UiState.Error(throwable)
+        }) {
+            _onThisDayGameUiState.value = UiState.Loading
+            if (!WikiGames.WHICH_CAME_FIRST.isLangSupported(langCode)) {
+                _onThisDayGameUiState.value = UiState.Success(emptyList())
+                return@launch
+            }
+            // Get available languages for on this day game, and then get the today and last 3 days games by using the provider.
+            val gamesList = (0..3).map { i -&gt;
+                async {
+                    val wikiSite = WikiSite.forLanguageCode(langCode)
+                    OnThisDayGameProvider.getGameState(wikiSite, LocalDate.now().minusDays(i.toLong()), i != 0)
+                }
+            }.awaitAll()
+            _onThisDayGameUiState.value = UiState.Success(gamesList)
+        }
+<span class="nc" id="L49">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

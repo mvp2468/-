@@ -1,0 +1,583 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListInterestsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.recommended</a> &gt; <span class="el_source">RecommendedReadingListInterestsFragment.kt</span></div><h1>RecommendedReadingListInterestsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.recommended
+
+import android.app.Activity.RESULT_OK
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.BrushPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
+import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.RecommendedReadingListEvent
+import org.wikipedia.compose.components.HtmlText
+import org.wikipedia.compose.components.WikiCard
+import org.wikipedia.compose.components.WikipediaAlertDialog
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.ReadingListActivity
+import org.wikipedia.readinglist.ReadingListMode
+import org.wikipedia.search.SearchActivity
+import org.wikipedia.settings.Prefs
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.views.imageservice.ImageService
+
+<span class="nc" id="L100">class RecommendedReadingListInterestsFragment : Fragment() {</span>
+<span class="nc" id="L101">    private val viewModel: RecommendedReadingListInterestsViewModel by viewModels()</span>
+
+<span class="nc" id="L103">    private val searchLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (it.resultCode == SearchActivity.RESULT_LINK_SUCCESS) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            val pageTitle = it.data?.parcelableExtra&lt;PageTitle&gt;(SearchActivity.EXTRA_RETURN_LINK_TITLE)!!</span>
+<span class="nc" id="L106">            RecommendedReadingListEvent.submit(&quot;search_click&quot;, &quot;rrl_interests_select&quot;)</span>
+<span class="nc" id="L107">            viewModel.addTitle(pageTitle)</span>
+        }
+<span class="nc" id="L109">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L112">        super.onCreateView(inflater, container, savedInstanceState)</span>
+
+<span class="nc" id="L114">        viewModel.randomizeEvent.observe(viewLifecycleOwner) { state -&gt;</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            if (state.fromRandomize) {</span>
+<span class="nc" id="L116">                FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.recommended_reading_list_interest_pick_random_snackbar))</span>
+<span class="nc" id="L117">                    .setAction(R.string.recommended_reading_list_interest_pick_random_snackbar_action) {</span>
+<span class="nc" id="L118">                        viewModel.restoreState(state.prevItems, state.prevSelectedItems)</span>
+<span class="nc" id="L119">                    }</span>
+<span class="nc" id="L120">                    .show()</span>
+            }
+<span class="nc" id="L122">        }</span>
+
+<span class="nc" id="L124">        RecommendedReadingListEvent.submit(&quot;impression&quot;, &quot;rrl_interests_select&quot;)</span>
+
+<span class="nc" id="L126">        return ComposeView(requireContext()).apply {</span>
+<span class="nc" id="L127">            setContent {</span>
+<span class="nc" id="L128">                BaseTheme {</span>
+<span class="nc" id="L129">                    RecommendedReadingListInterestsScreen(</span>
+<span class="nc" id="L130">                        uiState = viewModel.uiState.collectAsState().value,</span>
+<span class="nc" id="L131">                        fromSettings = viewModel.fromSettings,</span>
+<span class="nc" id="L132">                        onCloseClick = {</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                            if (viewModel.fromSettings) {</span>
+<span class="nc" id="L134">                                viewModel.commitSelection()</span>
+<span class="nc" id="L135">                                requireActivity().setResult(RESULT_OK)</span>
+<span class="nc" id="L136">                                requireActivity().finish()</span>
+                            } else {
+<span class="nc" id="L138">                                requireActivity().supportFragmentManager.popBackStack()</span>
+                            }
+<span class="nc" id="L140">                        },</span>
+<span class="nc" id="L141">                        onNextClick = {</span>
+<span class="nc" id="L142">                            viewModel.commitSelection()</span>
+<span class="nc" id="L143">                            Prefs.isRecommendedReadingListEnabled = true</span>
+<span class="nc" id="L144">                            startActivity(ReadingListActivity.newIntent(requireContext(), readingListMode = ReadingListMode.RECOMMENDED))</span>
+<span class="nc" id="L145">                            requireActivity().finish()</span>
+<span class="nc" id="L146">                        },</span>
+<span class="nc" id="L147">                        wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L148">                            backClickListener = {</span>
+<span class="nc" id="L149">                                requireActivity().finish()</span>
+<span class="nc" id="L150">                            },</span>
+<span class="nc" id="L151">                            retryClickListener = {</span>
+<span class="nc" id="L152">                                viewModel.loadItems()</span>
+<span class="nc" id="L153">                            }</span>
+                        ),
+<span class="nc" id="L155">                        onSearchClick = {</span>
+<span class="nc" id="L156">                            val intent = SearchActivity.newIntent(requireActivity(), Constants.InvokeSource.READING_LIST_ACTIVITY, null, returnLink = true)</span>
+<span class="nc" id="L157">                            searchLauncher.launch(intent)</span>
+<span class="nc" id="L158">                        },</span>
+<span class="nc" id="L159">                        onItemClick = {</span>
+<span class="nc" id="L160">                            viewModel.toggleSelection(it)</span>
+<span class="nc" id="L161">                        },</span>
+<span class="nc" id="L162">                        onRandomizeClick = { listState -&gt;</span>
+<span class="nc" id="L163">                            viewModel.randomizeSelection()</span>
+<span class="nc" id="L164">                            lifecycleScope.launch {</span>
+<span class="nc" id="L165">                                listState.scrollToItem(0)</span>
+<span class="nc" id="L166">                            }</span>
+<span class="nc" id="L167">                        }</span>
+                    )
+<span class="nc" id="L169">                }</span>
+<span class="nc" id="L170">            }</span>
+<span class="nc" id="L171">        }</span>
+    }
+
+    companion object {
+<span class="nc" id="L175">        fun newInstance(fromSettings: Boolean = false): RecommendedReadingListInterestsFragment {</span>
+<span class="nc" id="L176">            return RecommendedReadingListInterestsFragment().apply {</span>
+<span class="nc" id="L177">                arguments = Bundle().apply {</span>
+<span class="nc" id="L178">                    putBoolean(RecommendedReadingListOnboardingActivity.EXTRA_FROM_SETTINGS, fromSettings)</span>
+<span class="nc" id="L179">                }</span>
+<span class="nc" id="L180">            }</span>
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecommendedReadingListInterestsScreen(
+    uiState: Resource&lt;RecommendedReadingListInterestsViewModel.UiState&gt;,
+<span class="nc bnc" id="L189" title="All 2 branches missed.">    fromSettings: Boolean = false,</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">    wikiErrorClickEvents: WikiErrorClickEvents? = null,</span>
+<span class="nc" id="L191">    onItemClick: (PageTitle) -&gt; Unit = {},</span>
+    onCloseClick: () -&gt; Unit,
+    onNextClick: () -&gt; Unit,
+    onRandomizeClick: (listState: LazyStaggeredGridState) -&gt; Unit,
+    onSearchClick: () -&gt; Unit
+<span class="nc bnc" id="L196" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L197">    val listState = rememberLazyStaggeredGridState()</span>
+<span class="nc" id="L198">    val collapseHeight = LocalDensity.current.run { 100.dp.toPx() }</span>
+
+<span class="nc" id="L200">    val showTitle = remember {</span>
+<span class="nc" id="L201">        derivedStateOf {</span>
+<span class="nc bnc" id="L202" title="All 4 branches missed.">            listState.firstVisibleItemIndex &gt; 0 || listState.firstVisibleItemScrollOffset &gt; collapseHeight</span>
+<span class="nc" id="L203">        }</span>
+    }
+
+<span class="nc bnc" id="L206" title="All 2 branches missed.">    BackHandler {</span>
+<span class="nc" id="L207">        onCloseClick()</span>
+<span class="nc" id="L208">    }</span>
+
+<span class="nc" id="L210">    var showRandomizeDialog by remember { mutableStateOf(false) }</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">    if (showRandomizeDialog) {</span>
+<span class="nc" id="L212">        WikipediaAlertDialog(</span>
+<span class="nc" id="L213">            title = stringResource(R.string.recommended_reading_list_interest_pick_random_dialog_title),</span>
+<span class="nc" id="L214">            message = stringResource(R.string.recommended_reading_list_interest_pick_random_dialog_message),</span>
+<span class="nc" id="L215">            confirmButtonText = stringResource(R.string.recommended_reading_list_interest_pick_random_dialog_positive_button),</span>
+<span class="nc" id="L216">            dismissButtonText = stringResource(R.string.recommended_reading_list_interest_pick_random_dialog_negative_button),</span>
+<span class="nc" id="L217">            onDismissRequest = {</span>
+<span class="nc" id="L218">                showRandomizeDialog = false</span>
+<span class="nc" id="L219">            },</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            onConfirmButtonClick = {</span>
+<span class="nc" id="L221">                onRandomizeClick(listState)</span>
+<span class="nc" id="L222">                RecommendedReadingListEvent.submit(&quot;random_confirm_click&quot;, &quot;rrl_interests_select&quot;)</span>
+<span class="nc" id="L223">                showRandomizeDialog = false</span>
+<span class="nc" id="L224">            },</span>
+<span class="nc" id="L225">            onDismissButtonClick = {</span>
+<span class="nc" id="L226">                RecommendedReadingListEvent.submit(&quot;random_cancel_click&quot;, &quot;rrl_interests_select&quot;)</span>
+<span class="nc" id="L227">                showRandomizeDialog = false</span>
+<span class="nc" id="L228">            }</span>
+        )
+<span class="nc" id="L230">    }</span>
+
+<span class="nc" id="L232">    Scaffold(</span>
+<span class="nc" id="L233">        modifier = Modifier</span>
+<span class="nc" id="L234">            .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L235">        topBar = {</span>
+<span class="nc" id="L236">            TopAppBar(</span>
+<span class="nc" id="L237">                title = {</span>
+<span class="nc" id="L238">                    AnimatedVisibility(</span>
+<span class="nc" id="L239">                        visible = showTitle.value,</span>
+<span class="nc" id="L240">                        enter = fadeIn(animationSpec = tween(300)),</span>
+<span class="nc" id="L241">                        exit = fadeOut(animationSpec = tween(300))</span>
+<span class="nc" id="L242">                    ) {</span>
+<span class="nc" id="L243">                        Text(</span>
+<span class="nc" id="L244">                            text = stringResource(R.string.recommended_reading_list_interest_pick_title),</span>
+<span class="nc" id="L245">                            color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L246">                            style = MaterialTheme.typography.titleLarge.copy(</span>
+<span class="nc" id="L247">                                fontSize = 20.sp,</span>
+<span class="nc" id="L248">                                fontWeight = FontWeight.Bold</span>
+                            )
+                        )
+<span class="nc" id="L251">                    }</span>
+<span class="nc" id="L252">                },</span>
+<span class="nc" id="L253">                navigationIcon = {</span>
+<span class="nc bnc" id="L254" title="All 8 branches missed.">                    val enabled = !fromSettings || (uiState !is Resource.Success) || uiState.data.selectedItems.isNotEmpty()</span>
+<span class="nc" id="L255">                    Icon(</span>
+<span class="nc" id="L256">                        painter = painterResource(R.drawable.ic_arrow_back_black_24dp),</span>
+<span class="nc" id="L257">                        contentDescription = stringResource(R.string.search_back_button_content_description),</span>
+<span class="nc" id="L258">                        modifier = Modifier</span>
+<span class="nc" id="L259">                            .size(48.dp)</span>
+<span class="nc" id="L260">                            .clickable(onClick = onCloseClick, enabled = enabled)</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                            .alpha(if (enabled) 1f else 0.5f)</span>
+<span class="nc" id="L262">                            .padding(12.dp),</span>
+<span class="nc" id="L263">                        tint = WikipediaTheme.colors.primaryColor</span>
+                    )
+<span class="nc" id="L265">                },</span>
+<span class="nc" id="L266">                colors = TopAppBarDefaults.topAppBarColors(</span>
+<span class="nc" id="L267">                    containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L268">                    scrolledContainerColor = WikipediaTheme.colors.paperColor</span>
+                )
+            )
+<span class="nc" id="L271">        },</span>
+<span class="nc" id="L272">        containerColor = WikipediaTheme.colors.paperColor</span>
+<span class="nc" id="L273">    ) { paddingValues -&gt;</span>
+<span class="nc" id="L274">        when (uiState) {</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">            is Resource.Loading -&gt; {</span>
+<span class="nc" id="L276">                Box(</span>
+<span class="nc" id="L277">                    modifier = Modifier</span>
+<span class="nc" id="L278">                        .fillMaxWidth()</span>
+<span class="nc" id="L279">                        .padding(paddingValues),</span>
+                ) {
+<span class="nc" id="L281">                    LinearProgressIndicator(</span>
+<span class="nc" id="L282">                        modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L283">                        color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L284">                        trackColor = WikipediaTheme.colors.borderColor</span>
+                    )
+<span class="nc" id="L286">                }</span>
+            }
+
+<span class="nc bnc" id="L289" title="All 2 branches missed.">            is Resource.Error -&gt; {</span>
+<span class="nc" id="L290">                Box(</span>
+<span class="nc" id="L291">                    modifier = Modifier</span>
+<span class="nc" id="L292">                        .fillMaxSize()</span>
+<span class="nc" id="L293">                        .padding(paddingValues),</span>
+<span class="nc" id="L294">                    contentAlignment = Alignment.Center</span>
+                ) {
+<span class="nc" id="L296">                    WikiErrorView(</span>
+<span class="nc" id="L297">                        modifier = Modifier</span>
+<span class="nc" id="L298">                            .fillMaxWidth(),</span>
+<span class="nc" id="L299">                        caught = uiState.throwable,</span>
+<span class="nc" id="L300">                        errorClickEvents = wikiErrorClickEvents</span>
+                    )
+<span class="nc" id="L302">                }</span>
+            }
+
+<span class="nc bnc" id="L305" title="All 2 branches missed.">            is Resource.Success -&gt; {</span>
+<span class="nc" id="L306">                Box(</span>
+<span class="nc" id="L307">                    modifier = Modifier</span>
+<span class="nc" id="L308">                        .fillMaxSize()</span>
+<span class="nc" id="L309">                        .padding(paddingValues),</span>
+<span class="nc" id="L310">                    contentAlignment = Alignment.Center</span>
+                ) {
+<span class="nc" id="L312">                    RecommendedReadingListInterestsContent(</span>
+<span class="nc" id="L313">                        fromSettings = fromSettings,</span>
+<span class="nc" id="L314">                        listState = listState,</span>
+<span class="nc" id="L315">                        items = uiState.data.items,</span>
+<span class="nc" id="L316">                        selectedItems = uiState.data.selectedItems,</span>
+<span class="nc" id="L317">                        onNextClick = onNextClick,</span>
+<span class="nc" id="L318">                        onItemClick = onItemClick,</span>
+<span class="nc" id="L319">                        onRandomizeClick = {</span>
+<span class="nc" id="L320">                            showRandomizeDialog = true</span>
+<span class="nc" id="L321">                        },</span>
+<span class="nc" id="L322">                        onSearchClick = onSearchClick</span>
+                    )
+<span class="nc" id="L324">                }</span>
+            }
+<span class="nc" id="L326">        }</span>
+<span class="nc" id="L327">    }</span>
+<span class="nc" id="L328">}</span>
+
+@Composable
+<span class="nc bnc" id="L331" title="All 2 branches missed.">fun RecommendedReadingListInterestsContent(</span>
+    fromSettings: Boolean,
+<span class="nc bnc" id="L333" title="All 2 branches missed.">    listState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">    items: List&lt;PageTitle&gt; = emptyList(),</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">    selectedItems: Set&lt;PageTitle&gt; = emptySet(),</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">    onItemClick: (PageTitle) -&gt; Unit = {},</span>
+    onNextClick: () -&gt; Unit,
+<span class="nc" id="L338">    onRandomizeClick: () -&gt; Unit = {},</span>
+    onSearchClick: () -&gt; Unit
+<span class="nc bnc" id="L340" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L341">    Box {</span>
+<span class="nc" id="L342">        val borderColor = WikipediaTheme.colors.borderColor</span>
+
+<span class="nc" id="L344">        LazyVerticalStaggeredGrid(</span>
+<span class="nc" id="L345">            columns = StaggeredGridCells.Adaptive(140.dp),</span>
+<span class="nc" id="L346">            modifier = Modifier</span>
+<span class="nc" id="L347">                .fillMaxSize()</span>
+<span class="nc" id="L348">                .padding(start = 16.dp, end = 16.dp),</span>
+<span class="nc" id="L349">            state = listState,</span>
+<span class="nc" id="L350">            verticalItemSpacing = 16.dp,</span>
+<span class="nc" id="L351">            horizontalArrangement = Arrangement.spacedBy(16.dp),</span>
+<span class="nc bnc" id="L352" title="All 4 branches missed.">            content = {</span>
+<span class="nc" id="L353">                item(span = StaggeredGridItemSpan.FullLine) {</span>
+<span class="nc" id="L354">                    Text(</span>
+<span class="nc" id="L355">                        modifier = Modifier</span>
+<span class="nc" id="L356">                            .fillMaxWidth()</span>
+<span class="nc" id="L357">                            .padding(top = 48.dp, bottom = 4.dp, start = 16.dp, end = 16.dp),</span>
+<span class="nc" id="L358">                        style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L359">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L360">                        textAlign = TextAlign.Center,</span>
+<span class="nc" id="L361">                        text = stringResource(R.string.recommended_reading_list_interest_pick_title)</span>
+                    )
+<span class="nc" id="L363">                }</span>
+<span class="nc" id="L364">                item(span = StaggeredGridItemSpan.FullLine) {</span>
+<span class="nc" id="L365">                    ReadingListInterestSearchCard(onSearchClick)</span>
+<span class="nc" id="L366">                }</span>
+<span class="nc" id="L367">                items(items) { item -&gt;</span>
+<span class="nc" id="L368">                    ReadingListInterestCard(</span>
+<span class="nc" id="L369">                        modifier = Modifier.animateItem(),</span>
+<span class="nc" id="L370">                        item = item,</span>
+<span class="nc" id="L371">                        isSelected = selectedItems.contains(item),</span>
+<span class="nc" id="L372">                        onItemClick = onItemClick</span>
+<span class="nc" id="L373">                    )</span>
+<span class="nc" id="L374">                }</span>
+<span class="nc" id="L375">                item(span = StaggeredGridItemSpan.FullLine) {</span>
+<span class="nc" id="L376">                    Spacer(</span>
+<span class="nc" id="L377">                        modifier = Modifier.height(64.dp)</span>
+                    )
+<span class="nc" id="L379">                }</span>
+<span class="nc" id="L380">            }</span>
+        )
+<span class="nc" id="L382">        Row(</span>
+<span class="nc" id="L383">            modifier = Modifier</span>
+<span class="nc" id="L384">                .fillMaxWidth()</span>
+<span class="nc" id="L385">                .height(56.dp)</span>
+<span class="nc" id="L386">                .background(color = WikipediaTheme.colors.paperColor)</span>
+<span class="nc" id="L387">                .align(Alignment.BottomCenter)</span>
+<span class="nc" id="L388">                .drawBehind {</span>
+<span class="nc" id="L389">                    drawLine(</span>
+<span class="nc" id="L390">                        color = borderColor,</span>
+<span class="nc" id="L391">                        start = Offset(0f, 0f),</span>
+<span class="nc" id="L392">                        end = Offset(size.width, 0f),</span>
+<span class="nc" id="L393">                        strokeWidth = 1.dp.toPx()</span>
+                    )
+<span class="nc" id="L395">                },</span>
+<span class="nc" id="L396">            verticalAlignment = Alignment.CenterVertically</span>
+        ) {
+<span class="nc bnc" id="L398" title="All 2 branches missed.">            if (!fromSettings) {</span>
+<span class="nc" id="L399">                Icon(</span>
+<span class="nc" id="L400">                    modifier = Modifier</span>
+<span class="nc" id="L401">                        .size(48.dp)</span>
+<span class="nc" id="L402">                        .clickable(onClick = onRandomizeClick)</span>
+<span class="nc" id="L403">                        .padding(12.dp),</span>
+<span class="nc" id="L404">                    painter = painterResource(R.drawable.ic_dice_24),</span>
+<span class="nc" id="L405">                    tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L406">                    contentDescription = stringResource(R.string.recommended_reading_list_interest_pick_random_button_content_description)</span>
+                )
+<span class="nc" id="L408">            } else {</span>
+<span class="nc" id="L409">                Spacer(modifier = Modifier.width(48.dp))</span>
+            }
+<span class="nc" id="L411">            Text(</span>
+<span class="nc" id="L412">                modifier = Modifier</span>
+<span class="nc" id="L413">                    .padding(start = 8.dp, end = 8.dp)</span>
+<span class="nc" id="L414">                    .weight(1f),</span>
+<span class="nc bnc" id="L415" title="All 4 branches missed.">                text = if (fromSettings &amp;&amp; selectedItems.isEmpty()) stringResource(R.string.recommended_reading_list_interest_select_minimum)</span>
+<span class="nc" id="L416">                else pluralStringResource(</span>
+<span class="nc" id="L417">                    R.plurals.recommended_reading_list_interest_pick_selected_articles,</span>
+<span class="nc" id="L418">                    selectedItems.size,</span>
+<span class="nc" id="L419">                    selectedItems.size</span>
+                ),
+<span class="nc" id="L421">                textAlign = TextAlign.Center,</span>
+<span class="nc" id="L422">                style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L423">                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L424">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc bnc" id="L426" title="All 2 branches missed.">            if (!fromSettings) {</span>
+<span class="nc" id="L427">                Icon(</span>
+<span class="nc" id="L428">                    modifier = Modifier</span>
+<span class="nc" id="L429">                        .size(48.dp)</span>
+<span class="nc bnc" id="L430" title="All 2 branches missed.">                        .clickable(enabled = selectedItems.isNotEmpty(), onClick = onNextClick)</span>
+<span class="nc" id="L431">                        .padding(12.dp)</span>
+<span class="nc bnc" id="L432" title="All 4 branches missed.">                        .alpha(if (selectedItems.isNotEmpty()) 1f else 0.5f),</span>
+<span class="nc" id="L433">                    painter = painterResource(R.drawable.ic_arrow_forward_black_24dp),</span>
+<span class="nc" id="L434">                    tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L435">                    contentDescription = stringResource(R.string.nav_item_forward)</span>
+                )
+<span class="nc" id="L437">            } else {</span>
+<span class="nc" id="L438">                Spacer(modifier = Modifier.width(48.dp))</span>
+            }
+<span class="nc" id="L440">        }</span>
+<span class="nc" id="L441">    }</span>
+<span class="nc" id="L442">}</span>
+
+@Composable
+fun ReadingListInterestCard(
+    modifier: Modifier,
+    item: PageTitle,
+<span class="nc bnc" id="L448" title="All 2 branches missed.">    isSelected: Boolean = false,</span>
+<span class="nc" id="L449">    onItemClick: (PageTitle) -&gt; Unit = {},</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L451">    WikiCard(</span>
+<span class="nc" id="L452">        modifier = modifier</span>
+<span class="nc" id="L453">            .fillMaxWidth(),</span>
+<span class="nc" id="L454">        elevation = 0.dp,</span>
+<span class="nc" id="L455">        border = BorderStroke(width = 1.dp, color = WikipediaTheme.colors.borderColor),</span>
+<span class="nc" id="L456">        colors = CardDefaults.cardColors(</span>
+<span class="nc bnc" id="L457" title="All 2 branches missed.">            containerColor = if (isSelected) WikipediaTheme.colors.additionColor else WikipediaTheme.colors.paperColor</span>
+        ),
+<span class="nc" id="L459">        shape = RoundedCornerShape(16.dp),</span>
+<span class="nc bnc" id="L460" title="All 2 branches missed.">        onClick = {</span>
+<span class="nc" id="L461">            onItemClick(item)</span>
+<span class="nc" id="L462">        }</span>
+<span class="nc" id="L463">    ) {</span>
+<span class="nc" id="L464">        Column(</span>
+<span class="nc" id="L465">            modifier = Modifier</span>
+<span class="nc" id="L466">                .fillMaxWidth()</span>
+        ) {
+<span class="nc bnc" id="L468" title="All 6 branches missed.">            if (!item.thumbUrl.isNullOrEmpty()) {</span>
+<span class="nc" id="L469">                val request = ImageService.getRequest(LocalContext.current, url = item.thumbUrl, detectFace = true)</span>
+<span class="nc" id="L470">                AsyncImage(</span>
+<span class="nc" id="L471">                    model = request,</span>
+<span class="nc" id="L472">                    placeholder = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L473">                    error = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L474">                    contentScale = ContentScale.Crop,</span>
+<span class="nc" id="L475">                    contentDescription = null,</span>
+<span class="nc" id="L476">                    modifier = Modifier</span>
+<span class="nc" id="L477">                        .fillMaxWidth()</span>
+<span class="nc" id="L478">                        .height(108.dp)</span>
+<span class="nc" id="L479">                        .clip(RoundedCornerShape(16.dp))</span>
+                )
+<span class="nc" id="L481">            }</span>
+<span class="nc" id="L482">            Column(</span>
+<span class="nc" id="L483">                modifier = Modifier.padding(8.dp)</span>
+            ) {
+<span class="nc" id="L485">                HtmlText(</span>
+<span class="nc" id="L486">                    text = item.displayText,</span>
+<span class="nc" id="L487">                    style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L488">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L490">                Spacer(modifier = Modifier.height(2.dp))</span>
+<span class="nc" id="L491">                Row {</span>
+<span class="nc bnc" id="L492" title="All 6 branches missed.">                    if (!item.description.isNullOrEmpty()) {</span>
+<span class="nc" id="L493">                        HtmlText(</span>
+<span class="nc bnc" id="L494" title="All 2 branches missed.">                            text = item.description.orEmpty(),</span>
+<span class="nc" id="L495">                            style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L496">                            color = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L497">                            maxLines = 3,</span>
+<span class="nc" id="L498">                            overflow = TextOverflow.Ellipsis,</span>
+<span class="nc" id="L499">                            modifier = Modifier.weight(1f)</span>
+                        )
+<span class="nc" id="L501">                    } else {</span>
+<span class="nc" id="L502">                        Spacer(modifier = Modifier.weight(1f))</span>
+                    }
+<span class="nc bnc" id="L504" title="All 2 branches missed.">                    if (isSelected) {</span>
+<span class="nc" id="L505">                        Spacer(modifier = Modifier.width(8.dp))</span>
+<span class="nc" id="L506">                        Icon(</span>
+<span class="nc" id="L507">                            modifier = Modifier.size(24.dp).align(Alignment.Bottom),</span>
+<span class="nc" id="L508">                            painter = painterResource(R.drawable.check_circle_24px),</span>
+<span class="nc" id="L509">                            tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L510">                            contentDescription = null</span>
+                        )
+<span class="nc" id="L512">                    } else {</span>
+<span class="nc" id="L513">                        Spacer(modifier = Modifier.width(32.dp).height(24.dp))</span>
+                    }
+<span class="nc" id="L515">                }</span>
+<span class="nc" id="L516">            }</span>
+<span class="nc" id="L517">        }</span>
+<span class="nc" id="L518">    }</span>
+<span class="nc" id="L519">}</span>
+
+@Composable
+<span class="nc" id="L522">fun ReadingListInterestSearchCard(onSearchClick: () -&gt; Unit) {</span>
+<span class="nc" id="L523">    Row(</span>
+<span class="nc" id="L524">        modifier = Modifier</span>
+<span class="nc" id="L525">            .fillMaxWidth()</span>
+<span class="nc" id="L526">            .height(56.dp)</span>
+<span class="nc" id="L527">            .clip(RoundedCornerShape(28.dp))</span>
+<span class="nc" id="L528">            .background(</span>
+<span class="nc" id="L529">                color = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc" id="L530">                shape = RoundedCornerShape(24.dp)</span>
+            )
+<span class="nc" id="L532">            .clickable(onClick = onSearchClick),</span>
+<span class="nc" id="L533">        verticalAlignment = Alignment.CenterVertically</span>
+    ) {
+<span class="nc" id="L535">        Spacer(modifier = Modifier.width(16.dp))</span>
+<span class="nc" id="L536">        Icon(</span>
+<span class="nc" id="L537">            painter = painterResource(R.drawable.outline_search_24),</span>
+<span class="nc" id="L538">            contentDescription = stringResource(R.string.search_hint),</span>
+<span class="nc" id="L539">            tint = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L540">            modifier = Modifier.size(24.dp)</span>
+        )
+<span class="nc" id="L542">        Text(</span>
+<span class="nc" id="L543">            modifier = Modifier.padding(start = 16.dp, end = 16.dp),</span>
+<span class="nc" id="L544">            text = stringResource(R.string.recommended_reading_list_interest_pick_search_hint),</span>
+<span class="nc" id="L545">            style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L546">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+<span class="nc" id="L548">    }</span>
+<span class="nc" id="L549">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L553">fun PreviewReadingListInterestsScreen() {</span>
+<span class="nc" id="L554">    val site = WikiSite(&quot;https://en.wikipedia.org/&quot;.toUri(), &quot;en&quot;)</span>
+<span class="nc" id="L555">    val titles = listOf(</span>
+<span class="nc" id="L556">        PageTitle(text = &quot;Psychology of art&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;Study of mental functions and behaviors&quot;, displayText = null),</span>
+<span class="nc" id="L557">        PageTitle(text = &quot;Industrial design&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;Process of design applied to physical products&quot;, displayText = null),</span>
+<span class="nc" id="L558">        PageTitle(text = &quot;Dufourspitze&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;Highest mountain in Switzerland&quot;, displayText = null),</span>
+<span class="nc" id="L559">        PageTitle(text = &quot;Sample title without description&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;&quot;, displayText = null),</span>
+<span class="nc" id="L560">        PageTitle(text = &quot;Sample title without thumbnail&quot;, wiki = site, thumbUrl = &quot;&quot;, description = &quot;Sample description&quot;, displayText = null),</span>
+<span class="nc" id="L561">        PageTitle(text = &quot;Octagon house&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;North American house style briefly popular in the 1850s&quot;, displayText = null),</span>
+<span class="nc" id="L562">        PageTitle(text = &quot;Barack Obama&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;President of the United States from 2009 to 2017&quot;, displayText = null),</span>
+    )
+<span class="nc" id="L564">    val selectedItems = setOf(PageTitle(text = &quot;Industrial design&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;Process of design applied to physical products&quot;, displayText = null))</span>
+
+<span class="nc" id="L566">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L567">        RecommendedReadingListInterestsScreen(</span>
+<span class="nc" id="L568">            uiState = Resource.Success(</span>
+<span class="nc" id="L569">                RecommendedReadingListInterestsViewModel.UiState(</span>
+<span class="nc" id="L570">                    fromSettings = false,</span>
+<span class="nc" id="L571">                    items = titles,</span>
+<span class="nc" id="L572">                    selectedItems = selectedItems</span>
+                )
+            ),
+<span class="nc" id="L575">            onCloseClick = {},</span>
+<span class="nc" id="L576">            onNextClick = {},</span>
+<span class="nc" id="L577">            onSearchClick = {},</span>
+<span class="nc" id="L578">            onItemClick = {},</span>
+<span class="nc" id="L579">            onRandomizeClick = {},</span>
+        )
+<span class="nc" id="L581">    }</span>
+<span class="nc" id="L582">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RbServiceError.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.restbase</a> &gt; <span class="el_source">RbServiceError.kt</span></div><h1>RbServiceError.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.restbase
+
+import kotlinx.serialization.Serializable
+import org.wikipedia.dataclient.ServiceError
+import org.wikipedia.json.JsonUtil
+
+/**
+ * Model class that can represent either a RESTBase error or a MediaWiki REST API error.
+ * Since both types of errors have non-overlapping fields, we can use a single class to
+ * represent either of them, and then phase out the RESTBase-specific fields when RESTBase
+ * is fully decommissioned.
+ */
+<span class="nc" id="L13">@Serializable</span>
+class RbServiceError : ServiceError {
+
+    // These fields are given by RESTBase errors, and should be removed when RESTBase
+    // is fully decommissioned.
+    private val title: String? = null
+    private val detail: String? = null
+
+    // These fields are given by MediaWiki REST API errors, and should be preferred.
+    private val errorKey: String? = null
+    private val messageTranslations: Map&lt;String, String&gt;? = null
+
+<span class="nc bnc" id="L25" title="All 4 branches missed.">    override val key get() = errorKey ?: title.orEmpty()</span>
+
+    override val message: String get() {
+<span class="nc bnc" id="L28" title="All 2 branches missed.">        return if (messageTranslations != null) {</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">            messageTranslations.values.firstOrNull() ?: &quot;&quot;</span>
+        } else {
+<span class="nc bnc" id="L31" title="All 2 branches missed.">            detail.orEmpty()</span>
+        }
+    }
+
+<span class="nc" id="L35">    companion object {</span>
+        fun create(rspBody: String): RbServiceError {
+<span class="nc" id="L37">            return JsonUtil.decodeFromString(rspBody)!!</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TalkTopicHolder.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.talk</a> &gt; <span class="el_source">TalkTopicHolder.kt</span></div><h1>TalkTopicHolder.kt</h1><pre class="source lang-java linenums">package org.wikipedia.talk
+
+import android.app.Activity
+import android.view.MenuItem
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
+import androidx.core.view.isVisible
+import androidx.core.widget.ImageViewCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.databinding.ItemTalkTopicBinding
+import org.wikipedia.dataclient.discussiontools.ThreadItem
+import org.wikipedia.page.Namespace
+import org.wikipedia.richtext.RichTextUtil
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.SwipeableItemTouchHelperCallback
+import java.util.Date
+
+<span class="fc" id="L29">class TalkTopicHolder internal constructor(</span>
+<span class="fc" id="L30">        private val binding: ItemTalkTopicBinding,</span>
+<span class="fc" id="L31">        private val context: AppCompatActivity,</span>
+<span class="fc" id="L32">        private val viewModel: TalkTopicsViewModel,</span>
+<span class="fc" id="L33">        private val invokeSource: Constants.InvokeSource</span>
+<span class="fc" id="L34">) : RecyclerView.ViewHolder(binding.root), View.OnClickListener, SwipeableItemTouchHelperCallback.Callback {</span>
+
+    private lateinit var threadItem: ThreadItem
+
+    fun bindItem(item: ThreadItem) {
+<span class="fc" id="L39">        item.seen = viewModel.topicSeen(item)</span>
+<span class="fc" id="L40">        threadItem = item</span>
+<span class="fc bfc" id="L41" title="All 4 branches covered.">        val topicTitle = RichTextUtil.stripHtml(threadItem.html).trim().ifEmpty { context.getString(R.string.talk_no_subject) }</span>
+<span class="fc" id="L42">        StringUtil.setHighlightedAndBoldenedText(binding.topicTitleText, topicTitle, viewModel.currentSearchQuery)</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">        binding.topicTitleText.setTextColor(ResourceUtil.getThemedColor(context, if (threadItem.seen) android.R.attr.textColorTertiary else R.attr.primary_color))</span>
+<span class="fc" id="L44">        itemView.setOnClickListener(this@TalkTopicHolder)</span>
+
+        // setting tag for swipe action text
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">        if (!threadItem.seen) {</span>
+<span class="fc" id="L48">            itemView.setTag(R.string.tag_text_key, context.getString(R.string.talk_list_item_swipe_mark_as_read))</span>
+<span class="fc" id="L49">            itemView.setTag(R.string.tag_icon_key, R.drawable.ic_outline_drafts_24)</span>
+        } else {
+<span class="nc" id="L51">            itemView.setTag(R.string.tag_text_key, context.getString(R.string.talk_list_item_swipe_mark_as_unread))</span>
+<span class="nc" id="L52">            itemView.setTag(R.string.tag_icon_key, R.drawable.ic_outline_email_24)</span>
+        }
+
+<span class="fc" id="L55">        binding.topicOverflowMenu.setOnClickListener {</span>
+<span class="nc" id="L56">            showOverflowMenu(it)</span>
+<span class="nc" id="L57">        }</span>
+
+<span class="fc" id="L59">        val allReplies = threadItem.allReplies.toList()</span>
+
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (allReplies.isEmpty()) {</span>
+<span class="fc" id="L62">            binding.topicUserIcon.isVisible = false</span>
+<span class="fc" id="L63">            binding.topicUsername.isVisible = false</span>
+<span class="fc" id="L64">            binding.topicReplyIcon.isVisible = false</span>
+<span class="fc" id="L65">            binding.topicReplyNumber.isVisible = false</span>
+<span class="fc" id="L66">            binding.topicLastCommentDate.isVisible = false</span>
+<span class="fc" id="L67">            binding.topicContentText.isVisible = false</span>
+<span class="fc" id="L68">            val isHeaderTemplate = TalkTopicActivity.isHeaderTemplate(threadItem)</span>
+<span class="fc" id="L69">            binding.otherContentContainer.isVisible = isHeaderTemplate</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">            if (isHeaderTemplate) {</span>
+<span class="fc" id="L71">                StringUtil.setHighlightedAndBoldenedText(binding.otherContentText,</span>
+<span class="fc" id="L72">                    RichTextUtil.stripHtml(StringUtil.removeStyleTags(threadItem.othercontent)).trim().replace(&quot;\n&quot;, &quot; &quot;),</span>
+<span class="fc" id="L73">                    viewModel.currentSearchQuery)</span>
+            }
+<span class="fc" id="L75">            return</span>
+        }
+<span class="fc" id="L77">        binding.otherContentContainer.isVisible = false</span>
+
+        // Last comment
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        binding.topicContentText.isVisible = viewModel.pageTitle.namespace() == Namespace.USER_TALK</span>
+<span class="fc" id="L81">        StringUtil.setHighlightedAndBoldenedText(binding.topicContentText,</span>
+<span class="fc" id="L82">            RichTextUtil.stripHtml(allReplies.last().html).trim().replace(&quot;\n&quot;, &quot; &quot;),</span>
+<span class="fc" id="L83">            viewModel.currentSearchQuery)</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        binding.topicContentText.setTextColor(ResourceUtil.getThemedColor(context, if (threadItem.seen) android.R.attr.textColorTertiary else R.attr.primary_color))</span>
+
+        // Username with involved user number exclude the author
+<span class="fc" id="L87">        val usersInvolved = allReplies.map { it.author }.distinct().size - 1</span>
+<span class="pc bpc" id="L88" title="4 of 10 branches missed.">        val usernameText = allReplies.maxByOrNull { it.date ?: Date() }?.author.orEmpty() + (if (usersInvolved &gt; 1) &quot; +$usersInvolved&quot; else &quot;&quot;)</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        val usernameColor = if (threadItem.seen) R.attr.inactive_color else R.attr.progressive_color</span>
+<span class="fc" id="L90">        StringUtil.setHighlightedAndBoldenedText(binding.topicUsername, usernameText, viewModel.currentSearchQuery)</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        binding.topicUserIcon.isVisible = viewModel.pageTitle.namespace() == Namespace.USER_TALK</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        binding.topicUsername.isVisible = viewModel.pageTitle.namespace() == Namespace.USER_TALK</span>
+<span class="fc" id="L93">        binding.topicUsername.setTextColor(ResourceUtil.getThemedColor(context, usernameColor))</span>
+<span class="fc" id="L94">        ImageViewCompat.setImageTintList(binding.topicUserIcon, ResourceUtil.getThemedColorStateList(context, usernameColor))</span>
+
+        // Amount of replies, exclude the topic in replies[].
+<span class="fc" id="L97">        val replyNumber = allReplies.size - 1</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        val replyNumberColor = if (threadItem.seen) R.attr.inactive_color else R.attr.placeholder_color</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        binding.topicReplyNumber.isVisible = replyNumber &gt; 0</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        binding.topicReplyIcon.isVisible = replyNumber &gt; 0</span>
+<span class="fc" id="L101">        binding.topicReplyNumber.text = replyNumber.toString()</span>
+<span class="fc" id="L102">        binding.topicReplyNumber.setTextColor(ResourceUtil.getThemedColor(context, replyNumberColor))</span>
+<span class="fc" id="L103">        ImageViewCompat.setImageTintList(binding.topicReplyIcon, ResourceUtil.getThemedColorStateList(context, replyNumberColor))</span>
+
+        // Last comment date
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        val lastCommentDate = allReplies.mapNotNull { it.date }.maxOrNull()?.run { DateUtil.getDateAndTime(context, this) }</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        val lastCommentColor = if (threadItem.seen) R.attr.inactive_color else R.attr.placeholder_color</span>
+<span class="fc" id="L108">        binding.topicLastCommentDate.text = lastCommentDate</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        binding.topicLastCommentDate.isVisible = lastCommentDate != null</span>
+<span class="fc" id="L110">        binding.topicLastCommentDate.setTextColor(ResourceUtil.getThemedColor(context, lastCommentColor))</span>
+<span class="fc" id="L111">    }</span>
+
+    override fun onClick(v: View?) {
+<span class="nc" id="L114">        markAsSeen(true)</span>
+<span class="nc" id="L115">        context.startActivity(TalkTopicActivity.newIntent(context, viewModel.pageTitle, threadItem.name, threadItem.id, null, viewModel.currentSearchQuery, invokeSource))</span>
+<span class="nc" id="L116">    }</span>
+
+    override fun onSwipe() {
+<span class="nc" id="L119">        markAsSeen()</span>
+<span class="nc" id="L120">    }</span>
+
+    override fun isSwipeable(): Boolean {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        return !TalkTopicActivity.isHeaderTemplate(threadItem)</span>
+    }
+
+<span class="nc" id="L126">    private fun markAsSeen(force: Boolean = false) {</span>
+<span class="nc" id="L127">        viewModel.markAsSeen(threadItem, force) {</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">            bindingAdapter?.notifyDataSetChanged()</span>
+<span class="nc" id="L129">        }</span>
+<span class="nc" id="L130">    }</span>
+
+    private fun showOverflowMenu(anchorView: View) {
+<span class="nc" id="L133">        context.lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L134">            L.e(throwable)</span>
+<span class="nc" id="L135">            FeedbackUtil.showError(context, throwable)</span>
+<span class="nc" id="L136">        }) {</span>
+<span class="nc" id="L137">            val subscribed = viewModel.isSubscribed(threadItem.name)</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">            threadItem.subscribed = subscribed</span>
+
+<span class="nc" id="L140">            val menu = PopupMenu(anchorView.context, anchorView)</span>
+<span class="nc" id="L141">            menu.setForceShowIcon(true)</span>
+<span class="nc" id="L142">            menu.menuInflater.inflate(R.menu.menu_talk_topic_overflow, menu.menu)</span>
+
+<span class="nc" id="L144">            val subscribeItem = menu.menu.findItem(R.id.menu_subscribe)</span>
+<span class="nc" id="L145">            subscribeItem.isVisible = TalkTopicActivity.isSubscribable(threadItem)</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">            if (TalkTopicActivity.isSubscribable(threadItem)) {</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                subscribeItem.setIcon(if (subscribed) R.drawable.ic_notifications_active else R.drawable.ic_notifications_black_24dp)</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                subscribeItem.setTitle(if (subscribed) R.string.talk_list_item_overflow_subscribed else R.string.talk_list_item_overflow_subscribe)</span>
+            }
+
+<span class="nc" id="L151">            val readText = menu.menu.findItem(R.id.menu_mark_as_read)</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            readText.setIcon(if (threadItem.seen) R.drawable.ic_outline_markunread_24 else R.drawable.ic_outline_drafts_24)</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            readText.setTitle(if (threadItem.seen) R.string.talk_list_item_overflow_mark_as_unread else R.string.talk_list_item_overflow_mark_as_read)</span>
+
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            menu.setOnMenuItemClickListener(object : PopupMenu.OnMenuItemClickListener {</span>
+                override fun onMenuItemClick(item: MenuItem?): Boolean {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                    when (item?.itemId) {</span>
+<span class="nc bnc" id="L158" title="All 4 branches missed.">                        R.id.menu_mark_as_read -&gt; {</span>
+<span class="nc" id="L159">                            markAsSeen()</span>
+<span class="nc" id="L160">                            return true</span>
+                        }
+<span class="nc bnc" id="L162" title="All 4 branches missed.">                        R.id.menu_subscribe -&gt; {</span>
+<span class="nc" id="L163">                            viewModel.subscribeTopic(threadItem.name, subscribed)</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                            FeedbackUtil.showMessage(context as Activity, context.getString(if (!subscribed) R.string.talk_thread_subscribed_to else R.string.talk_thread_unsubscribed_from,</span>
+<span class="nc bnc" id="L165" title="All 4 branches missed.">                                StringUtil.fromHtml(threadItem.html).trim().ifEmpty { context.getString(R.string.talk_no_subject) }))</span>
+<span class="nc" id="L166">                            return true</span>
+                        }
+<span class="nc bnc" id="L168" title="All 4 branches missed.">                        R.id.menu_share -&gt; {</span>
+<span class="nc" id="L169">                            ShareUtil.shareText(context, context.getString(R.string.talk_share_discussion_subject,</span>
+<span class="nc bnc" id="L170" title="All 4 branches missed.">                                threadItem.html.ifEmpty { context.getString(R.string.talk_no_subject) }), viewModel.pageTitle.uri + &quot;#&quot; + StringUtil.addUnderscores(threadItem.html))</span>
+<span class="nc" id="L171">                            return true</span>
+                        }
+                    }
+<span class="nc" id="L174">                    return false</span>
+                }
+            })
+<span class="nc" id="L177">            menu.show()</span>
+<span class="nc" id="L178">        }</span>
+<span class="nc" id="L179">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

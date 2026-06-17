@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">WikiCardView.kt</span></div><h1>WikiCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.os.Build
+import android.util.AttributeSet
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.use
+import com.google.android.material.card.MaterialCardView
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L14">open class WikiCardView(context: Context, attrs: AttributeSet? = null) : MaterialCardView(context, attrs) {</span>
+
+<span class="nc" id="L16">    init {</span>
+<span class="nc bnc" id="L17" title="All 2 branches missed.">        if (!isInEditMode) {</span>
+<span class="nc" id="L18">            context.obtainStyledAttributes(attrs, R.styleable.WikiCardView)</span>
+<span class="nc" id="L19">                .use {</span>
+<span class="nc" id="L20">                    setup(</span>
+<span class="nc" id="L21">                        it.getDimension(</span>
+<span class="nc" id="L22">                            R.styleable.WikiCardView_elevation,</span>
+<span class="nc bnc" id="L23" title="All 2 branches missed.">                            DimenUtil.dpToPx(if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.P) 8f else 2f)</span>
+                        ),
+<span class="nc" id="L25">                        it.getBoolean(R.styleable.WikiCardView_hasBorder, true)</span>
+                    )
+<span class="nc" id="L27">                }</span>
+        }
+<span class="nc" id="L29">    }</span>
+
+    private fun setup(elevation: Float, hasBorder: Boolean) {
+<span class="nc bnc" id="L32" title="All 2 branches missed.">        if (hasBorder) {</span>
+<span class="nc" id="L33">            setDefaultBorder()</span>
+        }
+<span class="nc bnc" id="L35" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.P) {</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">            if (WikipediaApp.instance.currentTheme.isDark) {</span>
+<span class="nc" id="L37">                cardElevation = 0f</span>
+            } else {
+<span class="nc" id="L39">                cardElevation = elevation</span>
+<span class="nc" id="L40">                outlineAmbientShadowColor = ContextCompat.getColor(context, R.color.gray300)</span>
+<span class="nc" id="L41">                outlineSpotShadowColor = ContextCompat.getColor(context, R.color.gray300)</span>
+            }
+        } else {
+<span class="nc" id="L44">            cardElevation = elevation</span>
+        }
+<span class="nc" id="L46">        rippleColor = ResourceUtil.getThemedColorStateList(context, R.attr.overlay_color)</span>
+<span class="nc" id="L47">    }</span>
+
+    fun setDefaultBorder() {
+<span class="nc" id="L50">        strokeWidth = DimenUtil.roundedDpToPx(0.5f)</span>
+<span class="nc" id="L51">        strokeColor = ResourceUtil.getThemedColor(context, R.attr.border_color)</span>
+<span class="nc" id="L52">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

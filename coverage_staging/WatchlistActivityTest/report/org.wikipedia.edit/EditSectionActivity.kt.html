@@ -1,0 +1,892 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EditSectionActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.edit</a> &gt; <span class="el_source">EditSectionActivity.kt</span></div><h1>EditSectionActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.edit
+
+import android.content.Context
+import android.content.Intent
+import android.graphics.Typeface
+import android.os.Bundle
+import android.os.Handler
+import android.text.TextUtils
+import android.text.TextWatcher
+import android.text.method.LinkMovementMethod
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.core.app.ActivityCompat
+import androidx.core.net.toUri
+import androidx.core.os.postDelayed
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.eventplatform.BreadCrumbLogEvent
+import org.wikipedia.analytics.eventplatform.EditAttemptStepEvent
+import org.wikipedia.analytics.eventplatform.ImageRecommendationsEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.captcha.CaptchaHandler
+import org.wikipedia.captcha.CaptchaResult
+import org.wikipedia.databinding.ActivityEditSectionBinding
+import org.wikipedia.databinding.DialogWithCheckboxBinding
+import org.wikipedia.databinding.ItemEditActionbarButtonBinding
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.mwapi.MwException
+import org.wikipedia.dataclient.mwapi.MwServiceError
+import org.wikipedia.edit.insertmedia.InsertMediaActivity
+import org.wikipedia.edit.insertmedia.InsertMediaViewModel
+import org.wikipedia.edit.preview.EditPreviewFragment
+import org.wikipedia.edit.richtext.SyntaxHighlighter
+import org.wikipedia.edit.summaries.EditSummaryFragment
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.extensions.setTextDirectionByLang
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.notifications.AnonymousNotificationHelper
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.Namespace
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.page.linkpreview.LinkPreviewDialog
+import org.wikipedia.settings.Prefs
+import org.wikipedia.theme.ThemeChooserDialog
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.EditNoticesDialog
+import org.wikipedia.views.ViewUtil
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+<span class="nc" id="L80">class EditSectionActivity : BaseActivity(), ThemeChooserDialog.Callback, EditPreviewFragment.Callback, LinkPreviewDialog.LoadPageCallback, LinkPreviewDialog.DismissCallback {</span>
+<span class="nc" id="L81">    private val viewModel: EditSectionViewModel by viewModels()</span>
+
+    private lateinit var binding: ActivityEditSectionBinding
+    private lateinit var textWatcher: TextWatcher
+    private lateinit var captchaHandler: CaptchaHandler
+    private lateinit var editPreviewFragment: EditPreviewFragment
+    private lateinit var editSummaryFragment: EditSummaryFragment
+    private lateinit var syntaxHighlighter: SyntaxHighlighter
+
+    private var sectionTextModified = false
+<span class="nc" id="L91">    private var sectionTextFirstLoad = true</span>
+
+    private var actionMode: ActionMode? = null
+
+<span class="nc" id="L95">    private val requestLogin = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (it.resultCode == LoginActivity.RESULT_LOGIN_SUCCESS) {</span>
+<span class="nc" id="L97">            updateEditLicenseText()</span>
+<span class="nc" id="L98">            invalidateOptionsMenu()</span>
+<span class="nc" id="L99">            FeedbackUtil.showMessage(this, R.string.login_success_toast)</span>
+        }
+<span class="nc" id="L101">    }</span>
+
+<span class="nc" id="L103">    private val requestInsertMedia = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (it.resultCode == InsertMediaActivity.RESULT_INSERT_MEDIA_SUCCESS) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            it.data?.let { data -&gt;</span>
+
+                // pass the resulting data into our own current intent, so that we can pass it back
+                // to the InsertImage workflow if the user navigates back to it.
+<span class="nc" id="L109">                val imageTitle = data.parcelableExtra&lt;PageTitle&gt;(InsertMediaActivity.EXTRA_IMAGE_TITLE)</span>
+<span class="nc" id="L110">                val imageCaption = data.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION)</span>
+<span class="nc" id="L111">                val imageAlt = data.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT)</span>
+<span class="nc" id="L112">                val imageSize = data.getStringExtra(InsertMediaActivity.RESULT_IMAGE_SIZE)</span>
+<span class="nc" id="L113">                val imageType = data.getStringExtra(InsertMediaActivity.RESULT_IMAGE_TYPE)</span>
+<span class="nc" id="L114">                val imagePos = data.getStringExtra(InsertMediaActivity.RESULT_IMAGE_POS)</span>
+
+<span class="nc" id="L116">                intent.putExtra(InsertMediaActivity.EXTRA_IMAGE_TITLE, imageTitle)</span>
+<span class="nc" id="L117">                intent.putExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION, imageCaption)</span>
+<span class="nc" id="L118">                intent.putExtra(InsertMediaActivity.RESULT_IMAGE_ALT, imageAlt)</span>
+<span class="nc" id="L119">                intent.putExtra(InsertMediaActivity.RESULT_IMAGE_SIZE, imageSize)</span>
+<span class="nc" id="L120">                intent.putExtra(InsertMediaActivity.RESULT_IMAGE_TYPE, imageType)</span>
+<span class="nc" id="L121">                intent.putExtra(InsertMediaActivity.RESULT_IMAGE_POS, imagePos)</span>
+
+<span class="nc" id="L123">                val newWikiText = InsertMediaViewModel.insertImageIntoWikiText(viewModel.pageTitle.wikiSite.languageCode,</span>
+<span class="nc bnc" id="L124" title="All 8 branches missed.">                    viewModel.sectionWikitext.orEmpty(), imageTitle?.text.orEmpty(), imageCaption.orEmpty(),</span>
+<span class="nc bnc" id="L125" title="All 8 branches missed.">                    imageAlt.orEmpty(), imageSize.orEmpty(), imageType.orEmpty(), imagePos.orEmpty(),</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                    if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) 0 else binding.editSectionText.selectionStart,</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                    viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE,</span>
+<span class="nc" id="L128">                    intent.getBooleanExtra(InsertMediaActivity.EXTRA_ATTEMPT_INSERT_INTO_INFOBOX, false))</span>
+
+<span class="nc" id="L130">                binding.editSectionText.setText(newWikiText.first)</span>
+<span class="nc" id="L131">                intent.putExtra(InsertMediaActivity.EXTRA_INSERTED_INTO_INFOBOX, newWikiText.second)</span>
+
+<span class="nc" id="L133">                val insertPos = newWikiText.third</span>
+<span class="nc" id="L134">                binding.editSectionText.setSelection(insertPos.first, insertPos.first + insertPos.second)</span>
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+                    // If we came from the Image Recommendation workflow, go directly to Preview.
+<span class="nc" id="L138">                    clickNextButton()</span>
+                }
+<span class="nc" id="L140">            }</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        } else if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+            // If the user cancels image insertion, back out immediately.
+<span class="nc" id="L143">            finish()</span>
+        }
+<span class="nc" id="L145">    }</span>
+
+<span class="nc" id="L147">    private val movementMethod = LinkMovementMethodExt { urlStr -&gt;</span>
+<span class="nc" id="L148">        UriUtil.visitInExternalBrowser(this, UriUtil.resolveProtocolRelativeUrl(viewModel.pageTitle.wikiSite, urlStr).toUri())</span>
+<span class="nc" id="L149">    }</span>
+
+    public override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L152">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L153">        binding = ActivityEditSectionBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L154">        setContentView(binding.root)</span>
+<span class="nc" id="L155">        setNavigationBarColor(ResourceUtil.getThemedColor(this, android.R.attr.colorBackground))</span>
+
+<span class="nc" id="L157">        setSupportActionBar(binding.toolbar)</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        supportActionBar?.title = &quot;&quot;</span>
+
+<span class="nc" id="L160">        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)</span>
+
+<span class="nc" id="L162">        syntaxHighlighter = SyntaxHighlighter(this, binding.editSectionText, binding.editSectionScroll)</span>
+<span class="nc" id="L163">        binding.editSectionScroll.isSmoothScrollingEnabled = false</span>
+<span class="nc" id="L164">        captchaHandler = CaptchaHandler(this, viewModel.pageTitle.wikiSite, binding.captchaContainer.root,</span>
+<span class="nc" id="L165">                binding.editSectionText, &quot;&quot;, null)</span>
+<span class="nc" id="L166">        editPreviewFragment = supportFragmentManager.findFragmentById(R.id.edit_section_preview_fragment) as EditPreviewFragment</span>
+<span class="nc" id="L167">        editSummaryFragment = supportFragmentManager.findFragmentById(R.id.edit_section_summary_fragment) as EditSummaryFragment</span>
+<span class="nc" id="L168">        editSummaryFragment.title = viewModel.pageTitle</span>
+
+        // Only send the editing start log event if the activity is created for the first time
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        if (savedInstanceState == null) {</span>
+<span class="nc" id="L172">            EditAttemptStepEvent.logInit(viewModel.pageTitle)</span>
+        }
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        if (savedInstanceState != null) {</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            if (savedInstanceState.containsKey(EXTRA_KEY_TEMPORARY_WIKITEXT_STORED)) {</span>
+<span class="nc" id="L176">                viewModel.sectionWikitext = Prefs.temporaryWikitext</span>
+            }
+<span class="nc" id="L178">            viewModel.editingAllowed = savedInstanceState.getBoolean(EXTRA_KEY_EDITING_ALLOWED, false)</span>
+<span class="nc" id="L179">            sectionTextModified = savedInstanceState.getBoolean(EXTRA_KEY_SECTION_TEXT_MODIFIED, false)</span>
+        }
+<span class="nc" id="L181">        binding.editSectionText.setTextDirectionByLang(viewModel.pageTitle.wikiSite.languageCode)</span>
+
+<span class="nc" id="L183">        fetchSectionText()</span>
+
+<span class="nc" id="L185">        binding.viewEditSectionError.retryClickListener = View.OnClickListener {</span>
+<span class="nc" id="L186">            binding.viewEditSectionError.visibility = View.GONE</span>
+<span class="nc" id="L187">            captchaHandler.requestNewCaptcha()</span>
+<span class="nc" id="L188">            fetchSectionText()</span>
+<span class="nc" id="L189">        }</span>
+<span class="nc" id="L190">        binding.viewEditSectionError.backClickListener = View.OnClickListener {</span>
+<span class="nc" id="L191">            onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L192">        }</span>
+
+<span class="nc" id="L194">        textWatcher = binding.editSectionText.doAfterTextChanged {</span>
+<span class="nc" id="L195">            if (sectionTextFirstLoad) {</span>
+<span class="nc" id="L196">                sectionTextFirstLoad = false</span>
+<span class="nc" id="L197">                return@doAfterTextChanged</span>
+            }
+<span class="nc" id="L199">            if (!sectionTextModified) {</span>
+<span class="nc" id="L200">                sectionTextModified = true</span>
+                // update the actionbar menu, which will enable the Next button.
+<span class="nc" id="L202">                invalidateOptionsMenu()</span>
+            }
+<span class="nc" id="L204">        }</span>
+
+<span class="nc" id="L206">        SyntaxHighlightViewAdapter(this, viewModel.pageTitle, binding.editSectionText,</span>
+<span class="nc" id="L207">            binding.editKeyboardOverlay, binding.editKeyboardOverlayFormatting, binding.editKeyboardOverlayHeadings,</span>
+<span class="nc" id="L208">            Constants.InvokeSource.EDIT_ACTIVITY, requestInsertMedia)</span>
+
+<span class="nc" id="L210">        binding.editSectionText.setOnClickListener { finishActionMode() }</span>
+<span class="nc" id="L211">        onEditingPrefsChanged()</span>
+
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+            // If the intent is to add an image to the article, go directly to the image insertion flow.
+<span class="nc" id="L215">            startInsertImageFlow()</span>
+        }
+
+        // set focus to the EditText, but keep the keyboard hidden until the user changes the cursor location:
+<span class="nc" id="L219">        binding.editSectionText.requestFocus()</span>
+<span class="nc" id="L220">        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)</span>
+
+<span class="nc" id="L222">        lifecycleScope.launch {</span>
+<span class="nc" id="L223">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L224">                launch {</span>
+<span class="nc" id="L225">                    viewModel.fetchSectionTextState.collectLatest {</span>
+<span class="nc" id="L226">                        when (it) {</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                            is Resource.Loading -&gt; {</span>
+<span class="nc" id="L228">                                showProgressBar(true)</span>
+                            }
+<span class="nc bnc" id="L230" title="All 2 branches missed.">                            is Resource.Success -&gt; {</span>
+<span class="nc" id="L231">                                showProgressBar(false)</span>
+<span class="nc" id="L232">                                displaySectionText()</span>
+<span class="nc" id="L233">                                maybeShowEditSourceDialog()</span>
+<span class="nc" id="L234">                                invalidateOptionsMenu()</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                                if (!maybeShowTempAccountDialog()) {</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">                                    if (Prefs.autoShowEditNotices) {</span>
+<span class="nc" id="L237">                                        showEditNotices()</span>
+                                    } else {
+<span class="nc" id="L239">                                        maybeShowEditNoticesTooltip()</span>
+                                    }
+                                }
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                                it.data?.let { error -&gt;</span>
+<span class="nc" id="L243">                                    FeedbackUtil.showError(this@EditSectionActivity, MwException(error), viewModel.pageTitle.wikiSite)</span>
+<span class="nc" id="L244">                                }</span>
+                            }
+<span class="nc bnc" id="L246" title="All 2 branches missed.">                            is Resource.Error -&gt; {</span>
+<span class="nc" id="L247">                                showProgressBar(false)</span>
+<span class="nc" id="L248">                                showError(it.throwable)</span>
+                            }
+                        }
+<span class="nc" id="L251">                    }</span>
+<span class="nc" id="L252">                }</span>
+
+<span class="nc" id="L254">                launch {</span>
+<span class="nc" id="L255">                    viewModel.postEditState.collectLatest {</span>
+<span class="nc" id="L256">                        when (it) {</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                            is Resource.Loading -&gt; {</span>
+<span class="nc" id="L258">                                showProgressBar(true)</span>
+<span class="nc" id="L259">                                binding.editSectionCaptchaContainer.visibility = View.GONE</span>
+<span class="nc" id="L260">                                captchaHandler.hideCaptcha()</span>
+<span class="nc" id="L261">                                editSummaryFragment.saveSummary()</span>
+                            }
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                            is Resource.Success -&gt; {</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                                it.data.edit?.run {</span>
+<span class="nc" id="L265">                                    when {</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">                                        editSucceeded -&gt; {</span>
+<span class="nc" id="L267">                                            AnonymousNotificationHelper.onEditSubmitted()</span>
+<span class="nc" id="L268">                                            viewModel.waitForRevisionUpdate(newRevId)</span>
+                                        }
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                                        hasCaptchaResponse -&gt; onEditSuccess(CaptchaResult(captchaId))</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">                                        hasSpamBlacklistResponse -&gt; onEditFailure(MwException(MwServiceError(code, spamblacklist)))</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                                        hasEditErrorCode -&gt; onEditFailure(MwException(MwServiceError(code, info)))</span>
+<span class="nc" id="L273">                                        else -&gt; onEditFailure(IOException(&quot;Received unrecognized edit response&quot;))</span>
+                                    }
+<span class="nc" id="L275">                                } ?: run {</span>
+<span class="nc" id="L276">                                    onEditFailure(IOException(&quot;An unknown error occurred.&quot;))</span>
+<span class="nc" id="L277">                                }</span>
+                            }
+<span class="nc bnc" id="L279" title="All 2 branches missed.">                            is Resource.Error -&gt; {</span>
+<span class="nc" id="L280">                                onEditFailure(it.throwable)</span>
+                            }
+                        }
+<span class="nc" id="L283">                    }</span>
+<span class="nc" id="L284">                }</span>
+
+<span class="nc" id="L286">                launch {</span>
+<span class="nc" id="L287">                    viewModel.waitForRevisionState.collect {</span>
+<span class="nc" id="L288">                        when (it) {</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">                            is Resource.Success -&gt; {</span>
+<span class="nc" id="L290">                                onEditSuccess(EditSuccessResult(it.data))</span>
+                            }
+                        }
+<span class="nc" id="L293">                    }</span>
+                }
+<span class="nc" id="L295">            }</span>
+<span class="nc" id="L296">        }</span>
+<span class="nc" id="L297">    }</span>
+
+    public override fun onStart() {
+<span class="nc" id="L300">        super.onStart()</span>
+<span class="nc" id="L301">        updateEditLicenseText()</span>
+<span class="nc" id="L302">    }</span>
+
+    public override fun onDestroy() {
+<span class="nc" id="L305">        captchaHandler.dispose()</span>
+<span class="nc" id="L306">        binding.editSectionText.removeTextChangedListener(textWatcher)</span>
+<span class="nc" id="L307">        syntaxHighlighter.cleanup()</span>
+<span class="nc" id="L308">        super.onDestroy()</span>
+<span class="nc" id="L309">    }</span>
+
+    public override fun onPause() {
+<span class="nc" id="L312">        super.onPause()</span>
+<span class="nc" id="L313">        viewModel.sectionWikitext = binding.editSectionText.text.toString()</span>
+<span class="nc" id="L314">    }</span>
+
+    fun getInvokeSource(): Constants.InvokeSource {
+<span class="nc" id="L317">        return viewModel.invokeSource</span>
+    }
+
+    private fun updateEditLicenseText() {
+<span class="nc" id="L321">        val editLicenseText = ActivityCompat.requireViewById&lt;TextView&gt;(this, R.id.licenseText)</span>
+<span class="nc" id="L322">        editLicenseText.text = StringUtil.fromHtml(getString(R.string.edit_save_action_license_logged_in,</span>
+<span class="nc" id="L323">                getString(R.string.terms_of_use_url),</span>
+<span class="nc" id="L324">                getString(R.string.cc_by_sa_4_url)))</span>
+<span class="nc" id="L325">        editLicenseText.movementMethod = LinkMovementMethod.getInstance()</span>
+<span class="nc" id="L326">    }</span>
+
+    private fun doSave() {
+<span class="nc bnc" id="L329" title="All 2 branches missed.">        val sectionAnchor = StringUtil.addUnderscores(StringUtil.removeHTMLTags(viewModel.sectionAnchor.orEmpty()))</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        val isMinorEdit = if (editSummaryFragment.isMinorEdit) true else null</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">        val watchThisPage = if (editSummaryFragment.watchThisPage) &quot;watch&quot; else &quot;unwatch&quot;</span>
+<span class="nc bnc" id="L332" title="All 6 branches missed.">        var summaryText = if (sectionAnchor.isEmpty() || sectionAnchor == viewModel.pageTitle.prefixedText) {</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            if (viewModel.pageTitle.wikiSite.languageCode == &quot;en&quot;) &quot;/* top */&quot; else &quot;&quot;</span>
+<span class="nc" id="L334">        } else &quot;/* ${StringUtil.removeUnderscores(sectionAnchor)} */ &quot;</span>
+<span class="nc" id="L335">         summaryText += editSummaryFragment.summary</span>
+
+        // Summaries are plaintext, so remove any HTML that's made its way into the summary
+<span class="nc" id="L338">        summaryText = StringUtil.removeHTMLTags(summaryText)</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">        if (!isFinishing) {</span>
+<span class="nc" id="L340">            showProgressBar(true)</span>
+        }
+
+<span class="nc" id="L343">        viewModel.postEdit(</span>
+<span class="nc" id="L344">            isMinorEdit = isMinorEdit,</span>
+<span class="nc" id="L345">            watchThisPage = watchThisPage,</span>
+<span class="nc" id="L346">            summaryText = summaryText,</span>
+<span class="nc" id="L347">            editSectionText = binding.editSectionText.text.toString(),</span>
+<span class="nc" id="L348">            captchaId = captchaHandler.captchaId().toString(),</span>
+<span class="nc" id="L349">            captchaWord = captchaHandler.captchaWord().toString(),</span>
+<span class="nc" id="L350">            editTags = getEditTag()</span>
+        )
+
+<span class="nc" id="L353">        BreadCrumbLogEvent.logInputField(this, editSummaryFragment.summaryText)</span>
+<span class="nc" id="L354">    }</span>
+
+    private fun getEditTag(): String {
+<span class="nc" id="L357">        return when {</span>
+<span class="nc bnc" id="L358" title="All 2 branches missed.">            viewModel.invokeSource == Constants.InvokeSource.TALK_TOPIC_ACTIVITY -&gt; EditTags.APP_TALK_SOURCE</span>
+<span class="nc bnc" id="L359" title="All 4 branches missed.">            viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE -&gt; if (intent.getBooleanExtra(InsertMediaActivity.EXTRA_INSERTED_INTO_INFOBOX, false)) EditTags.APP_IMAGE_ADD_INFOBOX else EditTags.APP_IMAGE_ADD_TOP</span>
+<span class="nc bnc" id="L360" title="All 6 branches missed.">            !viewModel.textToHighlight.isNullOrEmpty() -&gt; EditTags.APP_SELECT_SOURCE</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">            viewModel.sectionID &gt;= 0 -&gt; EditTags.APP_SECTION_SOURCE</span>
+<span class="nc" id="L362">            else -&gt; EditTags.APP_FULL_SOURCE</span>
+        }
+    }
+
+    private fun onEditSuccess(result: EditResult) {
+<span class="nc bnc" id="L367" title="All 2 branches missed.">        if (result is EditSuccessResult) {</span>
+<span class="nc" id="L368">            EditAttemptStepEvent.logSaveSuccess(viewModel.pageTitle)</span>
+            // TODO: remove the artificial delay and use the new revision
+            // ID returned to request the updated version of the page once
+            // revision support for mobile-sections is added to RESTBase
+            // See https://github.com/wikimedia/restbase/pull/729
+<span class="nc" id="L373">            Handler(mainLooper).postDelayed(TimeUnit.SECONDS.toMillis(2)) {</span>
+<span class="nc" id="L374">                showProgressBar(false)</span>
+
+                // Build intent that includes the section we were editing, so we can scroll to it later
+<span class="nc" id="L377">                val data = Intent()</span>
+<span class="nc" id="L378">                data.putExtra(EXTRA_SECTION_ID, viewModel.sectionID)</span>
+<span class="nc" id="L379">                data.putExtra(EXTRA_REV_ID, result.revID)</span>
+<span class="nc" id="L380">                setResult(EditHandler.RESULT_REFRESH_PAGE, data)</span>
+<span class="nc" id="L381">                DeviceUtil.hideSoftKeyboard(this@EditSectionActivity)</span>
+<span class="nc" id="L382">                finish()</span>
+<span class="nc" id="L383">            }</span>
+<span class="nc" id="L384">            return</span>
+        }
+<span class="nc" id="L386">        showProgressBar(false)</span>
+<span class="nc bnc" id="L387" title="All 2 branches missed.">        if (result is CaptchaResult) {</span>
+<span class="nc" id="L388">            binding.editSectionCaptchaContainer.visibility = View.VISIBLE</span>
+<span class="nc" id="L389">            captchaHandler.handleCaptcha(null, result)</span>
+        } else {
+<span class="nc" id="L391">            EditAttemptStepEvent.logSaveFailure(viewModel.pageTitle)</span>
+            // Expand to do everything.
+<span class="nc" id="L393">            onEditFailure(Throwable())</span>
+        }
+<span class="nc" id="L395">    }</span>
+
+    private fun onEditFailure(caught: Throwable) {
+<span class="nc" id="L398">        showProgressBar(false)</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">        if (caught is MwException) {</span>
+<span class="nc" id="L400">            handleEditingException(caught)</span>
+        } else {
+<span class="nc" id="L402">            showRetryDialog(caught)</span>
+        }
+<span class="nc" id="L404">        L.e(caught)</span>
+<span class="nc" id="L405">    }</span>
+
+    private fun showRetryDialog(t: Throwable) {
+<span class="nc" id="L408">        MaterialAlertDialogBuilder(this@EditSectionActivity)</span>
+<span class="nc" id="L409">                .setTitle(R.string.dialog_message_edit_failed)</span>
+<span class="nc" id="L410">                .setMessage(t.localizedMessage)</span>
+<span class="nc" id="L411">                .setPositiveButton(R.string.dialog_message_edit_failed_retry) { dialog, _ -&gt;</span>
+<span class="nc" id="L412">                    doSave()</span>
+<span class="nc" id="L413">                    dialog.dismiss()</span>
+<span class="nc" id="L414">                }</span>
+<span class="nc" id="L415">                .setNegativeButton(R.string.dialog_message_edit_failed_cancel) { dialog, _ -&gt; dialog.dismiss() }.show()</span>
+<span class="nc" id="L416">    }</span>
+
+    /**
+     * Processes API error codes encountered during editing, and handles them as appropriate.
+     * @param caught The MwException to handle.
+     */
+    private fun handleEditingException(caught: MwException) {
+<span class="nc" id="L423">        val code = caught.title</span>
+<span class="nc" id="L424">        lifecycleScope.launch(CoroutineExceptionHandler { _, t -&gt;</span>
+<span class="nc" id="L425">            showError(t)</span>
+<span class="nc" id="L426">        }) {</span>
+            // In the case of certain AbuseFilter responses, they are sent as a code, instead of a
+            // fully parsed response. We need to make one more API call to get the parsed message:
+<span class="nc bnc" id="L429" title="All 6 branches missed.">            if (code.startsWith(&quot;abusefilter-&quot;) &amp;&amp; caught.message.contains(&quot;abusefilter-&quot;) &amp;&amp; caught.message.length &lt; 100) {</span>
+<span class="nc" id="L430">                val response = ServiceFactory.get(viewModel.pageTitle.wikiSite).parsePage(&quot;MediaWiki:&quot; + StringUtil.sanitizeAbuseFilterCode(caught.message))</span>
+<span class="nc" id="L431">                showError(MwException(MwServiceError(code, response.text)))</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">            } else if (&quot;editconflict&quot; == code) {</span>
+<span class="nc" id="L433">                MaterialAlertDialogBuilder(this@EditSectionActivity)</span>
+<span class="nc" id="L434">                    .setTitle(R.string.edit_conflict_title)</span>
+<span class="nc" id="L435">                    .setMessage(R.string.edit_conflict_message)</span>
+<span class="nc" id="L436">                    .setPositiveButton(R.string.edit_conflict_dialog_ok_button_text, null)</span>
+<span class="nc" id="L437">                    .show()</span>
+<span class="nc" id="L438">                resetToStart()</span>
+            } else {
+<span class="nc" id="L440">                showError(caught)</span>
+            }
+<span class="nc" id="L442">        }</span>
+<span class="nc" id="L443">    }</span>
+
+    /**
+     * Executes a click of the actionbar button, and performs the appropriate action
+     * based on the current state of the button.
+     */
+    fun clickNextButton() {
+<span class="nc" id="L450">        val addImageTitle = intent.parcelableExtra&lt;PageTitle&gt;(InsertMediaActivity.EXTRA_IMAGE_TITLE)</span>
+<span class="nc" id="L451">        val addImageSource = intent.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE)</span>
+<span class="nc" id="L452">        val addImageSourceProjects = intent.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE_PROJECTS)</span>
+<span class="nc" id="L453">        when {</span>
+<span class="nc bnc" id="L454" title="All 2 branches missed.">            editSummaryFragment.isActive -&gt; {</span>
+<span class="nc bnc" id="L455" title="All 2 branches missed.">                if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc" id="L456">                    ImageRecommendationsEvent.logAction(&quot;editsummary_save&quot;, &quot;editsummary_dialog&quot;, ImageRecommendationsEvent.getActionDataString(</span>
+<span class="nc bnc" id="L457" title="All 8 branches missed.">                        filename = addImageTitle?.prefixedText.orEmpty(), recommendationSource = addImageSource.orEmpty(), recommendationSourceProjects = addImageSourceProjects.orEmpty(),</span>
+<span class="nc bnc" id="L458" title="All 6 branches missed.">                        acceptanceState = &quot;accepted&quot;, captionAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION).isNullOrEmpty(),</span>
+<span class="nc bnc" id="L459" title="All 12 branches missed.">                        altTextAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT).isNullOrEmpty()), addImageTitle?.wikiSite?.languageCode.orEmpty())</span>
+                }
+<span class="nc" id="L461">                doSave()</span>
+<span class="nc" id="L462">                EditAttemptStepEvent.logSaveAttempt(viewModel.pageTitle)</span>
+<span class="nc bnc" id="L463" title="All 2 branches missed.">                supportActionBar?.title = getString(R.string.preview_edit_summarize_edit_title)</span>
+            }
+<span class="nc bnc" id="L465" title="All 2 branches missed.">            editPreviewFragment.isActive -&gt; {</span>
+<span class="nc bnc" id="L466" title="All 2 branches missed.">                if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc" id="L467">                    ImageRecommendationsEvent.logAction(&quot;caption_preview_accept&quot;, &quot;caption_preview&quot;, ImageRecommendationsEvent.getActionDataString(</span>
+<span class="nc bnc" id="L468" title="All 6 branches missed.">                        filename = addImageTitle?.prefixedText.orEmpty(), recommendationSource = addImageSource.orEmpty(),</span>
+<span class="nc bnc" id="L469" title="All 2 branches missed.">                        recommendationSourceProjects = addImageSourceProjects.orEmpty(), acceptanceState = &quot;accepted&quot;,</span>
+<span class="nc bnc" id="L470" title="All 6 branches missed.">                        captionAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION).isNullOrEmpty(),</span>
+<span class="nc bnc" id="L471" title="All 6 branches missed.">                        altTextAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT).isNullOrEmpty()), viewModel.pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L472">                    ImageRecommendationsEvent.logImpression(&quot;editsummary_dialog&quot;, ImageRecommendationsEvent.getActionDataString(</span>
+<span class="nc bnc" id="L473" title="All 6 branches missed.">                        filename = addImageTitle?.prefixedText.orEmpty(), recommendationSource = addImageSource.orEmpty(),</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">                        recommendationSourceProjects = addImageSourceProjects.orEmpty(), acceptanceState = &quot;accepted&quot;,</span>
+<span class="nc bnc" id="L475" title="All 6 branches missed.">                        captionAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION).isNullOrEmpty(),</span>
+<span class="nc bnc" id="L476" title="All 6 branches missed.">                        altTextAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT).isNullOrEmpty()), viewModel.pageTitle.wikiSite.languageCode)</span>
+                }
+<span class="nc" id="L478">                editSummaryFragment.show()</span>
+<span class="nc bnc" id="L479" title="All 2 branches missed.">                supportActionBar?.title = getString(R.string.preview_edit_summarize_edit_title)</span>
+            }
+            else -&gt; {
+                // we must be showing the editing window, so show the Preview.
+<span class="nc" id="L483">                DeviceUtil.hideSoftKeyboard(this)</span>
+<span class="nc" id="L484">                binding.editSectionScroll.isVisible = false</span>
+<span class="nc" id="L485">                editPreviewFragment.showPreview(viewModel.pageTitle, binding.editSectionText.text.toString())</span>
+<span class="nc" id="L486">                EditAttemptStepEvent.logSaveIntent(viewModel.pageTitle)</span>
+<span class="nc bnc" id="L487" title="All 2 branches missed.">                supportActionBar?.title = getString(R.string.edit_preview)</span>
+<span class="nc" id="L488">                setNavigationBarColor(ResourceUtil.getThemedColor(this, R.attr.paper_color))</span>
+<span class="nc bnc" id="L489" title="All 2 branches missed.">                if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc" id="L490">                    ImageRecommendationsEvent.logImpression(&quot;caption_preview&quot;, ImageRecommendationsEvent.getActionDataString(</span>
+<span class="nc bnc" id="L491" title="All 6 branches missed.">                        filename = addImageTitle?.prefixedText.orEmpty(), recommendationSource = addImageSource.orEmpty(),</span>
+<span class="nc bnc" id="L492" title="All 2 branches missed.">                        recommendationSourceProjects = addImageSourceProjects.orEmpty(), acceptanceState = &quot;accepted&quot;,</span>
+<span class="nc bnc" id="L493" title="All 6 branches missed.">                        captionAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION).isNullOrEmpty(),</span>
+<span class="nc bnc" id="L494" title="All 6 branches missed.">                        altTextAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT).isNullOrEmpty()), viewModel.pageTitle.wikiSite.languageCode)</span>
+                }
+            }
+        }
+<span class="nc" id="L498">    }</span>
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L501">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L502" title="All 2 branches missed.">            R.id.menu_save_section -&gt; {</span>
+<span class="nc" id="L503">                clickNextButton()</span>
+<span class="nc" id="L504">                true</span>
+            }
+<span class="nc bnc" id="L506" title="All 2 branches missed.">            R.id.menu_edit_theme -&gt; {</span>
+<span class="nc" id="L507">                binding.editSectionText.enqueueNoScrollingLayoutChange()</span>
+<span class="nc" id="L508">                ExclusiveBottomSheetPresenter.show(supportFragmentManager, ThemeChooserDialog.newInstance(Constants.InvokeSource.EDIT_ACTIVITY, true))</span>
+<span class="nc" id="L509">                true</span>
+            }
+<span class="nc bnc" id="L511" title="All 2 branches missed.">            R.id.menu_find_in_editor -&gt; {</span>
+<span class="nc" id="L512">                showFindInEditor()</span>
+<span class="nc" id="L513">                true</span>
+            }
+<span class="nc bnc" id="L515" title="All 2 branches missed.">            R.id.menu_edit_notices -&gt; {</span>
+<span class="nc" id="L516">                showEditNotices()</span>
+<span class="nc" id="L517">                true</span>
+            }
+<span class="nc bnc" id="L519" title="All 2 branches missed.">            R.id.menu_temp_account -&gt; {</span>
+<span class="nc" id="L520">                maybeShowTempAccountDialog(true)</span>
+<span class="nc" id="L521">                true</span>
+            }
+<span class="nc" id="L523">            else -&gt; super.onOptionsItemSelected(item)</span>
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+<span class="nc" id="L528">        menuInflater.inflate(R.menu.menu_edit_section, menu)</span>
+
+<span class="nc" id="L530">        menu.findItem(R.id.menu_temp_account).apply {</span>
+<span class="nc bnc" id="L531" title="All 4 branches missed.">            isVisible = !AccountUtil.isLoggedIn || AccountUtil.isTemporaryAccount</span>
+<span class="nc bnc" id="L532" title="All 2 branches missed.">            setIcon(if (AccountUtil.isTemporaryAccount) R.drawable.ic_temp_account else R.drawable.ic_anon_account)</span>
+<span class="nc" id="L533">        }</span>
+
+<span class="nc" id="L535">        val item = menu.findItem(R.id.menu_save_section)</span>
+<span class="nc bnc" id="L536" title="All 4 branches missed.">        supportActionBar?.elevation = if (editPreviewFragment.isActive) 0f else DimenUtil.dpToPx(4f)</span>
+<span class="nc bnc" id="L537" title="All 6 branches missed.">        menu.findItem(R.id.menu_edit_notices).isVisible = viewModel.editNotices.isNotEmpty() &amp;&amp; !editPreviewFragment.isActive</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">        menu.findItem(R.id.menu_edit_theme).isVisible = !editPreviewFragment.isActive</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">        menu.findItem(R.id.menu_find_in_editor).isVisible = !editPreviewFragment.isActive</span>
+<span class="nc bnc" id="L540" title="All 4 branches missed.">        item.title = getString(if (editSummaryFragment.isActive) R.string.edit_done else (if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) R.string.onboarding_continue else R.string.edit_next))</span>
+<span class="nc bnc" id="L541" title="All 4 branches missed.">        if (viewModel.editingAllowed &amp;&amp; binding.viewProgressBar.isGone) {</span>
+<span class="nc" id="L542">            item.isEnabled = sectionTextModified</span>
+        } else {
+<span class="nc" id="L544">            item.isEnabled = false</span>
+        }
+<span class="nc bnc" id="L546" title="All 4 branches missed.">        val summaryFilledOrNotActive = if (editSummaryFragment.isActive) editSummaryFragment.summary.isNotEmpty() else true</span>
+<span class="nc bnc" id="L547" title="All 4 branches missed.">        applyActionBarButtonStyle(item, item.isEnabled &amp;&amp; summaryFilledOrNotActive)</span>
+<span class="nc" id="L548">        return true</span>
+    }
+
+    override fun onActionModeStarted(mode: ActionMode) {
+<span class="nc" id="L552">        super.onActionModeStarted(mode)</span>
+<span class="nc bnc" id="L553" title="All 2 branches missed.">        if (mode.tag == null) {</span>
+            // since we disabled the close button in the AndroidManifest.xml, we need to manually setup a close button when in an action mode if long pressed on texts.
+<span class="nc" id="L555">            ViewUtil.setCloseButtonInActionMode(this@EditSectionActivity, mode)</span>
+        }
+<span class="nc" id="L557">    }</span>
+
+    private fun applyActionBarButtonStyle(menuItem: MenuItem, emphasize: Boolean) {
+<span class="nc" id="L560">        val actionBarButtonBinding = ItemEditActionbarButtonBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L561">        menuItem.actionView = actionBarButtonBinding.root</span>
+<span class="nc" id="L562">        actionBarButtonBinding.editActionbarButtonText.text = menuItem.title</span>
+<span class="nc" id="L563">        actionBarButtonBinding.editActionbarButtonText.setTextColor(</span>
+<span class="nc" id="L564">            ResourceUtil.getThemedColor(this,</span>
+<span class="nc bnc" id="L565" title="All 2 branches missed.">                if (emphasize) R.attr.progressive_color else R.attr.placeholder_color))</span>
+<span class="nc" id="L566">        actionBarButtonBinding.root.tag = menuItem</span>
+<span class="nc" id="L567">        actionBarButtonBinding.root.isEnabled = menuItem.isEnabled</span>
+<span class="nc" id="L568">        actionBarButtonBinding.root.setOnClickListener { onOptionsItemSelected(it.tag as MenuItem) }</span>
+<span class="nc" id="L569">    }</span>
+
+    fun showError(caught: Throwable?) {
+<span class="nc" id="L572">        DeviceUtil.hideSoftKeyboard(this)</span>
+<span class="nc" id="L573">        binding.viewEditSectionError.setError(caught)</span>
+<span class="nc" id="L574">        binding.viewEditSectionError.visibility = View.VISIBLE</span>
+<span class="nc" id="L575">    }</span>
+
+    private fun showFindInEditor() {
+<span class="nc" id="L578">        startActionMode(object : ActionMode.Callback {</span>
+            override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L580">                actionMode = mode</span>
+<span class="nc" id="L581">                val menuItem = menu.add(R.string.edit_section_find_in_page)</span>
+<span class="nc" id="L582">                menuItem.actionProvider = FindInEditorActionProvider(binding.editSectionScroll,</span>
+<span class="nc" id="L583">                        binding.editSectionText, syntaxHighlighter, actionMode!!)</span>
+<span class="nc" id="L584">                menuItem.expandActionView()</span>
+<span class="nc" id="L585">                return true</span>
+            }
+
+            override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L589">                mode.tag = &quot;actionModeFindInEditor&quot;</span>
+<span class="nc" id="L590">                return false</span>
+            }
+
+            override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+<span class="nc" id="L594">                return false</span>
+            }
+
+            override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L598">                syntaxHighlighter.clearSearchQueryInfo()</span>
+<span class="nc" id="L599">                binding.editSectionText.setSelection(binding.editSectionText.selectionStart,</span>
+<span class="nc" id="L600">                        binding.editSectionText.selectionStart)</span>
+<span class="nc" id="L601">            }</span>
+        })
+<span class="nc" id="L603">    }</span>
+
+    private fun finishActionMode() {
+<span class="nc bnc" id="L606" title="All 2 branches missed.">        actionMode?.finish()</span>
+<span class="nc" id="L607">        actionMode = null</span>
+<span class="nc" id="L608">    }</span>
+
+    override fun onSaveInstanceState(outState: Bundle) {
+<span class="nc" id="L611">        super.onSaveInstanceState(outState)</span>
+<span class="nc" id="L612">        outState.putBoolean(EXTRA_KEY_TEMPORARY_WIKITEXT_STORED, true)</span>
+<span class="nc" id="L613">        outState.putBoolean(EXTRA_KEY_SECTION_TEXT_MODIFIED, sectionTextModified)</span>
+<span class="nc" id="L614">        outState.putBoolean(EXTRA_KEY_EDITING_ALLOWED, viewModel.editingAllowed)</span>
+<span class="nc bnc" id="L615" title="All 2 branches missed.">        Prefs.temporaryWikitext = viewModel.sectionWikitext.orEmpty()</span>
+<span class="nc" id="L616">    }</span>
+
+    private fun updateTextSize() {
+<span class="nc" id="L619">        binding.editSectionText.textSize = WikipediaApp.instance.getFontSize(editing = true)</span>
+<span class="nc" id="L620">    }</span>
+
+    private fun resetToStart() {
+<span class="nc bnc" id="L623" title="All 2 branches missed.">        if (captchaHandler.isActive) {</span>
+<span class="nc" id="L624">            captchaHandler.cancelCaptcha()</span>
+<span class="nc" id="L625">            binding.editSectionCaptchaContainer.visibility = View.GONE</span>
+        }
+<span class="nc bnc" id="L627" title="All 2 branches missed.">        if (editSummaryFragment.isActive) {</span>
+<span class="nc" id="L628">            editSummaryFragment.hide()</span>
+        }
+<span class="nc bnc" id="L630" title="All 2 branches missed.">        if (editPreviewFragment.isActive) {</span>
+<span class="nc" id="L631">            editPreviewFragment.hide()</span>
+<span class="nc" id="L632">            binding.editSectionScroll.isVisible = true</span>
+        }
+<span class="nc" id="L634">    }</span>
+
+    private fun fetchSectionText() {
+<span class="nc bnc" id="L637" title="All 2 branches missed.">        if (viewModel.sectionWikitext != null) {</span>
+<span class="nc" id="L638">            viewModel.fetchSectionText()</span>
+        } else {
+<span class="nc" id="L640">            displaySectionText()</span>
+        }
+<span class="nc" id="L642">    }</span>
+
+    private fun maybeShowEditNoticesTooltip() {
+<span class="nc bnc" id="L645" title="All 4 branches missed.">        if (!Prefs.autoShowEditNotices &amp;&amp; !Prefs.isEditNoticesTooltipShown) {</span>
+<span class="nc" id="L646">            Prefs.isEditNoticesTooltipShown = true</span>
+<span class="nc" id="L647">            binding.root.postDelayed({</span>
+<span class="nc" id="L648">                val anchorView = findViewById&lt;View&gt;(R.id.menu_edit_notices)</span>
+<span class="nc bnc" id="L649" title="All 4 branches missed.">                if (!isDestroyed &amp;&amp; anchorView != null) {</span>
+<span class="nc" id="L650">                    FeedbackUtil.showTooltip(this, anchorView, getString(R.string.edit_notices_tooltip), aboveOrBelow = false, autoDismiss = false)</span>
+                }
+<span class="nc" id="L652">            }, 100)</span>
+        }
+<span class="nc" id="L654">    }</span>
+
+    private fun showEditNotices() {
+<span class="nc bnc" id="L657" title="All 2 branches missed.">        if (viewModel.editNotices.isEmpty()) {</span>
+<span class="nc" id="L658">            return</span>
+        }
+<span class="nc" id="L660">        EditNoticesDialog(viewModel.pageTitle.wikiSite, viewModel.editNotices, this).show()</span>
+<span class="nc" id="L661">    }</span>
+
+    private fun maybeShowEditSourceDialog() {
+<span class="nc bnc" id="L664" title="All 6 branches missed.">        if (!Prefs.showEditTalkPageSourcePrompt || (viewModel.pageTitle.namespace() !== Namespace.TALK &amp;&amp; viewModel.pageTitle.namespace() !== Namespace.USER_TALK)) {</span>
+<span class="nc" id="L665">            return</span>
+        }
+<span class="nc" id="L667">        val binding = DialogWithCheckboxBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L668">        binding.dialogMessage.text = StringUtil.fromHtml(getString(R.string.talk_edit_disclaimer))</span>
+<span class="nc" id="L669">        binding.dialogMessage.movementMethod = movementMethod</span>
+<span class="nc" id="L670">        MaterialAlertDialogBuilder(this@EditSectionActivity)</span>
+<span class="nc" id="L671">            .setView(binding.root)</span>
+<span class="nc" id="L672">            .setPositiveButton(R.string.onboarding_got_it) { dialog, _ -&gt; dialog.dismiss() }</span>
+<span class="nc" id="L673">            .setOnDismissListener {</span>
+<span class="nc bnc" id="L674" title="All 2 branches missed.">                Prefs.showEditTalkPageSourcePrompt = !binding.dialogCheckbox.isChecked</span>
+<span class="nc" id="L675">            }</span>
+<span class="nc" id="L676">            .show()</span>
+<span class="nc" id="L677">    }</span>
+
+    private fun displaySectionText() {
+<span class="nc" id="L680">        showProgressBar(false)</span>
+<span class="nc" id="L681">        binding.editSectionText.setText(viewModel.sectionWikitext)</span>
+<span class="nc" id="L682">        binding.editSectionScroll.isVisible = true</span>
+<span class="nc" id="L683">        binding.editSectionText.isEnabled = viewModel.editingAllowed</span>
+<span class="nc bnc" id="L684" title="All 6 branches missed.">        if (!viewModel.sectionWikitext.isNullOrEmpty()) {</span>
+<span class="nc" id="L685">            scrollToHighlight(viewModel.textToHighlight)</span>
+        }
+<span class="nc" id="L687">    }</span>
+
+    private fun scrollToHighlight(highlightText: String?) {
+<span class="nc bnc" id="L690" title="All 4 branches missed.">        if (highlightText == null || !TextUtils.isGraphic(highlightText)) {</span>
+<span class="nc" id="L691">            return</span>
+        }
+<span class="nc" id="L693">        binding.editSectionText.highlightText(highlightText)</span>
+<span class="nc" id="L694">    }</span>
+
+    override fun getParentPageTitle(): PageTitle {
+<span class="nc" id="L697">        return viewModel.pageTitle</span>
+    }
+
+    override fun showProgressBar(visible: Boolean) {
+<span class="nc" id="L701">        binding.viewProgressBar.isVisible = visible</span>
+<span class="nc" id="L702">        invalidateOptionsMenu()</span>
+<span class="nc" id="L703">    }</span>
+
+    override fun isNewPage(): Boolean {
+<span class="nc" id="L706">        return false</span>
+    }
+
+<span class="nc" id="L709">    private val onBackPressedCallback = object : OnBackPressedCallback(true) {</span>
+        override fun handleOnBackPressed() {
+<span class="nc" id="L711">            val addImageTitle = intent.parcelableExtra&lt;PageTitle&gt;(InsertMediaActivity.EXTRA_IMAGE_TITLE)</span>
+<span class="nc" id="L712">            val addImageSource = intent.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE)</span>
+<span class="nc" id="L713">            val addImageSourceProjects = intent.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE_PROJECTS)</span>
+<span class="nc bnc" id="L714" title="All 2 branches missed.">            if (binding.viewProgressBar.isVisible) {</span>
+                // If it is visible, it means we should wait until all the requests are done.
+<span class="nc" id="L716">                return</span>
+            }
+<span class="nc" id="L718">            showProgressBar(false)</span>
+<span class="nc bnc" id="L719" title="All 2 branches missed.">            if (captchaHandler.isActive) {</span>
+<span class="nc" id="L720">                captchaHandler.cancelCaptcha()</span>
+<span class="nc" id="L721">                binding.editSectionCaptchaContainer.visibility = View.GONE</span>
+            }
+<span class="nc" id="L723">            binding.viewEditSectionError.isVisible = false</span>
+<span class="nc bnc" id="L724" title="All 2 branches missed.">            if (editSummaryFragment.handleBackPressed()) {</span>
+<span class="nc" id="L725">                ImageRecommendationsEvent.logAction(&quot;back&quot;, &quot;editsummary_dialog&quot;, ImageRecommendationsEvent.getActionDataString(</span>
+<span class="nc bnc" id="L726" title="All 8 branches missed.">                    filename = addImageTitle?.prefixedText.orEmpty(), recommendationSource = addImageSource.orEmpty(), recommendationSourceProjects = addImageSourceProjects.orEmpty(), acceptanceState = &quot;accepted&quot;,</span>
+<span class="nc bnc" id="L727" title="All 6 branches missed.">                    captionAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION).isNullOrEmpty(),</span>
+<span class="nc bnc" id="L728" title="All 6 branches missed.">                    altTextAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT).isNullOrEmpty()), viewModel.pageTitle.wikiSite.languageCode)</span>
+<span class="nc bnc" id="L729" title="All 2 branches missed.">                supportActionBar?.title = getString(R.string.edit_preview)</span>
+<span class="nc" id="L730">                return</span>
+            }
+<span class="nc bnc" id="L732" title="All 2 branches missed.">            if (editPreviewFragment.isActive) {</span>
+<span class="nc" id="L733">                ImageRecommendationsEvent.logAction(&quot;back&quot;, &quot;caption_preview&quot;, ImageRecommendationsEvent.getActionDataString(</span>
+<span class="nc bnc" id="L734" title="All 6 branches missed.">                    filename = addImageTitle?.prefixedText.orEmpty(), recommendationSource = addImageSource.orEmpty(),</span>
+<span class="nc bnc" id="L735" title="All 2 branches missed.">                    recommendationSourceProjects = addImageSourceProjects.orEmpty(), acceptanceState = &quot;accepted&quot;,</span>
+<span class="nc bnc" id="L736" title="All 6 branches missed.">                    captionAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION).isNullOrEmpty(),</span>
+<span class="nc bnc" id="L737" title="All 6 branches missed.">                    altTextAdd = !intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT).isNullOrEmpty()), viewModel.pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L738">                editPreviewFragment.hide()</span>
+<span class="nc" id="L739">                binding.editSectionScroll.isVisible = true</span>
+<span class="nc bnc" id="L740" title="All 2 branches missed.">                supportActionBar?.title = null</span>
+
+                // If we came from the Image Recommendations workflow, bring back the Add Image activity.
+<span class="nc bnc" id="L743" title="All 2 branches missed.">                if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+                    // ...and reset the wikitext to the original, since the Add Image flow will re-
+                    // modify it when the user returns to it.
+<span class="nc" id="L746">                    viewModel.sectionWikitext = viewModel.sectionWikitextOriginal</span>
+<span class="nc" id="L747">                    binding.editSectionText.setText(viewModel.sectionWikitext)</span>
+
+<span class="nc" id="L749">                    startInsertImageFlow()</span>
+                }
+<span class="nc" id="L751">                return</span>
+            }
+<span class="nc" id="L753">            setNavigationBarColor(ResourceUtil.getThemedColor(this@EditSectionActivity, android.R.attr.colorBackground))</span>
+<span class="nc" id="L754">            DeviceUtil.hideSoftKeyboard(this@EditSectionActivity)</span>
+<span class="nc bnc" id="L755" title="All 2 branches missed.">            if (sectionTextModified) {</span>
+<span class="nc" id="L756">                doExitActionWithConfirmationDialog { finish() }</span>
+<span class="nc" id="L757">                return</span>
+            }
+<span class="nc" id="L759">            finish()</span>
+<span class="nc" id="L760">        }</span>
+    }
+
+    private fun doExitActionWithConfirmationDialog(action: () -&gt; Unit) {
+<span class="nc bnc" id="L764" title="All 2 branches missed.">        if (sectionTextModified) {</span>
+<span class="nc" id="L765">            val alert = MaterialAlertDialogBuilder(this)</span>
+<span class="nc" id="L766">            alert.setMessage(getString(R.string.edit_abandon_confirm))</span>
+<span class="nc" id="L767">            alert.setPositiveButton(getString(R.string.edit_abandon_confirm_yes)) { dialog, _ -&gt;</span>
+<span class="nc" id="L768">                dialog.dismiss()</span>
+<span class="nc" id="L769">                action()</span>
+<span class="nc" id="L770">            }</span>
+<span class="nc" id="L771">            alert.setNegativeButton(getString(R.string.edit_abandon_confirm_no)) { dialog, _ -&gt; dialog.dismiss() }</span>
+<span class="nc" id="L772">            alert.create().show()</span>
+        } else {
+<span class="nc" id="L774">            action()</span>
+        }
+<span class="nc" id="L776">    }</span>
+
+<span class="nc" id="L778">    private fun maybeShowTempAccountDialog(fromToolbar: Boolean = false): Boolean {</span>
+<span class="nc bnc" id="L779" title="All 8 branches missed.">        if (fromToolbar || (!Prefs.tempAccountDialogShown &amp;&amp; (!AccountUtil.isLoggedIn || AccountUtil.isTemporaryAccount))) {</span>
+<span class="nc" id="L780">            val dialog = MaterialAlertDialogBuilder(this, R.style.AlertDialogTheme_Icon_NegativeInactive)</span>
+<span class="nc bnc" id="L781" title="All 2 branches missed.">                .setIcon(if (AccountUtil.isTemporaryAccount) R.drawable.ic_temp_account else R.drawable.ic_anon_account)</span>
+<span class="nc bnc" id="L782" title="All 2 branches missed.">                .setTitle(if (AccountUtil.isTemporaryAccount) R.string.temp_account_using_title else R.string.temp_account_not_logged_in)</span>
+<span class="nc bnc" id="L783" title="All 2 branches missed.">                .setMessage(StringUtil.fromHtml(if (AccountUtil.isTemporaryAccount) getString(R.string.temp_account_temp_dialog_body, AccountUtil.userName)</span>
+<span class="nc bnc" id="L784" title="All 2 branches missed.">                else getString(if (viewModel.tempAccountsEnabled) R.string.temp_account_anon_dialog_body else R.string.temp_account_anon_ip_dialog_body, getString(R.string.temp_accounts_help_url))))</span>
+<span class="nc bnc" id="L785" title="All 2 branches missed.">                .setPositiveButton(getString(if (fromToolbar) R.string.temp_account_dialog_ok else R.string.create_account_button)) { dialog, _ -&gt;</span>
+<span class="nc" id="L786">                    dialog.dismiss()</span>
+<span class="nc bnc" id="L787" title="All 2 branches missed.">                    if (!fromToolbar) {</span>
+<span class="nc" id="L788">                        launchLogin()</span>
+                    }
+<span class="nc" id="L790">                }</span>
+<span class="nc bnc" id="L791" title="All 2 branches missed.">                .setNegativeButton(getString(if (fromToolbar) R.string.create_account_login else R.string.temp_account_dialog_ok)) { dialog, _ -&gt;</span>
+<span class="nc" id="L792">                    dialog.dismiss()</span>
+<span class="nc bnc" id="L793" title="All 2 branches missed.">                    if (fromToolbar) {</span>
+<span class="nc" id="L794">                        launchLogin()</span>
+                    }
+<span class="nc" id="L796">                }</span>
+<span class="nc" id="L797">                .show()</span>
+<span class="nc bnc" id="L798" title="All 2 branches missed.">            dialog.window?.let {</span>
+<span class="nc bnc" id="L799" title="All 2 branches missed.">                it.decorView.findViewById&lt;TextView&gt;(android.R.id.message)?.movementMethod = LinkMovementMethodExt { link -&gt;</span>
+<span class="nc bnc" id="L800" title="All 4 branches missed.">                    if (link.contains(&quot;#login&quot;) || link.contains(&quot;#createaccount&quot;)) {</span>
+<span class="nc" id="L801">                        launchLogin(link.contains(&quot;#createaccount&quot;))</span>
+                    } else {
+<span class="nc" id="L803">                        UriUtil.handleExternalLink(this, link.toUri())</span>
+                    }
+<span class="nc" id="L805">                    dialog.dismiss()</span>
+<span class="nc" id="L806">                }</span>
+<span class="nc" id="L807">            }</span>
+<span class="nc" id="L808">            Prefs.tempAccountDialogShown = true</span>
+<span class="nc" id="L809">            return true</span>
+        }
+<span class="nc" id="L811">        return false</span>
+    }
+
+<span class="nc" id="L814">    private fun launchLogin(createAccountFirst: Boolean = true) {</span>
+<span class="nc" id="L815">        requestLogin.launch(LoginActivity.newIntent(this, LoginActivity.SOURCE_EDIT, createAccountFirst))</span>
+<span class="nc" id="L816">    }</span>
+
+    private fun startInsertImageFlow() {
+<span class="nc" id="L819">        val addImageTitle = intent.parcelableExtra&lt;PageTitle&gt;(InsertMediaActivity.EXTRA_IMAGE_TITLE)!!</span>
+<span class="nc" id="L820">        val addImageSource = intent.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE)!!</span>
+<span class="nc" id="L821">        val addImageIntent = InsertMediaActivity.newIntent(this, viewModel.pageTitle.wikiSite,</span>
+<span class="nc" id="L822">            viewModel.pageTitle.displayText, viewModel.invokeSource, addImageTitle, addImageSource)</span>
+
+        // implicitly add any saved parameters from the previous insertion.
+<span class="nc" id="L825">        addImageIntent.putExtra(InsertMediaActivity.EXTRA_IMAGE_TITLE, intent.parcelableExtra&lt;PageTitle&gt;(InsertMediaActivity.EXTRA_IMAGE_TITLE))</span>
+<span class="nc" id="L826">        addImageIntent.putExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION, intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_CAPTION))</span>
+<span class="nc" id="L827">        addImageIntent.putExtra(InsertMediaActivity.RESULT_IMAGE_ALT, intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_ALT))</span>
+<span class="nc" id="L828">        addImageIntent.putExtra(InsertMediaActivity.RESULT_IMAGE_SIZE, intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_SIZE))</span>
+<span class="nc" id="L829">        addImageIntent.putExtra(InsertMediaActivity.RESULT_IMAGE_TYPE, intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_TYPE))</span>
+<span class="nc" id="L830">        addImageIntent.putExtra(InsertMediaActivity.RESULT_IMAGE_POS, intent.getStringExtra(InsertMediaActivity.RESULT_IMAGE_POS))</span>
+<span class="nc" id="L831">        addImageIntent.putExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE, intent.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE))</span>
+<span class="nc" id="L832">        addImageIntent.putExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE_PROJECTS, intent.getStringExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE_PROJECTS))</span>
+
+<span class="nc" id="L834">        requestInsertMedia.launch(addImageIntent)</span>
+<span class="nc" id="L835">    }</span>
+
+<span class="nc" id="L837">    override fun onToggleDimImages() { }</span>
+
+<span class="nc" id="L839">    override fun onToggleReadingFocusMode() { }</span>
+
+<span class="nc" id="L841">    override fun onCancelThemeChooser() { }</span>
+
+    override fun onEditingPrefsChanged() {
+<span class="nc" id="L844">        binding.editSectionText.enqueueNoScrollingLayoutChange()</span>
+<span class="nc" id="L845">        updateTextSize()</span>
+<span class="nc" id="L846">        syntaxHighlighter.enabled = Prefs.editSyntaxHighlightEnabled</span>
+<span class="nc" id="L847">        binding.editSectionText.enableTypingSuggestions(Prefs.editTypingSuggestionsEnabled)</span>
+<span class="nc bnc" id="L848" title="All 2 branches missed.">        binding.editSectionText.typeface = if (Prefs.editMonoSpaceFontEnabled) Typeface.MONOSPACE else Typeface.DEFAULT</span>
+<span class="nc" id="L849">        binding.editSectionText.showLineNumbers = Prefs.editLineNumbersEnabled</span>
+<span class="nc" id="L850">        binding.editSectionText.invalidate()</span>
+<span class="nc" id="L851">    }</span>
+
+    override fun onLinkPreviewLoadPage(title: PageTitle, entry: HistoryEntry, inNewTab: Boolean) {
+<span class="nc" id="L854">        doExitActionWithConfirmationDialog {</span>
+<span class="nc bnc" id="L855" title="All 2 branches missed.">            startActivity(if (inNewTab) PageActivity.newIntentForNewTab(this, entry, title) else</span>
+<span class="nc" id="L856">                PageActivity.newIntentForCurrentTab(this, entry, title, false))</span>
+<span class="nc" id="L857">        }</span>
+<span class="nc" id="L858">    }</span>
+
+    override fun onLinkPreviewDismiss() {
+<span class="nc bnc" id="L861" title="All 2 branches missed.">        if (!isDestroyed) {</span>
+<span class="nc" id="L862">            binding.editSectionText.postDelayed({</span>
+<span class="nc" id="L863">                DeviceUtil.showSoftKeyboard(binding.editSectionText)</span>
+<span class="nc" id="L864">            }, 200)</span>
+        }
+<span class="nc" id="L866">    }</span>
+
+    companion object {
+        const val EXTRA_KEY_SECTION_TEXT_MODIFIED = &quot;sectionTextModified&quot;
+        const val EXTRA_KEY_TEMPORARY_WIKITEXT_STORED = &quot;hasTemporaryWikitextStored&quot;
+        const val EXTRA_KEY_EDITING_ALLOWED = &quot;editingAllowed&quot;
+        const val EXTRA_SECTION_ID = &quot;sectionId&quot;
+        const val EXTRA_SECTION_ANCHOR = &quot;sectionAnchor&quot;
+        const val EXTRA_HIGHLIGHT_TEXT = &quot;sectionHighlightText&quot;
+        const val EXTRA_REV_ID = &quot;revId&quot;
+
+<span class="nc" id="L877">        fun newIntent(context: Context, sectionId: Int, sectionAnchor: String?, title: PageTitle,</span>
+<span class="nc" id="L878">                      invokeSource: Constants.InvokeSource, highlightText: String? = null,</span>
+<span class="nc" id="L879">                      addImageTitle: PageTitle? = null, addImageSource: String = &quot;&quot;, addImageSourceProjects: String = &quot;&quot;): Intent {</span>
+<span class="nc" id="L880">            return Intent(context, EditSectionActivity::class.java)</span>
+<span class="nc" id="L881">                .putExtra(EXTRA_SECTION_ID, sectionId)</span>
+<span class="nc" id="L882">                .putExtra(EXTRA_SECTION_ANCHOR, sectionAnchor)</span>
+<span class="nc" id="L883">                .putExtra(Constants.ARG_TITLE, title)</span>
+<span class="nc" id="L884">                .putExtra(EXTRA_HIGHLIGHT_TEXT, highlightText)</span>
+<span class="nc" id="L885">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, invokeSource)</span>
+<span class="nc" id="L886">                .putExtra(InsertMediaActivity.EXTRA_IMAGE_TITLE, addImageTitle)</span>
+<span class="nc" id="L887">                .putExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE, addImageSource)</span>
+<span class="nc" id="L888">                .putExtra(InsertMediaActivity.EXTRA_IMAGE_SOURCE_PROJECTS, addImageSourceProjects)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

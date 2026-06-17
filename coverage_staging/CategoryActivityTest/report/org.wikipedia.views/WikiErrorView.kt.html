@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiErrorView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">WikiErrorView.kt</span></div><h1>WikiErrorView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.widget.LinearLayout
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import org.wikipedia.R
+import org.wikipedia.databinding.ViewWikiErrorBinding
+import org.wikipedia.dataclient.mwapi.MwException
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.Namespace
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.ThrowableUtil.is404
+import org.wikipedia.util.ThrowableUtil.isEmptyException
+import org.wikipedia.util.ThrowableUtil.isNotLoggedIn
+import org.wikipedia.util.ThrowableUtil.isOffline
+import org.wikipedia.util.ThrowableUtil.isTimeout
+import org.wikipedia.views.WikiErrorView.ErrorType.USER_PAGE_MISSING
+
+class WikiErrorView : LinearLayout {
+
+<span class="pc" id="L25">    var binding = ViewWikiErrorBinding.inflate(LayoutInflater.from(context), this)</span>
+<span class="pc" id="L26">    var retryClickListener: OnClickListener? = null</span>
+<span class="nc" id="L27">    var backClickListener: OnClickListener? = null</span>
+<span class="nc" id="L28">    var nextClickListener: OnClickListener? = null</span>
+<span class="nc" id="L29">    var loginClickListener: OnClickListener? = null</span>
+<span class="nc" id="L30">    val contentTopOffset get() = binding.viewWikiErrorArticleContentTopOffset</span>
+<span class="nc" id="L31">    val tabLayoutOffset get() = binding.viewWikiErrorArticleTabLayoutOffset</span>
+
+<span class="nc" id="L33">    constructor(context: Context) : super(context)</span>
+<span class="fc" id="L34">    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)</span>
+<span class="nc" id="L35">    constructor(context: Context, attrs: AttributeSet?, defStyle: Int) : super(context, attrs, defStyle)</span>
+
+<span class="pc" id="L37">    init {</span>
+<span class="pc bpc" id="L38" title="5 of 6 branches missed.">        if (!isInEditMode) {</span>
+<span class="pc" id="L39">            val movementMethod = LinkMovementMethodExt.getExternalLinkMovementMethod()</span>
+<span class="pc" id="L40">            binding.viewWikiErrorText.movementMethod = movementMethod</span>
+<span class="pc" id="L41">            binding.viewWikiErrorFooterText.movementMethod = movementMethod</span>
+        }
+<span class="pc" id="L43">    }</span>
+
+<span class="nc" id="L45">    fun setError(caught: Throwable?, pageTitle: PageTitle? = null) {</span>
+<span class="nc" id="L46">        val resources = context.resources</span>
+<span class="nc" id="L47">        val errorType = getErrorType(caught, pageTitle)</span>
+<span class="nc" id="L48">        binding.viewWikiErrorIcon.setImageResource(errorType.icon)</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (caught is MwException) {</span>
+<span class="nc" id="L50">            binding.viewWikiErrorText.text = StringUtil.fromHtml(caught.message)</span>
+        } else {
+<span class="nc bnc" id="L52" title="All 4 branches missed.">            if (errorType == USER_PAGE_MISSING &amp;&amp; pageTitle != null) {</span>
+<span class="nc" id="L53">                binding.viewWikiErrorText.text = StringUtil.fromHtml(context.getString(errorType.text, pageTitle.uri, pageTitle.displayText, StringUtil.removeNamespace(pageTitle.displayText)))</span>
+<span class="nc" id="L54">                binding.viewWikiErrorText.movementMethod = LinkMovementMethodExt.getExternalLinkMovementMethod()</span>
+            } else {
+<span class="nc" id="L56">                binding.viewWikiErrorText.text = resources.getString(errorType.text)</span>
+            }
+        }
+<span class="nc" id="L59">        binding.viewWikiErrorButton.text = resources.getString(errorType.buttonText)</span>
+<span class="nc" id="L60">        binding.viewWikiErrorButton.setOnClickListener(errorType.buttonClickListener(this))</span>
+<span class="nc" id="L61">        when {</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            errorType.hasFooterText -&gt; {</span>
+<span class="nc" id="L63">                binding.viewWikiErrorFooterLayout.visibility = VISIBLE</span>
+<span class="nc" id="L64">                binding.viewWikiErrorFooterText.text = resources.getString(errorType.footerText)</span>
+            }
+<span class="nc bnc" id="L66" title="All 4 branches missed.">            caught != null &amp;&amp; caught !is MwException -&gt; {</span>
+<span class="nc" id="L67">                binding.viewWikiErrorFooterLayout.visibility = VISIBLE</span>
+<span class="nc" id="L68">                binding.viewWikiErrorFooterText.text = StringUtil.fromHtml(caught.message)</span>
+            }
+            else -&gt; {
+<span class="nc" id="L71">                binding.viewWikiErrorFooterLayout.visibility = GONE</span>
+            }
+        }
+<span class="nc" id="L74">    }</span>
+
+    fun setIconColorFilter(color: Int) {
+<span class="nc" id="L77">        binding.viewWikiErrorIcon.setColorFilter(color)</span>
+<span class="nc" id="L78">    }</span>
+
+    fun setErrorTextColor(color: Int) {
+<span class="nc" id="L81">        binding.viewWikiErrorText.setTextColor(color)</span>
+<span class="nc" id="L82">    }</span>
+
+    private fun getErrorType(caught: Throwable?, pageTitle: PageTitle?): ErrorType {
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        caught?.let {</span>
+<span class="nc" id="L86">            when {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                is404(it) -&gt; {</span>
+<span class="nc bnc" id="L88" title="All 4 branches missed.">                    return if (pageTitle?.namespace() == Namespace.USER) USER_PAGE_MISSING</span>
+<span class="nc" id="L89">                    else ErrorType.PAGE_MISSING</span>
+                }
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                isTimeout(it) -&gt; {</span>
+<span class="nc" id="L92">                    return ErrorType.TIMEOUT</span>
+                }
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                isOffline(it) -&gt; {</span>
+<span class="nc" id="L95">                    return ErrorType.OFFLINE</span>
+                }
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                isEmptyException(it) -&gt; {</span>
+<span class="nc" id="L98">                    return ErrorType.EMPTY</span>
+                }
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                isNotLoggedIn(it) -&gt; {</span>
+<span class="nc" id="L101">                    return ErrorType.LOGGED_OUT</span>
+                }
+                else -&gt; { }
+            }
+<span class="nc" id="L105">        }</span>
+<span class="nc" id="L106">        return ErrorType.GENERIC</span>
+    }
+
+<span class="nc" id="L109">    enum class ErrorType(@DrawableRes val icon: Int,</span>
+<span class="nc" id="L110">                         @StringRes val text: Int,</span>
+<span class="nc" id="L111">                         @StringRes val buttonText: Int,</span>
+<span class="nc" id="L112">                         @StringRes val footerText: Int = 0) {</span>
+
+<span class="nc" id="L114">        USER_PAGE_MISSING(R.drawable.ic_userpage_error_icon, R.string.error_user_page_does_not_exist,</span>
+<span class="nc" id="L115">                R.string.page_error_back_to_main) {</span>
+            override fun buttonClickListener(errorView: WikiErrorView): OnClickListener? {
+<span class="nc" id="L117">                return errorView.backClickListener</span>
+            }
+        },
+<span class="nc" id="L120">        PAGE_MISSING(R.drawable.ic_error_black_24dp, R.string.error_page_does_not_exist,</span>
+<span class="nc" id="L121">                R.string.page_error_back_to_main) {</span>
+            override fun buttonClickListener(errorView: WikiErrorView): OnClickListener? {
+<span class="nc" id="L123">                return errorView.backClickListener</span>
+            }
+        },
+<span class="nc" id="L126">        TIMEOUT(R.drawable.ic_error_black_24dp, R.string.view_wiki_error_message_timeout,</span>
+<span class="nc" id="L127">                R.string.offline_load_error_retry) {</span>
+            override fun buttonClickListener(errorView: WikiErrorView): OnClickListener? {
+<span class="nc" id="L129">                return errorView.retryClickListener</span>
+            }
+        },
+<span class="nc" id="L132">        OFFLINE(R.drawable.ic_portable_wifi_off_black_24px, R.string.view_wiki_error_message_offline,</span>
+<span class="nc" id="L133">                R.string.offline_load_error_retry) {</span>
+            override fun buttonClickListener(errorView: WikiErrorView): OnClickListener? {
+<span class="nc" id="L135">                return errorView.retryClickListener</span>
+            }
+        },
+<span class="nc" id="L138">        EMPTY(R.drawable.ic_error_black_24dp, R.string.error_message_generic,</span>
+<span class="nc" id="L139">                R.string.error_next) {</span>
+            override fun buttonClickListener(errorView: WikiErrorView): OnClickListener? {
+<span class="nc" id="L141">                return errorView.nextClickListener</span>
+            }
+        },
+<span class="nc" id="L144">        LOGGED_OUT(R.drawable.ic_error_black_24dp, R.string.error_message_generic,</span>
+<span class="nc" id="L145">            R.string.reading_lists_login_button) {</span>
+            override fun buttonClickListener(errorView: WikiErrorView): OnClickListener? {
+<span class="nc" id="L147">                return errorView.loginClickListener</span>
+            }
+        },
+<span class="nc" id="L150">        GENERIC(R.drawable.ic_error_black_24dp, R.string.error_message_generic,</span>
+<span class="nc" id="L151">                R.string.error_back) {</span>
+            override fun buttonClickListener(errorView: WikiErrorView): OnClickListener? {
+<span class="nc" id="L153">                return errorView.backClickListener</span>
+            }
+        };
+
+        val hasFooterText: Boolean
+            get() {
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                return footerText != 0</span>
+            }
+
+        abstract fun buttonClickListener(errorView: WikiErrorView): OnClickListener?
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

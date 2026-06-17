@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CsrfTokenClient.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.csrf</a> &gt; <span class="el_source">CsrfTokenClient.kt</span></div><h1>CsrfTokenClient.kt</h1><pre class="source lang-java linenums">package org.wikipedia.csrf
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.wikipedia.WikipediaApp
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.events.LoggedOutInBackgroundEvent
+import org.wikipedia.login.LoginClient
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.log.L
+import java.io.IOException
+import java.util.concurrent.Semaphore
+
+object CsrfTokenClient {
+<span class="nc" id="L20">    private val MUTEX: Semaphore = Semaphore(1)</span>
+    private const val ANON_TOKEN = &quot;+\\&quot;
+    private const val MAX_RETRIES = 3
+
+<span class="nc" id="L24">    suspend fun getToken(site: WikiSite, type: String = &quot;csrf&quot;, svc: Service? = null): String {</span>
+<span class="nc" id="L25">        var token = &quot;&quot;</span>
+<span class="nc" id="L26">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L27">            try {</span>
+<span class="nc" id="L28">                MUTEX.acquire()</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">                val service = svc ?: ServiceFactory.get(site)</span>
+<span class="nc" id="L30">                var lastError: Throwable? = null</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">                for (retry in 0 until MAX_RETRIES) {</span>
+<span class="nc" id="L32">                    try {</span>
+<span class="nc" id="L33">                        val tokenResponse = service.getToken(type)</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">                        token = if (type == &quot;rollback&quot;) {</span>
+<span class="nc bnc" id="L35" title="All 4 branches missed.">                            tokenResponse.query?.rollbackToken().orEmpty()</span>
+                        } else {
+<span class="nc bnc" id="L37" title="All 4 branches missed.">                            tokenResponse.query?.csrfToken().orEmpty()</span>
+                        }
+<span class="nc bnc" id="L39" title="All 2 branches missed.">                        if (tokenRequiresLogin(token)) {</span>
+<span class="nc" id="L40">                            L.d(&quot;App believes we're logged in, but got anonymous token. Logging in explicitly...&quot;)</span>
+                            // Regardless of which WikiSite the token is being requested from, the login call
+                            // should be done on the primary WikiSite of the app itself.
+<span class="nc" id="L43">                            val loginResult = LoginClient().loginBlocking(WikipediaApp.instance.wikiSite, AccountUtil.userName, AccountUtil.password!!)</span>
+                            // If the login sequence results in anything but PASS, then don't bother retrying.
+                            // Retrying is intended only for network errors, which would result in an exception, which is caught below.
+<span class="nc bnc" id="L46" title="All 2 branches missed.">                            if (!loginResult.pass()) {</span>
+<span class="nc" id="L47">                                bailWithLogout()</span>
+<span class="nc" id="L48">                                break</span>
+                            }
+                        }
+<span class="nc" id="L51">                    } catch (e: CancellationException) {</span>
+<span class="nc" id="L52">                        throw e</span>
+<span class="nc" id="L53">                    } catch (e: Throwable) {</span>
+<span class="nc" id="L54">                        L.e(e)</span>
+<span class="nc" id="L55">                        lastError = e</span>
+                    }
+<span class="nc bnc" id="L57" title="All 6 branches missed.">                    if (token.isEmpty() || tokenRequiresLogin(token)) {</span>
+<span class="nc" id="L58">                        continue</span>
+                    }
+<span class="nc" id="L60">                    break</span>
+                }
+<span class="nc bnc" id="L62" title="All 6 branches missed.">                if (token.isEmpty() || tokenRequiresLogin(token)) {</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                    throw lastError ?: IOException(&quot;Invalid token, or login failure.&quot;)</span>
+                }
+            } finally {
+<span class="nc" id="L66">                MUTEX.release()</span>
+            }
+<span class="nc" id="L68">        }</span>
+<span class="nc" id="L69">        return token</span>
+    }
+
+    private fun tokenRequiresLogin(token: String): Boolean {
+<span class="nc bnc" id="L73" title="All 6 branches missed.">        return (AccountUtil.isLoggedIn &amp;&amp; !AccountUtil.isTemporaryAccount &amp;&amp; token == ANON_TOKEN)</span>
+    }
+
+    private fun bailWithLogout() {
+        // Signal to the rest of the app that we're explicitly logging out in the background.
+<span class="nc" id="L78">        WikipediaApp.instance.resetAfterLogOut()</span>
+<span class="nc" id="L79">        Prefs.loggedOutInBackground = true</span>
+<span class="nc" id="L80">        FlowEventBus.post(LoggedOutInBackgroundEvent())</span>
+<span class="nc" id="L81">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

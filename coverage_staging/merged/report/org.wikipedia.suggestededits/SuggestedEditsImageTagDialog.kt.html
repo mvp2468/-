@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsImageTagDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsImageTagDialog.kt</span></div><h1>SuggestedEditsImageTagDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.app.Dialog
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.DialogInterface
+import android.graphics.drawable.InsetDrawable
+import android.os.Build
+import android.os.Bundle
+import android.text.TextWatcher
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.TextView
+import androidx.core.os.bundleOf
+import androidx.core.widget.doOnTextChanged
+import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.shape.MaterialShapeDrawable
+import com.google.android.material.shape.ShapeAppearanceModel
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.databinding.DialogImageTagSelectBinding
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L39">class SuggestedEditsImageTagDialog : DialogFragment() {</span>
+    interface Callback {
+        fun onSearchSelect(item: ImageTag)
+        fun onSearchDismiss(searchTerm: String)
+    }
+
+    private lateinit var textWatcher: TextWatcher
+    private var _binding: DialogImageTagSelectBinding? = null
+<span class="nc" id="L47">    private val binding get() = _binding!!</span>
+<span class="nc" id="L48">    private var currentSearchTerm: String = &quot;&quot;</span>
+<span class="nc" id="L49">    private val adapter = ResultListAdapter(emptyList())</span>
+    private var searchJob: Job? = null
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L53">        _binding = DialogImageTagSelectBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L54">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L58">        binding.imageTagsRecycler.layoutManager = LinearLayoutManager(activity)</span>
+<span class="nc" id="L59">        binding.imageTagsRecycler.adapter = adapter</span>
+<span class="nc" id="L60">        textWatcher = binding.imageTagsSearchText.doOnTextChanged { text, _, _, _ -&gt;</span>
+<span class="nc" id="L61">            currentSearchTerm = text?.toString() ?: &quot;&quot;</span>
+<span class="nc" id="L62">            requestResults(currentSearchTerm)</span>
+<span class="nc" id="L63">        }</span>
+<span class="nc" id="L64">        applyResults(emptyList())</span>
+<span class="nc" id="L65">    }</span>
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+<span class="nc" id="L68">        val dialog = super.onCreateDialog(savedInstanceState)</span>
+<span class="nc" id="L69">        val model = ShapeAppearanceModel.builder().setAllCornerSizes(DimenUtil.dpToPx(6f)).build()</span>
+<span class="nc" id="L70">        val materialShapeDrawable = MaterialShapeDrawable(model)</span>
+<span class="nc" id="L71">        materialShapeDrawable.fillColor = ResourceUtil.getThemedColorStateList(requireActivity(), R.attr.background_color)</span>
+<span class="nc" id="L72">        materialShapeDrawable.elevation = dialog.window!!.decorView.elevation</span>
+
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &lt;= Build.VERSION_CODES.P) {</span>
+<span class="nc" id="L75">            val inset = DimenUtil.roundedDpToPx(16f)</span>
+<span class="nc" id="L76">            val insetDrawable = InsetDrawable(materialShapeDrawable, inset, inset, inset, inset)</span>
+<span class="nc" id="L77">            dialog.window!!.setBackgroundDrawable(insetDrawable)</span>
+        } else {
+<span class="nc" id="L79">            dialog.window!!.setBackgroundDrawable(materialShapeDrawable)</span>
+        }
+
+<span class="nc" id="L82">        val params = dialog.window!!.attributes</span>
+<span class="nc" id="L83">        params.gravity = Gravity.TOP</span>
+<span class="nc" id="L84">        dialog.window!!.attributes = params</span>
+
+<span class="nc" id="L86">        return dialog</span>
+    }
+
+    override fun onStart() {
+<span class="nc" id="L90">        super.onStart()</span>
+<span class="nc" id="L91">        try {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            if (requireArguments().getBoolean(EXTRA_CLIPBOARD_TEXT)) {</span>
+<span class="nc" id="L93">                val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">                if (clipboard.hasPrimaryClip() &amp;&amp; clipboard.primaryClip != null) {</span>
+<span class="nc" id="L95">                    val primaryClip = clipboard.primaryClip!!</span>
+<span class="nc" id="L96">                    val clipText = primaryClip.getItemAt(primaryClip.itemCount - 1).coerceToText(requireContext()).toString()</span>
+<span class="nc bnc" id="L97" title="All 4 branches missed.">                    if (clipText.isNotEmpty()) {</span>
+<span class="nc" id="L98">                        binding.imageTagsSearchText.setText(clipText)</span>
+<span class="nc" id="L99">                        binding.imageTagsSearchText.selectAll()</span>
+                    }
+                }
+<span class="nc bnc" id="L102" title="All 4 branches missed.">            } else if (requireArguments().getString(EXTRA_LAST_TEXT)!!.isNotEmpty()) {</span>
+<span class="nc" id="L103">                binding.imageTagsSearchText.setText(requireArguments().getString(EXTRA_LAST_TEXT)!!)</span>
+<span class="nc" id="L104">                binding.imageTagsSearchText.selectAll()</span>
+            }
+<span class="nc" id="L106">        } catch (_: Exception) {</span>
+        }
+<span class="nc bnc" id="L108" title="All 4 branches missed.">        dialog?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)</span>
+<span class="nc" id="L109">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L112">        super.onDestroyView()</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        searchJob?.cancel()</span>
+<span class="nc" id="L114">        binding.imageTagsSearchText.removeTextChangedListener(textWatcher)</span>
+<span class="nc" id="L115">        _binding = null</span>
+<span class="nc" id="L116">    }</span>
+
+    private fun requestResults(searchTerm: String) {
+<span class="nc bnc" id="L119" title="All 4 branches missed.">        if (searchTerm.isEmpty()) {</span>
+<span class="nc" id="L120">            applyResults(emptyList())</span>
+<span class="nc" id="L121">            return</span>
+        }
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        searchJob?.cancel()</span>
+<span class="nc" id="L125">        searchJob = lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L126">            L.d(throwable)</span>
+<span class="nc" id="L127">        }) {</span>
+<span class="nc" id="L128">            delay(500)</span>
+<span class="nc" id="L129">            val search = ServiceFactory.get(Constants.wikidataWikiSite).searchEntities(searchTerm, WikipediaApp.instance.appOrSystemLanguageCode, WikipediaApp.instance.appOrSystemLanguageCode)</span>
+<span class="nc" id="L130">            val labelList = search.results.map { ImageTag(it.id, it.label, it.description) }</span>
+<span class="nc" id="L131">            applyResults(labelList)</span>
+<span class="nc" id="L132">        }</span>
+<span class="nc" id="L133">    }</span>
+
+    private fun applyResults(results: List&lt;ImageTag&gt;) {
+<span class="nc" id="L136">        adapter.setResults(results)</span>
+<span class="nc" id="L137">        adapter.notifyDataSetChanged()</span>
+<span class="nc bnc" id="L138" title="All 4 branches missed.">        if (currentSearchTerm.isEmpty()) {</span>
+<span class="nc" id="L139">            binding.noResultsText.visibility = View.GONE</span>
+<span class="nc" id="L140">            binding.imageTagsRecycler.visibility = View.GONE</span>
+<span class="nc" id="L141">            binding.imageTagsDivider.visibility = View.INVISIBLE</span>
+        } else {
+<span class="nc" id="L143">            binding.imageTagsDivider.visibility = View.VISIBLE</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (results.isEmpty()) {</span>
+<span class="nc" id="L145">                binding.noResultsText.visibility = View.VISIBLE</span>
+<span class="nc" id="L146">                binding.imageTagsRecycler.visibility = View.GONE</span>
+            } else {
+<span class="nc" id="L148">                binding.noResultsText.visibility = View.GONE</span>
+<span class="nc" id="L149">                binding.imageTagsRecycler.visibility = View.VISIBLE</span>
+            }
+        }
+<span class="nc" id="L152">    }</span>
+
+    override fun onDismiss(dialog: DialogInterface) {
+<span class="nc" id="L155">        super.onDismiss(dialog)</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        callback()?.onSearchDismiss(currentSearchTerm)</span>
+<span class="nc" id="L157">    }</span>
+
+<span class="nc" id="L159">    private inner class ResultItemHolder(itemView: View) : RecyclerView.ViewHolder(itemView), View.OnClickListener {</span>
+        fun bindItem(item: ImageTag) {
+<span class="nc" id="L161">            itemView.findViewById&lt;TextView&gt;(R.id.labelName).text = item.label</span>
+<span class="nc" id="L162">            itemView.findViewById&lt;TextView&gt;(R.id.labelDescription).text = item.description</span>
+<span class="nc" id="L163">            itemView.tag = item</span>
+<span class="nc" id="L164">            itemView.setOnClickListener(this)</span>
+<span class="nc" id="L165">        }</span>
+
+        override fun onClick(v: View) {
+<span class="nc" id="L168">            val item = v.tag as ImageTag</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            callback()?.onSearchSelect(item)</span>
+<span class="nc" id="L170">            dismiss()</span>
+<span class="nc" id="L171">        }</span>
+    }
+
+<span class="nc" id="L174">    private inner class ResultListAdapter(private var results: List&lt;ImageTag&gt;) : RecyclerView.Adapter&lt;ResultItemHolder&gt;() {</span>
+        fun setResults(results: List&lt;ImageTag&gt;) {
+<span class="nc" id="L176">            this.results = results</span>
+<span class="nc" id="L177">        }</span>
+
+        override fun getItemCount(): Int {
+<span class="nc" id="L180">            return results.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, pos: Int): ResultItemHolder {
+<span class="nc" id="L184">            val view = layoutInflater.inflate(R.layout.item_wikidata_label, parent, false)</span>
+<span class="nc" id="L185">            val params = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)</span>
+<span class="nc" id="L186">            view.layoutParams = params</span>
+<span class="nc" id="L187">            return ResultItemHolder(view)</span>
+        }
+
+        override fun onBindViewHolder(holder: ResultItemHolder, pos: Int) {
+<span class="nc" id="L191">            holder.bindItem(results[pos])</span>
+<span class="nc" id="L192">        }</span>
+    }
+
+    private fun callback(): Callback? {
+<span class="nc" id="L196">        return FragmentUtil.getCallback(this, Callback::class.java)</span>
+    }
+
+    companion object {
+        const val EXTRA_CLIPBOARD_TEXT = &quot;useClipboardText&quot;
+        const val EXTRA_LAST_TEXT = &quot;lastText&quot;
+
+        fun newInstance(useClipboardText: Boolean, lastText: String): SuggestedEditsImageTagDialog {
+<span class="nc" id="L204">            val dialog = SuggestedEditsImageTagDialog()</span>
+<span class="nc" id="L205">            dialog.arguments = bundleOf(EXTRA_CLIPBOARD_TEXT to useClipboardText, EXTRA_LAST_TEXT to lastText)</span>
+<span class="nc" id="L206">            return dialog</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

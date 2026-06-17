@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateAccountActivityViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.createaccount</a> &gt; <span class="el_source">CreateAccountActivityViewModel.kt</span></div><h1>CreateAccountActivityViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.createaccount
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L19">class CreateAccountActivityViewModel : ViewModel() {</span>
+<span class="nc" id="L20">    private val _authManagerState = MutableStateFlow(AccountInfoState())</span>
+<span class="nc" id="L21">    val authManagerState = _authManagerState.asStateFlow()</span>
+
+<span class="nc" id="L23">    private val _createAccountInfoState = MutableStateFlow(AccountInfoState())</span>
+<span class="nc" id="L24">    val createAccountInfoState = _createAccountInfoState.asStateFlow()</span>
+
+<span class="nc" id="L26">    private val _doCreateAccountState = MutableStateFlow(CreateAccountState())</span>
+<span class="nc" id="L27">    val doCreateAccountState = _doCreateAccountState.asStateFlow()</span>
+
+<span class="nc" id="L29">    private val _verifyUserNameState = MutableSharedFlow&lt;UserNameState&gt;()</span>
+<span class="nc" id="L30">    val verifyUserNameState = _verifyUserNameState.asSharedFlow()</span>
+
+<span class="nc" id="L32">    var token: String? = null</span>
+
+    private var verifyUserNameJob: Job? = null
+
+<span class="nc" id="L36">    init {</span>
+<span class="nc" id="L37">        getAuthManagerState()</span>
+<span class="nc" id="L38">    }</span>
+
+    private fun getAuthManagerState() {
+<span class="nc" id="L41">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L42">            _authManagerState.value = AccountInfoState.Error(throwable)</span>
+<span class="nc" id="L43">        }) {</span>
+<span class="nc" id="L44">            val response = ServiceFactory.get(WikipediaApp.instance.wikiSite).getAuthManagerInfo()</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">            token = response.query?.createAccountToken()</span>
+<span class="nc bnc" id="L46" title="All 6 branches missed.">            if (token.isNullOrEmpty()) {</span>
+<span class="nc" id="L47">                _authManagerState.value = AccountInfoState.InvalidToken</span>
+<span class="nc bnc" id="L48" title="All 6 branches missed.">            } else if (response.query?.hasHCaptchaRequest() == true) {</span>
+<span class="nc" id="L49">                val hCaptchaDisclaimerMessage = &quot;hcaptcha-privacy-policy&quot;</span>
+<span class="nc" id="L50">                val message = ServiceFactory.get(WikipediaApp.instance.wikiSite).getMessages(hCaptchaDisclaimerMessage, null)</span>
+<span class="nc bnc" id="L51" title="All 12 branches missed.">                    .query?.allmessages?.find { it.name == hCaptchaDisclaimerMessage }?.content.orEmpty()</span>
+<span class="nc" id="L52">                _authManagerState.value = AccountInfoState.HCaptchaDisclaimer(StringUtil.parseWikitextExternalLinks(message))</span>
+            }
+<span class="nc" id="L54">        }</span>
+<span class="nc" id="L55">    }</span>
+
+    fun createAccountInfo() {
+<span class="nc" id="L58">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L59">            _createAccountInfoState.value = AccountInfoState.Error(throwable)</span>
+<span class="nc" id="L60">        }) {</span>
+<span class="nc" id="L61">            val response = ServiceFactory.get(WikipediaApp.instance.wikiSite).getAuthManagerInfo()</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            token = response.query?.createAccountToken()</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            val captchaId = response.query?.captchaId()</span>
+<span class="nc bnc" id="L64" title="All 6 branches missed.">            if (token.isNullOrEmpty()) {</span>
+<span class="nc" id="L65">                _createAccountInfoState.value = AccountInfoState.InvalidToken</span>
+<span class="nc bnc" id="L66" title="All 6 branches missed.">            } else if (response.query?.hasHCaptchaRequest() == true) {</span>
+<span class="nc" id="L67">                _createAccountInfoState.value = AccountInfoState.HandleHCaptcha(token!!)</span>
+<span class="nc bnc" id="L68" title="All 6 branches missed.">            } else if (!captchaId.isNullOrEmpty()) {</span>
+<span class="nc" id="L69">                _createAccountInfoState.value = AccountInfoState.HandleCaptcha(token!!, captchaId)</span>
+            } else {
+<span class="nc" id="L71">                _createAccountInfoState.value = AccountInfoState.DoCreateAccount(token!!)</span>
+            }
+<span class="nc" id="L73">        }</span>
+<span class="nc" id="L74">    }</span>
+
+    fun doCreateAccount(token: String, captchaId: String?, captchaWord: String?, userName: String, password: String, repeat: String, email: String?) {
+<span class="nc" id="L77">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L78">            _doCreateAccountState.value = CreateAccountState.Error(throwable)</span>
+<span class="nc" id="L79">        }) {</span>
+<span class="nc" id="L80">            val response = ServiceFactory.get(WikipediaApp.instance.wikiSite).postCreateAccount(userName, password, repeat, token, Service.WIKIPEDIA_URL,</span>
+<span class="nc" id="L81">                email, captchaId, captchaWord)</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            if (&quot;PASS&quot; == response.status) {</span>
+<span class="nc" id="L83">                _doCreateAccountState.value = CreateAccountState.Pass(response.user)</span>
+            } else {
+<span class="nc" id="L85">                throw CreateAccountException(StringUtil.removeStyleTags(response.message), response.messageCode)</span>
+            }
+<span class="nc" id="L87">        }</span>
+<span class="nc" id="L88">    }</span>
+
+    fun verifyUserName(text: CharSequence?) {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        verifyUserNameJob?.cancel()</span>
+<span class="nc" id="L92">        verifyUserNameJob = viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L93">            L.e(throwable)</span>
+<span class="nc" id="L94">        }) {</span>
+<span class="nc" id="L95">            _verifyUserNameState.emit(UserNameState.Initial)</span>
+<span class="nc bnc" id="L96" title="All 6 branches missed.">            if (text.isNullOrEmpty()) {</span>
+<span class="nc" id="L97">                return@launch</span>
+            }
+<span class="nc" id="L99">            delay(1000)</span>
+<span class="nc" id="L100">            val userName = text.toString()</span>
+<span class="nc" id="L101">            val response = ServiceFactory.get(WikipediaApp.instance.wikiSite).getUserList(userName)</span>
+<span class="nc bnc" id="L102" title="All 4 branches missed.">            response.query?.getUserResponse(userName)?.let {</span>
+<span class="nc" id="L103">                _verifyUserNameState.emit(UserNameState.Success)</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                if (it.hasBlockError) {</span>
+<span class="nc" id="L105">                    _verifyUserNameState.emit(UserNameState.Blocked(it.error))</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                } else if (!it.canCreate) {</span>
+<span class="nc" id="L107">                    _verifyUserNameState.emit(UserNameState.CannotCreate(userName))</span>
+                }
+<span class="nc" id="L109">            }</span>
+<span class="nc" id="L110">        }</span>
+<span class="nc" id="L111">    }</span>
+
+<span class="nc" id="L113">    open class AccountInfoState {</span>
+<span class="nc" id="L114">        data class DoCreateAccount(val token: String) : AccountInfoState()</span>
+<span class="nc" id="L115">        data class HandleCaptcha(val token: String, val captchaId: String) : AccountInfoState()</span>
+<span class="nc" id="L116">        data class HandleHCaptcha(val token: String) : AccountInfoState()</span>
+<span class="nc" id="L117">        data class HCaptchaDisclaimer(val disclaimerMessage: String) : AccountInfoState()</span>
+        data object InvalidToken : AccountInfoState()
+<span class="nc" id="L119">        data class Error(val throwable: Throwable) : AccountInfoState()</span>
+    }
+
+<span class="nc" id="L122">    open class CreateAccountState {</span>
+<span class="nc" id="L123">        data class Pass(val userName: String) : CreateAccountState()</span>
+<span class="nc" id="L124">        data class Error(val throwable: Throwable) : CreateAccountState()</span>
+    }
+
+<span class="nc" id="L127">    open class UserNameState {</span>
+        data object Initial : UserNameState()
+        data object Success : UserNameState()
+<span class="nc" id="L130">        data class Blocked(val error: String) : UserNameState()</span>
+<span class="nc" id="L131">        data class CannotCreate(val userName: String) : UserNameState()</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

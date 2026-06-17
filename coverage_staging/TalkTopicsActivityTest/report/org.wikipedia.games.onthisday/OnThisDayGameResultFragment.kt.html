@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayGameResultFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.onthisday</a> &gt; <span class="el_source">OnThisDayGameResultFragment.kt</span></div><h1>OnThisDayGameResultFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.onthisday
+
+import android.app.Activity
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.format.DateFormat
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.drawToBitmap
+import androidx.core.view.isVisible
+import androidx.core.view.setPadding
+import androidx.core.view.updatePaddingRelative
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.StaggeredGridLayoutManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.activitytab.OnThisDayGameLoginPromptCard
+import org.wikipedia.activitytab.WikiGamesStatsCard
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.databinding.FragmentOnThisDayGameResultBinding
+import org.wikipedia.databinding.ItemOnThisDayGameShareTopicBinding
+import org.wikipedia.databinding.ItemOnThisDayGameTopicBinding
+import org.wikipedia.dataclient.page.PageSummary
+import org.wikipedia.extensions.ensureSoftwareBitmaps
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.PageActivity
+import org.wikipedia.readinglist.LongPressMenu
+import org.wikipedia.readinglist.ReadingListBehaviorsUtil
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.MarginItemDecoration
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.views.imageservice.ImageLoadListener
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.MonthDay
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+<span class="nc" id="L70">class OnThisDayGameResultFragment : OnThisDayGameBaseFragment(), OnThisDayGameArticleBottomSheet.Callback {</span>
+    private var _binding: FragmentOnThisDayGameResultBinding? = null
+<span class="nc" id="L72">    val binding get() = _binding!!</span>
+
+<span class="nc" id="L74">    private val viewModel: OnThisDayGameViewModel by activityViewModels()</span>
+<span class="nc" id="L75">    private val handler = Handler(Looper.getMainLooper())</span>
+    private lateinit var timeUpdateRunnable: Runnable
+    private var loadedImagesForShare = 0
+    private var mainActivity: OnThisDayGameActivity? = null
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L81">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L82">        _binding = FragmentOnThisDayGameResultBinding.inflate(inflater, container, false)</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        mainActivity = (activity as? OnThisDayGameActivity)</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.Q) {</span>
+<span class="nc" id="L85">            requireActivity().window.isNavigationBarContrastEnforced = true</span>
+        }
+
+<span class="nc" id="L88">        WikiGamesEvent.submit(&quot;impression&quot;, &quot;game_play&quot;, slideName = viewModel.getCurrentScreenName(), isArchive = viewModel.isArchiveGame)</span>
+
+<span class="nc" id="L90">        binding.shareButton.setOnClickListener {</span>
+<span class="nc" id="L91">            WikiGamesEvent.submit(&quot;share_game_click&quot;, &quot;game_play&quot;, slideName = viewModel.getCurrentScreenName(), isArchive = viewModel.isArchiveGame)</span>
+<span class="nc" id="L92">            lifecycleScope.launch {</span>
+<span class="nc" id="L93">                binding.shareButton.isEnabled = false</span>
+<span class="nc" id="L94">                binding.shareButton.alpha = 0.5f</span>
+<span class="nc bnc" id="L95" title="All 4 branches missed.">                while (loadedImagesForShare &lt; (binding.shareLayout.shareArticlesList.adapter?.itemCount ?: 0)) {</span>
+<span class="nc" id="L96">                    delay(100)</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                    if (!isAdded) return@launch</span>
+                }
+
+<span class="nc" id="L100">                val shareMessage = getString(</span>
+<span class="nc" id="L101">                    R.string.on_this_day_game_share_link_message,</span>
+<span class="nc" id="L102">                    getString(R.string.on_this_day_game_share_url)</span>
+                )
+<span class="nc" id="L104">                binding.shareLayout.shareContainer.ensureSoftwareBitmaps()</span>
+<span class="nc" id="L105">                binding.shareLayout.shareContainer.drawToBitmap().run {</span>
+<span class="nc" id="L106">                    ShareUtil.shareImage(lifecycleScope, requireContext(), this,</span>
+<span class="nc" id="L107">                        &quot;wikipedia_on_this_day_game_&quot; + LocalDateTime.now(),</span>
+<span class="nc" id="L108">                        binding.shareLayout.shareResultText.text.toString(), shareMessage)</span>
+<span class="nc" id="L109">                }</span>
+                // Delay just a bit more, while the system share dialog pops up.
+<span class="nc" id="L111">                delay(1000)</span>
+<span class="nc" id="L112">                binding.shareButton.alpha = 1f</span>
+<span class="nc" id="L113">                binding.shareButton.isEnabled = true</span>
+<span class="nc" id="L114">            }</span>
+<span class="nc" id="L115">        }</span>
+
+<span class="nc" id="L117">        viewModel.gameState.observe(viewLifecycleOwner) {</span>
+<span class="nc" id="L118">            when (it) {</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                is Resource.Loading -&gt; updateOnLoading()</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                is Resource.Error -&gt; updateOnError(it.throwable)</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                is OnThisDayGameViewModel.GameEnded -&gt; onGameEnded(it.data, it.gameStatistics)</span>
+                else -&gt; {
+<span class="nc" id="L123">                    requireActivity().supportFragmentManager.popBackStack()</span>
+                }
+            }
+<span class="nc" id="L126">        }</span>
+
+<span class="nc" id="L128">        timeUpdateRunnable = Runnable {</span>
+<span class="nc" id="L129">            val timeLeft = timeUntilNextDay()</span>
+<span class="nc" id="L130">            binding.nextGameText.text = getString(R.string.on_this_day_game_next_in, String.format(Locale.getDefault(), &quot;%02d:%02d:%02d&quot;, timeLeft.toHoursPart(), timeLeft.toMinutesPart(), timeLeft.toSecondsPart()))</span>
+<span class="nc" id="L131">            handler.postDelayed(timeUpdateRunnable, 1000)</span>
+<span class="nc" id="L132">        }</span>
+
+<span class="nc" id="L134">        binding.root.setOnApplyWindowInsetsListener { view, insets -&gt;</span>
+<span class="nc" id="L135">            val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets, view)</span>
+<span class="nc" id="L136">            val navBarInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.navigationBars())</span>
+<span class="nc" id="L137">            binding.resultArticlesList.updatePaddingRelative(bottom = navBarInsets.bottom)</span>
+<span class="nc" id="L138">            insets</span>
+        }
+
+<span class="nc" id="L141">        binding.archiveGameButton.setOnClickListener {</span>
+<span class="nc" id="L142">            prepareAndOpenArchiveCalendar(viewModel.wikiSite.languageCode)</span>
+<span class="nc" id="L143">        }</span>
+
+<span class="nc" id="L145">        handler.post(timeUpdateRunnable)</span>
+<span class="nc" id="L146">        updateOnLoading()</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        mainActivity?.invalidateOptionsMenu()</span>
+<span class="nc" id="L148">        return binding.root</span>
+    }
+
+    override fun onArchiveDateSelected(date: LocalDate) {
+        // hiding this fragment as it is not added to back stack and updating the state
+<span class="nc" id="L153">        binding.root.isVisible = false</span>
+<span class="nc" id="L154">        WikiGamesEvent.submit(&quot;play_click&quot;, &quot;game_play&quot;, slideName = &quot;game_start&quot;)</span>
+<span class="nc" id="L155">        viewModel.relaunchForDate(date)</span>
+<span class="nc" id="L156">        requireActivity().supportFragmentManager.popBackStack()</span>
+<span class="nc" id="L157">        requireActivity().supportFragmentManager.beginTransaction()</span>
+<span class="nc" id="L158">            .replace(R.id.fragmentContainer, OnThisDayGamePlayFragment.newInstance(), null)</span>
+<span class="nc" id="L159">            .commit()</span>
+<span class="nc" id="L160">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L163">        handler.removeCallbacks(timeUpdateRunnable)</span>
+<span class="nc" id="L164">        _binding = null</span>
+<span class="nc" id="L165">        super.onDestroyView()</span>
+<span class="nc" id="L166">    }</span>
+
+    private fun updateOnLoading() {
+<span class="nc" id="L169">        binding.errorView.isVisible = false</span>
+<span class="nc" id="L170">        binding.scrollContainer.isVisible = false</span>
+<span class="nc" id="L171">        binding.progressBar.isVisible = true</span>
+<span class="nc" id="L172">    }</span>
+
+    private fun updateOnError(t: Throwable) {
+<span class="nc" id="L175">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L176">        binding.scrollContainer.isVisible = false</span>
+<span class="nc" id="L177">        binding.errorView.isVisible = true</span>
+<span class="nc" id="L178">        binding.errorView.setError(t)</span>
+<span class="nc" id="L179">    }</span>
+
+    private fun onGameEnded(gameState: OnThisDayGameViewModel.GameState, gameStatistics: OnThisDayGameViewModel.GameStatistics) {
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        mainActivity?.showAppBarDateText()</span>
+<span class="nc" id="L183">        MonthDay.of(viewModel.currentMonth, viewModel.currentDay).let {</span>
+<span class="nc" id="L184">            val text = it.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(Locale.getDefault(), &quot;MMMM d&quot;)))</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            mainActivity?.updateAppBarDateText(text)</span>
+        }
+
+<span class="nc" id="L188">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L189">        binding.errorView.isVisible = false</span>
+<span class="nc" id="L190">        binding.scrollContainer.isVisible = true</span>
+
+<span class="nc" id="L192">        val totalCorrect = gameState.answerState.count { it }</span>
+<span class="nc" id="L193">        binding.resultText.text = getString(R.string.on_this_day_game_result, totalCorrect, gameState.totalQuestions)</span>
+
+<span class="nc bnc" id="L195" title="All 3 branches missed.">        val cardContainerColor = when (totalCorrect) {</span>
+<span class="nc" id="L196">            0, 1, 2 -&gt; R.color.yellow500</span>
+<span class="nc" id="L197">            3, 4 -&gt; R.color.orange500</span>
+<span class="nc" id="L198">            else -&gt; R.color.green600</span>
+        }
+<span class="nc" id="L200">        binding.resultCardContainer.setBackgroundColor(ContextCompat.getColor(requireContext(), cardContainerColor))</span>
+<span class="nc" id="L201">        updateGameStatsView(gameStatistics)</span>
+<span class="nc" id="L202">        binding.resultArticlesList.layoutManager = StaggeredGridLayoutManager(2, GridLayoutManager.VERTICAL)</span>
+<span class="nc" id="L203">        binding.resultArticlesList.addItemDecoration(MarginItemDecoration(requireActivity(),</span>
+<span class="nc" id="L204">            R.dimen.view_list_card_margin_horizontal, R.dimen.view_list_card_margin_horizontal,</span>
+<span class="nc" id="L205">            R.dimen.view_list_card_margin_horizontal, R.dimen.view_list_card_margin_horizontal))</span>
+<span class="nc" id="L206">        binding.resultArticlesList.isNestedScrollingEnabled = false</span>
+<span class="nc" id="L207">        binding.resultArticlesList.adapter = RecyclerViewAdapter(viewModel.getArticlesMentioned())</span>
+
+<span class="nc" id="L209">        buildSharableContent(gameState, viewModel.getArticlesMentioned())</span>
+<span class="nc" id="L210">    }</span>
+
+    private fun updateGameStatsView(gameStatistics: OnThisDayGameViewModel.GameStatistics) {
+<span class="nc" id="L213">        binding.gameStatsComposeView.setContent {</span>
+<span class="nc" id="L214">            BaseTheme {</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L216">                    WikiGamesStatsCard(</span>
+<span class="nc" id="L217">                        modifier = Modifier</span>
+<span class="nc" id="L218">                            .fillMaxWidth(),</span>
+<span class="nc" id="L219">                        showTitle = false,</span>
+<span class="nc" id="L220">                        totalGamesPlayed = gameStatistics.totalGamesPlayed,</span>
+<span class="nc" id="L221">                        currentStreak = gameStatistics.currentStreak,</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                        averageScore = gameStatistics.averageScore ?: 0.0,</span>
+<span class="nc" id="L223">                        bestStreak = gameStatistics.bestStreak</span>
+                    )
+<span class="nc" id="L225">                } else {</span>
+<span class="nc" id="L226">                    OnThisDayGameLoginPromptCard(</span>
+<span class="nc" id="L227">                        onLogInClick = {</span>
+<span class="nc" id="L228">                            startActivity(</span>
+<span class="nc" id="L229">                                LoginActivity.newIntent(</span>
+<span class="nc" id="L230">                                    context = requireContext(),</span>
+<span class="nc" id="L231">                                    source = LoginActivity.SOURCE_ON_THIS_DAY_GAME_RESULT,</span>
+<span class="nc" id="L232">                                    createAccountFirst = false</span>
+                                )
+                            )
+<span class="nc" id="L235">                        }</span>
+                    )
+                }
+<span class="nc" id="L238">            }</span>
+<span class="nc" id="L239">        }</span>
+<span class="nc" id="L240">    }</span>
+
+    private fun buildSharableContent(gameState: OnThisDayGameViewModel.GameState, articlesMentioned: List&lt;PageSummary&gt;) {
+<span class="nc" id="L243">        val totalCorrect = gameState.answerState.count { it }</span>
+<span class="nc" id="L244">        loadedImagesForShare = 0</span>
+<span class="nc" id="L245">        binding.shareLayout.shareResultText.text = getString(R.string.on_this_day_game_share_screen_title, totalCorrect, gameState.totalQuestions)</span>
+<span class="nc" id="L246">        createDots(gameState)</span>
+<span class="nc" id="L247">        binding.shareLayout.shareArticlesList.layoutManager = LinearLayoutManager(requireContext())</span>
+<span class="nc" id="L248">        binding.shareLayout.shareArticlesList.isNestedScrollingEnabled = false</span>
+<span class="nc" id="L249">        binding.shareLayout.shareArticlesList.adapter = ShareRecyclerViewAdapter(articlesMentioned</span>
+<span class="nc bnc" id="L250" title="All 8 branches missed.">            .filter { !it.thumbnailUrl.isNullOrEmpty() }.filterIndexed { index, _ -&gt; index % 2 == 0 }.take(5))</span>
+<span class="nc" id="L251">    }</span>
+
+    private fun createDots(gameState: OnThisDayGameViewModel.GameState) {
+<span class="nc" id="L254">        val dotSize = DimenUtil.roundedDpToPx(20f)</span>
+<span class="nc" id="L255">        val dotViews = mutableListOf&lt;ImageView&gt;()</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">        for (i in 0 until gameState.totalQuestions) {</span>
+<span class="nc" id="L257">            val viewId = View.generateViewId()</span>
+<span class="nc" id="L258">            val dotView = ImageView(requireContext())</span>
+<span class="nc" id="L259">            dotViews.add(dotView)</span>
+<span class="nc" id="L260">            dotView.layoutParams = ViewGroup.LayoutParams(dotSize, dotSize)</span>
+<span class="nc" id="L261">            dotView.setPadding(DimenUtil.roundedDpToPx(1f))</span>
+<span class="nc" id="L262">            dotView.setBackgroundResource(R.drawable.shape_circle)</span>
+<span class="nc" id="L263">            dotView.backgroundTintList =</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                if (gameState.answerState.getOrNull(i) == true) {</span>
+<span class="nc" id="L265">                    dotView.setImageResource(R.drawable.ic_check_black_24dp)</span>
+<span class="nc" id="L266">                    ResourceUtil.getThemedColorStateList(requireContext(), R.attr.success_color)</span>
+                } else {
+<span class="nc" id="L268">                    dotView.setImageResource(R.drawable.ic_close_black_24dp)</span>
+<span class="nc" id="L269">                    ResourceUtil.getThemedColorStateList(requireContext(), R.attr.destructive_color)</span>
+                }
+<span class="nc" id="L271">            dotView.imageTintList = ColorStateList.valueOf(Color.WHITE)</span>
+<span class="nc" id="L272">            dotView.id = viewId</span>
+
+<span class="nc" id="L274">            binding.shareLayout.scoreContainer.addView(dotView)</span>
+        }
+<span class="nc" id="L276">        binding.shareLayout.questionDotsFlow.referencedIds = dotViews.map { it.id }.toIntArray()</span>
+<span class="nc" id="L277">    }</span>
+
+<span class="nc" id="L279">    private inner class ShareRecyclerViewAdapter(val pages: List&lt;PageSummary&gt;) : RecyclerView.Adapter&lt;ShareRecyclerViewItemHolder&gt;() {</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L281">            return pages.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, type: Int): ShareRecyclerViewItemHolder {
+<span class="nc" id="L285">            return ShareRecyclerViewItemHolder(ItemOnThisDayGameShareTopicBinding.inflate(layoutInflater, parent, false))</span>
+        }
+
+        override fun onBindViewHolder(holder: ShareRecyclerViewItemHolder, position: Int) {
+<span class="nc" id="L289">            holder.bindItem(pages[position])</span>
+<span class="nc" id="L290">        }</span>
+    }
+
+<span class="nc" id="L293">    private inner class ShareRecyclerViewItemHolder(val binding: ItemOnThisDayGameShareTopicBinding) :</span>
+<span class="nc" id="L294">        RecyclerView.ViewHolder(binding.root) {</span>
+        fun bindItem(page: PageSummary) {
+<span class="nc" id="L296">            binding.listItemTitle.text = StringUtil.fromHtml(page.displayTitle)</span>
+<span class="nc" id="L297">            binding.listItemDescription.text = StringUtil.fromHtml(page.description)</span>
+<span class="nc bnc" id="L298" title="All 6 branches missed.">            binding.listItemDescription.isVisible = !page.description.isNullOrEmpty()</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">            page.thumbnailUrl?.let {</span>
+<span class="nc" id="L300">                ViewUtil.loadImage(binding.listItemThumbnail, it, listener = ShareImageLoadListener())</span>
+<span class="nc" id="L301">            } ?: run {</span>
+<span class="nc" id="L302">                loadedImagesForShare++</span>
+            }
+<span class="nc" id="L304">        }</span>
+    }
+
+<span class="nc" id="L307">    private inner class ShareImageLoadListener : ImageLoadListener {</span>
+        override fun onSuccess(image: Any, width: Int, height: Int) {
+<span class="nc" id="L309">            loadedImagesForShare++</span>
+<span class="nc" id="L310">        }</span>
+
+        override fun onError(error: Throwable) {
+<span class="nc" id="L313">            loadedImagesForShare++</span>
+<span class="nc" id="L314">        }</span>
+    }
+
+<span class="nc" id="L317">    private inner class RecyclerViewAdapter(val pages: List&lt;PageSummary&gt;) : RecyclerView.Adapter&lt;RecyclerViewItemHolder&gt;() {</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L319">            return pages.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, type: Int): RecyclerViewItemHolder {
+<span class="nc" id="L323">            return RecyclerViewItemHolder(ItemOnThisDayGameTopicBinding.inflate(layoutInflater, parent, false))</span>
+        }
+
+        override fun onBindViewHolder(holder: RecyclerViewItemHolder, position: Int) {
+<span class="nc" id="L327">            holder.bindItem(pages[position], position)</span>
+<span class="nc" id="L328">        }</span>
+    }
+
+<span class="nc" id="L331">    private inner class RecyclerViewItemHolder(val binding: ItemOnThisDayGameTopicBinding) :</span>
+<span class="nc" id="L332">        RecyclerView.ViewHolder(binding.root), View.OnClickListener {</span>
+
+        private lateinit var page: PageSummary
+        private var position: Int = 0
+
+<span class="nc" id="L337">        init {</span>
+<span class="nc" id="L338">            itemView.setOnClickListener(this)</span>
+<span class="nc" id="L339">        }</span>
+
+        fun bindItem(page: PageSummary, position: Int) {
+<span class="nc" id="L342">            this.page = page</span>
+<span class="nc" id="L343">            this.position = position</span>
+<span class="nc" id="L344">            binding.listItemTitle.text = StringUtil.fromHtml(page.displayTitle)</span>
+<span class="nc" id="L345">            binding.listItemDescription.text = StringUtil.fromHtml(page.description)</span>
+<span class="nc bnc" id="L346" title="All 6 branches missed.">            binding.listItemDescription.isVisible = !page.description.isNullOrEmpty()</span>
+
+<span class="nc" id="L348">            binding.listItemDropDown.setOnClickListener { view -&gt;</span>
+<span class="nc" id="L349">                val pageTitle = page.getPageTitle(viewModel.wikiSite)</span>
+<span class="nc" id="L350">                LongPressMenu(anchorView = view, menuRes = R.menu.menu_long_press, callback = object : LongPressMenu.Callback {</span>
+
+                    override fun onOpenLink(entry: HistoryEntry) {
+<span class="nc" id="L353">                        startActivity(PageActivity.newIntentForCurrentTab(requireContext(), entry, entry.title, false))</span>
+<span class="nc" id="L354">                    }</span>
+
+                    override fun onOpenInNewTab(entry: HistoryEntry) {
+<span class="nc" id="L357">                        startActivity(PageActivity.newIntentForNewTab(requireContext(), entry, entry.title))</span>
+<span class="nc" id="L358">                    }</span>
+
+                    override fun onAddRequest(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc" id="L361">                        viewModel.savedPages.add(page)</span>
+<span class="nc" id="L362">                        WikiGamesEvent.submit(&quot;save_click&quot;, &quot;game_play&quot;, slideName = viewModel.getCurrentScreenName(), isArchive = viewModel.isArchiveGame)</span>
+<span class="nc" id="L363">                        ReadingListBehaviorsUtil.addToDefaultList(requireActivity(), pageTitle, addToDefault, InvokeSource.ON_THIS_DAY_GAME_ACTIVITY)</span>
+<span class="nc" id="L364">                    }</span>
+
+                    override fun onMoveRequest(page: ReadingListPage?, entry: HistoryEntry) {
+<span class="nc bnc" id="L367" title="All 2 branches missed.">                        page?.let {</span>
+<span class="nc" id="L368">                            ReadingListBehaviorsUtil.moveToList(requireActivity(), page.listId, pageTitle, InvokeSource.ON_THIS_DAY_GAME_ACTIVITY)</span>
+<span class="nc" id="L369">                        }</span>
+<span class="nc" id="L370">                    }</span>
+                    override fun onRemoveRequest() {
+<span class="nc" id="L372">                        super.onRemoveRequest()</span>
+<span class="nc" id="L373">                        viewModel.savedPages.remove(page)</span>
+<span class="nc" id="L374">                    }</span>
+
+                    override fun onShareRequest() {
+<span class="nc" id="L377">                        WikiGamesEvent.submit(&quot;share_click&quot;, &quot;game_play&quot;, slideName = viewModel.getCurrentScreenName(), isArchive = viewModel.isArchiveGame)</span>
+<span class="nc" id="L378">                        super.onShareRequest()</span>
+<span class="nc" id="L379">                    }</span>
+<span class="nc" id="L380">                }).show(HistoryEntry(pageTitle, HistoryEntry.SOURCE_ON_THIS_DAY_ACTIVITY))</span>
+<span class="nc" id="L381">            }</span>
+
+<span class="nc bnc" id="L383" title="All 2 branches missed.">            page.thumbnailUrl?.let {</span>
+<span class="nc" id="L384">                binding.listItemThumbnail.isVisible = true</span>
+<span class="nc" id="L385">                ViewUtil.loadImage(binding.listItemThumbnail, it)</span>
+<span class="nc" id="L386">            } ?: run {</span>
+<span class="nc" id="L387">                binding.listItemThumbnail.isVisible = false</span>
+<span class="nc" id="L388">            }</span>
+<span class="nc" id="L389">        }</span>
+
+        override fun onClick(v: View) {
+<span class="nc" id="L392">            WikiGamesEvent.submit(&quot;select_click&quot;, &quot;game_play&quot;, slideName = viewModel.getCurrentScreenName(), isArchive = viewModel.isArchiveGame)</span>
+<span class="nc" id="L393">            ExclusiveBottomSheetPresenter.show(childFragmentManager, OnThisDayGameArticleBottomSheet.newInstance(page))</span>
+<span class="nc" id="L394">        }</span>
+    }
+
+    override fun onPageBookmarkChanged(page: PageSummary) {
+<span class="nc bnc" id="L398" title="All 12 branches missed.">        (binding.resultArticlesList.adapter as? RecyclerViewAdapter)?.pages?.find { it.apiTitle == page.apiTitle }?.let {</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">            binding.resultArticlesList.adapter?.notifyItemChanged(viewModel.getArticlesMentioned().indexOf(it))</span>
+        }
+<span class="nc" id="L401">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L404">        super.onResume()</span>
+<span class="nc" id="L405">        val state = viewModel.gameState.value</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">        if (state is OnThisDayGameViewModel.GameEnded) {</span>
+<span class="nc" id="L407">            updateGameStatsView(state.gameStatistics)</span>
+        }
+<span class="nc" id="L409">    }</span>
+
+    companion object {
+        const val EXTRA_GAME_COMPLETED = &quot;onThisDayGameCompleted&quot;
+
+        fun newInstance(invokeSource: InvokeSource): OnThisDayGameResultFragment {
+<span class="nc" id="L415">            return OnThisDayGameResultFragment().apply {</span>
+<span class="nc" id="L416">                arguments = bundleOf(Constants.INTENT_EXTRA_INVOKE_SOURCE to invokeSource)</span>
+<span class="nc" id="L417">            }</span>
+        }
+
+        fun timeUntilNextDay(): Duration {
+<span class="nc" id="L421">            val now = LocalDateTime.now()</span>
+<span class="nc" id="L422">            val startOfNextDay = LocalDateTime.of(now.toLocalDate().plusDays(1), LocalTime.MIDNIGHT)</span>
+<span class="nc" id="L423">            return Duration.between(now, startOfNextDay)</span>
+        }
+
+        fun maybeShowOnThisDayGameEndContent(activity: Activity) {
+<span class="nc bnc" id="L427" title="All 4 branches missed.">            if (activity is PageActivity &amp;&amp; !Prefs.otdGameFirstPlayedShown) {</span>
+<span class="nc" id="L428">                FeedbackUtil.showMessage(activity, R.string.on_this_day_game_completed_message)</span>
+<span class="nc" id="L429">                Prefs.otdGameFirstPlayedShown = true</span>
+            }
+<span class="nc" id="L431">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

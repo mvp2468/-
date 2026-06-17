@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DonationReminderCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.donate.donationreminder</a> &gt; <span class="el_source">DonationReminderCardView.kt</span></div><h1>DonationReminderCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.donate.donationreminder
+
+import android.content.Context
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.ImageSpan
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import androidx.core.content.ContextCompat
+import org.wikipedia.R
+import org.wikipedia.databinding.ViewDonationReminderCardBinding
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.views.WikiCardView
+
+<span class="nc" id="L16">class DonationReminderCardView(context: Context, attrs: AttributeSet? = null) : WikiCardView(context, attrs) {</span>
+
+<span class="nc" id="L18">    val binding = ViewDonationReminderCardBinding.inflate(LayoutInflater.from(context), this, true)</span>
+
+<span class="nc" id="L20">    init {</span>
+<span class="nc" id="L21">        strokeWidth = DimenUtil.roundedDpToPx(1f)</span>
+<span class="nc" id="L22">        elevation = 0f</span>
+<span class="nc" id="L23">    }</span>
+
+    fun setTitle(title: String) {
+<span class="nc" id="L26">        val titleWithReservedSpace = &quot;$title  %&quot; // HACK: Reserve space for the icon</span>
+<span class="nc" id="L27">        val spannableString = SpannableString(titleWithReservedSpace)</span>
+<span class="nc" id="L28">        val iconDrawable = ContextCompat.getDrawable(context, R.drawable.ic_heart_24)!!</span>
+<span class="nc" id="L29">        val iconSize = DimenUtil.dpToPx(20f).toInt()</span>
+<span class="nc" id="L30">        iconDrawable.apply {</span>
+<span class="nc" id="L31">            setTint(ResourceUtil.getThemedColor(context, R.attr.destructive_color))</span>
+<span class="nc" id="L32">            setBounds(0, 0, iconSize, iconSize)</span>
+<span class="nc" id="L33">        }</span>
+<span class="nc" id="L34">        spannableString.setSpan(ImageSpan(iconDrawable, ImageSpan.ALIGN_BOTTOM), titleWithReservedSpace.length - 1, titleWithReservedSpace.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)</span>
+<span class="nc" id="L35">        binding.messageTitleView.text = spannableString</span>
+<span class="nc" id="L36">    }</span>
+
+    fun setMessage(text: String) {
+<span class="nc" id="L39">        binding.messageTextView.text = text</span>
+<span class="nc" id="L40">    }</span>
+
+    fun setPositiveButton(text: String, listener: OnClickListener) {
+<span class="nc" id="L43">        binding.positiveButton.text = text</span>
+<span class="nc" id="L44">        binding.positiveButton.setOnClickListener(listener)</span>
+<span class="nc" id="L45">    }</span>
+
+    fun setNegativeButton(text: String, listener: OnClickListener) {
+<span class="nc" id="L48">        binding.negativeButton.text = text</span>
+<span class="nc" id="L49">        binding.negativeButton.setOnClickListener(listener)</span>
+<span class="nc" id="L50">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

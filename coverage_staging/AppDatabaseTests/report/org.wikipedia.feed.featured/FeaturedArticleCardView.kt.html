@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeaturedArticleCardView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.featured</a> &gt; <span class="el_source">FeaturedArticleCardView.kt</span></div><h1>FeaturedArticleCardView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.featured
+
+import android.content.Context
+import android.net.Uri
+import android.view.LayoutInflater
+import org.wikipedia.databinding.ViewCardFeaturedArticleBinding
+import org.wikipedia.feed.view.CardFooterView
+import org.wikipedia.feed.view.DefaultFeedCardView
+import org.wikipedia.feed.view.FeedAdapter
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.LongPressMenu
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.staticdata.MainPageNameData
+import org.wikipedia.views.ImageZoomHelper
+
+<span class="nc" id="L17">open class FeaturedArticleCardView(context: Context) : DefaultFeedCardView&lt;FeaturedArticleCard&gt;(context) {</span>
+
+<span class="nc" id="L19">    private val binding = ViewCardFeaturedArticleBinding.inflate(LayoutInflater.from(context), this, true)</span>
+
+<span class="nc" id="L21">    init {</span>
+<span class="nc" id="L22">        binding.viewFeaturedArticleCardContentContainer.setOnClickListener {</span>
+<span class="nc bnc" id="L23" title="All 2 branches missed.">            card?.let {</span>
+<span class="nc bnc" id="L24" title="All 2 branches missed.">                callback?.onSelectPage(it, it.historyEntry(), binding.viewWikiArticleCard.getSharedElements())</span>
+<span class="nc" id="L25">            }</span>
+<span class="nc" id="L26">        }</span>
+
+<span class="nc" id="L28">        binding.viewFeaturedArticleCardContentContainer.setOnLongClickListener { view -&gt;</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">            if (ImageZoomHelper.isZooming) {</span>
+<span class="nc" id="L30">                ImageZoomHelper.dispatchCancelEvent(binding.viewFeaturedArticleCardContentContainer)</span>
+            } else {
+<span class="nc" id="L32">                LongPressMenu(view, callback = object : LongPressMenu.Callback {</span>
+                    override fun onOpenLink(entry: HistoryEntry) {
+<span class="nc bnc" id="L34" title="All 2 branches missed.">                        card?.let {</span>
+<span class="nc bnc" id="L35" title="All 2 branches missed.">                            callback?.onSelectPage(it, entry, false)</span>
+                        }
+<span class="nc" id="L37">                    }</span>
+
+                    override fun onOpenInNewTab(entry: HistoryEntry) {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">                        card?.let {</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                            callback?.onSelectPage(it, entry, true)</span>
+                        }
+<span class="nc" id="L43">                    }</span>
+
+                    override fun onAddRequest(entry: HistoryEntry, addToDefault: Boolean) {
+<span class="nc bnc" id="L46" title="All 2 branches missed.">                        callback?.onAddPageToList(entry, addToDefault)</span>
+<span class="nc" id="L47">                    }</span>
+
+                    override fun onMoveRequest(page: ReadingListPage?, entry: HistoryEntry) {
+<span class="nc bnc" id="L50" title="All 2 branches missed.">                        callback?.onMovePageToList(page!!.listId, entry)</span>
+<span class="nc" id="L51">                    }</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                }).show(card?.historyEntry())</span>
+            }
+<span class="nc" id="L54">            false</span>
+        }
+<span class="nc" id="L56">    }</span>
+
+<span class="nc" id="L58">    override var card: FeaturedArticleCard? = null</span>
+        set(value) {
+<span class="nc" id="L60">            field = value</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            value?.let {</span>
+<span class="nc" id="L62">                setLayoutDirectionByWikiSite(it.wikiSite(), binding.viewFeaturedArticleCardContentContainer)</span>
+<span class="nc" id="L63">                articleTitle(it.articleTitle())</span>
+<span class="nc" id="L64">                articleSubtitle(it.articleSubtitle())</span>
+<span class="nc" id="L65">                extract(it.extract())</span>
+<span class="nc" id="L66">                image(it.image())</span>
+<span class="nc" id="L67">                header(it)</span>
+<span class="nc" id="L68">                footer(it)</span>
+<span class="nc" id="L69">            }</span>
+<span class="nc" id="L70">        }</span>
+
+<span class="nc" id="L72">    override var callback: FeedAdapter.Callback? = null</span>
+        set(value) {
+<span class="nc" id="L74">            field = value</span>
+<span class="nc" id="L75">            binding.viewFeaturedArticleCardHeader.setCallback(value)</span>
+<span class="nc" id="L76">        }</span>
+
+    private fun articleTitle(articleTitle: String) {
+<span class="nc" id="L79">        binding.viewWikiArticleCard.setTitle(articleTitle)</span>
+<span class="nc" id="L80">    }</span>
+
+    private fun articleSubtitle(articleSubtitle: String?) {
+<span class="nc" id="L83">        binding.viewWikiArticleCard.setDescription(articleSubtitle)</span>
+<span class="nc" id="L84">    }</span>
+
+    private fun extract(extract: String?) {
+<span class="nc" id="L87">        binding.viewWikiArticleCard.setExtract(extract, EXTRACT_MAX_LINES)</span>
+<span class="nc" id="L88">    }</span>
+
+    private fun header(card: FeaturedArticleCard) {
+<span class="nc" id="L91">        binding.viewFeaturedArticleCardHeader.setTitle(card.title())</span>
+<span class="nc" id="L92">            .setLangCode(card.wikiSite().languageCode)</span>
+<span class="nc" id="L93">            .setCard(card)</span>
+<span class="nc" id="L94">            .setCallback(callback)</span>
+<span class="nc" id="L95">    }</span>
+
+    private fun footer(card: FeaturedArticleCard) {
+<span class="nc" id="L98">        binding.viewFeaturedArticleCardFooter.callback = footerCallback</span>
+<span class="nc" id="L99">        binding.viewFeaturedArticleCardFooter.setFooterActionText(card.footerActionText(), card.wikiSite().languageCode)</span>
+<span class="nc" id="L100">    }</span>
+
+    private fun image(uri: Uri?) {
+<span class="nc" id="L103">        binding.viewWikiArticleCard.setImageUri(uri, false)</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        uri?.run {</span>
+<span class="nc" id="L105">            ImageZoomHelper.setViewZoomable(binding.viewWikiArticleCard.getImageView())</span>
+<span class="nc" id="L106">        }</span>
+<span class="nc" id="L107">    }</span>
+
+    open val footerCallback: CardFooterView.Callback?
+<span class="nc" id="L110">        get() = CardFooterView.Callback {</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">            card?.let {</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                callback?.onSelectPage(it, HistoryEntry(PageTitle(</span>
+<span class="nc" id="L113">                    MainPageNameData.valueFor(it.wikiSite().languageCode), it.wikiSite()),</span>
+<span class="nc" id="L114">                    it.historyEntry().source), false</span>
+                )
+<span class="nc" id="L116">            }</span>
+<span class="nc" id="L117">        }</span>
+
+    companion object {
+        const val EXTRACT_MAX_LINES = 8
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

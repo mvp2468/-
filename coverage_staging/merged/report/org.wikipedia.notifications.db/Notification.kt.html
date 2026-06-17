@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Notification.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.notifications.db</a> &gt; <span class="el_source">Notification.kt</span></div><h1>Notification.kt</h1><pre class="source lang-java linenums">package org.wikipedia.notifications.db
+
+import androidx.room.Entity
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonPrimitive
+import org.wikipedia.Constants
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.page.Namespace
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.UriUtil
+import java.util.*
+
+<span class="nc" id="L18">@Serializable</span>
+@Entity(primaryKeys = [&quot;id&quot;, &quot;wiki&quot;])
+<span class="nc" id="L20">class Notification(var id: Long = 0,</span>
+<span class="nc" id="L21">                   var wiki: String = &quot;&quot;,</span>
+<span class="nc" id="L22">                   var read: String? = null,</span>
+<span class="nc" id="L23">                   var category: String = &quot;&quot;,</span>
+<span class="nc" id="L24">                   var type: String = &quot;&quot;,</span>
+<span class="nc" id="L25">                   var revid: Long = 0,</span>
+<span class="nc" id="L26">                   var title: Title? = null,</span>
+<span class="nc" id="L27">                   var agent: Agent? = null,</span>
+<span class="nc" id="L28">                   var timestamp: Timestamp? = null,</span>
+<span class="nc" id="L29">                   @SerialName(&quot;*&quot;) var contents: Contents? = null) {</span>
+
+    val utcIso8601: String
+<span class="nc bnc" id="L32" title="All 4 branches missed.">        get() = timestamp?.utciso8601.orEmpty()</span>
+
+    val isFromWikidata: Boolean
+<span class="nc" id="L35">        get() = wiki == Constants.WIKIDATA_DB_NAME</span>
+
+<span class="nc bnc" id="L37" title="All 4 branches missed.">    val isUnread get() = read.isNullOrEmpty()</span>
+
+    fun key(): Long {
+<span class="nc" id="L40">        return id + wiki.hashCode()</span>
+    }
+
+    fun date(): Date {
+<span class="nc bnc" id="L44" title="All 4 branches missed.">        return timestamp?.date() ?: Date()</span>
+    }
+
+    override fun toString(): String {
+<span class="nc" id="L48">        return id.toString()</span>
+    }
+
+<span class="nc" id="L51">    @Serializable</span>
+    class Title {
+
+        @SerialName(&quot;namespace-key&quot;)
+        private val namespaceKey = 0
+<span class="nc" id="L56">        var full: String = &quot;&quot;</span>
+<span class="nc" id="L57">        val text: String = &quot;&quot;</span>
+        private val namespace: String? = null
+
+        val isMainNamespace: Boolean
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            get() = namespaceKey == Namespace.MAIN.code()</span>
+    }
+
+<span class="nc" id="L64">    @Serializable</span>
+    class Agent {
+
+        private val id = 0
+<span class="nc" id="L68">        val name: String = &quot;&quot;</span>
+    }
+
+<span class="nc" id="L71">    @Serializable</span>
+    class Timestamp {
+
+<span class="nc" id="L74">        val utciso8601: String? = null</span>
+
+        fun date(): Date {
+<span class="nc" id="L77">            return DateUtil.iso8601DateParse(utciso8601!!)</span>
+        }
+    }
+
+<span class="nc" id="L81">    @Serializable</span>
+    class Link {
+
+<span class="nc" id="L84">        private val description: String = &quot;&quot;</span>
+<span class="nc" id="L85">        var url: String = &quot;&quot;</span>
+            private set
+<span class="nc" id="L87">        val label: String = &quot;&quot;</span>
+<span class="nc" id="L88">        val tooltip: String = &quot;&quot;</span>
+        // The icon could be a string or `false`.
+        private val icon: JsonElement? = null
+
+<span class="nc" id="L92">        init {</span>
+<span class="nc" id="L93">            url = UriUtil.decodeURL(url)</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (url.startsWith(&quot;//&quot;)) {</span>
+<span class="nc" id="L95">                url = url.replaceFirst(&quot;//&quot;, WikiSite.DEFAULT_SCHEME + &quot;://&quot;)</span>
+            }
+<span class="nc" id="L97">        }</span>
+
+        fun icon(): String {
+<span class="nc bnc" id="L100" title="All 8 branches missed.">            return if (icon?.jsonPrimitive?.isString == true) icon.jsonPrimitive.content else &quot;&quot;</span>
+        }
+    }
+
+<span class="nc" id="L104">    @Serializable</span>
+    class Links {
+
+        private var primaryLink: Link? = null
+        private val primary: JsonElement? = null
+<span class="nc" id="L109">        val secondary: List&lt;Link&gt;? = null</span>
+
+        fun getPrimary(): Link? {
+<span class="nc bnc" id="L112" title="All 6 branches missed.">            if (primaryLink == null &amp;&amp; primary != null &amp;&amp; primary is JsonObject) {</span>
+<span class="nc" id="L113">                primaryLink = JsonUtil.json.decodeFromJsonElement&lt;Link&gt;(primary)</span>
+            }
+<span class="nc" id="L115">            return primaryLink</span>
+        }
+    }
+
+<span class="nc" id="L119">    @Serializable</span>
+    class Source {
+
+<span class="nc" id="L122">        val title: String = &quot;&quot;</span>
+<span class="nc" id="L123">        val url: String = &quot;&quot;</span>
+<span class="nc" id="L124">            get() = UriUtil.decodeURL(field)</span>
+<span class="nc" id="L125">        val base: String = &quot;&quot;</span>
+    }
+
+<span class="nc" id="L128">    @Serializable</span>
+    class Contents {
+
+<span class="nc" id="L131">        private val icon: String = &quot;&quot;</span>
+<span class="nc" id="L132">        val header: String = &quot;&quot;</span>
+<span class="nc" id="L133">        val compactHeader: String = &quot;&quot;</span>
+<span class="nc" id="L134">        val body: String = &quot;&quot;</span>
+<span class="nc" id="L135">        val iconUrl: String = &quot;&quot;</span>
+<span class="nc" id="L136">            get() = UriUtil.decodeURL(field)</span>
+<span class="nc" id="L137">        val links: Links? = null</span>
+    }
+
+<span class="nc" id="L140">    @Serializable</span>
+    class UnreadNotificationWikiItem {
+
+<span class="nc" id="L143">        val totalCount = 0</span>
+<span class="nc" id="L144">        val source: Source? = null</span>
+    }
+
+<span class="nc" id="L147">    @Serializable</span>
+    class SeenTime {
+
+<span class="nc" id="L150">        val alert: String = &quot;&quot;</span>
+<span class="nc" id="L151">        val message: String = &quot;&quot;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

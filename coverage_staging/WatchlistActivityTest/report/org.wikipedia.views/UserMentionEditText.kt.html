@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserMentionEditText.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">UserMentionEditText.kt</span></div><h1>UserMentionEditText.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.text.TextWatcher
+import android.util.AttributeSet
+import androidx.core.text.buildSpannedString
+import androidx.core.widget.doOnTextChanged
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.edit.SyntaxHighlightableEditText
+import org.wikipedia.staticdata.UserAliasData
+import org.wikipedia.util.log.L
+
+class UserMentionEditText : SyntaxHighlightableEditText {
+    interface Listener {
+        fun onStartUserNameEntry()
+        fun onCancelUserNameEntry()
+        fun onUserNameChanged(userName: String)
+    }
+
+<span class="nc" id="L20">    var listener: Listener? = null</span>
+
+    private val textWatcher: TextWatcher?
+<span class="nc" id="L23">    private var userNameStartPos = -1</span>
+<span class="nc" id="L24">    private var userNameEndPos = -1</span>
+<span class="nc bnc" id="L25" title="All 2 branches missed.">    private val isEnteringUserName get() = userNameStartPos &gt;= 0</span>
+    private var spacesPressedCount = 0
+    private var isUserNameCommitting = false
+
+<span class="nc" id="L29">    constructor(context: Context) : super(context)</span>
+<span class="nc" id="L30">    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)</span>
+<span class="nc" id="L31">    constructor(context: Context, attrs: AttributeSet?, defStyle: Int) : super(context, attrs, defStyle)</span>
+
+<span class="nc" id="L33">    init {</span>
+
+        // This is a state machine that behaves roughly as follows:
+        // * When the &quot;@&quot; symbol is typed, it enters a state of inputting a username.
+        // * During the username input state, every subsequent keypress will send an event to the
+        //   listener, to give it a chance to show a dropdown selection for searching usernames.
+        // * If the user selects a final username from the dropdown selection, the input state is
+        //   finished, and the username is turned into a special Span that contains the username at
+        //   that position.
+        // * If a space &quot; &quot; character is pressed, without having selected a username from the
+        //   dropdown list, the input state is cancelled, and no special Span is added.
+        // * For all other keypresses, while not in the username input state, it behaves as usual.
+<span class="nc" id="L45">        textWatcher = doOnTextChanged { text, start, before, count -&gt;</span>
+<span class="nc" id="L46">            if (text == null) {</span>
+<span class="nc" id="L47">                return@doOnTextChanged</span>
+            }
+<span class="nc" id="L49">            if (count == 1 &amp;&amp; start &lt; text.length &amp;&amp; text[start] == '@' &amp;&amp;</span>
+<span class="nc" id="L50">                    (start == 0 || (start &gt; 0 &amp;&amp; (text[start - 1] == ' ' || text[start - 1] == '\r' || text[start - 1] == '\n'))) &amp;&amp;</span>
+<span class="nc" id="L51">                    !isEnteringUserName) {</span>
+<span class="nc" id="L52">                userNameStartPos = start</span>
+<span class="nc" id="L53">                userNameEndPos = userNameStartPos</span>
+<span class="nc" id="L54">                onStartUserNameEntry()</span>
+            }
+
+<span class="nc" id="L57">            if (isEnteringUserName) {</span>
+<span class="nc" id="L58">                if (count - before == 1 &amp;&amp; start + count - 1 &lt; text.length &amp;&amp; start + count - 1 &gt;= 0) {</span>
+<span class="nc" id="L59">                    val enterPressed = text[start + count - 1] == '\r' || text[start + count - 1] == '\n'</span>
+<span class="nc" id="L60">                    val spacePressed = text[start + count - 1] == ' '</span>
+
+<span class="nc" id="L62">                    if (enterPressed) {</span>
+<span class="nc" id="L63">                        onCancelUserNameEntry()</span>
+                    } else {
+<span class="nc" id="L65">                        if (spacePressed) {</span>
+<span class="nc" id="L66">                            spacesPressedCount++</span>
+                        }
+
+<span class="nc" id="L69">                        if (spacePressed &amp;&amp; spacesPressedCount &gt; 1) {</span>
+<span class="nc" id="L70">                            onCancelUserNameEntry()</span>
+                        } else {
+<span class="nc" id="L72">                            userNameEndPos += (count - before)</span>
+                        }
+<span class="nc" id="L74">                        if (userNameEndPos &lt;= userNameStartPos) {</span>
+<span class="nc" id="L75">                            onCancelUserNameEntry()</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L80">        }</span>
+<span class="nc" id="L81">    }</span>
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+<span class="nc" id="L84">        super.onSelectionChanged(selStart, selEnd)</span>
+<span class="nc bnc" id="L85" title="All 4 branches missed.">        if (textWatcher == null || isUserNameCommitting) {</span>
+<span class="nc" id="L86">            return</span>
+        }
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (isEnteringUserName) {</span>
+<span class="nc bnc" id="L89" title="All 4 branches missed.">            if ((selStart &lt; userNameStartPos || selEnd &gt; userNameEndPos) ||</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                    (userNameEndPos &gt; text.length)) {</span>
+<span class="nc" id="L91">                onCancelUserNameEntry()</span>
+<span class="nc" id="L92">                return</span>
+            }
+<span class="nc" id="L94">            onUserNameChanged(text.substring(userNameStartPos, userNameEndPos))</span>
+        }
+<span class="nc" id="L96">    }</span>
+
+    private fun onStartUserNameEntry() {
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        listener?.onStartUserNameEntry()</span>
+<span class="nc" id="L100">        spacesPressedCount = 0</span>
+<span class="nc" id="L101">    }</span>
+
+    private fun onCancelUserNameEntry() {
+<span class="nc" id="L104">        userNameStartPos = -1</span>
+<span class="nc" id="L105">        userNameEndPos = -1</span>
+<span class="nc" id="L106">        spacesPressedCount = 0</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        listener?.onCancelUserNameEntry()</span>
+<span class="nc" id="L108">    }</span>
+
+    private fun onUserNameChanged(userName: String) {
+<span class="nc" id="L111">        L.d(&quot;Entering username: $userName&quot;)</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        listener?.onUserNameChanged(userName)</span>
+<span class="nc" id="L113">    }</span>
+
+    fun prepopulateUserName(userName: String, wikiSite: WikiSite) {
+<span class="nc" id="L116">        isUserNameCommitting = true</span>
+<span class="nc" id="L117">        val spannedString = buildSpannedString {</span>
+<span class="nc" id="L118">            append(composeUserNameLink(userName, wikiSite))</span>
+<span class="nc" id="L119">            append(&quot; &quot;)</span>
+<span class="nc" id="L120">        }</span>
+<span class="nc" id="L121">        setText(spannedString)</span>
+<span class="nc" id="L122">        isUserNameCommitting = false</span>
+<span class="nc" id="L123">        setSelection(spannedString.length)</span>
+<span class="nc" id="L124">    }</span>
+
+    fun onCommitUserName(userName: String, wikiSite: WikiSite) {
+<span class="nc" id="L127">        try {</span>
+<span class="nc" id="L128">            isUserNameCommitting = true</span>
+<span class="nc bnc" id="L129" title="All 4 branches missed.">            if (userNameStartPos &lt; 0 || userNameEndPos &lt;= userNameStartPos) {</span>
+<span class="nc" id="L130">                onCancelUserNameEntry()</span>
+<span class="nc" id="L131">                return</span>
+            }
+
+<span class="nc" id="L134">            val initialString = text.subSequence(0, userNameStartPos)</span>
+<span class="nc" id="L135">            val userNameString = composeUserNameLink(userName, wikiSite)</span>
+<span class="nc" id="L136">            val spannedString = buildSpannedString {</span>
+<span class="nc" id="L137">                append(initialString)</span>
+<span class="nc" id="L138">                append(userNameString)</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                if (userNameEndPos &lt; text.length) {</span>
+<span class="nc" id="L140">                    append(text.subSequence(userNameEndPos, text.length - 1))</span>
+                }
+<span class="nc" id="L142">            }</span>
+
+<span class="nc" id="L144">            setText(spannedString)</span>
+<span class="nc" id="L145">            setSelection((initialString.toString() + userNameString).length)</span>
+<span class="nc" id="L146">            onCancelUserNameEntry()</span>
+        } finally {
+<span class="nc" id="L148">            isUserNameCommitting = false</span>
+        }
+<span class="nc" id="L150">    }</span>
+
+    private fun composeUserNameLink(userName: String, wikiSite: WikiSite): String {
+<span class="nc" id="L153">        return &quot;@[[&quot; + UserAliasData.valueFor(wikiSite.languageCode) + &quot;:&quot; + userName + &quot;|&quot; + userName + &quot;]]&quot;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

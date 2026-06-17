@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeviceUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">DeviceUtil.kt</span></div><h1>DeviceUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.app.Activity
+import android.content.Context
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.graphics.Color
+import android.net.ConnectivityManager
+import android.os.Build
+import android.os.Handler
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
+import android.view.View
+import android.view.Window
+import android.view.accessibility.AccessibilityManager
+import android.view.inputmethod.InputMethodManager
+import androidx.activity.enableEdgeToEdge
+import androidx.annotation.ColorInt
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.appbar.MaterialToolbar
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import kotlin.system.exitProcess
+
+object DeviceUtil {
+    private inline val Window.insetsControllerCompat
+<span class="fc" id="L30">        get() = WindowCompat.getInsetsController(this, decorView)</span>
+
+    fun showSoftKeyboard(activity: Activity) {
+<span class="nc" id="L33">        activity.window.insetsControllerCompat.show(WindowInsetsCompat.Type.ime())</span>
+<span class="nc" id="L34">    }</span>
+
+    fun showSoftKeyboard(view: View) {
+<span class="nc" id="L37">        (view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)</span>
+<span class="nc" id="L38">                .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)</span>
+<span class="nc" id="L39">    }</span>
+
+    fun hideSoftKeyboard(activity: Activity) {
+<span class="nc" id="L42">        activity.window.insetsControllerCompat.hide(WindowInsetsCompat.Type.ime())</span>
+<span class="nc" id="L43">    }</span>
+
+    fun hideSoftKeyboard(view: View) {
+<span class="nc" id="L46">        (view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)</span>
+<span class="nc" id="L47">            .hideSoftInputFromWindow(view.windowToken, 0)</span>
+<span class="nc" id="L48">    }</span>
+
+    fun isHardKeyboardAttached(resources: Resources): Boolean {
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        return (resources.configuration.hardKeyboardHidden == Configuration.KEYBOARDHIDDEN_NO &amp;&amp;</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                resources.configuration.keyboard != Configuration.KEYBOARD_UNDEFINED &amp;&amp;</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">                resources.configuration.keyboard != Configuration.KEYBOARD_NOKEYS)</span>
+    }
+
+    fun setLightSystemUiVisibility(activity: Activity) {
+        // this make the system recognizes the status bar light and will make status bar icons become visible
+        // if the theme is not dark
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        activity.window.insetsControllerCompat.isAppearanceLightStatusBars = !WikipediaApp.instance.currentTheme.isDark</span>
+<span class="fc" id="L60">    }</span>
+
+    fun setNavigationBarColor(window: Window, @ColorInt color: Int) {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.O) {</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">            val isDarkThemeOrDarkBackground = WikipediaApp.instance.currentTheme.isDark ||</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">                    color == ContextCompat.getColor(window.context, android.R.color.black)</span>
+<span class="fc" id="L66">            window.navigationBarColor = color</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">            window.insetsControllerCompat.isAppearanceLightNavigationBars = !isDarkThemeOrDarkBackground</span>
+        }
+<span class="fc" id="L69">    }</span>
+
+    fun updateStatusBarTheme(activity: Activity, toolbar: MaterialToolbar?, reset: Boolean) {
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        activity.window.insetsControllerCompat.isAppearanceLightStatusBars = !reset ||</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                !WikipediaApp.instance.currentTheme.isDark</span>
+<span class="nc bnc" id="L74" title="All 4 branches missed.">        toolbar?.setNavigationIconTint(if (reset) Color.WHITE else ResourceUtil.getThemedColor(activity, R.attr.primary_color))</span>
+<span class="nc" id="L75">    }</span>
+
+    fun setContextClickAsLongClick(vararg views: View) {
+<span class="nc" id="L78">        views.forEach {</span>
+<span class="nc" id="L79">            it.setOnContextClickListener { obj -&gt; obj.performLongClick() }</span>
+<span class="nc" id="L80">        }</span>
+<span class="nc" id="L81">    }</span>
+
+    /**
+     * https://issuetracker.google.com/issues/160946170
+     * There's a platform-specific issue where the app gets launched in &quot;Restricted&quot; mode during a
+     * backup operation; And if the app crashes during that operation, it remains in Restricted
+     * mode in subsequent launches, including subsequent user-requested launches. While in this
+     * mode, the system doesn't actually launch our custom subclassed WikipediaApp object, but
+     * instead uses a vanilla Application object, which will cause issues when other classes try
+     * to access static data from the WikipediaApp object.
+     *
+     * This is a workaround that explicitly terminates the app process if it's running in Restricted
+     * mode, to be used sparingly from places where this crash is most likely to occur.
+     */
+<span class="fc" id="L95">    fun assertAppContext(context: Context, terminateOnFail: Boolean = false): Boolean {</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">        if (context.applicationContext !is WikipediaApp) {</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            if (terminateOnFail) {</span>
+<span class="nc" id="L98">                Handler(context.mainLooper).post { exitProcess(0) }</span>
+            }
+<span class="nc" id="L100">            return false</span>
+        }
+<span class="fc" id="L102">        return true</span>
+    }
+
+    fun setEdgeToEdge(activity: AppCompatActivity) {
+<span class="nc" id="L106">        activity.enableEdgeToEdge()</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        WindowCompat.getInsetsController(activity.window, activity.window.decorView).isAppearanceLightStatusBars = !WikipediaApp.instance.currentTheme.isDark</span>
+<span class="nc" id="L108">    }</span>
+
+    val isOnWiFi: Boolean
+        get() {
+<span class="nc" id="L112">            val info = (WikipediaApp.instance.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager)</span>
+<span class="nc" id="L113">                    .getNetworkInfo(ConnectivityManager.TYPE_WIFI)</span>
+<span class="nc bnc" id="L114" title="All 4 branches missed.">            return info != null &amp;&amp; info.isConnected</span>
+        }
+
+    // TODO: revisit this if there's no more navigation bar by default.
+    val isNavigationBarShowing
+<span class="nc bnc" id="L119" title="All 4 branches missed.">        get() = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK) &amp;&amp; KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_HOME)</span>
+
+    val isAccessibilityEnabled: Boolean
+        get() {
+<span class="nc" id="L123">            val am = WikipediaApp.instance.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager</span>
+            // TODO: add more logic if other accessibility tools have different settings.
+<span class="nc bnc" id="L125" title="All 4 branches missed.">            return am.isEnabled &amp;&amp; am.isTouchExplorationEnabled</span>
+        }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

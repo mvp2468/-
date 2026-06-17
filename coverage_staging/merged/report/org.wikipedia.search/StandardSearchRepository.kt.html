@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandardSearchRepository.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">StandardSearchRepository.kt</span></div><h1>StandardSearchRepository.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.MwQueryResponse
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L15">class StandardSearchRepository : SearchRepository&lt;StandardSearchResults&gt; {</span>
+<span class="nc" id="L16">    override suspend fun search(</span>
+        searchTerm: String,
+        languageCode: String,
+        invokeSource: Constants.InvokeSource,
+        continuation: Int?,
+        batchSize: Int,
+        isPrefixSearch: Boolean,
+        countsPerLanguageCode: MutableList&lt;Pair&lt;String, Int&gt;&gt;
+    ): StandardSearchResults {
+<span class="nc" id="L25">        val wikiSite = WikiSite.forLanguageCode(languageCode)</span>
+<span class="nc" id="L26">        val resultList = mutableListOf&lt;SearchResult&gt;()</span>
+<span class="nc" id="L27">        var response: MwQueryResponse? = null</span>
+<span class="nc" id="L28">        var currentContinuation = continuation</span>
+<span class="nc" id="L29">        var lastXSearchIdPrefix: String? = null</span>
+<span class="nc" id="L30">        var lastXSearchIdFullText: String? = null</span>
+
+<span class="nc bnc" id="L32" title="All 2 branches missed.">        if (isPrefixSearch) {</span>
+<span class="nc bnc" id="L33" title="All 4 branches missed.">            if (searchTerm.length &gt;= 2 &amp;&amp; invokeSource != Constants.InvokeSource.PLACES) {</span>
+<span class="nc" id="L34">                withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L35">                    listOf(async {</span>
+<span class="nc" id="L36">                        getSearchResultsFromTabs(wikiSite, searchTerm)</span>
+<span class="nc" id="L37">                    }, async {</span>
+<span class="nc" id="L38">                        AppDatabase.instance.historyEntryWithImageDao().findHistoryItem(wikiSite, searchTerm)</span>
+<span class="nc" id="L39">                    }, async {</span>
+<span class="nc" id="L40">                        AppDatabase.instance.readingListPageDao().findPageForSearchQueryInAnyList(wikiSite, searchTerm)</span>
+<span class="nc" id="L41">                    }).awaitAll().forEach {</span>
+<span class="nc" id="L42">                        resultList.addAll(it.results.take(1))</span>
+<span class="nc" id="L43">                    }</span>
+<span class="nc" id="L44">                }</span>
+            }
+<span class="nc" id="L46">            val prefixResponse = ServiceFactory.get(wikiSite).prefixSearchResponse(searchTerm, batchSize, 0)</span>
+<span class="nc" id="L47">            lastXSearchIdPrefix = prefixResponse.headers()[&quot;x-search-id&quot;]</span>
+<span class="nc" id="L48">            response = prefixResponse.body()</span>
+<span class="nc" id="L49">            currentContinuation = 0</span>
+        }
+
+<span class="nc" id="L52">        resultList.addAll(SearchResultsViewModel.buildList(response, invokeSource, wikiSite, SearchResult.SearchResultType.PREFIX))</span>
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (resultList.size &lt; batchSize) {</span>
+<span class="nc" id="L55">            val fullTextResponse = ServiceFactory.get(wikiSite)</span>
+<span class="nc" id="L56">                .fullTextSearchResponse(searchTerm, batchSize, currentContinuation)</span>
+<span class="nc" id="L57">            lastXSearchIdFullText = fullTextResponse.headers()[&quot;x-search-id&quot;]</span>
+<span class="nc" id="L58">            response = fullTextResponse.body()</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">            currentContinuation = response?.continuation?.gsroffset</span>
+<span class="nc" id="L60">            resultList.addAll(SearchResultsViewModel.buildList(response, invokeSource, wikiSite, SearchResult.SearchResultType.FULL_TEXT))</span>
+        }
+
+<span class="nc bnc" id="L63" title="All 6 branches missed.">        if (resultList.isEmpty() &amp;&amp; response?.continuation == null) {</span>
+<span class="nc" id="L64">            countsPerLanguageCode.clear()</span>
+<span class="nc" id="L65">            WikipediaApp.instance.languageState.appLanguageCodes.forEach { langCode -&gt;</span>
+<span class="nc" id="L66">                var countResultSize = 0</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">                if (langCode != languageCode) {</span>
+<span class="nc" id="L68">                    val prefixSearchResponse = ServiceFactory.get(WikiSite.forLanguageCode(langCode))</span>
+<span class="nc" id="L69">                        .prefixSearch(searchTerm, batchSize, 0)</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">                    prefixSearchResponse.query?.pages?.let {</span>
+<span class="nc" id="L71">                        countResultSize = it.size</span>
+<span class="nc" id="L72">                    }</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                    if (countResultSize == 0) {</span>
+<span class="nc" id="L74">                        val fullTextSearchResponse = ServiceFactory.get(WikiSite.forLanguageCode(langCode))</span>
+<span class="nc" id="L75">                            .fullTextSearch(searchTerm, batchSize, null)</span>
+<span class="nc bnc" id="L76" title="All 4 branches missed.">                        countResultSize = fullTextSearchResponse.query?.pages?.size ?: 0</span>
+                    }
+                }
+<span class="nc" id="L79">                countsPerLanguageCode.add(langCode to countResultSize)</span>
+<span class="nc" id="L80">            }</span>
+        }
+
+<span class="nc" id="L83">        return StandardSearchResults(</span>
+<span class="nc" id="L84">            results = resultList.distinctBy { it.pageTitle.prefixedText }.toMutableList(),</span>
+<span class="nc" id="L85">            continuation = currentContinuation,</span>
+<span class="nc" id="L86">            xSearchIdPrefix = lastXSearchIdPrefix,</span>
+<span class="nc" id="L87">            xSearchIdFullText = lastXSearchIdFullText</span>
+        )
+    }
+
+    private fun getSearchResultsFromTabs(wikiSite: WikiSite, searchTerm: String): SearchResults {
+<span class="nc" id="L92">        WikipediaApp.instance.tabList.forEach { tab -&gt;</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            tab.backStackPositionTitle?.let {</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">                if (wikiSite == it.wikiSite &amp;&amp; StringUtil.fromHtml(it.displayText).contains(searchTerm, true)) {</span>
+<span class="nc" id="L95">                    return SearchResults(mutableListOf(SearchResult(it, SearchResult.SearchResultType.TAB_LIST)))</span>
+                }
+<span class="nc" id="L97">            }</span>
+<span class="nc" id="L98">        }</span>
+<span class="nc" id="L99">        return SearchResults()</span>
+    }
+}
+
+<span class="nc" id="L103">data class StandardSearchResults(</span>
+<span class="nc" id="L104">    var results: List&lt;SearchResult&gt;,</span>
+<span class="nc" id="L105">    val continuation: Int?,</span>
+<span class="nc" id="L106">    val xSearchIdPrefix: String? = null,</span>
+<span class="nc" id="L107">    val xSearchIdFullText: String? = null</span>
+<span class="nc" id="L108">)</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

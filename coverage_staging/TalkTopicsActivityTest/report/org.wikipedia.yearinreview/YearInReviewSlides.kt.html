@@ -1,0 +1,557 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>YearInReviewSlides.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.yearinreview</a> &gt; <span class="el_source">YearInReviewSlides.kt</span></div><h1>YearInReviewSlides.kt</h1><pre class="source lang-java linenums">package org.wikipedia.yearinreview
+
+import android.content.Context
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import org.wikipedia.R
+import org.wikipedia.compose.ComposeColors
+import org.wikipedia.history.db.HistoryEntryWithImage
+import org.wikipedia.settings.Prefs
+import org.wikipedia.settings.RemoteConfig
+import org.wikipedia.yearinreview.YearInReviewScreenData.CustomIconScreen
+import org.wikipedia.yearinreview.YearInReviewScreenData.HighlightItem
+import org.wikipedia.yearinreview.YearInReviewScreenData.HighlightsScreen
+import org.wikipedia.yearinreview.YearInReviewScreenData.ReadingPatterns
+import org.wikipedia.yearinreview.YearInReviewScreenData.StandardScreen
+import java.text.NumberFormat
+import java.time.DayOfWeek
+import java.time.Month
+import java.time.format.TextStyle
+import java.util.Locale
+
+<span class="nc" id="L22">class YearInReviewSlides(</span>
+<span class="nc" id="L23">    val context: Context,</span>
+<span class="nc" id="L24">    val currentYear: Int,</span>
+<span class="nc" id="L25">    val isEditor: Boolean,</span>
+<span class="nc" id="L26">    val isLoggedIn: Boolean,</span>
+<span class="nc" id="L27">    val isEnglishWiki: Boolean,</span>
+<span class="nc" id="L28">    val isFundraisingAllowed: Boolean,</span>
+<span class="nc" id="L29">    val config: RemoteConfig.RemoteConfigYearInReview,</span>
+<span class="nc" id="L30">    val pagesWithCoordinates: List&lt;HistoryEntryWithImage&gt;,</span>
+<span class="nc" id="L31">    val yearInReviewModel: YearInReviewModel</span>
+) {
+<span class="nc" id="L33">    private val numberFormatter = NumberFormat.getNumberInstance()</span>
+
+    private fun englishReadingHoursScreen(): StandardScreen {
+<span class="nc" id="L36">        val bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_english_reading_hours_body_first,</span>
+<span class="nc" id="L37">            config.hoursReadEN.toInt(), config.hoursReadEN) + &quot; &quot; +</span>
+<span class="nc" id="L38">                context.resources.getQuantityString(R.plurals.year_in_review_slide_english_reading_hours_body_second,</span>
+<span class="nc" id="L39">                    config.yearsReadEN, config.yearsReadEN, currentYear)</span>
+<span class="nc" id="L40">        return StandardScreen(</span>
+<span class="nc" id="L41">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L42">            imageResource = R.drawable.yir_puzzle_clock,</span>
+<span class="nc" id="L43">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_english_reading_hours_headline, config.hoursReadEN.toInt(), config.hoursReadEN),</span>
+<span class="nc" id="L44">            bodyText = bodyText,</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_en_collhours&quot; else &quot;lo_en_collhours&quot;</span>
+        )
+    }
+
+    private fun spentReadingMinutesScreen(): StandardScreen {
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        if (yearInReviewModel.localReadingArticlesCount &lt; YearInReviewViewModel.MIN_READING_ARTICLES ||</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            yearInReviewModel.totalReadingTimeMinutes &lt; YearInReviewViewModel.MIN_READING_MINUTES) {</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            return if (isEnglishWiki) {</span>
+<span class="nc" id="L53">                englishReadingHoursScreen()</span>
+            } else {
+<span class="nc" id="L55">                availableLanguagesScreen()</span>
+            }
+        }
+
+<span class="nc" id="L59">        val headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_spent_minutes_reading_headline_first,</span>
+<span class="nc" id="L60">            yearInReviewModel.totalReadingTimeMinutes.toInt(), yearInReviewModel.totalReadingTimeMinutes) + &quot; &quot; +</span>
+<span class="nc" id="L61">                context.resources.getQuantityString(R.plurals.year_in_review_slide_spent_minutes_reading_headline_second,</span>
+<span class="nc" id="L62">                    yearInReviewModel.localReadingArticlesCount, yearInReviewModel.localReadingArticlesCount, currentYear)</span>
+
+<span class="nc bnc" id="L64" title="All 4 branches missed.">        val rankPercentage = config.topReadPercentages.find {</span>
+<span class="nc bnc" id="L65" title="All 4 branches missed.">            yearInReviewModel.localReadingArticlesCount &gt; it.min &amp;&amp; yearInReviewModel.localReadingArticlesCount &lt;= it.max</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        }?.identifier</span>
+
+<span class="nc" id="L68">        var slideName: String</span>
+<span class="nc" id="L69">        var bodyText = &quot;&quot;</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        rankPercentage?.let {</span>
+<span class="nc" id="L71">            bodyText += context.resources.getQuantityString(R.plurals.year_in_review_slide_spent_minutes_reading_body_top,</span>
+<span class="nc" id="L72">                config.averageArticlesReadPerYear, &quot;&lt;b&gt;$it&lt;/b&gt;&quot;, config.averageArticlesReadPerYear) + &quot;&lt;br /&gt;&lt;br /&gt;&quot;</span>
+<span class="nc" id="L73">        }</span>
+
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        bodyText += if (isEnglishWiki) {</span>
+<span class="nc" id="L76">            slideName = &quot;li_en_readcount&quot;</span>
+<span class="nc" id="L77">            context.resources.getQuantityString(R.plurals.year_in_review_slide_spent_minutes_reading_body_english_first,</span>
+<span class="nc" id="L78">                config.hoursReadEN.toInt(), config.hoursReadEN) + &quot; &quot; +</span>
+<span class="nc" id="L79">                    context.resources.getQuantityString(R.plurals.year_in_review_slide_spent_minutes_reading_body_english_second,</span>
+<span class="nc" id="L80">                        config.yearsReadEN, config.yearsReadEN, currentYear)</span>
+        } else {
+<span class="nc" id="L82">            slideName = &quot;li_non_readcount&quot;</span>
+<span class="nc" id="L83">            context.resources.getQuantityString(R.plurals.year_in_review_slide_spent_minutes_reading_body_global_first,</span>
+<span class="nc" id="L84">                config.articles.toInt(), config.articles) + &quot; &quot; +</span>
+<span class="nc" id="L85">                    context.resources.getQuantityString(R.plurals.year_in_review_slide_spent_minutes_reading_body_global_second,</span>
+<span class="nc" id="L86">                        config.languages, config.languages, currentYear)</span>
+        }
+
+<span class="nc" id="L89">        return StandardScreen(</span>
+<span class="nc" id="L90">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L91">            imageResource = R.drawable.yir_puzzle_walk,</span>
+<span class="nc" id="L92">            imageModifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L93">            headlineText = headlineText,</span>
+<span class="nc" id="L94">            bodyText = bodyText,</span>
+<span class="nc" id="L95">            slideName = slideName</span>
+        )
+    }
+
+    private fun popularEnglishArticlesScreen(): StandardScreen {
+
+<span class="nc" id="L101">        val popularEnglishArticlesText = buildListWithNumbers(config.topReadEN)</span>
+<span class="nc" id="L102">        val popularEnglishArticlesBlogUrl = context.getString(R.string.year_in_review_most_read_english_articles_blog_url)</span>
+
+<span class="nc" id="L104">        return StandardScreen(</span>
+<span class="nc" id="L105">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L106">            imageResource = R.drawable.yir_puzzle_browser,</span>
+<span class="nc" id="L107">            headlineText = context.getString(R.string.year_in_review_slide_most_read_english_articles_headline),</span>
+<span class="nc" id="L108">            bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_most_read_english_articles_body,</span>
+<span class="nc" id="L109">                config.topReadEN.size, config.topReadEN.size, popularEnglishArticlesText, popularEnglishArticlesBlogUrl),</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_en_popular&quot; else &quot;lo_en_popular&quot;</span>
+        )
+    }
+
+    private fun appSavedArticlesScreen(): StandardScreen {
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        val slideName = if (isEnglishWiki) {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            if (isLoggedIn) &quot;li_en_collrlists&quot; else &quot;lo_en_collrlists&quot;</span>
+        } else {
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            if (isLoggedIn) &quot;li_non_collrlists&quot; else &quot;lo_non_collrlists&quot;</span>
+        }
+<span class="nc" id="L120">        return StandardScreen(</span>
+<span class="nc" id="L121">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L122">            imageResource = R.drawable.yir_puzzle_cloud,</span>
+<span class="nc" id="L123">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_global_saved_articles_headline, config.savedArticlesApps.toInt(), config.savedArticlesApps),</span>
+<span class="nc" id="L124">            bodyText = context.getString(R.string.year_in_review_slide_global_saved_articles_body),</span>
+<span class="nc" id="L125">            slideName = slideName</span>
+        )
+    }
+
+    private fun availableLanguagesScreen(): StandardScreen {
+<span class="nc" id="L130">        val bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_available_languages_body_first,</span>
+<span class="nc" id="L131">            config.articles.toInt(), config.articles) + &quot; &quot; +</span>
+<span class="nc" id="L132">                context.resources.getQuantityString(R.plurals.year_in_review_slide_available_languages_body_second,</span>
+<span class="nc" id="L133">                    config.languages, config.languages, currentYear)</span>
+<span class="nc" id="L134">        return StandardScreen(</span>
+<span class="nc" id="L135">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L136">            imageResource = R.drawable.yir_puzzle_stone,</span>
+<span class="nc" id="L137">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_available_languages_headline, config.languages, config.languages),</span>
+<span class="nc" id="L138">            bodyText = bodyText,</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_non_langs&quot; else &quot;lo_non_langs&quot;</span>
+        )
+    }
+
+    private fun viewedArticlesTimesScreen(): StandardScreen {
+<span class="nc" id="L144">        return StandardScreen(</span>
+<span class="nc" id="L145">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L146">            imageResource = R.drawable.yir_puzzle_browser,</span>
+<span class="nc" id="L147">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_viewed_articles_times_headline, config.viewsApps.toInt(), config.viewsApps),</span>
+<span class="nc" id="L148">            bodyText = context.getString(R.string.year_in_review_slide_viewed_articles_times_body),</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_non_collappread&quot; else &quot;lo_non_collappread&quot;</span>
+        )
+    }
+
+    private fun readingPatternsScreen(): StandardScreen? {
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        if (yearInReviewModel.localReadingArticlesCount &lt; YearInReviewViewModel.MIN_READING_ARTICLES) {</span>
+<span class="nc" id="L155">            return null</span>
+        }
+<span class="nc" id="L157">        val favoriteTimeText = when (yearInReviewModel.favoriteTimeToRead) {</span>
+<span class="nc bnc" id="L158" title="All 6 branches missed.">            in 0..5 -&gt; context.getString(R.string.year_in_review_slide_reading_pattern_late_night)</span>
+<span class="nc bnc" id="L159" title="All 6 branches missed.">            in 5..12 -&gt; context.getString(R.string.year_in_review_slide_reading_pattern_morning)</span>
+<span class="nc bnc" id="L160" title="All 6 branches missed.">            in 12..13 -&gt; context.getString(R.string.year_in_review_slide_reading_pattern_midday)</span>
+<span class="nc bnc" id="L161" title="All 6 branches missed.">            in 13..17 -&gt; context.getString(R.string.year_in_review_slide_reading_pattern_afternoon)</span>
+<span class="nc bnc" id="L162" title="All 6 branches missed.">            in 17..21 -&gt; context.getString(R.string.year_in_review_slide_reading_pattern_evening)</span>
+<span class="nc" id="L163">            else -&gt; context.getString(R.string.year_in_review_slide_reading_pattern_night)</span>
+        }
+<span class="nc" id="L165">        val favoriteDayText = DayOfWeek.of(yearInReviewModel.favoriteDayToRead)</span>
+<span class="nc" id="L166">            .getDisplayName(TextStyle.FULL, Locale.getDefault())</span>
+<span class="nc" id="L167">        val favoriteMonthText = Month.of(yearInReviewModel.favoriteMonthDidMostReading)</span>
+<span class="nc" id="L168">            .getDisplayName(TextStyle.FULL, Locale.getDefault())</span>
+<span class="nc" id="L169">        return ReadingPatterns(</span>
+<span class="nc" id="L170">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L171">            imageResource = R.drawable.yir_puzzle_clock,</span>
+<span class="nc" id="L172">            headlineText = context.getString(R.string.year_in_review_slide_reading_patterns_headline),</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            slideName = if (isEnglishWiki) &quot;li_en_readpattern&quot; else &quot;li_non_readpattern&quot;,</span>
+<span class="nc" id="L174">            favoriteTimeText = favoriteTimeText,</span>
+<span class="nc" id="L175">            favoriteDayText = favoriteDayText,</span>
+<span class="nc" id="L176">            favoriteMonthText = favoriteMonthText</span>
+        )
+    }
+
+    private fun topCategoriesScreen(): StandardScreen? {
+<span class="nc bnc" id="L181" title="All 4 branches missed.">        if (yearInReviewModel.localTopCategories.isEmpty() || yearInReviewModel.localTopCategories.size &lt; YearInReviewViewModel.MIN_TOP_CATEGORY) {</span>
+<span class="nc" id="L182">            return null</span>
+        }
+
+<span class="nc" id="L185">        val topCategoriesText = buildListWithNumbers(yearInReviewModel.localTopCategories)</span>
+
+<span class="nc" id="L187">        return StandardScreen(</span>
+<span class="nc" id="L188">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L189">            imageResource = R.drawable.yir_puzzle_farmer,</span>
+<span class="nc" id="L190">            headlineText = context.getString(R.string.year_in_review_slide_top_categories_headline),</span>
+<span class="nc" id="L191">            bodyText = context.getString(R.string.year_in_review_slide_top_categories_body, currentYear, topCategoriesText),</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            slideName = if (isEnglishWiki) &quot;li_en_readcategory&quot; else &quot;li_non_readcategory&quot;</span>
+        )
+    }
+
+    private fun topArticlesScreen(): StandardScreen? {
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        if (yearInReviewModel.localTopVisitedArticles.isEmpty()) {</span>
+<span class="nc" id="L198">            return null</span>
+        }
+
+<span class="nc" id="L201">        val topArticlesText = buildListWithNumbers(yearInReviewModel.localTopVisitedArticles)</span>
+<span class="nc" id="L202">        val quantity = yearInReviewModel.localTopVisitedArticles.size</span>
+
+<span class="nc" id="L204">        return StandardScreen(</span>
+<span class="nc" id="L205">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L206">            imageResource = R.drawable.yir_puzzle_sundial,</span>
+<span class="nc" id="L207">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_top_articles_headline, quantity),</span>
+<span class="nc" id="L208">            bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_top_articles_body, quantity, currentYear, topArticlesText),</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            slideName = if (isEnglishWiki) &quot;li_en_toparticles&quot; else &quot;li_non_toparticles&quot;</span>
+        )
+    }
+
+    private fun geoWithArticlesScreen(): YearInReviewScreenData.GeoScreen? {
+<span class="nc bnc" id="L214" title="All 6 branches missed.">        if (yearInReviewModel.largestClusterCountryName.isEmpty() || yearInReviewModel.largestClusterArticles.size &lt; YearInReviewViewModel.MIN_ARTICLES_PER_MAP_CLUSTER) {</span>
+<span class="nc" id="L215">            return null</span>
+        }
+<span class="nc" id="L217">        return YearInReviewScreenData.GeoScreen(</span>
+<span class="nc" id="L218">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L219">            largestClusterTopLeft = yearInReviewModel.largestClusterTopLeft,</span>
+<span class="nc" id="L220">            largestClusterBottomRight = yearInReviewModel.largestClusterBottomRight,</span>
+<span class="nc" id="L221">            pagesWithCoordinates = pagesWithCoordinates,</span>
+<span class="nc" id="L222">            headlineText = context.resources.getString(R.string.year_in_review_slide_geo_headline, yearInReviewModel.largestClusterCountryName),</span>
+<span class="nc" id="L223">            bodyText = context.resources.getString(R.string.year_in_review_slide_geo_body, yearInReviewModel.largestClusterCountryName, yearInReviewModel.largestClusterArticles[0], yearInReviewModel.largestClusterArticles[1]),</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">            slideName = if (isEnglishWiki) &quot;li_en_readgeo&quot; else &quot;li_non_readgeo&quot;</span>
+        )
+    }
+
+    private fun localSavedArticlesScreen(): StandardScreen {
+<span class="nc bnc" id="L229" title="All 2 branches missed.">        if (yearInReviewModel.localSavedArticlesCount &lt; YearInReviewViewModel.MIN_SAVED_ARTICLES) {</span>
+<span class="nc" id="L230">            return appSavedArticlesScreen()</span>
+        }
+<span class="nc" id="L232">        val appSavedArticlesSize = config.savedArticlesApps.toInt()</span>
+<span class="nc" id="L233">        return StandardScreen(</span>
+<span class="nc" id="L234">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L235">            imageResource = R.drawable.yir_puzzle_cloud,</span>
+<span class="nc" id="L236">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_saved_articles_headline, yearInReviewModel.localSavedArticlesCount, yearInReviewModel.localSavedArticlesCount),</span>
+<span class="nc" id="L237">            bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_saved_articles_body,</span>
+<span class="nc" id="L238">                appSavedArticlesSize, yearInReviewModel.localSavedArticles[0], yearInReviewModel.localSavedArticles[1],</span>
+<span class="nc" id="L239">                yearInReviewModel.localSavedArticles[2], config.savedArticlesApps),</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">            slideName = if (isEnglishWiki) &quot;li_en_savedcount&quot; else &quot;li_non_savedcount&quot;</span>
+        )
+    }
+
+    private fun editedTimesScreen(): StandardScreen {
+<span class="nc" id="L245">        val userEditsCount = yearInReviewModel.userEditsCount</span>
+<span class="nc" id="L246">        var formattedUserEditsNumber = NumberFormat.getNumberInstance(Locale.getDefault()).format(yearInReviewModel.userEditsCount)</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        if (userEditsCount &gt; YearInReviewViewModel.MAX_EDITED_TIMES) {</span>
+<span class="nc" id="L248">            formattedUserEditsNumber = &quot;${YearInReviewViewModel.MAX_EDITED_TIMES}+&quot;</span>
+        }
+<span class="nc" id="L250">        return StandardScreen(</span>
+<span class="nc" id="L251">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L252">            imageResource = R.drawable.yir_puzzle_worker,</span>
+<span class="nc" id="L253">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_edited_times_headline, userEditsCount, formattedUserEditsNumber),</span>
+<span class="nc" id="L254">            bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_edited_times_body, config.edits.toInt(), config.edits),</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            slideName = if (isEnglishWiki) &quot;li_en_editedcount&quot; else &quot;li_non_editedcount&quot;</span>
+        )
+    }
+
+    private fun editsViewedTimesScreen(): StandardScreen? {
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        if (yearInReviewModel.userEditsViewedTimes &lt;= 0L) {</span>
+<span class="nc" id="L261">            return null</span>
+        }
+<span class="nc" id="L263">        val quantity = yearInReviewModel.userEditsViewedTimes.toInt()</span>
+<span class="nc" id="L264">        return StandardScreen(</span>
+<span class="nc" id="L265">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L266">            imageResource = R.drawable.yir_puzzle_pencil,</span>
+<span class="nc" id="L267">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_edits_viewed_times_headline, quantity, yearInReviewModel.userEditsViewedTimes),</span>
+<span class="nc" id="L268">            bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_edits_viewed_times_body, quantity, yearInReviewModel.userEditsViewedTimes),</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            slideName = if (isEnglishWiki) &quot;li_en_editviewcount&quot; else &quot;li_non_editviewcount&quot;</span>
+        )
+    }
+
+    private fun appEditedTimesScreen(): StandardScreen {
+<span class="nc" id="L274">        return StandardScreen(</span>
+<span class="nc" id="L275">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L276">            imageResource = R.drawable.yir_puzzle_worker,</span>
+<span class="nc" id="L277">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_app_edited_times_headline, config.edits.toInt(), config.edits),</span>
+<span class="nc" id="L278">            bodyText = context.getString(R.string.year_in_review_slide_app_edited_times_body),</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_non_appcolledits&quot; else &quot;lo_non_appcolledits&quot;</span>
+        )
+    }
+
+    private fun editedPerMinuteScreen(): StandardScreen {
+<span class="nc" id="L284">        return StandardScreen(</span>
+<span class="nc" id="L285">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L286">            imageResource = R.drawable.yir_puzzle_bytes,</span>
+<span class="nc" id="L287">            imageModifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L288">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_edited_per_minute_headline, config.editsPerMinute, config.editsPerMinute),</span>
+<span class="nc" id="L289">            bodyText = context.getString(R.string.year_in_review_slide_edited_per_minute_body, context.getString(R.string.editing_learn_more_url)),</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_non_colleditspm&quot; else &quot;lo_non_colleditspm&quot;</span>
+        )
+    }
+
+    private fun englishEditedTimesScreen(): StandardScreen {
+<span class="nc" id="L295">        val bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_english_edited_times_body_first,</span>
+<span class="nc" id="L296">            config.edits.toInt(), config.edits, config.editsEN) + &quot; &quot; +</span>
+<span class="nc" id="L297">                context.resources.getQuantityString(R.plurals.year_in_review_slide_english_edited_times_body_second,</span>
+<span class="nc" id="L298">                    config.editsEN.toInt(), config.editsEN)</span>
+<span class="nc" id="L299">        return StandardScreen(</span>
+<span class="nc" id="L300">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L301">            imageResource = R.drawable.yir_puzzle_worker,</span>
+<span class="nc" id="L302">            imageModifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L303">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_english_edited_times_headline, config.edits.toInt(), config.edits),</span>
+<span class="nc" id="L304">            bodyText = bodyText,</span>
+<span class="nc bnc" id="L305" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_en_changes&quot; else &quot;lo_en_changes&quot;</span>
+        )
+    }
+
+    private fun addedBytesScreen(): StandardScreen {
+<span class="nc" id="L310">        return StandardScreen(</span>
+<span class="nc" id="L311">            allowDonate = isFundraisingAllowed,</span>
+<span class="nc" id="L312">            imageResource = R.drawable.yir_puzzle_bytes,</span>
+<span class="nc" id="L313">            imageModifier = Modifier.fillMaxSize(),</span>
+<span class="nc" id="L314">            headlineText = context.resources.getQuantityString(R.plurals.year_in_review_slide_bytes_added_headline, config.bytesAddedEN.toInt(), config.bytesAddedEN),</span>
+<span class="nc" id="L315">            bodyText = context.resources.getQuantityString(R.plurals.year_in_review_slide_bytes_added_body,</span>
+<span class="nc" id="L316">                config.bytesAddedEN.toInt(), currentYear, config.bytesAddedEN, context.getString(R.string.editing_learn_more_url)),</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">            slideName = if (isLoggedIn) &quot;li_en_bytes&quot; else &quot;lo_en_bytes&quot;</span>
+        )
+    }
+
+    private fun loggedInHighlightScreen(): HighlightsScreen? {
+<span class="nc" id="L322">        val highlights = buildList {</span>
+            // Top visited articles
+<span class="nc bnc" id="L324" title="All 4 branches missed.">            if (yearInReviewModel.localTopVisitedArticles.isNotEmpty()) {</span>
+<span class="nc" id="L325">                val topVisitedArticles = yearInReviewModel.localTopVisitedArticles.take(3)</span>
+<span class="nc" id="L326">                add(</span>
+<span class="nc" id="L327">                    HighlightItem(</span>
+<span class="nc" id="L328">                        title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_in_most_read_article_title, topVisitedArticles.size),</span>
+<span class="nc" id="L329">                        items = topVisitedArticles,</span>
+<span class="nc" id="L330">                        highlightColor = ComposeColors.Blue600</span>
+                    )
+                )
+            }
+
+            // Reading time
+<span class="nc bnc" id="L336" title="All 2 branches missed.">            if (yearInReviewModel.totalReadingTimeMinutes &gt;= YearInReviewViewModel.MIN_READING_MINUTES) {</span>
+<span class="nc" id="L337">                add(</span>
+<span class="nc" id="L338">                    HighlightItem(</span>
+<span class="nc" id="L339">                        title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_in_minutes_read_title, yearInReviewModel.totalReadingTimeMinutes.toInt()),</span>
+<span class="nc" id="L340">                        singleValue = numberFormatter.format(yearInReviewModel.totalReadingTimeMinutes)</span>
+                    )
+                )
+            }
+
+<span class="nc bnc" id="L345" title="All 2 branches missed.">            if (yearInReviewModel.localReadingArticlesCount &gt;= YearInReviewViewModel.MIN_READING_ARTICLES) {</span>
+                // Favorite day
+<span class="nc" id="L347">                add(</span>
+<span class="nc" id="L348">                    HighlightItem(</span>
+<span class="nc" id="L349">                        title = context.resources.getString(R.string.year_in_review_highlights_logged_in_favorite_day_title),</span>
+<span class="nc" id="L350">                        singleValue = DayOfWeek.of(yearInReviewModel.favoriteDayToRead)</span>
+<span class="nc" id="L351">                            .getDisplayName(TextStyle.FULL, Locale.getDefault())</span>
+                    )
+                )
+                // Articles read count
+<span class="nc" id="L355">                add(</span>
+<span class="nc" id="L356">                    HighlightItem(</span>
+<span class="nc" id="L357">                        title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_in_articles_read_title, yearInReviewModel.localReadingArticlesCount),</span>
+<span class="nc" id="L358">                        singleValue = numberFormatter.format(yearInReviewModel.localReadingArticlesCount)</span>
+                    )
+                )
+            }
+
+            // Top categories
+<span class="nc bnc" id="L364" title="All 2 branches missed.">            if (yearInReviewModel.localTopCategories.size &gt; YearInReviewViewModel.MIN_TOP_CATEGORY) {</span>
+<span class="nc" id="L365">                val topCategories = yearInReviewModel.localTopCategories.take(YearInReviewViewModel.MIN_TOP_CATEGORY)</span>
+<span class="nc" id="L366">                add(</span>
+<span class="nc" id="L367">                    HighlightItem(</span>
+<span class="nc" id="L368">                        title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_in_articles_interested_categories_title, topCategories.size),</span>
+<span class="nc" id="L369">                        items = topCategories</span>
+                    )
+                )
+            }
+
+            // Editor stats
+<span class="nc bnc" id="L375" title="All 2 branches missed.">            if (isEditor) {</span>
+<span class="nc" id="L376">                add(</span>
+<span class="nc" id="L377">                    HighlightItem(</span>
+<span class="nc" id="L378">                        title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_in_total_edits_title, yearInReviewModel.userEditsCount),</span>
+<span class="nc" id="L379">                        singleValue = numberFormatter.format(yearInReviewModel.userEditsCount)</span>
+                    )
+                )
+            }
+<span class="nc" id="L383">        }</span>
+
+<span class="nc bnc" id="L385" title="All 2 branches missed.">        return if (highlights.size &lt; 2) {</span>
+<span class="nc" id="L386">            null</span>
+        } else {
+<span class="nc" id="L388">            HighlightsScreen(</span>
+<span class="nc" id="L389">                highlights = highlights,</span>
+<span class="nc bnc" id="L390" title="All 2 branches missed.">                slideName = if (isEnglishWiki) &quot;li_en_summary&quot; else &quot;li_non_summary&quot;,</span>
+<span class="nc" id="L391">                screenshotUrl = context.getString(R.string.year_in_highlights_screenshot_url)</span>
+            )
+        }
+    }
+
+    private fun enWikiLoggedOutHighlightsScreen(): HighlightsScreen {
+<span class="nc" id="L397">        return HighlightsScreen(</span>
+<span class="nc" id="L398">            highlights = listOf(</span>
+<span class="nc" id="L399">                HighlightItem(</span>
+<span class="nc" id="L400">                    title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_out_en_most_read_title, config.topReadEN.size),</span>
+<span class="nc" id="L401">                    items = config.topReadEN,</span>
+<span class="nc" id="L402">                    highlightColor = ComposeColors.Blue600</span>
+                ),
+<span class="nc" id="L404">                HighlightItem(</span>
+<span class="nc" id="L405">                    title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_out_en_hours_spent_title, config.hoursReadEN.toInt()),</span>
+<span class="nc" id="L406">                    singleValue = numberFormatter.format(config.hoursReadEN)</span>
+                ),
+<span class="nc" id="L408">                HighlightItem(</span>
+<span class="nc" id="L409">                    title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_out_en_edits_title, config.editsEN.toInt()),</span>
+<span class="nc" id="L410">                    singleValue = numberFormatter.format(config.editsEN)</span>
+                )
+            ),
+<span class="nc" id="L413">            slideName = &quot;lo_en_summary&quot;,</span>
+<span class="nc" id="L414">            screenshotUrl = context.getString(R.string.year_in_highlights_screenshot_articles_url)</span>
+        )
+    }
+
+    private fun nonEnWikiLoggedOutHighlightsScreen(): HighlightsScreen {
+<span class="nc" id="L419">        return HighlightsScreen(</span>
+<span class="nc" id="L420">            highlights = listOf(</span>
+<span class="nc" id="L421">                HighlightItem(</span>
+<span class="nc" id="L422">                    title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_out_non_en_articles_title, config.viewsApps.toInt()),</span>
+<span class="nc" id="L423">                    singleValue = numberFormatter.format(config.viewsApps)</span>
+                ),
+<span class="nc" id="L425">                HighlightItem(</span>
+<span class="nc" id="L426">                    title = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_out_non_en_edits_title, config.editsApps.toInt()),</span>
+<span class="nc" id="L427">                    singleValue = numberFormatter.format(config.editsApps)</span>
+                ),
+<span class="nc" id="L429">                HighlightItem(</span>
+<span class="nc" id="L430">                    title = context.resources.getString(R.string.year_in_review_highlights_logged_out_non_en_wikipedia_edited_title),</span>
+<span class="nc" id="L431">                    singleValue = context.resources.getQuantityString(R.plurals.year_in_review_highlights_logged_out_non_en_wikipedia_per_minute_label, config.editsPerMinute, config.editsPerMinute)</span>
+                )
+            ),
+<span class="nc" id="L434">            slideName = &quot;lo_non_summary&quot;,</span>
+<span class="nc" id="L435">            screenshotUrl = context.getString(R.string.year_in_highlights_screenshot_url)</span>
+        )
+    }
+
+    private fun editorRoutes(): List&lt;YearInReviewScreenData?&gt; {
+<span class="nc" id="L440">        return when {</span>
+<span class="nc bnc" id="L441" title="All 2 branches missed.">            isEditor -&gt; listOf(</span>
+<span class="nc" id="L442">                editedTimesScreen(),</span>
+<span class="nc" id="L443">                editsViewedTimesScreen()</span>
+            )
+<span class="nc bnc" id="L445" title="All 4 branches missed.">            !isEditor &amp;&amp; !isEnglishWiki -&gt; {</span>
+<span class="nc" id="L446">                listOf(</span>
+<span class="nc" id="L447">                    appEditedTimesScreen(),</span>
+<span class="nc" id="L448">                    editedPerMinuteScreen()</span>
+                )
+            }
+            else -&gt; {
+<span class="nc" id="L452">                listOf(</span>
+<span class="nc" id="L453">                    englishEditedTimesScreen(),</span>
+<span class="nc" id="L454">                    addedBytesScreen()</span>
+                )
+            }
+        }
+    }
+
+    private fun unlockedIconRoute(): YearInReviewScreenData? {
+<span class="nc bnc" id="L461" title="All 2 branches missed.">        val slideNamePrefix = if (isLoggedIn) &quot;li&quot; else &quot;lo&quot;</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">        val slideNameLang = if (isEnglishWiki) &quot;en&quot; else &quot;non&quot;</span>
+<span class="nc bnc" id="L463" title="All 2 branches missed.">        val slideNameUnlock = if (isFundraisingAllowed) &quot;nondonoricon&quot; else &quot;donoricon&quot;</span>
+<span class="nc" id="L464">        val slideName = slideNamePrefix + &quot;_&quot; + slideNameLang + &quot;_&quot; + slideNameUnlock</span>
+<span class="nc bnc" id="L465" title="All 2 branches missed.">        return if (yearInReviewModel.isCustomIconUnlocked) {</span>
+<span class="nc bnc" id="L466" title="All 6 branches missed.">            val contributorType = if (yearInReviewModel.userEditsCount &gt; 0 &amp;&amp; Prefs.donationResults.isNotEmpty()) {</span>
+<span class="nc" id="L467">                context.getString(R.string.year_in_review_slide_app_icon_donor_and_editor)</span>
+<span class="nc bnc" id="L468" title="All 2 branches missed.">            } else if (yearInReviewModel.userEditsCount &gt; 0) {</span>
+<span class="nc" id="L469">                context.getString(R.string.year_in_review_slide_app_icon_editor)</span>
+            } else {
+<span class="nc" id="L471">                context.getString(R.string.year_in_review_slide_app_icon_donor)</span>
+            }
+<span class="nc" id="L473">            CustomIconScreen(</span>
+<span class="nc" id="L474">                isFundraisingAllowed,</span>
+<span class="nc" id="L475">                headlineText = R.string.year_in_review_slide_app_icon_title_unlocked,</span>
+<span class="nc" id="L476">                bodyText = context.getString(R.string.year_in_review_slide_app_icon_body_unlocked, contributorType, YearInReviewViewModel.YIR_YEAR),</span>
+<span class="nc" id="L477">                slideName = slideName</span>
+            )
+<span class="nc bnc" id="L479" title="All 2 branches missed.">        } else if (isFundraisingAllowed) {</span>
+<span class="nc" id="L480">            CustomIconScreen(</span>
+<span class="nc" id="L481">                allowDonate = true,</span>
+<span class="nc" id="L482">                headlineText = R.string.year_in_review_slide_app_icon_title_unlock,</span>
+<span class="nc" id="L483">                bodyText = context.getString(R.string.year_in_review_slide_app_icon_body_unlock, YearInReviewViewModel.YIR_YEAR, YearInReviewViewModel.YIR_YEAR + 1,</span>
+<span class="nc" id="L484">                    context.getString(R.string.editing_learn_more_url), context.getString(R.string.apps_about_wmf_url)),</span>
+<span class="nc" id="L485">                slideName = slideName,</span>
+<span class="nc" id="L486">                showDonateButton = true</span>
+            )
+<span class="nc" id="L488">        } else null</span>
+    }
+
+    private fun nonLoggedInEnglishGeneralSlides(): List&lt;YearInReviewScreenData&gt; {
+<span class="nc" id="L492">        return (listOf(</span>
+<span class="nc" id="L493">            englishReadingHoursScreen(),</span>
+<span class="nc" id="L494">            popularEnglishArticlesScreen(),</span>
+<span class="nc" id="L495">            appSavedArticlesScreen()</span>
+<span class="nc" id="L496">        ) + editorRoutes() + unlockedIconRoute() + enWikiLoggedOutHighlightsScreen()).filterNotNull()</span>
+    }
+
+    private fun nonLoggedInGeneralSlides(): List&lt;YearInReviewScreenData&gt; {
+<span class="nc" id="L500">        return (listOf(</span>
+<span class="nc" id="L501">            availableLanguagesScreen(),</span>
+<span class="nc" id="L502">            viewedArticlesTimesScreen(),</span>
+<span class="nc" id="L503">            appSavedArticlesScreen()</span>
+<span class="nc" id="L504">        ) + editorRoutes() + unlockedIconRoute() + nonEnWikiLoggedOutHighlightsScreen()).filterNotNull()</span>
+    }
+
+    private fun loggedInEnglishSlides(): List&lt;YearInReviewScreenData&gt; {
+<span class="nc" id="L508">        return (listOf(</span>
+<span class="nc" id="L509">            spentReadingMinutesScreen(),</span>
+<span class="nc" id="L510">            popularEnglishArticlesScreen(),</span>
+<span class="nc" id="L511">            topArticlesScreen(),</span>
+<span class="nc" id="L512">            readingPatternsScreen(),</span>
+<span class="nc" id="L513">            topCategoriesScreen(),</span>
+<span class="nc" id="L514">            geoWithArticlesScreen(),</span>
+<span class="nc" id="L515">            localSavedArticlesScreen()</span>
+<span class="nc" id="L516">        ) + editorRoutes() + unlockedIconRoute() + loggedInHighlightScreen()).filterNotNull()</span>
+    }
+
+    private fun loggedInGeneralSlides(): List&lt;YearInReviewScreenData&gt; {
+<span class="nc" id="L520">        return (listOf(</span>
+<span class="nc" id="L521">            spentReadingMinutesScreen(),</span>
+<span class="nc" id="L522">            viewedArticlesTimesScreen(),</span>
+<span class="nc" id="L523">            topArticlesScreen(),</span>
+<span class="nc" id="L524">            readingPatternsScreen(),</span>
+<span class="nc" id="L525">            topCategoriesScreen(),</span>
+<span class="nc" id="L526">            geoWithArticlesScreen(),</span>
+<span class="nc" id="L527">            localSavedArticlesScreen()</span>
+<span class="nc" id="L528">        ) + editorRoutes() + unlockedIconRoute() + loggedInHighlightScreen()).filterNotNull()</span>
+    }
+
+    private fun buildListWithNumbers(items: List&lt;String&gt;): String {
+<span class="nc" id="L532">        var outputText = &quot;&lt;br /&gt;&lt;br /&gt;&quot;</span>
+<span class="nc" id="L533">        items.forEachIndexed { index, it -&gt;</span>
+<span class="nc" id="L534">            outputText += &quot;${index + 1}. $it&lt;br /&gt;&quot;</span>
+<span class="nc" id="L535">        }</span>
+<span class="nc" id="L536">        return outputText</span>
+    }
+
+    fun finalSlides(): List&lt;YearInReviewScreenData&gt; {
+<span class="nc" id="L540">        return when {</span>
+<span class="nc bnc" id="L541" title="All 4 branches missed.">            isLoggedIn &amp;&amp; isEnglishWiki -&gt; {</span>
+<span class="nc" id="L542">                loggedInEnglishSlides()</span>
+            }
+
+<span class="nc bnc" id="L545" title="All 4 branches missed.">            isLoggedIn &amp;&amp; !isEnglishWiki -&gt; {</span>
+<span class="nc" id="L546">                loggedInGeneralSlides()</span>
+            }
+
+<span class="nc bnc" id="L549" title="All 4 branches missed.">            !isLoggedIn &amp;&amp; isEnglishWiki -&gt; {</span>
+<span class="nc" id="L550">                nonLoggedInEnglishGeneralSlides()</span>
+            }
+
+<span class="nc" id="L553">            else -&gt; nonLoggedInGeneralSlides()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

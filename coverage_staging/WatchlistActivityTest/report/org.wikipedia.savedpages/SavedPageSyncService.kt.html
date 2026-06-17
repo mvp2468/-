@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SavedPageSyncService.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.savedpages</a> &gt; <span class="el_source">SavedPageSyncService.kt</span></div><h1>SavedPageSyncService.kt</h1><pre class="source lang-java linenums">package org.wikipedia.savedpages
+
+import android.content.Context
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
+import okhttp3.Request
+import okio.Buffer
+import okio.Sink
+import okio.Timeout
+import org.wikipedia.Constants
+import org.wikipedia.WikipediaApp
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.RestService
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.okhttp.HttpStatusException
+import org.wikipedia.dataclient.okhttp.OfflineCacheInterceptor
+import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory
+import org.wikipedia.events.PageDownloadEvent
+import org.wikipedia.page.PageTitle
+import org.wikipedia.pageimages.db.PageImage
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.readinglist.sync.ReadingListSyncAdapter
+import org.wikipedia.readinglist.sync.ReadingListSyncEvent
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.ThrowableUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.CircularProgressBar
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+<span class="nc" id="L46">class SavedPageSyncService(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {</span>
+<span class="nc" id="L47">    private val savedPageSyncNotification = SavedPageSyncNotification.instance</span>
+
+    override suspend fun doWork(): Result {
+<span class="nc" id="L50">        return withContext(Dispatchers.IO) {</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            if (ReadingListSyncAdapter.inProgress()) {</span>
+                // Reading list sync was started in the meantime, so bail.
+<span class="nc" id="L53">                return@withContext Result.success()</span>
+            }
+<span class="nc" id="L55">            val pagesToSave = AppDatabase.instance.readingListPageDao().getAllPagesToBeForcedSave().toMutableList()</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">            if ((!Prefs.isDownloadOnlyOverWiFiEnabled || DeviceUtil.isOnWiFi) &amp;&amp;</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                Prefs.isDownloadingReadingListArticlesEnabled) {</span>
+<span class="nc" id="L58">                pagesToSave.addAll(AppDatabase.instance.readingListPageDao().getAllPagesToBeSaved())</span>
+            }
+<span class="nc" id="L60">            val pagesToUnSave = AppDatabase.instance.readingListPageDao().getAllPagesToBeUnsaved()</span>
+<span class="nc" id="L61">            val pagesToDelete = AppDatabase.instance.readingListPageDao().getAllPagesToBeDeleted()</span>
+<span class="nc" id="L62">            var shouldSendSyncEvent = false</span>
+<span class="nc" id="L63">            try {</span>
+<span class="nc" id="L64">                AppDatabase.instance.offlineObjectDao().deleteObjectsForPageId(pagesToDelete.map { it.id })</span>
+<span class="nc" id="L65">                AppDatabase.instance.offlineObjectDao().deleteObjectsForPageId(pagesToUnSave.map { it.id })</span>
+<span class="nc" id="L66">            } catch (e: Exception) {</span>
+<span class="nc" id="L67">                L.e(&quot;Error while deleting page: &quot; + e.message)</span>
+            } finally {
+<span class="nc bnc" id="L69" title="All 12 branches missed.">                if (pagesToDelete.isNotEmpty()) {</span>
+<span class="nc" id="L70">                    AppDatabase.instance.readingListPageDao().purgeDeletedPages()</span>
+<span class="nc" id="L71">                    shouldSendSyncEvent = true</span>
+                }
+<span class="nc bnc" id="L73" title="All 12 branches missed.">                if (pagesToUnSave.isNotEmpty()) {</span>
+<span class="nc" id="L74">                    AppDatabase.instance.readingListPageDao().updateStatus(</span>
+<span class="nc" id="L75">                        oldStatus = ReadingListPage.STATUS_SAVED,</span>
+<span class="nc" id="L76">                        newStatus = ReadingListPage.STATUS_QUEUE_FOR_SAVE,</span>
+<span class="nc" id="L77">                        offline = false</span>
+                    )
+<span class="nc" id="L79">                    shouldSendSyncEvent = true</span>
+                }
+<span class="nc" id="L81">            }</span>
+<span class="nc" id="L82">            val itemsTotal = pagesToSave.size</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            if (itemsTotal &gt; 0) {</span>
+<span class="nc" id="L84">                shouldSendSyncEvent = true</span>
+            }
+<span class="nc" id="L86">            var itemsSaved = 0</span>
+<span class="nc" id="L87">            try {</span>
+<span class="nc" id="L88">                savePages(pagesToSave)</span>
+            } finally {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                if (savedPageSyncNotification.isSyncPaused()) {</span>
+<span class="nc" id="L91">                    savedPageSyncNotification.setNotificationPaused(applicationContext, itemsTotal, itemsSaved)</span>
+                } else {
+<span class="nc" id="L93">                    savedPageSyncNotification.cancelNotification(applicationContext)</span>
+<span class="nc" id="L94">                    savedPageSyncNotification.setSyncCanceled(false)</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                    if (shouldSendSyncEvent) {</span>
+<span class="nc" id="L96">                        sendSyncEvent()</span>
+                    }
+                }
+<span class="nc" id="L99">            }.also { itemsSaved = it }</span>
+<span class="nc" id="L100">            Result.success()</span>
+        }
+    }
+
+    private suspend fun savePages(queue: MutableList&lt;ReadingListPage&gt;): Int {
+<span class="nc" id="L105">        return withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L106">            val itemsTotal = queue.size</span>
+<span class="nc" id="L107">            var itemsSaved = 0</span>
+<span class="nc bnc" id="L108" title="All 4 branches missed.">            while (queue.isNotEmpty()) {</span>
+
+                // Pick off the DB row that we'll be working on...
+<span class="nc" id="L111">                val page = queue.removeAt(0)</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                if (savedPageSyncNotification.isSyncPaused()) {</span>
+                    // Remaining transactions will be picked up again when the service is resumed.
+<span class="nc" id="L114">                    break</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                } else if (savedPageSyncNotification.isSyncCanceled()) {</span>
+                    // Mark remaining pages as online-only!
+<span class="nc" id="L117">                    queue.add(page)</span>
+<span class="nc" id="L118">                    AppDatabase.instance.readingListPageDao().markPagesForOffline(queue, offline = false, forcedSave = false)</span>
+<span class="nc" id="L119">                    break</span>
+                }
+<span class="nc" id="L121">                savedPageSyncNotification.setNotificationProgress(applicationContext, itemsTotal, itemsSaved)</span>
+<span class="nc" id="L122">                var success = false</span>
+<span class="nc" id="L123">                var totalSize = 0L</span>
+<span class="nc" id="L124">                try {</span>
+                    // Lengthy operation during which the db state may change...
+<span class="nc" id="L126">                    totalSize = savePageFor(page)</span>
+<span class="nc" id="L127">                    success = true</span>
+<span class="nc" id="L128">                } catch (e: CancellationException) {</span>
+<span class="nc" id="L129">                    throw e</span>
+<span class="nc" id="L130">                } catch (_: InterruptedException) {</span>
+                        // fall through
+<span class="nc" id="L132">                } catch (e: Exception) {</span>
+                    // This can be an IOException from the storage media, or several types
+                    // of network exceptions from malformed URLs, timeouts, etc.
+<span class="nc" id="L135">                    L.e(e)</span>
+
+                    // If we're offline, or if there's a transient network error, then don't do
+                    // anything.  Otherwise...
+<span class="nc bnc" id="L139" title="All 6 branches missed.">                    if (!ThrowableUtil.isOffline(e) &amp;&amp; !ThrowableUtil.isTimeout(e) &amp;&amp; !ThrowableUtil.isNetworkError(e)) {</span>
+                        // If it's not a transient network error (e.g. a 404 status response), it implies
+                        // that there's no way to fetch the page next time, or ever, therefore let's mark
+                        // it as &quot;successful&quot; so that it won't be retried again.
+<span class="nc" id="L143">                        success = true</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                        if (e !is HttpStatusException) {</span>
+                            // And if it's something other than an HTTP status, let's log it and see what it is.
+<span class="nc" id="L146">                            L.logRemoteError(e)</span>
+                        }
+                    }
+                }
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                if (ReadingListSyncAdapter.inProgress()) {</span>
+                    // Reading list sync was started in the meantime, so bail.
+<span class="nc" id="L152">                    break</span>
+                }
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                if (success) {</span>
+<span class="nc" id="L155">                    page.status = ReadingListPage.STATUS_SAVED</span>
+<span class="nc" id="L156">                    page.sizeBytes = totalSize</span>
+<span class="nc" id="L157">                    AppDatabase.instance.readingListPageDao().updateReadingListPage(page)</span>
+<span class="nc" id="L158">                    itemsSaved++</span>
+<span class="nc" id="L159">                    sendSyncEvent()</span>
+                }
+            }
+<span class="nc" id="L162">            itemsSaved</span>
+        }
+    }
+
+    @Throws(Exception::class)
+    private suspend fun savePageFor(page: ReadingListPage): Long {
+<span class="nc" id="L168">        return withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L169">            val pageTitle = ReadingListPage.toPageTitle(page)</span>
+
+<span class="nc" id="L171">            val summaryCall = async { ServiceFactory.getRest(pageTitle.wikiSite).getPageSummary(pageTitle.prefixedText,</span>
+<span class="nc" id="L172">                cacheControl = OkHttpConnectionFactory.CACHE_CONTROL_FORCE_NETWORK.toString(),</span>
+<span class="nc" id="L173">                saveHeader = OfflineCacheInterceptor.SAVE_HEADER_SAVE, langHeader = pageTitle.wikiSite.languageCode,</span>
+<span class="nc" id="L174">                titleHeader = UriUtil.encodeURL(pageTitle.prefixedText)) }</span>
+
+<span class="nc" id="L176">            val mediaListCall = async { ServiceFactory.getRest(pageTitle.wikiSite).getMediaList(pageTitle.prefixedText,</span>
+<span class="nc" id="L177">                cacheControl = OkHttpConnectionFactory.CACHE_CONTROL_FORCE_NETWORK.toString(),</span>
+<span class="nc" id="L178">                saveHeader = OfflineCacheInterceptor.SAVE_HEADER_SAVE, langHeader = pageTitle.wikiSite.languageCode,</span>
+<span class="nc" id="L179">                titleHeader = UriUtil.encodeURL(pageTitle.prefixedText)) }</span>
+
+<span class="nc" id="L181">            val mobileHTMLCall = async { reqMobileHTML(pageTitle) }</span>
+
+<span class="nc" id="L183">            val summaryResponse = summaryCall.await()</span>
+<span class="nc" id="L184">            val mediaListResponse = mediaListCall.await()</span>
+<span class="nc" id="L185">            val mobileHTMLResponse = mobileHTMLCall.await()</span>
+
+<span class="nc" id="L187">            page.downloadProgress = MEDIA_LIST_PROGRESS</span>
+<span class="nc" id="L188">            FlowEventBus.post(PageDownloadEvent(page))</span>
+
+<span class="nc" id="L190">            val fileUrls = mutableSetOf&lt;String&gt;()</span>
+            // download css and javascript assets
+<span class="nc" id="L192">            mobileHTMLResponse.body.use {</span>
+<span class="nc" id="L193">                fileUrls.addAll(PageComponentsUrlParser.parse(it.string(),</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                    pageTitle.wikiSite).filter { url -&gt; url.isNotEmpty() })</span>
+            }
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            if (Prefs.isImageDownloadEnabled) {</span>
+                // download thumbnail and lead image
+<span class="nc bnc" id="L198" title="All 6 branches missed.">                if (!summaryResponse.thumbnailUrl.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                    page.thumbUrl = UriUtil.resolveProtocolRelativeUrl(pageTitle.wikiSite, summaryResponse.thumbnailUrl.orEmpty())</span>
+<span class="nc" id="L200">                    val existingPageImage = AppDatabase.instance.pageImagesDao()</span>
+<span class="nc" id="L201">                        .findItemsBy(pageTitle.wikiSite.languageCode, pageTitle.namespace, pageTitle.prefixedText)</span>
+<span class="nc" id="L202">                        .firstOrNull()</span>
+
+<span class="nc" id="L204">                    AppDatabase.instance.pageImagesDao().insertPageImage(PageImage(</span>
+<span class="nc" id="L205">                        pageTitle.wikiSite.languageCode,</span>
+<span class="nc" id="L206">                        pageTitle.namespace,</span>
+<span class="nc" id="L207">                        page.apiTitle,</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">                        page.thumbUrl.orEmpty(),</span>
+<span class="nc" id="L209">                        summaryResponse.description,</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                        existingPageImage?.timeSpentSec ?: 0,</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                        summaryResponse.coordinates?.latitude ?: 0.0,</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                        summaryResponse.coordinates?.longitude ?: 0.0</span>
+                    ))
+<span class="nc" id="L214">                    fileUrls.add(UriUtil.resolveProtocolRelativeUrl(</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                        ImageUrlUtil.getUrlForPreferredSize(page.thumbUrl.orEmpty(), Constants.PREFERRED_CARD_THUMBNAIL_SIZE)))</span>
+                }
+
+                // download article images
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                for (item in mediaListResponse.getItems(&quot;image&quot;)) {</span>
+<span class="nc" id="L220">                    item.srcSets.let {</span>
+<span class="nc" id="L221">                        fileUrls.add(item.getImageUrl(DimenUtil.densityScalar))</span>
+                    }
+                }
+            }
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            page.displayTitle = summaryResponse.displayTitle.orEmpty()</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            page.description = summaryResponse.description.orEmpty()</span>
+
+<span class="nc" id="L228">            reqSaveFiles(page, pageTitle, fileUrls)</span>
+
+<span class="nc" id="L230">            val totalSize = AppDatabase.instance.offlineObjectDao().getTotalBytesForPageId(page.id)</span>
+
+<span class="nc" id="L232">            L.i(&quot;Saved page &quot; + pageTitle.prefixedText + &quot; (&quot; + totalSize + &quot;)&quot;)</span>
+
+<span class="nc" id="L234">            totalSize</span>
+        }
+    }
+
+    private suspend fun reqMobileHTML(pageTitle: PageTitle): okhttp3.Response {
+<span class="nc" id="L239">        val request = makeUrlRequest(pageTitle.wikiSite,</span>
+<span class="nc" id="L240">                ServiceFactory.getRestBasePath(pageTitle.wikiSite) +</span>
+<span class="nc" id="L241">                        RestService.PAGE_HTML_ENDPOINT + UriUtil.encodeURL(pageTitle.prefixedText),</span>
+<span class="nc" id="L242">                pageTitle).build()</span>
+<span class="nc" id="L243">        return withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L244">            OkHttpConnectionFactory.client.newCall(request).execute()</span>
+        }
+    }
+
+    @Throws(IOException::class, InterruptedException::class)
+    private suspend fun reqSaveFiles(page: ReadingListPage, pageTitle: PageTitle, urls: Set&lt;String&gt;) {
+<span class="nc" id="L250">        val numOfImages = urls.size</span>
+<span class="nc" id="L251">        var percentage = MEDIA_LIST_PROGRESS.toFloat()</span>
+<span class="nc" id="L252">        val updateRate = (CircularProgressBar.MAX_PROGRESS - percentage) / numOfImages</span>
+
+<span class="nc" id="L254">        withContext(Dispatchers.IO) {</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            for (url in urls) {</span>
+<span class="nc bnc" id="L256" title="All 4 branches missed.">                if (savedPageSyncNotification.isSyncPaused() || savedPageSyncNotification.isSyncCanceled()) {</span>
+<span class="nc" id="L257">                    throw InterruptedException(&quot;Sync paused or cancelled.&quot;)</span>
+                }
+<span class="nc" id="L259">                try {</span>
+<span class="nc" id="L260">                    reqSaveUrl(pageTitle, page.wiki, url)</span>
+<span class="nc" id="L261">                    percentage += updateRate</span>
+<span class="nc" id="L262">                    page.downloadProgress = percentage.toInt()</span>
+<span class="nc" id="L263">                    FlowEventBus.post(PageDownloadEvent(page))</span>
+<span class="nc" id="L264">                } catch (e: CancellationException) {</span>
+<span class="nc" id="L265">                    throw e</span>
+<span class="nc" id="L266">                } catch (e: Exception) {</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">                    if (isRetryable(e)) {</span>
+<span class="nc" id="L268">                        throw e</span>
+                    }
+                }
+            }
+<span class="nc" id="L272">            page.downloadProgress = CircularProgressBar.MAX_PROGRESS</span>
+<span class="nc" id="L273">            FlowEventBus.post(PageDownloadEvent(page))</span>
+<span class="nc" id="L274">        }</span>
+<span class="nc" id="L275">    }</span>
+
+    @Throws(IOException::class)
+    private suspend fun reqSaveUrl(pageTitle: PageTitle, wiki: WikiSite, url: String) {
+<span class="nc" id="L279">        val request = makeUrlRequest(wiki, url, pageTitle).build()</span>
+<span class="nc" id="L280">        withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L281">            OkHttpConnectionFactory.client.newCall(request).execute().use { response -&gt;</span>
+                // Read the entirety of the response, so that it's written to cache by the interceptor.
+<span class="nc" id="L283">                response.body.source().readAll(object : Sink {</span>
+<span class="nc" id="L284">                    override fun write(source: Buffer, byteCount: Long) {}</span>
+<span class="nc" id="L285">                    override fun flush() {}</span>
+                    override fun timeout(): Timeout {
+<span class="nc" id="L287">                        return Timeout()</span>
+                    }
+
+<span class="nc" id="L290">                    override fun close() {}</span>
+<span class="nc" id="L291">                })</span>
+<span class="nc" id="L292">            }</span>
+        }
+<span class="nc" id="L294">    }</span>
+
+    private fun makeUrlRequest(wiki: WikiSite, url: String, pageTitle: PageTitle): Request.Builder {
+<span class="nc" id="L297">        return Request.Builder().cacheControl(OkHttpConnectionFactory.CACHE_CONTROL_FORCE_NETWORK).url(UriUtil.resolveProtocolRelativeUrl(wiki, url))</span>
+<span class="nc" id="L298">                .addHeader(&quot;Accept-Language&quot;, WikipediaApp.instance.getAcceptLanguage(pageTitle.wikiSite))</span>
+<span class="nc" id="L299">                .addHeader(OfflineCacheInterceptor.SAVE_HEADER, OfflineCacheInterceptor.SAVE_HEADER_SAVE)</span>
+<span class="nc" id="L300">                .addHeader(OfflineCacheInterceptor.LANG_HEADER, pageTitle.wikiSite.languageCode)</span>
+<span class="nc" id="L301">                .addHeader(OfflineCacheInterceptor.TITLE_HEADER, UriUtil.encodeURL(pageTitle.prefixedText))</span>
+    }
+
+    private fun isRetryable(t: Throwable): Boolean {
+        // &quot;Retryable&quot; in this case refers to exceptions that will be rethrown up to the
+        // outer exception handler, so that the entire page can be retried on the next pass
+        // of the sync service.
+
+        // Errors that do *not* qualify for retrying include:
+        // - IllegalArgumentException (thrown for any kind of malformed URL)
+        // - HTTP 404 status (for nonexistent media)
+<span class="nc bnc" id="L312" title="All 4 branches missed.">        return !(t is IllegalArgumentException || ThrowableUtil.is404(t))</span>
+    }
+
+    companion object {
+        private const val WORK_NAME = &quot;savePageSyncService&quot;
+        private const val ENQUEUE_DELAY = 2L
+        const val MEDIA_LIST_PROGRESS = 30
+
+        fun enqueue() {
+<span class="nc bnc" id="L321" title="All 2 branches missed.">            if (ReadingListSyncAdapter.inProgress()) {</span>
+<span class="nc" id="L322">                return</span>
+            }
+<span class="nc" id="L324">            val constraints = Constraints.Builder()</span>
+<span class="nc" id="L325">                .setRequiredNetworkType(NetworkType.CONNECTED)</span>
+<span class="nc" id="L326">                .build()</span>
+<span class="nc" id="L327">            val workRequest = OneTimeWorkRequestBuilder&lt;SavedPageSyncService&gt;()</span>
+<span class="nc" id="L328">                .setInitialDelay(ENQUEUE_DELAY, TimeUnit.SECONDS)</span>
+<span class="nc" id="L329">                .setConstraints(constraints)</span>
+<span class="nc" id="L330">                .build()</span>
+<span class="nc" id="L331">            WorkManager.getInstance(WikipediaApp.instance)</span>
+<span class="nc" id="L332">                .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, workRequest)</span>
+<span class="nc" id="L333">        }</span>
+
+<span class="nc" id="L335">        fun sendSyncEvent(showMessage: Boolean = false) {</span>
+            // Note: this method posts from a background thread but subscribers expect events to be
+            // received on the main thread.
+<span class="nc" id="L338">            FlowEventBus.post(ReadingListSyncEvent(showMessage))</span>
+<span class="nc" id="L339">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

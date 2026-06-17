@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LicenseActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">LicenseActivity.kt</span></div><h1>LicenseActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.unit.dp
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.compose.components.WikiTopAppBar
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.util.FileUtil.readFile
+
+<span class="nc" id="L24">class LicenseActivity : BaseActivity() {</span>
+    public override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L26">        super.onCreate(savedInstanceState)</span>
+<span class="nc bnc" id="L27" title="All 2 branches missed.">        val asset = intent.getStringExtra(ASSET) ?: &quot;&quot;</span>
+<span class="nc" id="L28">        val text = readFile(assets.open(asset))</span>
+<span class="nc" id="L29">        val licenseText = text.replace(&quot;\n\n&quot;, &quot;&lt;br/&gt;&lt;br/&gt;&quot;)</span>
+<span class="nc" id="L30">        val strings = asset.split(&quot;/&quot;)</span>
+<span class="nc" id="L31">        val title = getString(R.string.license_title, strings[strings.size - 1].trim())</span>
+
+<span class="nc" id="L33">        setContent {</span>
+<span class="nc" id="L34">            BaseTheme {</span>
+<span class="nc" id="L35">                LicenseScreen(</span>
+<span class="nc" id="L36">                    modifier = Modifier</span>
+<span class="nc" id="L37">                        .fillMaxSize(),</span>
+<span class="nc" id="L38">                    title = title,</span>
+<span class="nc" id="L39">                    licenseText = licenseText,</span>
+<span class="nc" id="L40">                    onBackButtonClick = {</span>
+<span class="nc" id="L41">                        onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L42">                    }</span>
+                )
+<span class="nc" id="L44">            }</span>
+<span class="nc" id="L45">        }</span>
+<span class="nc" id="L46">    }</span>
+
+    @Composable
+    fun LicenseScreen(
+<span class="nc" id="L50">        modifier: Modifier = Modifier,</span>
+        title: String,
+        licenseText: String?,
+        onBackButtonClick: () -&gt; Unit
+<span class="nc bnc" id="L54" title="All 2 branches missed.">    ) {</span>
+<span class="nc" id="L55">        Scaffold(</span>
+<span class="nc" id="L56">            topBar = {</span>
+<span class="nc" id="L57">                WikiTopAppBar(</span>
+<span class="nc" id="L58">                    title = title,</span>
+<span class="nc" id="L59">                    onNavigationClick = onBackButtonClick</span>
+                )
+<span class="nc" id="L61">            },</span>
+<span class="nc" id="L62">            containerColor = WikipediaTheme.colors.paperColor</span>
+<span class="nc" id="L63">        ) { innerPadding -&gt;</span>
+<span class="nc" id="L64">            Column(</span>
+<span class="nc" id="L65">                modifier = modifier</span>
+<span class="nc" id="L66">                    .verticalScroll(state = rememberScrollState())</span>
+<span class="nc" id="L67">                    .padding(innerPadding)</span>
+<span class="nc" id="L68">                    .padding(horizontal = 16.dp, vertical = 8.dp)</span>
+            ) {
+<span class="nc" id="L70">                Text(</span>
+<span class="nc" id="L71">                    text = AnnotatedString.fromHtml(</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                        htmlString = licenseText ?: &quot;&quot;</span>
+                    ),
+<span class="nc" id="L74">                    color = WikipediaTheme.colors.primaryColor.copy(alpha = 0.6f)</span>
+                )
+<span class="nc" id="L76">            }</span>
+<span class="nc" id="L77">        }</span>
+<span class="nc" id="L78">    }</span>
+
+    companion object {
+        const val ASSET = &quot;asset&quot;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

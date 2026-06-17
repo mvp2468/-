@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DateUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">DateUtil.kt</span></div><h1>DateUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.content.Context
+import android.icu.text.RelativeDateTimeFormatter
+import android.os.Build
+import android.text.format.DateFormat
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.extensions.getResources
+import org.wikipedia.extensions.getString
+import org.wikipedia.extensions.toLocalDate
+import org.wikipedia.feed.model.UtcDate
+import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAccessor
+import java.util.Calendar
+import java.util.Date
+import java.util.GregorianCalendar
+import java.util.Locale
+import java.util.TimeZone
+import java.util.concurrent.ConcurrentHashMap
+
+object DateUtil {
+<span class="fc" id="L33">    private val DATE_FORMATS = ConcurrentHashMap&lt;String, SimpleDateFormat&gt;()</span>
+<span class="fc" id="L34">    private val DATE_TIME_FORMATTERS = ConcurrentHashMap&lt;String, DateTimeFormatter&gt;()</span>
+
+    // TODO: Switch to DateTimeFormatter when minSdk = 26.
+    fun iso8601DateParse(date: String): Date {
+<span class="fc" id="L38">        return Date.from(Instant.parse(date))</span>
+    }
+
+    fun iso8601LocalDateTimeParse(timestamp: String): LocalDateTime {
+<span class="nc" id="L42">        return LocalDateTime.ofInstant(Instant.parse(timestamp), ZoneId.systemDefault())</span>
+    }
+
+    fun dbDateFormat(date: Date): String {
+<span class="nc" id="L46">        return getCachedDateFormat(&quot;yyyyMMddHHmmss&quot;, Locale.ROOT, true).format(date)</span>
+    }
+
+    fun dbDateParse(date: String): Date {
+<span class="nc" id="L50">        return getCachedDateFormat(&quot;yyyyMMddHHmmss&quot;, Locale.ROOT, true).parse(date)!!</span>
+    }
+
+    fun getFeedCardDateString(age: Int): String {
+<span class="nc" id="L54">        return getShortDateString(UtcDate(age).baseCalendar.time)</span>
+    }
+
+    fun getFeedCardShortDateString(date: Calendar): String {
+<span class="nc" id="L58">        return getExtraShortDateString(date.time)</span>
+    }
+
+    fun getMDYDateString(date: Date): String {
+<span class="nc" id="L62">        return getDateStringWithSkeletonPattern(date, &quot;MM/dd/yyyy&quot;)</span>
+    }
+
+    fun getMonthOnlyDateString(date: Date): String {
+<span class="nc" id="L66">        return getDateStringWithSkeletonPattern(date, &quot;MMMM d&quot;)</span>
+    }
+
+    fun getMonthOnlyDateStringFromTimeString(dateStr: String): String {
+<span class="nc" id="L70">        return getMonthOnlyDateString(SimpleDateFormat(&quot;yyyy-MM-dd&quot;, Locale.getDefault()).parse(dateStr)!!)</span>
+    }
+
+    fun getMonthOnlyDateString(date: LocalDate): String {
+<span class="nc" id="L74">        return getDateStringWithSkeletonPattern(date, &quot;MMMM d&quot;)</span>
+    }
+
+    fun getMonthOnlyWithoutDayDateString(date: Date): String {
+<span class="nc" id="L78">        return getDateStringWithSkeletonPattern(date, &quot;MMMM&quot;)</span>
+    }
+
+    fun getYearOnlyDateString(date: Date): String {
+<span class="nc" id="L82">        return getDateStringWithSkeletonPattern(date, &quot;yyyy&quot;)</span>
+    }
+
+    fun getYMDDateString(date: LocalDate): String {
+<span class="nc" id="L86">        return getCachedDateTimeFormatter(&quot;yyyyMMdd&quot;, Locale.getDefault(), utc = false, skeleton = false)</span>
+<span class="nc" id="L87">            .format(date)</span>
+    }
+
+<span class="nc" id="L90">    fun getMMMMdYYYY(date: Date, utc: Boolean = true): String {</span>
+<span class="nc" id="L91">        return getCachedDateFormat(&quot;MMMM d, yyyy&quot;, Locale.getDefault(), utc).format(date)</span>
+    }
+
+    private fun getExtraShortDateString(date: Date): String {
+<span class="nc" id="L95">        return getDateStringWithSkeletonPattern(date, &quot;MMM d&quot;)</span>
+    }
+
+    fun getTimeString(context: Context, date: Date): String {
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        val datePattern = if (DateFormat.is24HourFormat(context)) &quot;HH:mm&quot; else &quot;hh:mm a&quot;</span>
+<span class="nc" id="L100">        return getDateStringWithSkeletonPattern(date, datePattern)</span>
+    }
+
+    fun getTimeString(context: Context, localDateTime: LocalDateTime): String {
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        val datePattern = if (DateFormat.is24HourFormat(context)) &quot;HH:mm&quot; else &quot;hh:mm a&quot;</span>
+<span class="nc" id="L105">        return getDateStringWithSkeletonPattern(localDateTime, datePattern)</span>
+    }
+
+    fun getShortDayWithTimeString(dateStr: String): String {
+<span class="nc" id="L109">        return getDateStringWithSkeletonPattern(iso8601DateParse(dateStr), &quot;MMM d HH:mm&quot;)</span>
+    }
+
+    fun getShortDayWithTimeString(date: Date): String {
+<span class="nc" id="L113">        return getDateStringWithSkeletonPattern(date, &quot;MM/dd/yyyy HH:mm&quot;)</span>
+    }
+
+    fun getTimeAndDateString(context: Context, date: Date): String {
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        val datePattern = if (DateFormat.is24HourFormat(context)) &quot;HH:mm, MMM d, yyyy&quot; else &quot;hh:mm a, MMM d, yyyy&quot;</span>
+<span class="nc" id="L118">        return getDateStringWithSkeletonPattern(date, datePattern)</span>
+    }
+
+    fun getTimeAndDateString(context: Context, dateStr: String): String {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        val datePattern = if (DateFormat.is24HourFormat(context)) &quot;HH:mm, MMM d, yyyy&quot; else &quot;hh:mm a, MMM d, yyyy&quot;</span>
+<span class="nc" id="L123">        return getDateStringWithSkeletonPattern(iso8601DateParse(dateStr), datePattern)</span>
+    }
+
+    fun getDateAndTime(context: Context, date: Date): String {
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        val datePattern = if (DateFormat.is24HourFormat(context)) &quot;MMM d, yyyy, HH:mm&quot; else &quot;MMM d, yyyy, hh:mm a&quot;</span>
+<span class="fc" id="L128">        return getCachedDateFormat(datePattern, Locale.getDefault(), false).format(date)</span>
+    }
+
+    private fun getDateStringWithSkeletonPattern(date: Date, pattern: String): String {
+<span class="nc" id="L132">        return getCachedDateFormat(pattern, Locale.getDefault(), utc = false, skeleton = true)</span>
+<span class="nc" id="L133">            .format(date)</span>
+    }
+
+    private fun getDateStringWithSkeletonPattern(temporalAccessor: TemporalAccessor, pattern: String): String {
+<span class="nc" id="L137">        return getCachedDateTimeFormatter(pattern, Locale.getDefault(), utc = false, skeleton = true)</span>
+<span class="nc" id="L138">            .format(temporalAccessor)</span>
+    }
+
+<span class="fc" id="L141">    private fun getCachedDateFormat(pattern: String, locale: Locale, utc: Boolean, skeleton: Boolean = false): SimpleDateFormat {</span>
+<span class="fc" id="L142">        return DATE_FORMATS.getOrPut(pattern) {</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">            val df = SimpleDateFormat(if (skeleton) DateFormat.getBestDateTimePattern(locale, pattern) else pattern, locale)</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">            if (utc) {</span>
+<span class="nc" id="L145">                df.timeZone = TimeZone.getTimeZone(&quot;UTC&quot;)</span>
+            }
+<span class="fc" id="L147">            df</span>
+        }
+    }
+
+<span class="nc" id="L151">    private fun getCachedDateTimeFormatter(pattern: String, locale: Locale, utc: Boolean, skeleton: Boolean = false): DateTimeFormatter {</span>
+<span class="nc" id="L152">        return DATE_TIME_FORMATTERS.getOrPut(pattern) {</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            val dtf = DateTimeFormatter.ofPattern(if (skeleton) DateFormat.getBestDateTimePattern(locale, pattern) else pattern, locale)</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            return if (utc) dtf.withZone(ZoneOffset.UTC) else dtf</span>
+        }
+    }
+
+    fun getShortDateString(date: Date): String {
+        // todo: consider allowing TWN date formats. It would be useful to have but might be
+        //       difficult for translators to write correct format specifiers without being able to
+        //       test them. We should investigate localization support in date libraries such as
+        //       Joda-Time and how TWN solves this classic problem.
+<span class="nc" id="L163">        val dateFormat = DateFormat.getMediumDateFormat(WikipediaApp.instance)</span>
+<span class="nc" id="L164">        dateFormat.timeZone = TimeZone.getTimeZone(&quot;UTC&quot;)</span>
+<span class="nc" id="L165">        return dateFormat.format(date)</span>
+    }
+
+    fun getShortDateString(localDate: LocalDate): String {
+<span class="nc" id="L169">        return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(localDate)</span>
+    }
+
+    fun getUtcRequestDateFor(age: Int): UtcDate {
+<span class="nc" id="L173">        return UtcDate(age)</span>
+    }
+
+    fun getDefaultDateFor(age: Int): Calendar {
+<span class="nc" id="L177">        val calendar = Calendar.getInstance(TimeZone.getDefault())</span>
+<span class="nc" id="L178">        calendar.add(Calendar.DATE, -age)</span>
+<span class="nc" id="L179">        return calendar</span>
+    }
+
+    fun yearToStringWithEra(year: Int): String {
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        val cal: Calendar = GregorianCalendar(if (year &lt; 0) year + 1 else year, 1, 1)</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        return getDateStringWithSkeletonPattern(cal.time, if (year &lt; 0) &quot;y GG&quot; else &quot;y&quot;)</span>
+    }
+
+    fun getYearDifferenceString(context: Context, year: Int, languageCode: String): String {
+<span class="nc" id="L188">        val diffInYears = Calendar.getInstance()[Calendar.YEAR] - year</span>
+<span class="nc" id="L189">        val targetResource = context.getResources(languageCode)</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        return if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.N) {</span>
+<span class="nc" id="L191">            val firstMatchLocaleInstance = RelativeDateTimeFormatter.getInstance(targetResource.configuration.locales.getFirstMatch(arrayOf(languageCode)))</span>
+<span class="nc bnc" id="L192" title="All 4 branches missed.">            when (diffInYears) {</span>
+<span class="nc" id="L193">                0 -&gt; firstMatchLocaleInstance.format(RelativeDateTimeFormatter.Direction.THIS, RelativeDateTimeFormatter.AbsoluteUnit.YEAR)</span>
+<span class="nc" id="L194">                1 -&gt; firstMatchLocaleInstance.format(RelativeDateTimeFormatter.Direction.LAST, RelativeDateTimeFormatter.AbsoluteUnit.YEAR)</span>
+<span class="nc" id="L195">                -1 -&gt; firstMatchLocaleInstance.format(RelativeDateTimeFormatter.Direction.NEXT, RelativeDateTimeFormatter.AbsoluteUnit.YEAR)</span>
+<span class="nc" id="L196">                else -&gt; firstMatchLocaleInstance.format(diffInYears.toDouble(), RelativeDateTimeFormatter.Direction.LAST, RelativeDateTimeFormatter.RelativeUnit.YEARS)</span>
+            }
+        } else {
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            return if (diffInYears == 0) context.getString(languageCode, R.string.this_year)</span>
+<span class="nc" id="L200">            else targetResource.getQuantityString(R.plurals.diff_years, diffInYears, diffInYears)</span>
+        }
+    }
+
+<span class="nc" id="L204">    fun startOfYearInMillis(year: Int, zoneId: ZoneId = ZoneId.systemDefault()): Long {</span>
+<span class="nc" id="L205">        val localDate = LocalDate.of(year, 1, 1)</span>
+<span class="nc" id="L206">        return localDate.atStartOfDay(zoneId).toInstant().toEpochMilli()</span>
+    }
+
+<span class="nc" id="L209">    fun endOfYearInMillis(year: Int, zoneId: ZoneId = ZoneId.systemDefault()): Long {</span>
+<span class="nc" id="L210">        val localDate = LocalDate.of(year, 12, 31)</span>
+<span class="nc" id="L211">        return localDate.atTime(0, 0, 0).atZone(zoneId).toInstant().toEpochMilli()</span>
+    }
+
+<span class="nc" id="L214">    fun epochMilliToYear(epochMilli: Long, zoneId: ZoneId = ZoneId.systemDefault()): Int {</span>
+<span class="nc" id="L215">        val zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), zoneId)</span>
+<span class="nc" id="L216">        return zonedDateTime.year</span>
+    }
+
+    fun toRelativeDateString(date: Date): String {
+<span class="nc" id="L220">        val localDate = date.toLocalDate()</span>
+<span class="nc" id="L221">        val now = LocalDate.now()</span>
+<span class="nc" id="L222">        val daysDiff = ChronoUnit.DAYS.between(localDate, now)</span>
+
+<span class="nc" id="L224">        return when {</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            daysDiff &lt; 7 -&gt; {</span>
+<span class="nc" id="L226">                val dayOfWeek = localDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())</span>
+<span class="nc" id="L227">                dayOfWeek</span>
+            }
+
+<span class="nc bnc" id="L230" title="All 2 branches missed.">            localDate.year == now.year -&gt; {</span>
+<span class="nc" id="L231">                DateUtil.getMonthOnlyDateString(localDate)</span>
+            }
+
+            else -&gt; {
+<span class="nc" id="L235">                DateUtil.getShortDateString(localDate)</span>
+            }
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

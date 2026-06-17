@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GamesHubScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games</a> &gt; <span class="el_source">GamesHubScreen.kt</span></div><h1>GamesHubScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games
+
+import androidx.compose.animation.core.InfiniteTransition
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.extensions.shimmerEffect
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.extensions.getString
+import org.wikipedia.feed.wikigames.OnThisDayCardGameState
+import org.wikipedia.feed.wikigames.OnThisDayGameAction
+import org.wikipedia.feed.wikigames.OnThisDayGameCardCompleted
+import org.wikipedia.feed.wikigames.OnThisDayGameCardPreview
+import org.wikipedia.feed.wikigames.OnThisDayGameCardProgress
+import org.wikipedia.feed.wikigames.OnThisDayGameCardSimple
+import org.wikipedia.feed.wikigames.WikiGame
+import org.wikipedia.games.onthisday.OnThisDayGameArchiveCalendarHelper
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.UiState
+import java.time.LocalDate
+
+@Composable
+fun GamesHubScreen(
+    viewModel: GamesHubViewModel,
+    onThisDayGameUiState: UiState&lt;List&lt;OnThisDayCardGameState&gt;&gt;,
+    onThisDayGameArchiveCalendarHelper: OnThisDayGameArchiveCalendarHelper,
+    onPlay: (LocalDate, OnThisDayGameAction) -&gt; Unit,
+    onShowArchive: () -&gt; Unit,
+    onShowDisabledMessage: (String) -&gt; Unit,
+    languageList: List&lt;String&gt;,
+    transition: InfiniteTransition
+<span class="nc" id="L71">) {</span>
+<span class="nc" id="L72">    var selectedLanguage by remember { mutableStateOf(viewModel.selectedLanguage) }</span>
+<span class="nc" id="L73">    var isRefreshing by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L74">    val state = rememberPullToRefreshState()</span>
+
+<span class="nc" id="L76">    Scaffold(</span>
+<span class="nc" id="L77">        modifier = Modifier</span>
+<span class="nc" id="L78">            .fillMaxSize()</span>
+<span class="nc" id="L79">            .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L80">        containerColor = WikipediaTheme.colors.paperColor</span>
+<span class="nc" id="L81">    ) { paddingValues -&gt;</span>
+
+<span class="nc" id="L83">        PullToRefreshBox(</span>
+<span class="nc" id="L84">            onRefresh = {</span>
+<span class="nc" id="L85">                WikiGamesEvent.submit(action = &quot;refresh&quot;, activeInterface = &quot;games_hub&quot;, langCode = selectedLanguage)</span>
+<span class="nc" id="L86">                isRefreshing = true</span>
+<span class="nc" id="L87">                viewModel.loadOnThisDayGamesPreviews(selectedLanguage)</span>
+<span class="nc" id="L88">            },</span>
+<span class="nc" id="L89">            isRefreshing = isRefreshing,</span>
+<span class="nc" id="L90">            state = state,</span>
+<span class="nc" id="L91">            indicator = {</span>
+<span class="nc" id="L92">                Indicator(</span>
+<span class="nc" id="L93">                    state = state,</span>
+<span class="nc" id="L94">                    isRefreshing = isRefreshing,</span>
+<span class="nc" id="L95">                    modifier = Modifier.align(Alignment.TopCenter),</span>
+<span class="nc" id="L96">                    containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L97">                    color = WikipediaTheme.colors.progressiveColor</span>
+                )
+<span class="nc" id="L99">            }</span>
+<span class="nc" id="L100">        ) {</span>
+<span class="nc" id="L101">            Column(</span>
+<span class="nc" id="L102">                modifier = Modifier</span>
+<span class="nc" id="L103">                    .fillMaxSize()</span>
+<span class="nc" id="L104">                    .padding(paddingValues)</span>
+            ) {
+<span class="nc" id="L106">                LazyRow(</span>
+<span class="nc" id="L107">                    modifier = Modifier</span>
+<span class="nc" id="L108">                        .fillMaxWidth(),</span>
+<span class="nc" id="L109">                    verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L110">                    horizontalArrangement = Arrangement.spacedBy(8.dp),</span>
+<span class="nc" id="L111">                    contentPadding = PaddingValues(horizontal = 16.dp)</span>
+<span class="nc" id="L112">                ) {</span>
+<span class="nc" id="L113">                    items(languageList.size) { index -&gt;</span>
+<span class="nc" id="L114">                        val langCode = languageList[index]</span>
+<span class="nc" id="L115">                        GamesHubLanguageChip(</span>
+<span class="nc" id="L116">                            isSelected = langCode == selectedLanguage,</span>
+<span class="nc" id="L117">                            langCode = langCode,</span>
+<span class="nc" id="L118">                            onShowDisabledMessage = { snackbarMessage -&gt;</span>
+<span class="nc" id="L119">                                WikiGamesEvent.submit(action = &quot;language_chip_select_disabled&quot;, activeInterface = &quot;games_hub&quot;, langCode = langCode)</span>
+<span class="nc" id="L120">                                onShowDisabledMessage(snackbarMessage)</span>
+<span class="nc" id="L121">                            },</span>
+<span class="nc" id="L122">                            onSelected = {</span>
+<span class="nc" id="L123">                                WikiGamesEvent.submit(action = &quot;language_chip_select&quot;, activeInterface = &quot;games_hub&quot;, langCode = langCode)</span>
+<span class="nc" id="L124">                                selectedLanguage = langCode</span>
+<span class="nc" id="L125">                                viewModel.selectedLanguage = langCode</span>
+<span class="nc" id="L126">                                viewModel.loadOnThisDayGamesPreviews(selectedLanguage)</span>
+<span class="nc" id="L127">                                onThisDayGameArchiveCalendarHelper.updateLanguageCode(selectedLanguage)</span>
+<span class="nc" id="L128">                            }</span>
+                        )
+<span class="nc" id="L130">                    }</span>
+<span class="nc" id="L131">                }</span>
+
+<span class="nc" id="L133">                LazyColumn(</span>
+<span class="nc" id="L134">                    modifier = Modifier</span>
+<span class="nc" id="L135">                        .fillMaxWidth()</span>
+<span class="nc" id="L136">                        .padding(vertical = 8.dp)</span>
+<span class="nc" id="L137">                ) {</span>
+<span class="nc" id="L138">                    items(WikiGames.entries.size) { index -&gt;</span>
+<span class="nc" id="L139">                        when (WikiGames.entries[index]) {</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                            WikiGames.WHICH_CAME_FIRST -&gt; {</span>
+<span class="nc" id="L141">                                when (onThisDayGameUiState) {</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                                    is UiState.Loading -&gt; {</span>
+<span class="nc" id="L143">                                        GamesHubLoadingShimmer(transition = transition)</span>
+                                    }
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                                    is UiState.Error -&gt; {</span>
+<span class="nc" id="L147">                                        isRefreshing = false</span>
+<span class="nc" id="L148">                                        Box(</span>
+<span class="nc" id="L149">                                            modifier = Modifier</span>
+<span class="nc" id="L150">                                                .fillMaxSize()</span>
+<span class="nc" id="L151">                                                .padding(horizontal = 16.dp, vertical = 16.dp),</span>
+<span class="nc" id="L152">                                            contentAlignment = Alignment.Center</span>
+                                        ) {
+<span class="nc" id="L154">                                            WikiErrorView(</span>
+<span class="nc" id="L155">                                                modifier = Modifier</span>
+<span class="nc" id="L156">                                                    .fillMaxWidth(),</span>
+<span class="nc" id="L157">                                                caught = onThisDayGameUiState.error,</span>
+<span class="nc" id="L158">                                                errorClickEvents = WikiErrorClickEvents {</span>
+<span class="nc" id="L159">                                                    isRefreshing = true</span>
+<span class="nc" id="L160">                                                    viewModel.loadOnThisDayGamesPreviews(selectedLanguage)</span>
+<span class="nc" id="L161">                                                },</span>
+<span class="nc" id="L162">                                                retryForGenericError = true</span>
+                                            )
+<span class="nc" id="L164">                                        }</span>
+                                    }
+
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                                    is UiState.Success -&gt; {</span>
+<span class="nc" id="L168">                                        isRefreshing = false</span>
+<span class="nc" id="L169">                                        OnThisDayGameCards(</span>
+<span class="nc" id="L170">                                            position = index,</span>
+<span class="nc" id="L171">                                            selectedLanguage = selectedLanguage,</span>
+<span class="nc" id="L172">                                            gamesData = onThisDayGameUiState.data,</span>
+<span class="nc" id="L173">                                            onThisDayGameAction = { gameStatus, gameDate -&gt;</span>
+<span class="nc" id="L174">                                                when (gameStatus) {</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                                                    OnThisDayGameAction.PlayArchive -&gt; {</span>
+<span class="nc" id="L176">                                                        onShowArchive()</span>
+                                                    }
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                                                    OnThisDayGameAction.CountdownFinished -&gt; {</span>
+<span class="nc" id="L179">                                                        isRefreshing = true</span>
+<span class="nc" id="L180">                                                        viewModel.loadOnThisDayGamesPreviews(selectedLanguage)</span>
+                                                    }
+                                                    else -&gt; {
+<span class="nc" id="L183">                                                        onPlay(gameDate, gameStatus)</span>
+                                                    }
+                                                }
+<span class="nc" id="L186">                                            }</span>
+                                        )
+                                    }
+<span class="nc" id="L189">                                }</span>
+                            }
+<span class="nc" id="L191">                        }</span>
+<span class="nc" id="L192">                    }</span>
+<span class="nc" id="L193">                }</span>
+<span class="nc" id="L194">            }</span>
+<span class="nc" id="L195">        }</span>
+<span class="nc" id="L196">    }</span>
+<span class="nc" id="L197">}</span>
+
+@Composable
+fun GamesHubLoadingShimmer(
+    transition: InfiniteTransition
+<span class="nc" id="L202">) {</span>
+<span class="nc" id="L203">    Column {</span>
+<span class="nc" id="L204">        Box(</span>
+<span class="nc" id="L205">            modifier = Modifier</span>
+<span class="nc" id="L206">                .fillMaxWidth()</span>
+<span class="nc" id="L207">                .padding(</span>
+<span class="nc" id="L208">                    horizontal = 16.dp,</span>
+<span class="nc" id="L209">                    vertical = 8.dp</span>
+                )
+<span class="nc" id="L211">                .height(48.dp)</span>
+<span class="nc" id="L212">                .clip(RoundedCornerShape(4.dp))</span>
+<span class="nc" id="L213">                .shimmerEffect(</span>
+<span class="nc" id="L214">                    heightMultiplier = 0f,</span>
+<span class="nc" id="L215">                    transition = transition</span>
+                )
+        )
+<span class="nc" id="L218">        Box(</span>
+<span class="nc" id="L219">            modifier = Modifier</span>
+<span class="nc" id="L220">                .fillMaxWidth()</span>
+<span class="nc" id="L221">                .padding(</span>
+<span class="nc" id="L222">                    horizontal = 16.dp,</span>
+<span class="nc" id="L223">                    vertical = 16.dp</span>
+                )
+<span class="nc" id="L225">                .height(350.dp)</span>
+<span class="nc" id="L226">                .clip(RoundedCornerShape(4.dp))</span>
+<span class="nc" id="L227">                .shimmerEffect(</span>
+<span class="nc" id="L228">                    heightMultiplier = 0f,</span>
+<span class="nc" id="L229">                    transition = transition</span>
+                )
+        )
+<span class="nc" id="L232">    }</span>
+<span class="nc" id="L233">}</span>
+
+@Composable
+fun GamesHubLanguageChip(
+    isSelected: Boolean,
+    langCode: String,
+    onShowDisabledMessage: (String) -&gt; Unit,
+    onSelected: () -&gt; Unit,
+<span class="nc" id="L241">) {</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">    val langText = WikipediaApp.instance.languageState.getAppLanguageLocalizedName(langCode) ?: langCode</span>
+<span class="nc" id="L243">    val isEnabled = WikiGames.WHICH_CAME_FIRST.isLangSupported(langCode) // TODO: Add check for other games when they are added</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">    val textColor = if (isEnabled) WikipediaTheme.colors.primaryColor else WikipediaTheme.colors.inactiveColor</span>
+<span class="nc" id="L245">    val snackbarMessage = stringResource(R.string.games_hub_activity_games_unavailable_message)</span>
+<span class="nc" id="L246">    FilterChip(</span>
+<span class="nc" id="L247">        selected = isSelected,</span>
+<span class="nc bnc" id="L248" title="All 4 branches missed.">        onClick = {</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            if (!isEnabled) {</span>
+<span class="nc" id="L250">                onShowDisabledMessage(snackbarMessage)</span>
+<span class="nc" id="L251">                return@FilterChip</span>
+            }
+<span class="nc" id="L253">            onSelected()</span>
+<span class="nc" id="L254">        },</span>
+<span class="nc" id="L255">        colors = FilterChipDefaults.filterChipColors().copy(</span>
+<span class="nc" id="L256">            selectedContainerColor = WikipediaTheme.colors.additionColor</span>
+        ),
+<span class="nc" id="L258">        border = BorderStroke(</span>
+<span class="nc" id="L259">            width = 1.dp,</span>
+<span class="nc" id="L260">            color = WikipediaTheme.colors.borderColor</span>
+        ),
+<span class="nc" id="L262">        label = {</span>
+<span class="nc" id="L263">            Text(</span>
+<span class="nc" id="L264">                text = langText,</span>
+<span class="nc" id="L265">                style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L266">                textAlign = TextAlign.Center,</span>
+<span class="nc" id="L267">                fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L268">                color = textColor</span>
+            )
+<span class="nc" id="L270">        },</span>
+<span class="nc" id="L271">        leadingIcon = {</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            if (isSelected) {</span>
+<span class="nc" id="L273">                Icon(</span>
+<span class="nc" id="L274">                    painter = painterResource(R.drawable.ic_check_black_24dp),</span>
+<span class="nc" id="L275">                    tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L276">                    contentDescription = null</span>
+                )
+<span class="nc" id="L278">            }</span>
+<span class="nc" id="L279">        }</span>
+    )
+<span class="nc" id="L281">}</span>
+
+@Composable
+fun OnThisDayGameCards(
+    position: Int,
+    selectedLanguage: String,
+    gamesData: List&lt;OnThisDayCardGameState&gt;,
+    onThisDayGameAction: (OnThisDayGameAction, LocalDate) -&gt; Unit
+<span class="nc" id="L289">) {</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">    if (WikiGames.WHICH_CAME_FIRST.isLangSupported(selectedLanguage)) {</span>
+<span class="nc" id="L291">        Text(</span>
+<span class="nc" id="L292">            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),</span>
+<span class="nc" id="L293">            text = LocalContext.current.getString(selectedLanguage, WikiGames.entries[position].titleRes),</span>
+<span class="nc" id="L294">            style = MaterialTheme.typography.headlineSmall,</span>
+<span class="nc" id="L295">            fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L296">            color = WikipediaTheme.colors.primaryColor</span>
+        )
+
+        // Load fix cards: Today, last 3 days and archive
+<span class="nc" id="L300">        LazyRow(</span>
+<span class="nc" id="L301">            modifier = Modifier</span>
+<span class="nc" id="L302">                .fillMaxWidth(),</span>
+<span class="nc" id="L303">            verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L304">            horizontalArrangement = Arrangement.spacedBy(16.dp),</span>
+<span class="nc" id="L305">            contentPadding = PaddingValues(horizontal = 16.dp)</span>
+<span class="nc bnc" id="L306" title="All 4 branches missed.">        ) {</span>
+<span class="nc" id="L307">            items(5) { cardIndex -&gt;</span>
+<span class="nc" id="L308">                val gameDate = LocalDate.now().minusDays(cardIndex.toLong())</span>
+<span class="nc" id="L309">                val dateTitle = DateUtil.getMonthOnlyDateString(gameDate)</span>
+<span class="nc" id="L310">                when (cardIndex) {</span>
+<span class="nc bnc" id="L311" title="All 6 branches missed.">                    in 0..3 -&gt; {</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                        val gameState = gamesData.getOrNull(cardIndex) ?: return@items</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                        val isArchiveGame = cardIndex != 0</span>
+<span class="nc" id="L314">                        OnThisDayGameCardContent(</span>
+<span class="nc" id="L315">                            modifier = Modifier</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">                                .width(if (!isArchiveGame) 320.dp else 170.dp)</span>
+<span class="nc" id="L317">                                .height(350.dp)</span>
+<span class="nc" id="L318">                                .padding(vertical = 8.dp),</span>
+<span class="nc" id="L319">                            game = WikiGame.OnThisDayGame(gameState),</span>
+<span class="nc" id="L320">                            dateTitle = dateTitle,</span>
+<span class="nc" id="L321">                            isArchiveGame = isArchiveGame,</span>
+<span class="nc" id="L322">                            selectedLanguage = selectedLanguage,</span>
+<span class="nc" id="L323">                            cardPosition = cardIndex,</span>
+<span class="nc" id="L324">                            onThisDayGameAction = {</span>
+<span class="nc" id="L325">                                onThisDayGameAction(it, gameDate)</span>
+<span class="nc" id="L326">                            }</span>
+                        )
+                    }
+<span class="nc" id="L329">                    else -&gt; {</span>
+<span class="nc" id="L330">                        OnThisDayGameCardSimple(</span>
+<span class="nc" id="L331">                            modifier = Modifier</span>
+<span class="nc" id="L332">                                .width(170.dp)</span>
+<span class="nc" id="L333">                                .height(350.dp)</span>
+<span class="nc" id="L334">                                .padding(vertical = 8.dp),</span>
+<span class="nc" id="L335">                            iconRes = R.drawable.event_repeat_24dp,</span>
+<span class="nc" id="L336">                            iconTint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L337">                            titleText = stringResource(R.string.on_this_day_game_card_archive_label),</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">                            onPlayClick = {</span>
+<span class="nc" id="L339">                                WikiGamesEvent.submit(action = &quot;archive_click&quot;, activeInterface = &quot;games_hub&quot;, cardType = &quot;archive&quot;, langCode = selectedLanguage, position = cardIndex + 1)</span>
+<span class="nc" id="L340">                                onThisDayGameAction(OnThisDayGameAction.PlayArchive, gameDate)</span>
+<span class="nc" id="L341">                            }</span>
+                        )
+                    }
+                }
+<span class="nc" id="L345">            }</span>
+<span class="nc" id="L346">        }</span>
+<span class="nc" id="L347">    }</span>
+<span class="nc" id="L348">}</span>
+
+@Composable
+fun OnThisDayGameCardContent(
+    modifier: Modifier,
+    game: WikiGame.OnThisDayGame,
+    dateTitle: String,
+    isArchiveGame: Boolean,
+    onThisDayGameAction: (OnThisDayGameAction) -&gt; Unit,
+    selectedLanguage: String,
+    cardPosition: Int
+<span class="nc" id="L359">) {</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">    val cardPositionForEvent = if (isArchiveGame) cardPosition + 1 else null</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">    val cardTypeForEvent = if (isArchiveGame) &quot;archive&quot; else &quot;today&quot;</span>
+
+<span class="nc" id="L363">    Column(</span>
+<span class="nc" id="L364">        modifier = Modifier</span>
+<span class="nc" id="L365">            .fillMaxWidth()</span>
+    ) {
+<span class="nc" id="L367">        when (game.state) {</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">            is OnThisDayCardGameState.Preview -&gt; {</span>
+<span class="nc bnc" id="L369" title="All 2 branches missed.">                if (!isArchiveGame) {</span>
+<span class="nc" id="L370">                    OnThisDayGameCardPreview(</span>
+<span class="nc" id="L371">                        modifier = modifier,</span>
+<span class="nc" id="L372">                        state = game.state,</span>
+<span class="nc" id="L373">                        titleText = dateTitle,</span>
+<span class="nc bnc" id="L374" title="All 4 branches missed.">                        onPlayClick = {</span>
+<span class="nc" id="L375">                            WikiGamesEvent.submit(action = &quot;play_click&quot;, activeInterface = &quot;games_hub&quot;, cardType = &quot;today&quot;, langCode = selectedLanguage)</span>
+<span class="nc" id="L376">                            onThisDayGameAction(OnThisDayGameAction.Play)</span>
+<span class="nc" id="L377">                        }</span>
+                    )
+<span class="nc" id="L379">                } else {</span>
+<span class="nc" id="L380">                    OnThisDayGameCardSimple(</span>
+<span class="nc" id="L381">                        modifier = modifier,</span>
+<span class="nc" id="L382">                        iconRes = R.drawable.ic_events_24dp,</span>
+<span class="nc" id="L383">                        iconTint = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L384">                        titleText = dateTitle,</span>
+<span class="nc bnc" id="L385" title="All 4 branches missed.">                        onPlayClick = {</span>
+<span class="nc" id="L386">                            WikiGamesEvent.submit(action = &quot;play_click&quot;, activeInterface = &quot;games_hub&quot;, cardType = &quot;archive&quot;, langCode = selectedLanguage, position = cardPositionForEvent)</span>
+<span class="nc" id="L387">                            onThisDayGameAction(OnThisDayGameAction.Play)</span>
+<span class="nc" id="L388">                        }</span>
+                    )
+                }
+            }
+
+<span class="nc bnc" id="L393" title="All 2 branches missed.">            is OnThisDayCardGameState.InProgress -&gt; {</span>
+<span class="nc" id="L394">                OnThisDayGameCardProgress(</span>
+<span class="nc" id="L395">                    modifier = modifier,</span>
+<span class="nc" id="L396">                    isArchiveGame = isArchiveGame,</span>
+<span class="nc" id="L397">                    state = game.state,</span>
+<span class="nc" id="L398">                    titleText = dateTitle,</span>
+<span class="nc bnc" id="L399" title="All 4 branches missed.">                    onContinueClick = {</span>
+<span class="nc" id="L400">                        WikiGamesEvent.submit(action = &quot;continue_click&quot;, activeInterface = &quot;games_hub&quot;, cardType = cardTypeForEvent, langCode = selectedLanguage, position = cardPositionForEvent)</span>
+<span class="nc" id="L401">                        onThisDayGameAction(OnThisDayGameAction.Play)</span>
+<span class="nc" id="L402">                    }</span>
+                )
+            }
+
+<span class="nc bnc" id="L406" title="All 2 branches missed.">            is OnThisDayCardGameState.Completed -&gt; {</span>
+<span class="nc" id="L407">                OnThisDayGameCardCompleted(</span>
+<span class="nc" id="L408">                    modifier = modifier,</span>
+<span class="nc" id="L409">                    isArchiveGame = isArchiveGame,</span>
+<span class="nc" id="L410">                    state = game.state,</span>
+<span class="nc" id="L411">                    titleText = dateTitle,</span>
+<span class="nc bnc" id="L412" title="All 4 branches missed.">                    onPlayClick = {</span>
+<span class="nc" id="L413">                        WikiGamesEvent.submit(action = &quot;review_click&quot;, activeInterface = &quot;games_hub&quot;, cardType = cardTypeForEvent, langCode = selectedLanguage, position = cardPositionForEvent)</span>
+<span class="nc" id="L414">                        onThisDayGameAction(OnThisDayGameAction.Play) },</span>
+<span class="nc bnc" id="L415" title="All 4 branches missed.">                    onReviewResult = {</span>
+<span class="nc" id="L416">                        WikiGamesEvent.submit(action = &quot;review_click&quot;, activeInterface = &quot;games_hub&quot;, cardType = cardTypeForEvent, langCode = selectedLanguage, position = cardPositionForEvent)</span>
+<span class="nc" id="L417">                        onThisDayGameAction(OnThisDayGameAction.ReviewResults) },</span>
+<span class="nc bnc" id="L418" title="All 4 branches missed.">                    onPlayTheArchive = {</span>
+<span class="nc" id="L419">                        WikiGamesEvent.submit(action = &quot;archive_click&quot;, activeInterface = &quot;games_hub&quot;, cardType = cardTypeForEvent, langCode = selectedLanguage, position = cardPositionForEvent)</span>
+<span class="nc" id="L420">                        onThisDayGameAction(OnThisDayGameAction.PlayArchive) },</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">                    onCountDownFinished = {</span>
+<span class="nc" id="L422">                        onThisDayGameAction(OnThisDayGameAction.CountdownFinished) }</span>
+                )
+            }
+<span class="nc" id="L425">        }</span>
+<span class="nc" id="L426">    }</span>
+<span class="nc" id="L427">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

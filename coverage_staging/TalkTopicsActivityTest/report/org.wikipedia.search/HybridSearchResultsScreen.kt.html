@@ -1,0 +1,648 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HybridSearchResultsScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">HybridSearchResultsScreen.kt</span></div><h1>HybridSearchResultsScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import android.location.Location
+import android.view.View
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.BrushPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
+import coil3.compose.AsyncImage
+import org.wikipedia.R
+import org.wikipedia.compose.components.HtmlText
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.page.PageTitle
+import org.wikipedia.theme.Theme
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.L10nUtil
+import org.wikipedia.util.UiState
+import org.wikipedia.views.imageservice.ImageService
+
+@Composable
+fun HybridSearchResultsScreen(
+<span class="nc" id="L87">    modifier: Modifier = Modifier,</span>
+    viewModel: SearchResultsViewModel,
+    onNavigateToTitle: (SearchResult, Boolean, Int, Location?) -&gt; Unit,
+    onSemanticCardImpression: (SearchResult) -&gt; Unit,
+    onSemanticItemClick: (SearchResult, PageTitle, Boolean, Boolean, Int, Location?) -&gt; Unit,
+    onItemLongClick: (View, SearchResult, Int) -&gt; Unit,
+    onInfoClick: () -&gt; Unit,
+    onTurnOffExperimentClick: (String) -&gt; Unit,
+    onRatingClick: (Boolean, SearchResult) -&gt; Unit,
+    onCloseSearch: () -&gt; Unit,
+    onRetrySearch: () -&gt; Unit,
+    onLoading: (Boolean) -&gt; Unit,
+    onLexicalResultsEmpty: () -&gt; Unit,
+    onSemanticResultsEmpty: () -&gt; Unit,
+    onError: (Throwable) -&gt; Unit
+<span class="nc bnc" id="L102" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L103">    val searchResultsState = viewModel.hybridSearchResultState.collectAsState().value</span>
+<span class="nc" id="L104">    val searchTerm = viewModel.searchTerm.collectAsState()</span>
+
+<span class="nc" id="L106">    val languageCode = viewModel.languageCode.collectAsState()</span>
+<span class="nc" id="L107">    val layoutDirection =</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (L10nUtil.isLangRTL(languageCode.value)) LayoutDirection.Rtl else LayoutDirection.Ltr</span>
+
+<span class="nc" id="L110">    CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {</span>
+<span class="nc" id="L111">        Box(</span>
+<span class="nc" id="L112">            modifier = modifier</span>
+        ) {
+<span class="nc" id="L114">            when (searchResultsState) {</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                is UiState.Loading -&gt; {</span>
+<span class="nc" id="L116">                    onLoading(true)</span>
+<span class="nc" id="L117">                    HybridSearchSkeletonLoader(viewModel.getTestGroup)</span>
+                }
+
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                is UiState.Success -&gt; {</span>
+<span class="nc" id="L121">                    onLoading(false)</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                    val semanticData = searchResultsState.data.filter { it.type == SearchResult.SearchResultType.SEMANTIC }</span>
+<span class="nc bnc" id="L123" title="All 4 branches missed.">                    val lexicalData = searchResultsState.data.filter { it.type == SearchResult.SearchResultType.PREFIX || it.type == SearchResult.SearchResultType.FULL_TEXT }</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">                    if (lexicalData.isEmpty()) {</span>
+<span class="nc" id="L125">                        onLexicalResultsEmpty()</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                    } else if (semanticData.isEmpty()) {</span>
+<span class="nc" id="L127">                        onSemanticResultsEmpty()</span>
+                    }
+
+<span class="nc" id="L130">                    HybridSearchResultsList(</span>
+<span class="nc" id="L131">                        testGroup = viewModel.getTestGroup,</span>
+<span class="nc" id="L132">                        searchResultsPage = lexicalData,</span>
+<span class="nc" id="L133">                        semanticSearchResultPage = semanticData,</span>
+<span class="nc" id="L134">                        searchTerm = searchTerm.value,</span>
+<span class="nc" id="L135">                        onItemClick = onNavigateToTitle,</span>
+<span class="nc" id="L136">                        onItemLongClick = onItemLongClick,</span>
+<span class="nc" id="L137">                        onInfoClick = onInfoClick,</span>
+<span class="nc" id="L138">                        onTurnOffExperimentClick = {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                            onTurnOffExperimentClick(searchTerm.value.orEmpty())</span>
+<span class="nc" id="L140">                        },</span>
+<span class="nc" id="L141">                        onSemanticCardImpression = onSemanticCardImpression,</span>
+<span class="nc" id="L142">                        onSemanticItemClick = onSemanticItemClick,</span>
+<span class="nc" id="L143">                        onRatingClick = onRatingClick</span>
+                    )
+                }
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                is UiState.Error -&gt; {</span>
+<span class="nc" id="L148">                    onLoading(false)</span>
+<span class="nc" id="L149">                    onError(searchResultsState.error)</span>
+<span class="nc" id="L150">                    WikiErrorView(</span>
+<span class="nc" id="L151">                        modifier = Modifier</span>
+<span class="nc" id="L152">                            .fillMaxWidth()</span>
+<span class="nc" id="L153">                            .align(Alignment.Center),</span>
+<span class="nc" id="L154">                        caught = searchResultsState.error,</span>
+<span class="nc" id="L155">                        errorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L156">                            backClickListener = { onCloseSearch() },</span>
+<span class="nc" id="L157">                            retryClickListener = { onRetrySearch() }</span>
+                        )
+                    )
+                }
+<span class="nc" id="L161">            }</span>
+<span class="nc" id="L162">        }</span>
+<span class="nc" id="L163">    }</span>
+<span class="nc" id="L164">}</span>
+
+@Composable
+fun HybridSearchResultsList(
+    testGroup: String,
+    searchResultsPage: List&lt;SearchResult&gt;,
+    semanticSearchResultPage: List&lt;SearchResult&gt;,
+    searchTerm: String?,
+    onItemClick: (SearchResult, Boolean, Int, Location?) -&gt; Unit,
+    onItemLongClick: (View, SearchResult, Int) -&gt; Unit,
+    onInfoClick: () -&gt; Unit,
+    onTurnOffExperimentClick: () -&gt; Unit,
+    onSemanticCardImpression: (SearchResult) -&gt; Unit,
+    onSemanticItemClick: (SearchResult, PageTitle, Boolean, Boolean, Int, Location?) -&gt; Unit,
+    onRatingClick: (Boolean, SearchResult) -&gt; Unit
+<span class="nc" id="L179">) {</span>
+<span class="nc bnc" id="L180" title="All 18 branches missed.">    LazyColumn {</span>
+<span class="nc bnc" id="L181" title="All 4 branches missed.">        if (testGroup == HybridSearchAbCTest.GROUP_CONTROL || testGroup == HybridSearchAbCTest.GROUP_LEXICAL_SEMANTIC) {</span>
+<span class="nc" id="L182">            items(</span>
+<span class="nc" id="L183">                count = searchResultsPage.size</span>
+<span class="nc" id="L184">            ) { index -&gt;</span>
+<span class="nc" id="L185">                searchResultsPage[index].let { result -&gt;</span>
+<span class="nc" id="L186">                    SearchResultPageItem(</span>
+<span class="nc" id="L187">                        searchResultPage = result,</span>
+<span class="nc" id="L188">                        searchTerm = searchTerm,</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                        onItemClick = {</span>
+<span class="nc" id="L190">                            onItemClick(result, false, index, result.location)</span>
+<span class="nc" id="L191">                        },</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                        onItemLongClick = { view -&gt;</span>
+<span class="nc" id="L193">                            onItemLongClick(view, result, index)</span>
+<span class="nc" id="L194">                        }</span>
+                    )
+<span class="nc" id="L196">                }</span>
+<span class="nc" id="L197">            }</span>
+<span class="nc" id="L198">            item {</span>
+<span class="nc bnc" id="L199" title="All 8 branches missed.">                if (searchResultsPage.isNotEmpty() &amp;&amp; semanticSearchResultPage.isNotEmpty()) {</span>
+<span class="nc" id="L200">                    HorizontalDivider(</span>
+<span class="nc" id="L201">                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),</span>
+<span class="nc" id="L202">                        thickness = 1.dp,</span>
+<span class="nc" id="L203">                        color = WikipediaTheme.colors.borderColor</span>
+                    )
+<span class="nc" id="L205">                }</span>
+<span class="nc" id="L206">            }</span>
+        }
+
+<span class="nc" id="L209">        item {</span>
+<span class="nc bnc" id="L210" title="All 4 branches missed.">            if (semanticSearchResultPage.isNotEmpty()) {</span>
+<span class="nc" id="L211">                SemanticSearchResultHeader(</span>
+<span class="nc" id="L212">                    modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp),</span>
+<span class="nc" id="L213">                    onInfoClick = onInfoClick,</span>
+<span class="nc" id="L214">                    onTurnOffExperimentClick = onTurnOffExperimentClick</span>
+                )
+<span class="nc" id="L216">            }</span>
+<span class="nc" id="L217">        }</span>
+
+<span class="nc" id="L219">        item {</span>
+
+            // Logic for tracking &quot;impressions&quot; of horizontally scrollable cards.
+            // TLDR: observe layout info and see if the visible fraction of the card is &gt;50%
+<span class="nc" id="L223">            val listState = rememberLazyListState()</span>
+<span class="nc" id="L224">            val impressedCards = remember { mutableSetOf&lt;SearchResult&gt;() }</span>
+<span class="nc" id="L225">            LaunchedEffect(listState) {</span>
+<span class="nc" id="L226">                snapshotFlow { listState.layoutInfo }</span>
+<span class="nc" id="L227">                    .collect { layoutInfo -&gt;</span>
+<span class="nc" id="L228">                        val viewportWidth = layoutInfo.viewportSize.width</span>
+<span class="nc" id="L229">                        layoutInfo.visibleItemsInfo.forEach { itemInfo -&gt;</span>
+<span class="nc" id="L230">                            val itemStart = itemInfo.offset.coerceAtLeast(0)</span>
+<span class="nc" id="L231">                            val itemEnd = (itemInfo.offset + itemInfo.size).coerceAtMost(viewportWidth)</span>
+<span class="nc" id="L232">                            val visibleWidth = (itemEnd - itemStart).coerceAtLeast(0)</span>
+<span class="nc" id="L233">                            val visibleFraction = visibleWidth.toFloat() / itemInfo.size.toFloat()</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                            if (visibleFraction &gt;= 0.5f) {</span>
+<span class="nc" id="L235">                                val card = semanticSearchResultPage[itemInfo.index]</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">                                if (impressedCards.add(card)) {</span>
+<span class="nc" id="L237">                                    onSemanticCardImpression(card)</span>
+                                }
+                            }
+<span class="nc" id="L240">                        }</span>
+<span class="nc" id="L241">                    }</span>
+<span class="nc" id="L242">            }</span>
+
+<span class="nc" id="L244">            LazyRow(</span>
+<span class="nc" id="L245">                state = listState,</span>
+<span class="nc" id="L246">                contentPadding = PaddingValues(horizontal = 16.dp),</span>
+<span class="nc" id="L247">                horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+<span class="nc" id="L248">            ) {</span>
+<span class="nc" id="L249">                items(</span>
+<span class="nc" id="L250">                    count = semanticSearchResultPage.size</span>
+<span class="nc" id="L251">                ) { index -&gt;</span>
+<span class="nc" id="L252">                    semanticSearchResultPage[index].let { result -&gt;</span>
+<span class="nc" id="L253">                        SemanticSearchResultPageItem(</span>
+<span class="nc" id="L254">                            searchResult = result,</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">                            onSemanticItemClick = {</span>
+<span class="nc" id="L256">                                onSemanticItemClick(result, result.pageTitle, false, false, index, result.location)</span>
+<span class="nc" id="L257">                            },</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">                            onArticleItemClick = {</span>
+<span class="nc" id="L259">                                onItemClick(it, false, index, result.location)</span>
+<span class="nc" id="L260">                            },</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                            onSnippetLinkClick = {</span>
+<span class="nc" id="L262">                                onSemanticItemClick(result, it, false, true, index, result.location)</span>
+<span class="nc" id="L263">                            },</span>
+<span class="nc" id="L264">                            onRatingClick = { isPositive -&gt;</span>
+<span class="nc" id="L265">                                onRatingClick(isPositive, result)</span>
+<span class="nc" id="L266">                            }</span>
+                        )
+<span class="nc" id="L268">                    }</span>
+<span class="nc" id="L269">                }</span>
+<span class="nc" id="L270">            }</span>
+<span class="nc" id="L271">        }</span>
+
+<span class="nc bnc" id="L273" title="All 2 branches missed.">        if (testGroup == HybridSearchAbCTest.GROUP_SEMANTIC_LEXICAL) {</span>
+<span class="nc" id="L274">            item {</span>
+<span class="nc bnc" id="L275" title="All 8 branches missed.">                if (semanticSearchResultPage.isNotEmpty() &amp;&amp; searchResultsPage.isNotEmpty()) {</span>
+<span class="nc" id="L276">                    HorizontalDivider(</span>
+<span class="nc" id="L277">                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),</span>
+<span class="nc" id="L278">                        thickness = 1.dp,</span>
+<span class="nc" id="L279">                        color = WikipediaTheme.colors.borderColor</span>
+                    )
+<span class="nc" id="L281">                }</span>
+<span class="nc" id="L282">            }</span>
+<span class="nc" id="L283">            items(</span>
+<span class="nc" id="L284">                count = searchResultsPage.size</span>
+<span class="nc" id="L285">            ) { index -&gt;</span>
+<span class="nc" id="L286">                searchResultsPage[index].let { result -&gt;</span>
+<span class="nc" id="L287">                    SearchResultPageItem(</span>
+<span class="nc" id="L288">                        searchResultPage = result,</span>
+<span class="nc" id="L289">                        searchTerm = searchTerm,</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">                        onItemClick = {</span>
+<span class="nc" id="L291">                            onItemClick(result, false, index, result.location)</span>
+<span class="nc" id="L292">                        },</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">                        onItemLongClick = { view -&gt;</span>
+<span class="nc" id="L294">                            onItemLongClick(view, result, index)</span>
+<span class="nc" id="L295">                        }</span>
+                    )
+<span class="nc" id="L297">                }</span>
+<span class="nc" id="L298">            }</span>
+        }
+<span class="nc" id="L300">    }</span>
+<span class="nc" id="L301">}</span>
+
+@Composable
+fun SemanticSearchResultHeader(
+<span class="nc bnc" id="L305" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L306">    rephraseTitle: String? = null,</span>
+    onInfoClick: () -&gt; Unit,
+    onTurnOffExperimentClick: () -&gt; Unit
+<span class="nc bnc" id="L309" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L310">    var expanded by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L311">    val view = LocalView.current</span>
+
+<span class="nc" id="L313">    Column(</span>
+<span class="nc" id="L314">        modifier = modifier</span>
+    ) {
+<span class="nc bnc" id="L316" title="All 6 branches missed.">        if (!rephraseTitle.isNullOrEmpty()) {</span>
+<span class="nc" id="L317">            Text(</span>
+<span class="nc" id="L318">                modifier = Modifier</span>
+<span class="nc" id="L319">                    .padding(top = 16.dp),</span>
+<span class="nc" id="L320">                text = rephraseTitle,</span>
+<span class="nc" id="L321">                style = MaterialTheme.typography.titleLarge.copy(</span>
+<span class="nc" id="L322">                    fontWeight = FontWeight.Bold</span>
+                ),
+<span class="nc" id="L324">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L326">        }</span>
+<span class="nc" id="L327">        Row(</span>
+<span class="nc" id="L328">            verticalAlignment = Alignment.CenterVertically</span>
+        ) {
+<span class="nc" id="L330">            Box(</span>
+<span class="nc" id="L331">                modifier = Modifier</span>
+<span class="nc" id="L332">                    .background(</span>
+<span class="nc" id="L333">                        color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L334">                        shape = RoundedCornerShape(size = 16.dp)</span>
+                    )
+<span class="nc" id="L336">                    .padding(horizontal = 10.dp, vertical = 1.dp)</span>
+            ) {
+<span class="nc" id="L338">                Text(</span>
+<span class="nc" id="L339">                    text = stringResource(R.string.hybrid_search_beta_tag).uppercase(),</span>
+<span class="nc" id="L340">                    style = MaterialTheme.typography.labelSmall,</span>
+<span class="nc" id="L341">                    fontWeight = FontWeight.Normal,</span>
+<span class="nc" id="L342">                    color = Color.White</span>
+                )
+<span class="nc" id="L344">            }</span>
+
+<span class="nc" id="L346">            Box(</span>
+<span class="nc" id="L347">                modifier = Modifier</span>
+<span class="nc" id="L348">                    .size(48.dp)</span>
+<span class="nc" id="L349">                    .clip(CircleShape)</span>
+<span class="nc" id="L350">                    .clickable {</span>
+<span class="nc" id="L351">                        DeviceUtil.hideSoftKeyboard(view)</span>
+<span class="nc" id="L352">                        expanded = true</span>
+<span class="nc" id="L353">                    }</span>
+<span class="nc" id="L354">                    .padding(horizontal = 12.dp),</span>
+<span class="nc" id="L355">                contentAlignment = Alignment.Center</span>
+            ) {
+<span class="nc" id="L357">                Icon(</span>
+<span class="nc" id="L358">                    painter = painterResource(R.drawable.ic_info_outline_black_24dp),</span>
+<span class="nc" id="L359">                    tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L360">                    contentDescription = stringResource(R.string.year_in_review_information_icon)</span>
+                )
+<span class="nc" id="L362">                DropdownMenu(</span>
+<span class="nc" id="L363">                    expanded = expanded,</span>
+<span class="nc" id="L364">                    containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L365">                    onDismissRequest = { expanded = false }</span>
+<span class="nc" id="L366">                ) {</span>
+<span class="nc" id="L367">                    DropdownMenuItem(</span>
+<span class="nc" id="L368">                        text = {</span>
+<span class="nc" id="L369">                            Text(</span>
+<span class="nc" id="L370">                                text = stringResource(R.string.hybrid_search_onboarding_learn_more),</span>
+<span class="nc" id="L371">                                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L372">                                color = WikipediaTheme.colors.primaryColor</span>
+<span class="nc" id="L373">                            ) },</span>
+<span class="nc" id="L374">                        onClick = onInfoClick</span>
+                    )
+<span class="nc" id="L376">                    DropdownMenuItem(</span>
+<span class="nc" id="L377">                        text = {</span>
+<span class="nc" id="L378">                            Text(</span>
+<span class="nc" id="L379">                                text = stringResource(R.string.hybrid_search_turn_off_experiment_label),</span>
+<span class="nc" id="L380">                                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L381">                                color = WikipediaTheme.colors.destructiveColor</span>
+<span class="nc" id="L382">                            ) },</span>
+<span class="nc" id="L383">                        onClick = onTurnOffExperimentClick</span>
+                    )
+<span class="nc" id="L385">                }</span>
+<span class="nc" id="L386">            }</span>
+<span class="nc" id="L387">        }</span>
+<span class="nc" id="L388">        Text(</span>
+<span class="nc" id="L389">            modifier = Modifier.offset(y = (-8).dp),</span>
+<span class="nc" id="L390">            text = stringResource(R.string.hybrid_search_results_header_description),</span>
+<span class="nc" id="L391">            style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L392">            color = WikipediaTheme.colors.placeholderColor</span>
+        )
+<span class="nc" id="L394">    }</span>
+<span class="nc" id="L395">}</span>
+
+@Composable
+fun SemanticSearchResultPageItem(
+    searchResult: SearchResult,
+    onSemanticItemClick: () -&gt; Unit,
+    onArticleItemClick: (SearchResult) -&gt; Unit,
+    onSnippetLinkClick: (PageTitle) -&gt; Unit,
+    onRatingClick: (Boolean) -&gt; Unit
+<span class="nc" id="L404">) {</span>
+<span class="nc" id="L405">    Card(</span>
+<span class="nc" id="L406">        modifier = Modifier</span>
+<span class="nc" id="L407">            .width(292.dp)</span>
+<span class="nc" id="L408">            .padding(bottom = 8.dp, top = 4.dp),</span>
+<span class="nc" id="L409">        shape = RoundedCornerShape(24.dp),</span>
+<span class="nc" id="L410">        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),</span>
+<span class="nc" id="L411">        border = BorderStroke(</span>
+<span class="nc" id="L412">            width = 1.dp,</span>
+<span class="nc" id="L413">            color = WikipediaTheme.colors.borderColor</span>
+        ),
+<span class="nc" id="L415">        colors = CardDefaults.cardColors(containerColor = WikipediaTheme.colors.backgroundColor)</span>
+<span class="nc" id="L416">    ) {</span>
+<span class="nc" id="L417">        Column(</span>
+<span class="nc" id="L418">            modifier = Modifier.height(400.dp)</span>
+        ) {
+            // TODO: need to check if the snippet is empty?
+<span class="nc" id="L421">            Box(</span>
+<span class="nc" id="L422">                modifier = Modifier</span>
+<span class="nc" id="L423">                    .weight(1f)</span>
+<span class="nc" id="L424">                    .clickable {</span>
+<span class="nc" id="L425">                        onSemanticItemClick()</span>
+<span class="nc" id="L426">                    }</span>
+            ) {
+<span class="nc" id="L428">                HtmlText(</span>
+<span class="nc" id="L429">                    modifier = Modifier</span>
+<span class="nc" id="L430">                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),</span>
+<span class="nc bnc" id="L431" title="All 2 branches missed.">                    text = searchResult.snippet.orEmpty(),</span>
+<span class="nc" id="L432">                    style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L433">                    color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L434">                    linkStyle = TextLinkStyles(</span>
+<span class="nc" id="L435">                        style = SpanStyle(</span>
+<span class="nc" id="L436">                            color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L437">                            fontSize = 16.sp</span>
+                        )
+                    ),
+<span class="nc" id="L440">                    linkInteractionListener = {</span>
+<span class="nc" id="L441">                        val url = (it as LinkAnnotation.Url).url</span>
+<span class="nc" id="L442">                        onSnippetLinkClick(PageTitle.titleForUri(url.toUri(), WikiSite(url)))</span>
+<span class="nc" id="L443">                    }</span>
+                )
+<span class="nc" id="L445">            }</span>
+
+<span class="nc" id="L447">            Row(</span>
+<span class="nc" id="L448">                modifier = Modifier</span>
+<span class="nc" id="L449">                    .fillMaxWidth()</span>
+<span class="nc" id="L450">                    .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L451">                verticalAlignment = Alignment.CenterVertically</span>
+            ) {
+<span class="nc" id="L453">                var isRatingPositiveSelected by rememberSaveable(searchResult.pageTitle.prefixedText + &quot;_positive&quot;) {</span>
+<span class="nc" id="L454">                    mutableStateOf(</span>
+<span class="nc" id="L455">                        false</span>
+<span class="nc" id="L456">                    )</span>
+                }
+<span class="nc" id="L458">                var isRatingNegativeSelected by rememberSaveable(searchResult.pageTitle.prefixedText + &quot;_negative&quot;) {</span>
+<span class="nc" id="L459">                    mutableStateOf(</span>
+<span class="nc" id="L460">                        false</span>
+<span class="nc" id="L461">                    )</span>
+                }
+<span class="nc bnc" id="L463" title="All 4 branches missed.">                val ratingLabel = if (isRatingPositiveSelected || isRatingNegativeSelected) {</span>
+<span class="nc" id="L464">                    stringResource(R.string.hybrid_search_results_rated_label)</span>
+<span class="nc" id="L465">                } else {</span>
+<span class="nc" id="L466">                    stringResource(R.string.hybrid_search_results_rate_label)</span>
+                }
+<span class="nc" id="L468">                var isTextLaidOut by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L469">                var isTextMultiline by remember { mutableStateOf(true) }</span>
+<span class="nc" id="L470">                Text(</span>
+<span class="nc bnc" id="L471" title="All 2 branches missed.">                    modifier = if (isTextMultiline) {</span>
+<span class="nc" id="L472">                        Modifier.weight(1f).animateContentSize()</span>
+                    } else {
+<span class="nc" id="L474">                        Modifier.wrapContentWidth().animateContentSize()</span>
+                    },
+<span class="nc" id="L476">                    text = ratingLabel,</span>
+<span class="nc" id="L477">                    style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L478">                    color = WikipediaTheme.colors.placeholderColor,</span>
+<span class="nc" id="L479">                    onTextLayout = { result -&gt;</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">                        if (!isTextLaidOut) {</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">                            val multilineNow = result.lineCount &gt; 1</span>
+<span class="nc bnc" id="L482" title="All 2 branches missed.">                            if (multilineNow != isTextMultiline) {</span>
+<span class="nc" id="L483">                                isTextMultiline = multilineNow</span>
+                            }
+<span class="nc" id="L485">                            isTextLaidOut = true</span>
+                        }
+<span class="nc" id="L487">                    }</span>
+                )
+<span class="nc" id="L489">                AnimatedVisibility(</span>
+<span class="nc bnc" id="L490" title="All 2 branches missed.">                    visible = !isRatingNegativeSelected,</span>
+<span class="nc" id="L491">                    exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start)</span>
+<span class="nc" id="L492">                ) {</span>
+<span class="nc" id="L493">                    Box(</span>
+<span class="nc" id="L494">                        modifier = Modifier</span>
+<span class="nc" id="L495">                            .size(48.dp)</span>
+<span class="nc" id="L496">                            .animateContentSize()</span>
+<span class="nc" id="L497">                            .clip(CircleShape)</span>
+<span class="nc" id="L498">                            .clickable {</span>
+<span class="nc" id="L499">                                isRatingPositiveSelected = true</span>
+<span class="nc" id="L500">                                isTextLaidOut = false</span>
+<span class="nc" id="L501">                                onRatingClick(true)</span>
+<span class="nc" id="L502">                            }</span>
+<span class="nc" id="L503">                            .padding(16.dp),</span>
+<span class="nc" id="L504">                        contentAlignment = Alignment.Center</span>
+                    ) {
+<span class="nc" id="L506">                        Icon(</span>
+<span class="nc" id="L507">                            modifier = Modifier</span>
+<span class="nc" id="L508">                                .size(16.dp)</span>
+<span class="nc" id="L509">                                .offset(y = (-2).dp),</span>
+<span class="nc bnc" id="L510" title="All 2 branches missed.">                            painter = painterResource(if (isRatingPositiveSelected) R.drawable.ic_thumb_up_filled else R.drawable.ic_thumb_up),</span>
+<span class="nc" id="L511">                            contentDescription = stringResource(R.string.hybrid_search_results_rate_thumb_up),</span>
+<span class="nc" id="L512">                            tint = WikipediaTheme.colors.placeholderColor</span>
+                        )
+<span class="nc" id="L514">                    }</span>
+<span class="nc" id="L515">                }</span>
+
+<span class="nc" id="L517">                AnimatedVisibility(</span>
+<span class="nc bnc" id="L518" title="All 2 branches missed.">                    visible = !isRatingPositiveSelected,</span>
+<span class="nc" id="L519">                    exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start)</span>
+<span class="nc" id="L520">                ) {</span>
+<span class="nc" id="L521">                    Box(</span>
+<span class="nc" id="L522">                        modifier = Modifier</span>
+<span class="nc" id="L523">                            .size(48.dp)</span>
+<span class="nc" id="L524">                            .animateContentSize()</span>
+<span class="nc" id="L525">                            .clip(CircleShape)</span>
+<span class="nc" id="L526">                            .clickable {</span>
+<span class="nc" id="L527">                                isRatingNegativeSelected = true</span>
+<span class="nc" id="L528">                                isTextLaidOut = false</span>
+<span class="nc" id="L529">                                onRatingClick(false)</span>
+<span class="nc" id="L530">                            }</span>
+<span class="nc" id="L531">                            .padding(16.dp),</span>
+<span class="nc" id="L532">                        contentAlignment = Alignment.Center</span>
+                    ) {
+<span class="nc" id="L534">                        Icon(</span>
+<span class="nc" id="L535">                            modifier = Modifier</span>
+<span class="nc" id="L536">                                .size(16.dp)</span>
+<span class="nc" id="L537">                                .offset(y = (-2).dp),</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">                            painter = painterResource(if (isRatingNegativeSelected) R.drawable.ic_thumb_down_filled else R.drawable.ic_thumb_down),</span>
+<span class="nc" id="L539">                            contentDescription = stringResource(R.string.hybrid_search_results_rate_thumb_down),</span>
+<span class="nc" id="L540">                            tint = WikipediaTheme.colors.placeholderColor</span>
+                        )
+<span class="nc" id="L542">                    }</span>
+<span class="nc" id="L543">                }</span>
+<span class="nc" id="L544">            }</span>
+
+<span class="nc" id="L546">            HorizontalDivider(</span>
+<span class="nc" id="L547">                modifier = Modifier.width(80.dp).padding(horizontal = 16.dp),</span>
+<span class="nc" id="L548">                thickness = 1.dp,</span>
+<span class="nc" id="L549">                color = WikipediaTheme.colors.borderColor</span>
+            )
+
+<span class="nc" id="L552">            Box(</span>
+<span class="nc" id="L553">                modifier = Modifier</span>
+<span class="nc" id="L554">                    .defaultMinSize(minHeight = 56.dp)</span>
+<span class="nc" id="L555">                    .clickable {</span>
+<span class="nc" id="L556">                        onArticleItemClick(searchResult)</span>
+<span class="nc" id="L557">                    }</span>
+            ) {
+<span class="nc" id="L559">                Row(</span>
+<span class="nc" id="L560">                    modifier = Modifier</span>
+<span class="nc" id="L561">                        .padding(horizontal = 16.dp, vertical = 16.dp)</span>
+<span class="nc" id="L562">                        .fillMaxWidth(),</span>
+<span class="nc" id="L563">                    horizontalArrangement = Arrangement.SpaceBetween,</span>
+<span class="nc" id="L564">                    verticalAlignment = Alignment.CenterVertically</span>
+                ) {
+<span class="nc" id="L566">                    Column(</span>
+<span class="nc" id="L567">                        modifier = Modifier.padding(end = 8.dp)</span>
+<span class="nc" id="L568">                            .weight(1f)</span>
+                    ) {
+<span class="nc" id="L570">                        HtmlText(</span>
+<span class="nc" id="L571">                            text = searchResult.pageTitle.displayText,</span>
+<span class="nc" id="L572">                            style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L573">                            color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L574">                            maxLines = 2,</span>
+<span class="nc" id="L575">                            overflow = TextOverflow.Ellipsis</span>
+                        )
+<span class="nc" id="L577">                        Text(</span>
+<span class="nc bnc" id="L578" title="All 2 branches missed.">                            text = searchResult.pageTitle.description.orEmpty(),</span>
+<span class="nc" id="L579">                            style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L580">                            color = WikipediaTheme.colors.placeholderColor,</span>
+<span class="nc" id="L581">                            maxLines = 1,</span>
+<span class="nc" id="L582">                            overflow = TextOverflow.Ellipsis</span>
+                        )
+<span class="nc" id="L584">                    }</span>
+<span class="nc bnc" id="L585" title="All 6 branches missed.">                    if (!searchResult.pageTitle.thumbUrl.isNullOrEmpty()) {</span>
+<span class="nc" id="L586">                        val request =</span>
+<span class="nc" id="L587">                            ImageService.getRequest(</span>
+<span class="nc" id="L588">                                LocalContext.current,</span>
+<span class="nc" id="L589">                                url = searchResult.pageTitle.thumbUrl</span>
+                            )
+<span class="nc" id="L591">                        AsyncImage(</span>
+<span class="nc" id="L592">                            model = request,</span>
+<span class="nc" id="L593">                            placeholder = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L594">                            error = BrushPainter(SolidColor(WikipediaTheme.colors.borderColor)),</span>
+<span class="nc" id="L595">                            contentScale = ContentScale.Crop,</span>
+<span class="nc" id="L596">                            contentDescription = null,</span>
+<span class="nc" id="L597">                            modifier = Modifier</span>
+<span class="nc" id="L598">                                .size(56.dp)</span>
+<span class="nc" id="L599">                                .clip(RoundedCornerShape(8.dp))</span>
+                        )
+<span class="nc" id="L601">                    }</span>
+<span class="nc" id="L602">                }</span>
+<span class="nc" id="L603">            }</span>
+<span class="nc" id="L604">        }</span>
+<span class="nc" id="L605">    }</span>
+<span class="nc" id="L606">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L610">private fun SemanticSearchResultHeaderPreview() {</span>
+<span class="nc" id="L611">    BaseTheme(</span>
+<span class="nc" id="L612">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L613">    ) {</span>
+<span class="nc" id="L614">        SemanticSearchResultHeader(</span>
+<span class="nc" id="L615">            rephraseTitle = &quot;Who is Beyoncé?&quot;,</span>
+<span class="nc" id="L616">            onInfoClick = {},</span>
+<span class="nc" id="L617">            onTurnOffExperimentClick = {}</span>
+        )
+<span class="nc" id="L619">    }</span>
+<span class="nc" id="L620">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L624">private fun SemanticSearchResultPageItemPreview() {</span>
+<span class="nc" id="L625">    val wikiSite = WikiSite.preview()</span>
+<span class="nc" id="L626">    val pageTitle = PageTitle(&quot;Beyoncé&quot;, wikiSite).apply {</span>
+<span class="nc" id="L627">        description = &quot;American singer, songwriter, and actress&quot;</span>
+<span class="nc" id="L628">        thumbUrl = &quot;https://example&quot;</span>
+<span class="nc" id="L629">    }</span>
+<span class="nc" id="L630">    val snippet = &quot;Beyoncé Giselle Knowles-Carter is an &lt;a href='#'&gt;American singer&lt;/a&gt;, songwriter, actress, and businesswoman. Born and raised in Houston, Texas, she performed in various singing and dancing competitions as a child. She rose to fame in the late 1990s as the lead singer of Destiny's Child, one of the world's best&quot;</span>
+
+<span class="nc" id="L632">    BaseTheme(</span>
+<span class="nc" id="L633">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L634">    ) {</span>
+<span class="nc" id="L635">        SemanticSearchResultPageItem(</span>
+<span class="nc" id="L636">            searchResult = SearchResult(</span>
+<span class="nc" id="L637">                pageTitle = pageTitle,</span>
+<span class="nc" id="L638">                searchResultType = SearchResult.SearchResultType.SEMANTIC,</span>
+<span class="nc" id="L639">                snippet = snippet</span>
+            ),
+<span class="nc" id="L641">            onSemanticItemClick = {},</span>
+<span class="nc" id="L642">            onArticleItemClick = {},</span>
+<span class="nc" id="L643">            onSnippetLinkClick = {},</span>
+<span class="nc" id="L644">            onRatingClick = {}</span>
+        )
+<span class="nc" id="L646">    }</span>
+<span class="nc" id="L647">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

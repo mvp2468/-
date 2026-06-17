@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ImageRecommendationsEvent.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.analytics.eventplatform</a> &gt; <span class="el_source">ImageRecommendationsEvent.kt</span></div><h1>ImageRecommendationsEvent.kt</h1><pre class="source lang-java linenums">package org.wikipedia.analytics.eventplatform
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.wikipedia.WikipediaApp
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.util.ActiveTimer
+import org.wikipedia.util.UriUtil
+
+<span class="nc" id="L10">@Suppress(&quot;unused&quot;)</span>
+@Serializable
+@SerialName(&quot;/analytics/mobile_apps/android_image_recommendation_event/1.1.0&quot;)
+<span class="nc" id="L13">class ImageRecommendationsEvent(</span>
+<span class="nc" id="L14">   private val action: String,</span>
+<span class="nc" id="L15">   private val active_interface: String,</span>
+<span class="nc" id="L16">   private val action_data: String,</span>
+<span class="nc" id="L17">   private val primary_language: String,</span>
+<span class="nc" id="L18">   private val wiki_id: String</span>
+<span class="nc" id="L19">) : MobileAppsEventWithTemp(STREAM_NAME) {</span>
+
+    companion object {
+        private const val STREAM_NAME = &quot;android.image_recommendation_event&quot;
+<span class="nc" id="L23">        val reasons = listOf(&quot;notrelevant&quot;, &quot;noinfo&quot;, &quot;offensive&quot;, &quot;lowquality&quot;, &quot;unfamiliar&quot;, &quot;other&quot;)</span>
+<span class="nc" id="L24">        private val timer = ActiveTimer()</span>
+
+<span class="nc" id="L26">        fun logImpression(activeInterface: String, actionData: String = &quot;&quot;, wikiId: String = &quot;&quot;) {</span>
+<span class="nc bnc" id="L27" title="All 2 branches missed.">            if (activeInterface == &quot;recommendedimagetoolbar&quot;) {</span>
+<span class="nc" id="L28">                timer.reset()</span>
+            }
+<span class="nc" id="L30">            submitImageRecommendationEvent(&quot;impression&quot;, activeInterface, actionData, wikiId)</span>
+<span class="nc" id="L31">        }</span>
+
+<span class="nc" id="L33">        fun logAction(action: String, activeInterface: String, actionData: String = &quot;&quot;, wikiId: String = &quot;&quot;) {</span>
+<span class="nc" id="L34">            submitImageRecommendationEvent(action, activeInterface, actionData, wikiId)</span>
+<span class="nc" id="L35">        }</span>
+
+        fun logEditSuccess(action: DescriptionEditActivity.Action, wikiId: String, revisionId: Long) {
+<span class="nc bnc" id="L38" title="All 5 branches missed.">            when (action) {</span>
+<span class="nc" id="L39">                DescriptionEditActivity.Action.ADD_DESCRIPTION -&gt; logAction(&quot;edit_success&quot;, &quot;se_add_description&quot;, getActionDataString(revisionId = revisionId), wikiId)</span>
+<span class="nc" id="L40">                DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION -&gt; logAction(&quot;edit_success&quot;, &quot;se_translate_description&quot;, getActionDataString(revisionId = revisionId), wikiId)</span>
+<span class="nc" id="L41">                DescriptionEditActivity.Action.ADD_CAPTION -&gt; logAction(&quot;edit_success&quot;, &quot;se_add_caption&quot;, getActionDataString(revisionId = revisionId), wikiId)</span>
+<span class="nc" id="L42">                DescriptionEditActivity.Action.TRANSLATE_CAPTION -&gt; logAction(&quot;edit_success&quot;, &quot;se_translate_caption&quot;, getActionDataString(revisionId = revisionId), wikiId)</span>
+<span class="nc" id="L43">                else -&gt; logAction(&quot;edit_success&quot;, &quot;se_add_image_tags&quot;, getActionDataString(revisionId = revisionId), wikiId)</span>
+            }
+<span class="nc" id="L45">        }</span>
+
+<span class="nc" id="L47">        fun getActionDataString(</span>
+<span class="nc" id="L48">            filename: String? = null,</span>
+<span class="nc" id="L49">            recommendationSource: String? = null,</span>
+<span class="nc" id="L50">            recommendationSourceProjects: String? = null,</span>
+<span class="nc" id="L51">            rejectionReasons: String? = null,</span>
+<span class="nc" id="L52">            acceptanceState: String? = null,</span>
+<span class="nc" id="L53">            revisionId: Long? = null,</span>
+<span class="nc" id="L54">            captionAdd: Boolean? = null,</span>
+<span class="nc" id="L55">            altTextAdd: Boolean? = null,</span>
+<span class="nc" id="L56">            addTimeSpent: Boolean = false</span>
+        ): String {
+<span class="nc bnc" id="L58" title="All 4 branches missed.">            val filenameStr = filename?.let { &quot;filename: ${UriUtil.encodeURL(filename)}, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">            val recSourceStr = recommendationSource?.let { &quot;recommendation_source: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L60" title="All 4 branches missed.">            val recSourceProjectsStr = recommendationSourceProjects?.let { &quot;recommendation_source_project: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L61" title="All 4 branches missed.">            val rejectionReasonsStr = rejectionReasons?.let { &quot;rejection_reasons: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L62" title="All 4 branches missed.">            val acceptanceStateStr = acceptanceState?.let { &quot;acceptance_state: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">            val revisionIdStr = revisionId?.let { &quot;revision_id: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L64" title="All 4 branches missed.">            val captionAddStr = captionAdd?.let { &quot;caption_add: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L65" title="All 4 branches missed.">            val altTextAddStr = altTextAdd?.let { &quot;alt_text_add: $it, &quot; }.orEmpty()</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            val timeSpentStr = if (addTimeSpent) &quot;time_spent: ${timer.elapsedMillis}&quot; else &quot;&quot;</span>
+<span class="nc" id="L67">            return filenameStr + recSourceStr + recSourceProjectsStr + rejectionReasonsStr + acceptanceStateStr +</span>
+<span class="nc" id="L68">                    revisionIdStr + captionAddStr + altTextAddStr + timeSpentStr</span>
+        }
+
+        private fun submitImageRecommendationEvent(action: String, activeInterface: String, actionData: String, wikiId: String) {
+<span class="nc" id="L72">            EventPlatformClient.submit(ImageRecommendationsEvent(action, activeInterface, actionData, WikipediaApp.instance.languageState.appLanguageCode, wikiId))</span>
+<span class="nc" id="L73">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

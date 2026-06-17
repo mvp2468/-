@@ -1,0 +1,716 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArticleEditDetailsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.diff</a> &gt; <span class="el_source">ArticleEditDetailsFragment.kt</span></div><h1>ArticleEditDetailsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.diff
+
+import android.graphics.Rect
+import android.net.Uri
+import android.os.Bundle
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.appcompat.widget.PopupMenu
+import androidx.core.os.bundleOf
+import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
+import androidx.core.widget.ImageViewCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.analytics.eventplatform.EditAttemptStepEvent
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.databinding.FragmentArticleEditDetailsBinding
+import org.wikipedia.dataclient.mwapi.MwQueryPage.Revision
+import org.wikipedia.dataclient.okhttp.HttpStatusException
+import org.wikipedia.extensions.parcelableExtra
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.Namespace
+import org.wikipedia.page.PageTitle
+import org.wikipedia.page.edithistory.EditHistoryListActivity
+import org.wikipedia.page.linkpreview.LinkPreviewDialog
+import org.wikipedia.settings.Prefs
+import org.wikipedia.staticdata.UserAliasData
+import org.wikipedia.staticdata.UserTalkAliasData
+import org.wikipedia.suggestededits.SuggestedEditsCardsFragment
+import org.wikipedia.talk.TalkReplyActivity
+import org.wikipedia.talk.TalkTopicsActivity
+import org.wikipedia.talk.UserTalkPopupHelper
+import org.wikipedia.talk.template.TalkTemplatesActivity
+import org.wikipedia.util.ClipboardUtil
+import org.wikipedia.util.CustomTabsUtil
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.ShareUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UriUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.SurveyDialog
+import org.wikipedia.watchlist.WatchlistExpiry
+import org.wikipedia.watchlist.WatchlistExpiryDialog
+
+<span class="nc" id="L71">class ArticleEditDetailsFragment : Fragment(), WatchlistExpiryDialog.Callback, MenuProvider {</span>
+    interface Callback {
+        fun onUndoSuccess()
+        fun onRollbackSuccess()
+    }
+
+    private var _binding: FragmentArticleEditDetailsBinding? = null
+<span class="nc" id="L78">    private val binding get() = _binding!!</span>
+<span class="nc" id="L79">    private val viewModel: ArticleEditDetailsViewModel by viewModels()</span>
+
+    private val actionBarOffsetChangedListener =
+<span class="nc" id="L82">        AppBarLayout.OnOffsetChangedListener { _, verticalOffset -&gt;</span>
+<span class="nc" id="L83">            val bounds = Rect()</span>
+<span class="nc" id="L84">            binding.collapsingToolbarLayout.offsetDescendantRectToMyCoords(binding.articleTitleDivider, bounds)</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            binding.overlayRevisionDetailsView.isVisible = -verticalOffset &gt; bounds.top</span>
+<span class="nc" id="L86">        }</span>
+
+<span class="nc" id="L88">    private val requestTalk = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result -&gt;</span>
+<span class="nc bnc" id="L89" title="All 4 branches missed.">        if (result.resultCode == TalkReplyActivity.RESULT_EDIT_SUCCESS || result.resultCode == TalkReplyActivity.RESULT_SAVE_TEMPLATE) {</span>
+<span class="nc bnc" id="L90" title="All 4 branches missed.">            val pageTitle = result.data?.parcelableExtra&lt;PageTitle&gt;(Constants.ARG_TITLE) ?: viewModel.pageTitle</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            val message = if (result.resultCode == TalkReplyActivity.RESULT_EDIT_SUCCESS) {</span>
+<span class="nc" id="L92">                PatrollerExperienceEvent.logAction(&quot;publish_message_toast&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L93">                R.string.talk_warn_submitted</span>
+            } else {
+<span class="nc" id="L95">                PatrollerExperienceEvent.logAction(&quot;publish_message_saved_toast&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L96">                R.string.talk_warn_submitted_and_saved</span>
+            }
+<span class="nc" id="L98">            FeedbackUtil.makeSnackbar(requireActivity(), getString(message))</span>
+<span class="nc" id="L99">                .setAction(R.string.patroller_tasks_patrol_edit_snackbar_view) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                    if (isAdded) {</span>
+<span class="nc" id="L101">                        PatrollerExperienceEvent.logAction(&quot;publish_message_view_click&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L102">                        startActivity(TalkTopicsActivity.newIntent(requireContext(), pageTitle, InvokeSource.DIFF_ACTIVITY))</span>
+                    }
+<span class="nc" id="L104">                }</span>
+<span class="nc" id="L105">                .setAnchorView(binding.navTabContainer)</span>
+<span class="nc" id="L106">                .show()</span>
+        }
+<span class="nc" id="L108">    }</span>
+
+<span class="nc" id="L110">    private val sequentialTooltipRunnable = Runnable {</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (!isAdded) {</span>
+<span class="nc" id="L112">            return@Runnable</span>
+        }
+<span class="nc" id="L114">        sendPatrollerExperienceEvent(&quot;impression&quot;, &quot;pt_tooltip&quot;)</span>
+<span class="nc" id="L115">        val balloon = FeedbackUtil.getTooltip(requireContext(), getString(R.string.patroller_diff_tooltip_one), autoDismiss = true, showDismissButton = true, dismissButtonText = R.string.image_recommendation_tooltip_next, countNum = 1, countTotal = 2)</span>
+<span class="nc" id="L116">        balloon.showAlignBottom(binding.oresDamagingButton)</span>
+<span class="nc" id="L117">        balloon.relayShowAlignBottom(FeedbackUtil.getTooltip(requireContext(), getString(R.string.patroller_diff_tooltip_two), autoDismiss = true, showDismissButton = true, countNum = 2, countTotal = 2), binding.oresGoodFaithButton)</span>
+<span class="nc" id="L118">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L121">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L122">        _binding = FragmentArticleEditDetailsBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L123">        binding.diffRecyclerView.layoutManager = LinearLayoutManager(requireContext())</span>
+<span class="nc" id="L124">        FeedbackUtil.setButtonTooltip(binding.newerIdButton, binding.olderIdButton)</span>
+<span class="nc" id="L125">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L129">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L130">        setUpListeners()</span>
+<span class="nc" id="L131">        setLoadingState()</span>
+<span class="nc" id="L132">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (savedInstanceState == null) {</span>
+<span class="nc" id="L135">            EditAttemptStepEvent.logInit(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+        }
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (!viewModel.fromRecentEdits) {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            (requireActivity() as AppCompatActivity).supportActionBar?.title = getString(R.string.revision_diff_compare)</span>
+<span class="nc" id="L140">            binding.articleTitleView.text = StringUtil.fromHtml(viewModel.pageTitle.displayText)</span>
+        }
+
+<span class="nc" id="L143">        viewModel.watchedStatus.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L145">                updateWatchButton(it.data.hasWatchlistExpiry())</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L147">                setErrorState(it.throwable)</span>
+            }
+<span class="nc" id="L149">            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L150">        }</span>
+
+<span class="nc" id="L152">        viewModel.revisionDetails.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L154">                updateDiffCharCountView(viewModel.diffSize)</span>
+<span class="nc" id="L155">                updateAfterRevisionFetchSuccess()</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L157">                setErrorState(it.throwable)</span>
+            }
+<span class="nc" id="L159">        }</span>
+
+<span class="nc" id="L161">        viewModel.singleRevisionText.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L163">                binding.diffRecyclerView.adapter = DiffUtil.DiffLinesAdapter(DiffUtil.buildDiffLinesList(requireContext(), it.data))</span>
+<span class="nc" id="L164">                updateAfterDiffFetchSuccess()</span>
+<span class="nc" id="L165">                binding.progressBar.isVisible = false</span>
+<span class="nc" id="L166">                binding.navTabContainer.isVisible = true</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L168">                setErrorState(it.throwable)</span>
+            }
+<span class="nc" id="L170">        }</span>
+
+<span class="nc" id="L172">        viewModel.thankStatus.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L174">                showThankSnackbar()</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L176">                setErrorState(it.throwable)</span>
+            }
+<span class="nc" id="L178">        }</span>
+
+<span class="nc" id="L180">        viewModel.watchResponse.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L182">                showWatchlistSnackbar(it.data.second)</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L184">                setErrorState(it.throwable)</span>
+            }
+<span class="nc" id="L186">            requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L187">        }</span>
+
+<span class="nc" id="L189">        viewModel.undoEditResponse.observe(viewLifecycleOwner) {</span>
+<span class="nc" id="L190">            binding.progressBar.isVisible = false</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L192">                EditAttemptStepEvent.logSaveSuccess(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L193">                setLoadingState()</span>
+<span class="nc" id="L194">                viewModel.getRevisionDetails(it.data.edit!!.newRevId)</span>
+<span class="nc" id="L195">                sendPatrollerExperienceEvent(&quot;undo_success&quot;, &quot;pt_edit&quot;,</span>
+<span class="nc" id="L196">                    PatrollerExperienceEvent.getActionDataString(it.data.edit.newRevId))</span>
+<span class="nc" id="L197">                showUndoSnackbar()</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                callback()?.onUndoSuccess()</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L200">                EditAttemptStepEvent.logSaveFailure(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L201">                it.throwable.printStackTrace()</span>
+<span class="nc" id="L202">                FeedbackUtil.showError(requireActivity(), it.throwable)</span>
+            }
+<span class="nc" id="L204">        }</span>
+
+<span class="nc" id="L206">        viewModel.rollbackRights.observe(viewLifecycleOwner) {</span>
+<span class="nc" id="L207">            binding.progressBar.isVisible = false</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L209">                updateActionButtons()</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L211">                it.throwable.printStackTrace()</span>
+<span class="nc" id="L212">                FeedbackUtil.showError(requireActivity(), it.throwable)</span>
+            }
+<span class="nc" id="L214">        }</span>
+
+<span class="nc" id="L216">        viewModel.rollbackResponse.observe(viewLifecycleOwner) {</span>
+<span class="nc" id="L217">            binding.progressBar.isVisible = false</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L219">                EditAttemptStepEvent.logSaveSuccess(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L220">                setLoadingState()</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                viewModel.getRevisionDetails(it.data.rollback?.revision ?: 0)</span>
+<span class="nc" id="L222">                sendPatrollerExperienceEvent(&quot;rollback_success&quot;, &quot;pt_edit&quot;,</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                    PatrollerExperienceEvent.getActionDataString(it.data.rollback?.revision ?: 0))</span>
+<span class="nc" id="L224">                showRollbackSnackbar()</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                callback()?.onRollbackSuccess()</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc" id="L227">                EditAttemptStepEvent.logSaveFailure(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L228">                it.throwable.printStackTrace()</span>
+<span class="nc" id="L229">                FeedbackUtil.showError(requireActivity(), it.throwable)</span>
+            }
+<span class="nc" id="L231">        }</span>
+
+<span class="nc" id="L233">        viewModel.diffText.observe(viewLifecycleOwner) {</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">            if (it is Resource.Success) {</span>
+<span class="nc" id="L235">                binding.diffRecyclerView.adapter = DiffUtil.DiffLinesAdapter(DiffUtil.buildDiffLinesList(requireContext(), it.data.diff))</span>
+<span class="nc" id="L236">                updateAfterDiffFetchSuccess()</span>
+<span class="nc" id="L237">                updateActionButtons()</span>
+<span class="nc" id="L238">                binding.progressBar.isVisible = false</span>
+<span class="nc" id="L239">                binding.navTabContainer.isVisible = true</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">            } else if (it is Resource.Error) {</span>
+<span class="nc bnc" id="L241" title="All 4 branches missed.">                if (it.throwable is HttpStatusException &amp;&amp; it.throwable.code == 403) {</span>
+<span class="nc" id="L242">                    binding.progressBar.isVisible = false</span>
+<span class="nc" id="L243">                    binding.diffRecyclerView.isVisible = false</span>
+<span class="nc" id="L244">                    binding.undoButton.isVisible = false</span>
+<span class="nc" id="L245">                    binding.thankButton.isVisible = false</span>
+<span class="nc" id="L246">                    binding.diffUnavailableContainer.isVisible = true</span>
+                } else {
+<span class="nc" id="L248">                    setErrorState(it.throwable)</span>
+                }
+            }
+<span class="nc" id="L251">        }</span>
+
+<span class="nc" id="L253">        requireView().setLayoutDirectionByLang(viewModel.pageTitle.wikiSite.languageCode)</span>
+
+<span class="nc" id="L255">        binding.appBarLayout.addOnOffsetChangedListener(actionBarOffsetChangedListener)</span>
+<span class="nc" id="L256">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L259">        binding.appBarLayout.removeOnOffsetChangedListener(actionBarOffsetChangedListener)</span>
+<span class="nc" id="L260">        binding.root.removeCallbacks(sequentialTooltipRunnable)</span>
+<span class="nc" id="L261">        _binding = null</span>
+<span class="nc" id="L262">        super.onDestroyView()</span>
+<span class="nc" id="L263">    }</span>
+
+    private fun setUpListeners() {
+<span class="nc" id="L266">        binding.articleTitleView.setOnClickListener {</span>
+<span class="nc bnc" id="L267" title="All 4 branches missed.">            if (viewModel.pageTitle.namespace() == Namespace.USER_TALK || viewModel.pageTitle.namespace() == Namespace.TALK) {</span>
+<span class="nc" id="L268">                startActivity(TalkTopicsActivity.newIntent(requireContext(), viewModel.pageTitle, InvokeSource.DIFF_ACTIVITY))</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            } else if (viewModel.pageTitle.namespace() == Namespace.FILE) {</span>
+<span class="nc" id="L270">                startActivity(FilePageActivity.newIntent(requireContext(), viewModel.pageTitle))</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            } else if (viewModel.pageTitle.wikiSite.dbName() == Constants.WIKIDATA_DB_NAME ||</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                viewModel.pageTitle.wikiSite.dbName() == Constants.COMMONS_DB_NAME) {</span>
+<span class="nc" id="L273">                CustomTabsUtil.openInCustomTab(requireContext(), viewModel.pageTitle.uri)</span>
+            } else {
+<span class="nc" id="L275">                ExclusiveBottomSheetPresenter.show(childFragmentManager, LinkPreviewDialog.newInstance(</span>
+<span class="nc" id="L276">                        HistoryEntry(viewModel.pageTitle, HistoryEntry.SOURCE_EDIT_DIFF_DETAILS)))</span>
+            }
+<span class="nc" id="L278">        }</span>
+<span class="nc" id="L279">        binding.newerIdButton.setOnClickListener {</span>
+<span class="nc" id="L280">            sendPatrollerExperienceEvent(&quot;edit_right_chevron_click&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L281">            setLoadingState()</span>
+<span class="nc" id="L282">            viewModel.goForward()</span>
+<span class="nc" id="L283">        }</span>
+<span class="nc" id="L284">        binding.olderIdButton.setOnClickListener {</span>
+<span class="nc" id="L285">            sendPatrollerExperienceEvent(&quot;edit_left_chevron_click&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L286">            setLoadingState()</span>
+<span class="nc" id="L287">            viewModel.goBackward()</span>
+<span class="nc" id="L288">        }</span>
+
+<span class="nc" id="L290">        binding.usernameFromButton.setOnClickListener {</span>
+<span class="nc" id="L291">            showUserPopupMenu(viewModel.revisionFrom, true, binding.usernameFromButton)</span>
+<span class="nc" id="L292">        }</span>
+
+<span class="nc" id="L294">        binding.usernameToButton.setOnClickListener {</span>
+<span class="nc" id="L295">            showUserPopupMenu(viewModel.revisionTo, false, binding.usernameToButton)</span>
+<span class="nc" id="L296">        }</span>
+
+<span class="nc" id="L298">        binding.thankButton.setOnClickListener {</span>
+<span class="nc" id="L299">            sendPatrollerExperienceEvent(&quot;thank_init&quot;, &quot;pt_toolbar&quot;)</span>
+<span class="nc" id="L300">            showThankDialog()</span>
+<span class="nc" id="L301">        }</span>
+
+<span class="nc" id="L303">        binding.undoButton.setOnClickListener {</span>
+<span class="nc bnc" id="L304" title="All 4 branches missed.">            val canUndo = viewModel.revisionFrom != null &amp;&amp; AccountUtil.isLoggedIn</span>
+<span class="nc bnc" id="L305" title="All 6 branches missed.">            val canRollback = AccountUtil.isLoggedIn &amp;&amp; viewModel.hasRollbackRights &amp;&amp; !viewModel.canGoForward</span>
+<span class="nc" id="L306">            EditAttemptStepEvent.logSaveIntent(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc bnc" id="L307" title="All 4 branches missed.">            if (canUndo &amp;&amp; canRollback) {</span>
+<span class="nc" id="L308">                PopupMenu(requireContext(), binding.undoLabel, Gravity.END).apply {</span>
+<span class="nc" id="L309">                    menuInflater.inflate(R.menu.menu_context_undo, menu)</span>
+<span class="nc" id="L310">                    setForceShowIcon(true)</span>
+<span class="nc" id="L311">                    setOnMenuItemClickListener { menuItem -&gt;</span>
+<span class="nc" id="L312">                        when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                            R.id.menu_undo -&gt; {</span>
+<span class="nc" id="L314">                                sendPatrollerExperienceEvent(&quot;undo_menu_init&quot;, &quot;pt_toolbar&quot;)</span>
+<span class="nc" id="L315">                                showUndoDialog()</span>
+<span class="nc" id="L316">                                true</span>
+                            }
+<span class="nc bnc" id="L318" title="All 2 branches missed.">                            R.id.menu_rollback -&gt; {</span>
+<span class="nc" id="L319">                                sendPatrollerExperienceEvent(&quot;rollback_menu_init&quot;, &quot;pt_toolbar&quot;)</span>
+<span class="nc" id="L320">                                showRollbackDialog()</span>
+<span class="nc" id="L321">                                true</span>
+                            }
+<span class="nc" id="L323">                            else -&gt; false</span>
+<span class="nc" id="L324">                        }</span>
+                    }
+<span class="nc" id="L326">                    show()</span>
+<span class="nc" id="L327">                }</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">            } else if (canUndo) {</span>
+<span class="nc" id="L329">                sendPatrollerExperienceEvent(&quot;undo_init&quot;, &quot;pt_toolbar&quot;)</span>
+<span class="nc" id="L330">                showUndoDialog()</span>
+            }
+<span class="nc" id="L332">        }</span>
+
+<span class="nc" id="L334">        binding.watchButton.setOnClickListener {</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">            sendPatrollerExperienceEvent(if (viewModel.isWatched) &quot;unwatch_init&quot; else &quot;watch_init&quot;, &quot;pt_toolbar&quot;)</span>
+<span class="nc" id="L336">            viewModel.watchOrUnwatch(viewModel.isWatched)</span>
+<span class="nc" id="L337">        }</span>
+<span class="nc" id="L338">        updateWatchButton(false)</span>
+
+<span class="nc" id="L340">        binding.talkButton.setOnClickListener {</span>
+<span class="nc" id="L341">            sendPatrollerExperienceEvent(&quot;warn_init&quot;, &quot;pt_toolbar&quot;)</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">            viewModel.revisionTo?.let { revision -&gt;</span>
+<span class="nc" id="L343">                val pageTitle = PageTitle(UserTalkAliasData.valueFor(viewModel.pageTitle.wikiSite.languageCode), revision.user, viewModel.pageTitle.wikiSite)</span>
+<span class="nc" id="L344">                requestTalk.launch(TalkTemplatesActivity.newIntent(requireContext(), pageTitle, fromRevisionId = viewModel.revisionFromId, toRevisionId = viewModel.revisionToId))</span>
+<span class="nc" id="L345">            }</span>
+<span class="nc" id="L346">        }</span>
+
+<span class="nc" id="L348">        binding.errorView.backClickListener = View.OnClickListener { requireActivity().finish() }</span>
+<span class="nc" id="L349">    }</span>
+
+    override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
+<span class="nc" id="L352">        inflater.inflate(R.menu.menu_edit_details, menu)</span>
+<span class="nc" id="L353">    }</span>
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc" id="L356">        super.onPrepareMenu(menu)</span>
+<span class="nc" id="L357">        menu.findItem(R.id.menu_view_edit_history).isVisible = viewModel.fromRecentEdits</span>
+<span class="nc" id="L358">        menu.findItem(R.id.menu_report_feature).isVisible = viewModel.fromRecentEdits</span>
+<span class="nc" id="L359">        menu.findItem(R.id.menu_learn_more).isVisible = viewModel.fromRecentEdits</span>
+<span class="nc" id="L360">        menu.findItem(R.id.menu_saved_messages).isVisible = viewModel.fromRecentEdits</span>
+<span class="nc" id="L361">    }</span>
+
+    override fun onMenuItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L364">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">            R.id.menu_share_edit -&gt; {</span>
+<span class="nc" id="L366">                sendPatrollerExperienceEvent(&quot;top_menu_share_click&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L367">                ShareUtil.shareText(requireContext(), StringUtil.fromHtml(viewModel.pageTitle.displayText).toString(), getSharableDiffUrl())</span>
+<span class="nc" id="L368">                true</span>
+            }
+<span class="nc bnc" id="L370" title="All 2 branches missed.">            R.id.menu_copy_link_to_clipboard -&gt; {</span>
+<span class="nc" id="L371">                sendPatrollerExperienceEvent(&quot;top_menu_copy_click&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L372">                copyLink(getSharableDiffUrl())</span>
+<span class="nc" id="L373">                true</span>
+            }
+<span class="nc bnc" id="L375" title="All 2 branches missed.">            R.id.menu_view_edit_history -&gt; {</span>
+<span class="nc" id="L376">                sendPatrollerExperienceEvent(&quot;top_menu_history_click&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L377">                startActivity(EditHistoryListActivity.newIntent(requireContext(), viewModel.pageTitle))</span>
+<span class="nc" id="L378">                true</span>
+            }
+<span class="nc bnc" id="L380" title="All 2 branches missed.">            R.id.menu_learn_more -&gt; {</span>
+<span class="nc" id="L381">                sendPatrollerExperienceEvent(&quot;top_menu_learn_click&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L382">                FeedbackUtil.showAndroidAppEditingFAQ(requireContext())</span>
+<span class="nc" id="L383">                true</span>
+            }
+<span class="nc bnc" id="L385" title="All 2 branches missed.">            R.id.menu_report_feature -&gt; {</span>
+<span class="nc" id="L386">                sendPatrollerExperienceEvent(&quot;top_menu_feedback_click&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L387">                showFeedbackOptionsDialog(true)</span>
+<span class="nc" id="L388">                true</span>
+            }
+<span class="nc bnc" id="L390" title="All 2 branches missed.">            R.id.menu_saved_messages -&gt; {</span>
+<span class="nc" id="L391">                sendPatrollerExperienceEvent(&quot;diff_saved_init&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L392">                val pageTitle = PageTitle(UserTalkAliasData.valueFor(viewModel.pageTitle.wikiSite.languageCode), viewModel.pageTitle.text, viewModel.pageTitle.wikiSite)</span>
+<span class="nc" id="L393">                requireActivity().startActivity(TalkTemplatesActivity.newIntent(requireContext(), pageTitle, true))</span>
+<span class="nc" id="L394">                true</span>
+            }
+<span class="nc" id="L396">            else -&gt; false</span>
+        }
+    }
+
+    private fun showUserPopupMenu(revision: Revision?, showThankButton: Boolean, anchorView: View) {
+<span class="nc bnc" id="L401" title="All 2 branches missed.">        revision?.let {</span>
+<span class="nc" id="L402">            UserTalkPopupHelper.show(requireActivity() as AppCompatActivity,</span>
+<span class="nc" id="L403">                PageTitle(UserAliasData.valueFor(viewModel.pageTitle.wikiSite.languageCode),</span>
+<span class="nc" id="L404">                    it.user, viewModel.pageTitle.wikiSite), it.isAnon, anchorView,</span>
+<span class="nc" id="L405">                InvokeSource.DIFF_ACTIVITY, HistoryEntry.SOURCE_EDIT_DIFF_DETAILS,</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">                revisionId = if (showThankButton) it.revId else null, pageId = viewModel.pageId, showUserInfo = true)</span>
+<span class="nc" id="L407">        }</span>
+<span class="nc" id="L408">    }</span>
+
+    private fun maybeShowOneTimeSequentialRecentEditsTooltips() {
+<span class="nc bnc" id="L411" title="All 4 branches missed.">        if (Prefs.showOneTimeSequentialRecentEditsDiffTooltip &amp;&amp; viewModel.fromRecentEdits &amp;&amp;</span>
+<span class="nc bnc" id="L412" title="All 4 branches missed.">            binding.oresDamagingButton.isVisible &amp;&amp; binding.oresGoodFaithButton.isVisible &amp;&amp;</span>
+<span class="nc bnc" id="L413" title="All 4 branches missed.">            parentFragment == FragmentUtil.getAncestor(this, SuggestedEditsCardsFragment::class.java)?.topBaseChild()) {</span>
+<span class="nc" id="L414">            Prefs.showOneTimeSequentialRecentEditsDiffTooltip = false</span>
+<span class="nc" id="L415">            binding.root.removeCallbacks(sequentialTooltipRunnable)</span>
+<span class="nc" id="L416">            binding.root.postDelayed(sequentialTooltipRunnable, 500)</span>
+        }
+<span class="nc" id="L418">    }</span>
+
+    private fun setErrorState(t: Throwable) {
+<span class="nc" id="L421">        L.e(t)</span>
+<span class="nc" id="L422">        binding.errorView.setError(t)</span>
+<span class="nc" id="L423">        binding.errorView.isVisible = true</span>
+<span class="nc" id="L424">        binding.revisionDetailsView.isVisible = false</span>
+<span class="nc" id="L425">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L426">    }</span>
+
+    private fun updateDiffCharCountView(diffSize: Int) {
+<span class="nc" id="L429">        binding.diffCharacterCountView.text = StringUtil.getDiffBytesText(requireContext(), diffSize)</span>
+<span class="nc bnc" id="L430" title="All 2 branches missed.">        if (diffSize &gt;= 0) {</span>
+<span class="nc bnc" id="L431" title="All 2 branches missed.">            val diffColor = if (diffSize &gt; 0) R.attr.success_color else R.attr.secondary_color</span>
+<span class="nc" id="L432">            binding.diffCharacterCountView.setTextColor(ResourceUtil.getThemedColor(requireContext(), diffColor))</span>
+        } else {
+<span class="nc" id="L434">            binding.diffCharacterCountView.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.destructive_color))</span>
+        }
+<span class="nc" id="L436">    }</span>
+
+    private fun setLoadingState() {
+<span class="nc" id="L439">        binding.progressBar.isVisible = true</span>
+<span class="nc" id="L440">        binding.revisionDetailsView.isVisible = false</span>
+<span class="nc" id="L441">        binding.navTabContainer.isVisible = false</span>
+<span class="nc" id="L442">        binding.diffRecyclerView.isVisible = false</span>
+<span class="nc" id="L443">        binding.diffUnavailableContainer.isVisible = false</span>
+<span class="nc" id="L444">        binding.thankButton.isVisible = false</span>
+<span class="nc" id="L445">        binding.undoButton.isVisible = false</span>
+<span class="nc" id="L446">        binding.olderIdButton.isVisible = false</span>
+<span class="nc" id="L447">        binding.newerIdButton.isVisible = false</span>
+<span class="nc" id="L448">    }</span>
+
+    private fun updateAfterRevisionFetchSuccess() {
+<span class="nc" id="L451">        binding.articleTitleView.text = StringUtil.fromHtml(viewModel.pageTitle.displayText)</span>
+
+<span class="nc bnc" id="L453" title="All 2 branches missed.">        if (viewModel.revisionFrom != null) {</span>
+<span class="nc" id="L454">            binding.usernameFromButton.text = viewModel.revisionFrom!!.user</span>
+<span class="nc" id="L455">            binding.revisionFromTimestamp.text = DateUtil.getTimeAndDateString(requireContext(), viewModel.revisionFrom!!.timeStamp)</span>
+<span class="nc" id="L456">            binding.revisionFromEditComment.text = StringUtil.fromHtml(viewModel.revisionFrom!!.parsedcomment.trim())</span>
+<span class="nc" id="L457">            binding.revisionFromTimestamp.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L458">            binding.overlayRevisionFromTimestamp.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L459">            binding.usernameFromButton.isVisible = true</span>
+<span class="nc" id="L460">            binding.revisionFromEditComment.isVisible = true</span>
+        } else {
+<span class="nc" id="L462">            binding.usernameFromButton.isVisible = false</span>
+<span class="nc" id="L463">            binding.revisionFromEditComment.isVisible = false</span>
+<span class="nc" id="L464">            binding.revisionFromTimestamp.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.placeholder_color))</span>
+<span class="nc" id="L465">            binding.overlayRevisionFromTimestamp.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.placeholder_color))</span>
+<span class="nc" id="L466">            binding.revisionFromTimestamp.text = getString(R.string.revision_initial_none)</span>
+        }
+<span class="nc" id="L468">        binding.overlayRevisionFromTimestamp.text = binding.revisionFromTimestamp.text</span>
+
+<span class="nc" id="L470">        binding.oresDamagingButton.isVisible = false</span>
+<span class="nc" id="L471">        binding.oresGoodFaithButton.isVisible = false</span>
+
+<span class="nc bnc" id="L473" title="All 2 branches missed.">        viewModel.revisionTo?.let {</span>
+<span class="nc" id="L474">            binding.usernameToButton.text = it.user</span>
+<span class="nc" id="L475">            binding.revisionToTimestamp.text = DateUtil.getTimeAndDateString(requireContext(), it.timeStamp)</span>
+<span class="nc" id="L476">            binding.overlayRevisionToTimestamp.text = binding.revisionToTimestamp.text</span>
+<span class="nc" id="L477">            binding.revisionToEditComment.text = StringUtil.fromHtml(it.parsedcomment.trim())</span>
+
+<span class="nc bnc" id="L479" title="All 4 branches missed.">            if (it.ores != null &amp;&amp; viewModel.fromRecentEdits) {</span>
+<span class="nc" id="L480">                binding.oresDamagingButton.isVisible = true</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">                binding.oresDamagingButton.text = getString(R.string.edit_damage, ((it.ores?.damagingProb ?: 0f) * 100f).toInt().toString().plus(&quot;%&quot;))</span>
+<span class="nc" id="L482">                binding.oresDamagingButton.setOnClickListener(openQualityAndIntentFiltersPage)</span>
+<span class="nc" id="L483">                binding.oresGoodFaithButton.isVisible = true</span>
+<span class="nc bnc" id="L484" title="All 2 branches missed.">                binding.oresGoodFaithButton.text = getString(R.string.edit_intent, ((it.ores?.goodfaithProb ?: 0f) * 100f).toInt().toString().plus(&quot;%&quot;))</span>
+<span class="nc" id="L485">                binding.oresGoodFaithButton.setOnClickListener(openQualityAndIntentFiltersPage)</span>
+
+<span class="nc" id="L487">                maybeShowOneTimeSequentialRecentEditsTooltips()</span>
+            }
+<span class="nc" id="L489">        }</span>
+
+<span class="nc" id="L491">        binding.olderIdButton.isVisible = true</span>
+<span class="nc" id="L492">        binding.newerIdButton.isVisible = true</span>
+<span class="nc bnc" id="L493" title="All 2 branches missed.">        setEnableDisableTint(binding.newerIdButton, !viewModel.canGoForward)</span>
+<span class="nc bnc" id="L494" title="All 2 branches missed.">        setEnableDisableTint(binding.olderIdButton, viewModel.revisionFromId == 0L)</span>
+<span class="nc" id="L495">        binding.newerIdButton.isEnabled = viewModel.canGoForward</span>
+<span class="nc bnc" id="L496" title="All 2 branches missed.">        binding.olderIdButton.isEnabled = viewModel.revisionFromId != 0L</span>
+
+<span class="nc" id="L498">        binding.thankIcon.setImageResource(R.drawable.ic_heart_outline_24)</span>
+
+<span class="nc" id="L500">        binding.revisionDetailsView.isVisible = true</span>
+<span class="nc" id="L501">        binding.errorView.isVisible = false</span>
+<span class="nc" id="L502">    }</span>
+
+<span class="nc" id="L504">    private val openQualityAndIntentFiltersPage = View.OnClickListener { view -&gt;</span>
+<span class="nc bnc" id="L505" title="All 2 branches missed.">        if (view.id == R.id.oresDamagingButton) {</span>
+<span class="nc" id="L506">            sendPatrollerExperienceEvent(&quot;quality_click&quot;, &quot;pt_edit&quot;)</span>
+        } else {
+<span class="nc" id="L508">            sendPatrollerExperienceEvent(&quot;intent_click&quot;, &quot;pt_edit&quot;)</span>
+        }
+<span class="nc" id="L510">        UriUtil.visitInExternalBrowser(requireContext(), Uri.parse(getString(R.string.quality_and_intent_filters_url)))</span>
+<span class="nc" id="L511">    }</span>
+
+    private fun updateAfterDiffFetchSuccess() {
+<span class="nc" id="L514">        binding.diffRecyclerView.isVisible = true</span>
+<span class="nc" id="L515">    }</span>
+
+    private fun setEnableDisableTint(view: ImageView, isDisabled: Boolean) {
+<span class="nc" id="L518">        ImageViewCompat.setImageTintList(view, AppCompatResources.getColorStateList(requireContext(),</span>
+<span class="nc bnc" id="L519" title="All 2 branches missed.">            ResourceUtil.getThemedAttributeId(requireContext(), if (isDisabled)</span>
+<span class="nc" id="L520">                R.attr.inactive_color else R.attr.secondary_color)))</span>
+<span class="nc" id="L521">    }</span>
+
+    private fun updateWatchButton(hasWatchlistExpiry: Boolean) {
+<span class="nc" id="L524">        binding.watchButton.isVisible = AccountUtil.isLoggedIn</span>
+<span class="nc bnc" id="L525" title="All 2 branches missed.">        binding.watchLabel.text = getString(if (viewModel.isWatched) R.string.menu_page_unwatch else R.string.menu_page_watch)</span>
+<span class="nc" id="L526">        binding.watchIcon.setImageResource(</span>
+<span class="nc bnc" id="L527" title="All 4 branches missed.">            if (viewModel.isWatched &amp;&amp; !hasWatchlistExpiry) {</span>
+<span class="nc" id="L528">                R.drawable.ic_star_24</span>
+<span class="nc bnc" id="L529" title="All 2 branches missed.">            } else if (!viewModel.isWatched) {</span>
+<span class="nc" id="L530">                R.drawable.ic_baseline_star_outline_24</span>
+            } else {
+<span class="nc" id="L532">                R.drawable.ic_baseline_star_half_24</span>
+            }
+        )
+<span class="nc" id="L535">    }</span>
+
+    private fun showWatchlistSnackbar(message: String) {
+<span class="nc" id="L538">        updateWatchButton(false)</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">        if (!viewModel.isWatched) {</span>
+<span class="nc" id="L540">            sendPatrollerExperienceEvent(&quot;unwatch_success_toast&quot;, &quot;pt_watchlist&quot;)</span>
+<span class="nc" id="L541">            FeedbackUtil.makeSnackbar(requireActivity(), message)</span>
+<span class="nc" id="L542">                .addCallback(object : Snackbar.Callback() {</span>
+                    override fun onDismissed(transientBottomBar: Snackbar, @DismissEvent event: Int) {
+<span class="nc bnc" id="L544" title="All 2 branches missed.">                        if (!isAdded) {</span>
+<span class="nc" id="L545">                            return</span>
+                        }
+<span class="nc" id="L547">                        showFeedbackOptionsDialog()</span>
+<span class="nc" id="L548">                    }</span>
+                })
+<span class="nc" id="L550">                .setAnchorView(binding.navTabContainer)</span>
+<span class="nc" id="L551">                .show()</span>
+<span class="nc bnc" id="L552" title="All 2 branches missed.">        } else if (viewModel.isWatched) {</span>
+<span class="nc" id="L553">            sendPatrollerExperienceEvent(&quot;watch_success_toast&quot;, &quot;pt_watchlist&quot;)</span>
+<span class="nc" id="L554">            FeedbackUtil.makeSnackbar(requireActivity(), message)</span>
+<span class="nc" id="L555">                .setAction(R.string.watchlist_page_add_to_watchlist_snackbar_action) {</span>
+<span class="nc" id="L556">                    ExclusiveBottomSheetPresenter.show(childFragmentManager, WatchlistExpiryDialog.newInstance(viewModel.pageTitle))</span>
+<span class="nc" id="L557">                }</span>
+<span class="nc" id="L558">                        .addCallback(object : Snackbar.Callback() {</span>
+                    override fun onDismissed(transientBottomBar: Snackbar, @DismissEvent event: Int) {
+<span class="nc bnc" id="L560" title="All 2 branches missed.">                        if (!isAdded) {</span>
+<span class="nc" id="L561">                            return</span>
+                        }
+<span class="nc" id="L563">                        showFeedbackOptionsDialog()</span>
+<span class="nc" id="L564">                    }</span>
+                })
+<span class="nc" id="L566">                .setAnchorView(binding.navTabContainer)</span>
+<span class="nc" id="L567">                .show()</span>
+        }
+<span class="nc" id="L569">    }</span>
+
+    private fun showThankSnackbar() {
+<span class="nc" id="L572">        binding.thankIcon.setImageResource(R.drawable.ic_heart_24)</span>
+<span class="nc" id="L573">        binding.thankButton.isEnabled = false</span>
+<span class="nc bnc" id="L574" title="All 2 branches missed.">        FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.thank_success_message, viewModel.revisionTo?.user))</span>
+<span class="nc" id="L575">            .addCallback(object : Snackbar.Callback() {</span>
+                override fun onDismissed(transientBottomBar: Snackbar, @DismissEvent event: Int) {
+<span class="nc bnc" id="L577" title="All 2 branches missed.">                    if (!isAdded) {</span>
+<span class="nc" id="L578">                        return</span>
+                    }
+<span class="nc" id="L580">                    showFeedbackOptionsDialog()</span>
+<span class="nc" id="L581">                }</span>
+            })
+<span class="nc" id="L583">            .setAnchorView(binding.navTabContainer)</span>
+<span class="nc" id="L584">            .show()</span>
+<span class="nc" id="L585">        sendPatrollerExperienceEvent(&quot;thank_success&quot;, &quot;pt_thank&quot;)</span>
+<span class="nc" id="L586">    }</span>
+
+    private fun showThankDialog() {
+<span class="nc" id="L589">        val parent = FrameLayout(requireContext())</span>
+<span class="nc" id="L590">        val dialog = MaterialAlertDialogBuilder(requireActivity())</span>
+<span class="nc" id="L591">                .setView(parent)</span>
+<span class="nc" id="L592">                .setPositiveButton(R.string.thank_dialog_positive_button_text) { _, _ -&gt;</span>
+<span class="nc" id="L593">                    sendPatrollerExperienceEvent(&quot;thank_confirm&quot;, &quot;pt_thank&quot;)</span>
+<span class="nc" id="L594">                    viewModel.sendThanks(viewModel.pageTitle.wikiSite, viewModel.revisionToId)</span>
+<span class="nc" id="L595">                }</span>
+<span class="nc" id="L596">                .setNegativeButton(R.string.thank_dialog_negative_button_text) { _, _ -&gt;</span>
+<span class="nc" id="L597">                    sendPatrollerExperienceEvent(&quot;thank_cancel&quot;, &quot;pt_thank&quot;)</span>
+<span class="nc" id="L598">                }</span>
+<span class="nc" id="L599">                .create()</span>
+<span class="nc" id="L600">        dialog.layoutInflater.inflate(R.layout.view_thank_dialog, parent)</span>
+<span class="nc" id="L601">        dialog.show()</span>
+<span class="nc" id="L602">    }</span>
+
+    private fun showUndoDialog() {
+<span class="nc" id="L605">        val dialog = UndoEditDialog(requireActivity(),</span>
+<span class="nc bnc" id="L606" title="All 2 branches missed.">            if (viewModel.fromRecentEdits) InvokeSource.SUGGESTED_EDITS_RECENT_EDITS else null) { text -&gt;</span>
+<span class="nc bnc" id="L607" title="All 2 branches missed.">                viewModel.revisionTo?.let {</span>
+<span class="nc" id="L608">                    binding.progressBar.isVisible = true</span>
+<span class="nc" id="L609">                    EditAttemptStepEvent.logSaveAttempt(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L610">                    viewModel.undoEdit(viewModel.pageTitle, it.user, text.toString(), viewModel.revisionToId, 0)</span>
+<span class="nc" id="L611">                }</span>
+<span class="nc" id="L612">        }</span>
+<span class="nc" id="L613">        dialog.show()</span>
+<span class="nc" id="L614">    }</span>
+
+    private fun showUndoSnackbar() {
+<span class="nc" id="L617">        FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.patroller_tasks_patrol_edit_undo_success))</span>
+<span class="nc" id="L618">            .addCallback(object : Snackbar.Callback() {</span>
+                override fun onDismissed(transientBottomBar: Snackbar, @DismissEvent event: Int) {
+<span class="nc bnc" id="L620" title="All 2 branches missed.">                    if (!isAdded) {</span>
+<span class="nc" id="L621">                        return</span>
+                    }
+<span class="nc" id="L623">                    showFeedbackOptionsDialog()</span>
+<span class="nc" id="L624">                }</span>
+            })
+<span class="nc" id="L626">            .setAnchorView(binding.navTabContainer)</span>
+<span class="nc" id="L627">            .show()</span>
+<span class="nc" id="L628">    }</span>
+
+    private fun showRollbackDialog() {
+<span class="nc" id="L631">        MaterialAlertDialogBuilder(requireActivity())</span>
+<span class="nc" id="L632">            .setMessage(R.string.revision_rollback_dialog_title)</span>
+<span class="nc" id="L633">            .setPositiveButton(android.R.string.ok) { _, _ -&gt;</span>
+<span class="nc" id="L634">                sendPatrollerExperienceEvent(&quot;rollback_confirm&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L635">                binding.progressBar.isVisible = true</span>
+<span class="nc bnc" id="L636" title="All 2 branches missed.">                viewModel.revisionTo?.let {</span>
+<span class="nc" id="L637">                    EditAttemptStepEvent.logSaveAttempt(viewModel.pageTitle, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L638">                    viewModel.postRollback(viewModel.pageTitle, it.user)</span>
+<span class="nc" id="L639">                }</span>
+<span class="nc" id="L640">            }</span>
+<span class="nc" id="L641">            .setNegativeButton(android.R.string.cancel) { _, _ -&gt;</span>
+<span class="nc" id="L642">                sendPatrollerExperienceEvent(&quot;rollback_cancel&quot;, &quot;pt_edit&quot;)</span>
+<span class="nc" id="L643">            }</span>
+<span class="nc" id="L644">            .show()</span>
+<span class="nc" id="L645">    }</span>
+
+    private fun showRollbackSnackbar() {
+<span class="nc" id="L648">        FeedbackUtil.makeSnackbar(requireActivity(), getString(R.string.patroller_tasks_patrol_edit_rollback_success))</span>
+<span class="nc" id="L649">            .addCallback(object : Snackbar.Callback() {</span>
+                override fun onDismissed(transientBottomBar: Snackbar, @DismissEvent event: Int) {
+<span class="nc bnc" id="L651" title="All 2 branches missed.">                    if (!isAdded) {</span>
+<span class="nc" id="L652">                        return</span>
+                    }
+<span class="nc" id="L654">                    showFeedbackOptionsDialog()</span>
+<span class="nc" id="L655">                }</span>
+            })
+<span class="nc" id="L657">            .setAnchorView(binding.navTabContainer)</span>
+<span class="nc" id="L658">            .show()</span>
+<span class="nc" id="L659">    }</span>
+
+<span class="nc" id="L661">    private fun showFeedbackOptionsDialog(skipPreference: Boolean = false) {</span>
+<span class="nc bnc" id="L662" title="All 6 branches missed.">        if (!viewModel.fromRecentEdits || (!skipPreference &amp;&amp; !Prefs.showOneTimeRecentEditsFeedbackForm)) {</span>
+<span class="nc" id="L663">            return</span>
+        }
+<span class="nc bnc" id="L665" title="All 2 branches missed.">        if (Prefs.showOneTimeRecentEditsFeedbackForm) {</span>
+<span class="nc" id="L666">            sendPatrollerExperienceEvent(&quot;toolbar_first_feedback&quot;, &quot;pt_feedback&quot;)</span>
+        }
+<span class="nc" id="L668">        SurveyDialog.showFeedbackOptionsDialog(requireActivity(), invokeSource = InvokeSource.SUGGESTED_EDITS_RECENT_EDITS)</span>
+<span class="nc" id="L669">    }</span>
+
+    private fun updateActionButtons() {
+<span class="nc bnc" id="L672" title="All 4 branches missed.">        binding.undoButton.isVisible = viewModel.revisionFrom != null &amp;&amp; AccountUtil.isLoggedIn</span>
+<span class="nc" id="L673">        binding.thankButton.isEnabled = true</span>
+<span class="nc bnc" id="L674" title="All 2 branches missed.">        binding.thankButton.isVisible = AccountUtil.isLoggedIn &amp;&amp;</span>
+<span class="nc bnc" id="L675" title="All 4 branches missed.">                AccountUtil.userName != viewModel.revisionTo?.user &amp;&amp;</span>
+<span class="nc bnc" id="L676" title="All 6 branches missed.">                viewModel.revisionTo?.isAnon == false</span>
+<span class="nc" id="L677">    }</span>
+
+    private fun getSharableDiffUrl(): String {
+<span class="nc" id="L680">        return viewModel.pageTitle.getWebApiUrl(&quot;diff=${viewModel.revisionToId}&amp;oldid=${viewModel.revisionFromId}&amp;variant=${viewModel.pageTitle.wikiSite.languageCode}&quot;)</span>
+    }
+
+    override fun onExpiryChanged(expiry: WatchlistExpiry) {
+<span class="nc" id="L684">        sendPatrollerExperienceEvent(&quot;expiry_&quot; + expiry.expiry.replace(&quot; &quot;, &quot;_&quot;), &quot;pt_watchlist&quot;)</span>
+<span class="nc bnc" id="L685" title="All 2 branches missed.">        updateWatchButton(expiry != WatchlistExpiry.NEVER)</span>
+<span class="nc" id="L686">        showFeedbackOptionsDialog()</span>
+<span class="nc" id="L687">    }</span>
+
+    private fun copyLink(uri: String?) {
+<span class="nc" id="L690">        ClipboardUtil.setPlainText(requireContext(), text = uri)</span>
+<span class="nc" id="L691">        FeedbackUtil.showMessage(this, R.string.address_copied)</span>
+<span class="nc" id="L692">    }</span>
+
+<span class="nc" id="L694">    private fun sendPatrollerExperienceEvent(action: String, activeInterface: String, actionData: String = &quot;&quot;) {</span>
+<span class="nc bnc" id="L695" title="All 2 branches missed.">        if (viewModel.fromRecentEdits) {</span>
+<span class="nc" id="L696">            PatrollerExperienceEvent.logAction(action, activeInterface, actionData)</span>
+        }
+<span class="nc" id="L698">    }</span>
+
+    private fun callback(): Callback? {
+<span class="nc" id="L701">        return FragmentUtil.getCallback(this, Callback::class.java)</span>
+    }
+
+    companion object {
+        fun newInstance(title: PageTitle, pageId: Int, revisionFrom: Long, revisionTo: Long, source: InvokeSource): ArticleEditDetailsFragment {
+<span class="nc" id="L706">            return ArticleEditDetailsFragment().apply {</span>
+<span class="nc" id="L707">                arguments = bundleOf(ArticleEditDetailsActivity.EXTRA_ARTICLE_TITLE to title,</span>
+<span class="nc" id="L708">                    ArticleEditDetailsActivity.EXTRA_PAGE_ID to pageId,</span>
+<span class="nc" id="L709">                    ArticleEditDetailsActivity.EXTRA_EDIT_REVISION_FROM to revisionFrom,</span>
+<span class="nc" id="L710">                    ArticleEditDetailsActivity.EXTRA_EDIT_REVISION_TO to revisionTo,</span>
+<span class="nc" id="L711">                    Constants.INTENT_EXTRA_INVOKE_SOURCE to source)</span>
+<span class="nc" id="L712">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

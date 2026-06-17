@@ -1,0 +1,1030 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActivityTabFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab</a> &gt; <span class="el_source">ActivityTabFragment.kt</span></div><h1>ActivityTabFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
+import androidx.core.view.MenuProvider
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.activity.FragmentUtil.getCallback
+import org.wikipedia.activitytab.timeline.ActivitySource
+import org.wikipedia.activitytab.timeline.TimelineDateSeparator
+import org.wikipedia.activitytab.timeline.TimelineItem
+import org.wikipedia.activitytab.timeline.TimelineModule
+import org.wikipedia.activitytab.timeline.TimelineModuleEmptyView
+import org.wikipedia.analytics.eventplatform.ActivityTabEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.categories.CategoryActivity
+import org.wikipedia.categories.db.Category
+import org.wikipedia.compose.components.HtmlText
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.extensions.shimmerEffect
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.concurrency.FlowEventBus
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.growthtasks.GrowthUserImpact
+import org.wikipedia.diff.ArticleEditDetailsActivity
+import org.wikipedia.events.LoggedInEvent
+import org.wikipedia.events.LoggedOutEvent
+import org.wikipedia.events.LoggedOutInBackgroundEvent
+import org.wikipedia.games.GamesHubActivity
+import org.wikipedia.games.WikiGames
+import org.wikipedia.games.onthisday.OnThisDayGameActivity
+import org.wikipedia.games.onthisday.OnThisDayGameViewModel
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.history.HistoryFragment
+import org.wikipedia.login.LoginActivity
+import org.wikipedia.navtab.NavTab
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.PageActivity
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.suggestededits.SuggestedEditsTasksActivity
+import org.wikipedia.theme.Theme
+import org.wikipedia.usercontrib.UserContribListActivity
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.UiState
+import org.wikipedia.util.UriUtil
+import org.wikipedia.widgets.readingchallenge.ReadingChallengeRewardDialog
+import org.wikipedia.widgets.readingchallenge.ReadingChallengeWidgetRepository
+import java.time.LocalDateTime
+
+<span class="nc" id="L131">class ActivityTabFragment : Fragment() {</span>
+    interface Callback {
+        fun onNavigateTo(navTab: NavTab)
+    }
+
+<span class="nc" id="L136">    private val viewModel: ActivityTabViewModel by viewModels()</span>
+<span class="nc" id="L137">    private val menuProvider = object : MenuProvider {</span>
+        override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+<span class="nc" id="L139">            menuInflater.inflate(R.menu.menu_activity_tab_overflow, menu)</span>
+<span class="nc" id="L140">        }</span>
+
+        override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+<span class="nc" id="L143">            return handleMenuItemClick(menuItem)</span>
+        }
+    }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L148">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L149">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L150">            repeatOnLifecycle(Lifecycle.State.RESUMED) {</span>
+<span class="nc" id="L151">                FlowEventBus.events.collectLatest { event -&gt;</span>
+<span class="nc" id="L152">                    when (event) {</span>
+<span class="nc bnc" id="L153" title="All 6 branches missed.">                        is LoggedInEvent, is LoggedOutEvent, is LoggedOutInBackgroundEvent -&gt; viewModel.loadAll()</span>
+                    }
+<span class="nc" id="L155">                }</span>
+<span class="nc" id="L156">            }</span>
+<span class="nc" id="L157">        }</span>
+<span class="nc" id="L158">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L159">            repeatOnLifecycle(Lifecycle.State.RESUMED) {</span>
+<span class="nc" id="L160">                viewModel.allDataLoaded.collectLatest {</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                    if (it) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                        val isAllDataEmpty = viewModel.hasNoReadingHistoryData() &amp;&amp;</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                                viewModel.hasNoImpactData() &amp;&amp;</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                                viewModel.hasNoGameStats() &amp;&amp;</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                                viewModel.hasNoDonationData()</span>
+<span class="nc" id="L166">                        ActivityTabEvent.submit(</span>
+<span class="nc" id="L167">                            activeInterface = &quot;activity_tab&quot;,</span>
+<span class="nc" id="L168">                            action = &quot;impression&quot;,</span>
+<span class="nc" id="L169">                            editCount = viewModel.getTotalEditsCount(),</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                            state = if (isAllDataEmpty) &quot;empty&quot; else &quot;complete&quot;</span>
+                        )
+                    }
+<span class="nc" id="L173">                }</span>
+<span class="nc" id="L174">            }</span>
+<span class="nc" id="L175">        }</span>
+<span class="nc" id="L176">        return ComposeView(requireContext()).apply {</span>
+<span class="nc" id="L177">            setContent {</span>
+<span class="nc" id="L178">                BaseTheme {</span>
+<span class="nc" id="L179">                    val scrollToGames = viewModel.scrollToGames.collectAsState().value</span>
+<span class="nc" id="L180">                    ActivityTabScreen(</span>
+<span class="nc bnc" id="L181" title="All 4 branches missed.">                        isLoggedIn = AccountUtil.isLoggedIn &amp;&amp; !AccountUtil.isTemporaryAccount,</span>
+<span class="nc" id="L182">                        userName = AccountUtil.userName,</span>
+<span class="nc" id="L183">                        languageCode = WikipediaApp.instance.wikiSite.languageCode,</span>
+<span class="nc" id="L184">                        modules = Prefs.activityTabModules,</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                        haveAtLeastOneDonation = Prefs.donationResults.isNotEmpty(),</span>
+<span class="nc" id="L186">                        areGamesAvailable = WikiGames.WHICH_CAME_FIRST.isLangSupported(WikipediaApp.instance.wikiSite.languageCode),</span>
+<span class="nc" id="L187">                        refreshSilently = viewModel.shouldRefreshTimelineSilently,</span>
+<span class="nc" id="L188">                        scrollToGames = scrollToGames,</span>
+<span class="nc" id="L189">                        readingHistoryState = viewModel.readingHistoryState.collectAsState().value,</span>
+<span class="nc" id="L190">                        donationUiState = viewModel.donationUiState.collectAsState().value,</span>
+<span class="nc" id="L191">                        wikiGamesUiState = viewModel.wikiGamesUiState.collectAsState().value,</span>
+<span class="nc" id="L192">                        impactUiState = viewModel.impactUiState.collectAsState().value,</span>
+<span class="nc" id="L193">                        timelineFlow = viewModel.timelineFlow,</span>
+<span class="nc" id="L194">                        onScrollToGamesConsumed = {</span>
+<span class="nc" id="L195">                            viewModel.onScrollToGamesConsumed()</span>
+<span class="nc" id="L196">                        }</span>
+                    )
+<span class="nc" id="L198">                }</span>
+<span class="nc" id="L199">            }</span>
+<span class="nc" id="L200">        }</span>
+    }
+
+    override fun onResume() {
+<span class="nc" id="L204">        super.onResume()</span>
+<span class="nc" id="L205">        requireActivity().addMenuProvider(menuProvider, viewLifecycleOwner)</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (requireActivity().intent.getBooleanExtra(Constants.INTENT_EXTRA_SCROLL_TO_GAMES, false)) {</span>
+<span class="nc" id="L207">            viewModel.onScrollToGames()</span>
+<span class="nc" id="L208">            requireActivity().intent.removeExtra(Constants.INTENT_EXTRA_SCROLL_TO_GAMES)</span>
+        }
+<span class="nc bnc" id="L210" title="All 2 branches missed.">        if (!Prefs.isGameStatsUnavailableSnackbarShown) {</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            requireActivity().intent.getStringExtra(Constants.INTENT_EXTRA_SNACKBAR_MESSAGE)?.let {</span>
+<span class="nc" id="L212">                FeedbackUtil.makeSnackbar(requireView(), it).show()</span>
+<span class="nc" id="L213">                requireActivity().intent.removeExtra(Constants.INTENT_EXTRA_SNACKBAR_MESSAGE)</span>
+<span class="nc" id="L214">                Prefs.isGameStatsUnavailableSnackbarShown = true</span>
+<span class="nc" id="L215">            }</span>
+        }
+<span class="nc" id="L217">        maybeShowReadingChallengeRewardDialog()</span>
+<span class="nc" id="L218">        viewModel.loadAll()</span>
+<span class="nc" id="L219">        requireActivity().invalidateOptionsMenu()</span>
+<span class="nc" id="L220">    }</span>
+
+    private fun maybeShowReadingChallengeRewardDialog() {
+<span class="nc" id="L223">        val intent = requireActivity().intent</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if (ReadingChallengeWidgetRepository.shouldShowReward(intent)) {</span>
+<span class="nc" id="L225">            intent.removeExtra(ReadingChallengeWidgetRepository.INTENT_EXTRA_READING_CHALLENGE_REWARD)</span>
+<span class="nc" id="L226">            ExclusiveBottomSheetPresenter.show(childFragmentManager, ReadingChallengeRewardDialog())</span>
+        }
+<span class="nc" id="L228">    }</span>
+
+    override fun onPause() {
+<span class="nc" id="L231">        super.onPause()</span>
+<span class="nc" id="L232">        requireActivity().removeMenuProvider(menuProvider)</span>
+<span class="nc" id="L233">    }</span>
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun ActivityTabScreen(
+        isLoggedIn: Boolean,
+        userName: String,
+        languageCode: String,
+        modules: ActivityTabModules,
+        haveAtLeastOneDonation: Boolean,
+        areGamesAvailable: Boolean,
+        refreshSilently: Boolean,
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        scrollToGames: Boolean = false,</span>
+        readingHistoryState: UiState&lt;ActivityTabViewModel.ReadingHistory&gt;,
+        donationUiState: UiState&lt;String?&gt;,
+        wikiGamesUiState: UiState&lt;OnThisDayGameViewModel.GameStatistics?&gt;,
+        impactUiState: UiState&lt;Pair&lt;GrowthUserImpact, Int&gt;&gt;,
+        timelineFlow: Flow&lt;PagingData&lt;TimelineDisplayItem&gt;&gt;,
+<span class="nc" id="L251">        onScrollToGamesConsumed: () -&gt; Unit = {}</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">    ) {</span>
+<span class="nc" id="L253">        val timelineItems = timelineFlow.collectAsLazyPagingItems()</span>
+<span class="nc" id="L254">        val listState = rememberLazyListState()</span>
+<span class="nc" id="L255">        var gamesModuleOffsetInItem by remember { mutableIntStateOf(0) }</span>
+
+<span class="nc bnc" id="L257" title="All 8 branches missed.">        LaunchedEffect(scrollToGames) {</span>
+<span class="nc bnc" id="L258" title="All 4 branches missed.">            if (scrollToGames &amp;&amp; modules.isModuleVisible(ModuleType.GAMES, areGamesAvailable = areGamesAvailable)) {</span>
+<span class="nc" id="L259">                val containerIndex = if (</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                    modules.isModuleVisible(ModuleType.TIME_SPENT) ||</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                    modules.isModuleVisible(ModuleType.READING_INSIGHTS)</span>
+<span class="nc" id="L262">                ) 1 else 0</span>
+
+<span class="nc" id="L264">                gamesModuleOffsetInItem = 0</span>
+
+                // since we don't have index per module, this will move to the container holding games module
+                // so that the lazy column can compose it and onGloballyPositioned executes
+<span class="nc" id="L268">                listState.scrollToItem(containerIndex)</span>
+
+                // now we wait for the games module to be laid out
+<span class="nc" id="L271">                snapshotFlow { gamesModuleOffsetInItem }</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                    .first { it &gt; 0 }</span>
+
+                // then animate to the correct offset
+<span class="nc" id="L275">                listState.animateScrollToItem(</span>
+<span class="nc" id="L276">                    index = containerIndex,</span>
+<span class="nc" id="L277">                    scrollOffset = gamesModuleOffsetInItem</span>
+                )
+<span class="nc" id="L279">                onScrollToGamesConsumed()</span>
+            }
+<span class="nc" id="L281">        }</span>
+
+<span class="nc" id="L283">        Scaffold(</span>
+<span class="nc" id="L284">            modifier = Modifier</span>
+<span class="nc" id="L285">                .fillMaxSize()</span>
+<span class="nc" id="L286">                .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L287">            containerColor = WikipediaTheme.colors.paperColor</span>
+<span class="nc" id="L288">        ) { paddingValues -&gt;</span>
+<span class="nc" id="L289">            var isRefreshing by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L290">            val state = rememberPullToRefreshState()</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">            if (readingHistoryState is UiState.Success) {</span>
+<span class="nc" id="L292">                isRefreshing = false</span>
+            }
+
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            if (!isLoggedIn) {</span>
+<span class="nc" id="L296">                Box(</span>
+<span class="nc" id="L297">                    modifier = Modifier</span>
+<span class="nc" id="L298">                        .fillMaxSize()</span>
+<span class="nc" id="L299">                        .padding(paddingValues)</span>
+                ) {
+<span class="nc" id="L301">                    val scrollState = rememberScrollState()</span>
+
+<span class="nc" id="L303">                    Column(</span>
+<span class="nc" id="L304">                        modifier = Modifier</span>
+<span class="nc" id="L305">                            .align(Alignment.Center)</span>
+<span class="nc" id="L306">                            .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L307">                            .verticalScroll(scrollState),</span>
+<span class="nc" id="L308">                        horizontalAlignment = Alignment.CenterHorizontally</span>
+                    ) {
+<span class="nc" id="L310">                        Image(</span>
+<span class="nc" id="L311">                            modifier = Modifier.size(164.dp),</span>
+<span class="nc" id="L312">                            painter = painterResource(R.drawable.illustration_activity_tab_logged_out),</span>
+<span class="nc" id="L313">                            contentDescription = null</span>
+                        )
+<span class="nc" id="L315">                        Text(</span>
+<span class="nc" id="L316">                            modifier = Modifier.padding(top = 16.dp),</span>
+<span class="nc" id="L317">                            text = stringResource(R.string.activity_tab_logged_out_title),</span>
+<span class="nc" id="L318">                            style = MaterialTheme.typography.titleSmall,</span>
+<span class="nc" id="L319">                            textAlign = TextAlign.Center,</span>
+<span class="nc" id="L320">                            color = WikipediaTheme.colors.primaryColor</span>
+                        )
+<span class="nc" id="L322">                        Button(</span>
+<span class="nc" id="L323">                            modifier = Modifier.padding(top = 16.dp),</span>
+<span class="nc" id="L324">                            contentPadding = PaddingValues(horizontal = 18.dp),</span>
+<span class="nc" id="L325">                            colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L326">                                containerColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L327">                                contentColor = Color.White,</span>
+                            ),
+<span class="nc" id="L329">                            onClick = {</span>
+<span class="nc" id="L330">                                ActivityTabEvent.submit(activeInterface = &quot;activity_tab_login&quot;, action = &quot;create_account_click&quot;)</span>
+<span class="nc" id="L331">                                startActivity(</span>
+<span class="nc" id="L332">                                    LoginActivity.newIntent(</span>
+<span class="nc" id="L333">                                        requireContext(),</span>
+<span class="nc" id="L334">                                        LoginActivity.SOURCE_ACTIVITY_TAB</span>
+                                    )
+                                )
+<span class="nc" id="L337">                            },</span>
+<span class="nc" id="L338">                        ) {</span>
+<span class="nc" id="L339">                            Icon(</span>
+<span class="nc" id="L340">                                modifier = Modifier.size(20.dp),</span>
+<span class="nc" id="L341">                                painter = painterResource(R.drawable.ic_user_avatar),</span>
+<span class="nc" id="L342">                                tint = Color.White,</span>
+<span class="nc" id="L343">                                contentDescription = null</span>
+                            )
+<span class="nc" id="L345">                            Text(</span>
+<span class="nc" id="L346">                                modifier = Modifier.padding(start = 6.dp),</span>
+<span class="nc" id="L347">                                text = stringResource(R.string.create_account_button),</span>
+<span class="nc" id="L348">                                style = MaterialTheme.typography.labelLarge</span>
+                            )
+<span class="nc" id="L350">                        }</span>
+<span class="nc" id="L351">                        Button(</span>
+<span class="nc" id="L352">                            contentPadding = PaddingValues(horizontal = 18.dp),</span>
+<span class="nc" id="L353">                            colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L354">                                containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L355">                                contentColor = WikipediaTheme.colors.primaryColor,</span>
+                            ),
+<span class="nc" id="L357">                            onClick = {</span>
+<span class="nc" id="L358">                                ActivityTabEvent.submit(activeInterface = &quot;activity_tab_login&quot;, action = &quot;login_click&quot;)</span>
+<span class="nc" id="L359">                                startActivity(</span>
+<span class="nc" id="L360">                                    LoginActivity.newIntent(</span>
+<span class="nc" id="L361">                                        requireContext(),</span>
+<span class="nc" id="L362">                                        LoginActivity.SOURCE_ACTIVITY_TAB,</span>
+<span class="nc" id="L363">                                        createAccountFirst = false</span>
+                                    )
+                                )
+<span class="nc" id="L366">                            },</span>
+<span class="nc" id="L367">                        ) {</span>
+<span class="nc" id="L368">                            Text(</span>
+<span class="nc" id="L369">                                modifier = Modifier.padding(start = 6.dp),</span>
+<span class="nc" id="L370">                                text = stringResource(R.string.menu_login),</span>
+<span class="nc" id="L371">                                style = MaterialTheme.typography.labelLarge</span>
+                            )
+<span class="nc" id="L373">                        }</span>
+<span class="nc" id="L374">                    }</span>
+<span class="nc" id="L375">                }</span>
+<span class="nc" id="L376">                return@Scaffold</span>
+<span class="nc" id="L377">            }</span>
+
+<span class="nc bnc" id="L379" title="All 2 branches missed.">            if (modules.noModulesVisible(haveAtLeastOneDonation = haveAtLeastOneDonation, areGamesAvailable = areGamesAvailable)) {</span>
+<span class="nc" id="L380">                Box(</span>
+<span class="nc" id="L381">                    modifier = Modifier</span>
+<span class="nc" id="L382">                        .fillMaxSize()</span>
+<span class="nc" id="L383">                        .padding(paddingValues)</span>
+                ) {
+<span class="nc" id="L385">                    val scrollState = rememberScrollState()</span>
+<span class="nc" id="L386">                    Column(</span>
+<span class="nc" id="L387">                        modifier = Modifier</span>
+<span class="nc" id="L388">                            .align(Alignment.Center)</span>
+<span class="nc" id="L389">                            .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L390">                            .verticalScroll(scrollState),</span>
+<span class="nc" id="L391">                        horizontalAlignment = Alignment.CenterHorizontally</span>
+                    ) {
+<span class="nc" id="L393">                        Image(</span>
+<span class="nc" id="L394">                            modifier = Modifier.size(164.dp),</span>
+<span class="nc" id="L395">                            painter = painterResource(R.drawable.illustration_activity_tab_empty),</span>
+<span class="nc" id="L396">                            contentDescription = null</span>
+                        )
+<span class="nc" id="L398">                        HtmlText(</span>
+<span class="nc" id="L399">                            modifier = Modifier.padding(vertical = 16.dp),</span>
+<span class="nc" id="L400">                            text = stringResource(R.string.activity_tab_customize_screen_no_modules_message),</span>
+<span class="nc" id="L401">                            style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L402">                            textAlign = TextAlign.Center,</span>
+<span class="nc" id="L403">                            color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L404">                            linkInteractionListener = {</span>
+<span class="nc" id="L405">                                startActivity(ActivityTabCustomizationActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L406">                            }</span>
+                        )
+<span class="nc" id="L408">                    }</span>
+<span class="nc" id="L409">                    return@Scaffold</span>
+                }
+<span class="nc" id="L411">            }</span>
+
+<span class="nc" id="L413">            PullToRefreshBox(</span>
+<span class="nc" id="L414">                onRefresh = {</span>
+<span class="nc" id="L415">                    isRefreshing = true</span>
+<span class="nc" id="L416">                    viewModel.shouldRefreshTimelineSilently = false</span>
+<span class="nc" id="L417">                    timelineItems.refresh()</span>
+<span class="nc" id="L418">                    viewModel.loadAll()</span>
+<span class="nc" id="L419">                },</span>
+<span class="nc" id="L420">                isRefreshing = isRefreshing,</span>
+<span class="nc" id="L421">                state = state,</span>
+<span class="nc" id="L422">                indicator = {</span>
+<span class="nc" id="L423">                    Indicator(</span>
+<span class="nc" id="L424">                        state = state,</span>
+<span class="nc" id="L425">                        isRefreshing = isRefreshing,</span>
+<span class="nc" id="L426">                        modifier = Modifier.align(Alignment.TopCenter),</span>
+<span class="nc" id="L427">                        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L428">                        color = WikipediaTheme.colors.progressiveColor</span>
+                    )
+<span class="nc" id="L430">                }</span>
+<span class="nc" id="L431">            ) {</span>
+<span class="nc" id="L432">                LazyColumn(</span>
+<span class="nc" id="L433">                    state = listState</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">                ) {</span>
+<span class="nc bnc" id="L435" title="All 4 branches missed.">                    if (modules.isModuleVisible(ModuleType.TIME_SPENT) || modules.isModuleVisible(ModuleType.READING_INSIGHTS)) {</span>
+<span class="nc" id="L436">                        item {</span>
+<span class="nc" id="L437">                            Column(</span>
+<span class="nc" id="L438">                                modifier = Modifier</span>
+<span class="nc" id="L439">                                    .fillMaxWidth()</span>
+<span class="nc" id="L440">                                    .padding(paddingValues)</span>
+<span class="nc" id="L441">                                    .background(</span>
+<span class="nc" id="L442">                                        brush = Brush.verticalGradient(</span>
+<span class="nc" id="L443">                                            colors = listOf(</span>
+<span class="nc" id="L444">                                                WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L445">                                                WikipediaTheme.colors.additionColor</span>
+                                            )
+                                        )
+                                    )
+                            ) {
+<span class="nc" id="L450">                                ReadingHistoryModule(</span>
+<span class="nc" id="L451">                                    modifier = Modifier.align(Alignment.CenterHorizontally),</span>
+<span class="nc" id="L452">                                    userName = userName,</span>
+<span class="nc" id="L453">                                    showTimeSpent = modules.isModuleVisible(ModuleType.TIME_SPENT),</span>
+<span class="nc" id="L454">                                    showInsights = modules.isModuleVisible(ModuleType.READING_INSIGHTS),</span>
+<span class="nc" id="L455">                                    readingHistoryState = readingHistoryState,</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">                                    onArticlesReadClick = { callback()?.onNavigateTo(NavTab.SEARCH) },</span>
+<span class="nc bnc" id="L457" title="All 2 branches missed.">                                    onArticlesSavedClick = { callback()?.onNavigateTo(NavTab.READING_LISTS) },</span>
+<span class="nc" id="L458">                                    onExploreClick = {</span>
+<span class="nc" id="L459">                                        ActivityTabEvent.submit(activeInterface = &quot;activity_tab&quot;, action = &quot;explore_click&quot;, editCount = viewModel.getTotalEditsCount())</span>
+<span class="nc bnc" id="L460" title="All 2 branches missed.">                                        callback()?.onNavigateTo(NavTab.READING_LISTS)</span>
+<span class="nc" id="L461">                                    },</span>
+<span class="nc" id="L462">                                    onCategoryItemClick = { category -&gt;</span>
+<span class="nc" id="L463">                                        val pageTitle =</span>
+<span class="nc" id="L464">                                            viewModel.createPageTitleForCategory(category)</span>
+<span class="nc" id="L465">                                        startActivity(</span>
+<span class="nc" id="L466">                                            CategoryActivity.newIntent(</span>
+<span class="nc" id="L467">                                                requireActivity(),</span>
+<span class="nc" id="L468">                                                pageTitle</span>
+                                            )
+                                        )
+<span class="nc" id="L471">                                    },</span>
+<span class="nc" id="L472">                                    wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L473">                                        retryClickListener = {</span>
+<span class="nc" id="L474">                                            viewModel.loadReadingHistory()</span>
+<span class="nc" id="L475">                                        }</span>
+                                    )
+                                )
+<span class="nc" id="L478">                            }</span>
+<span class="nc" id="L479">                        }</span>
+                    }
+<span class="nc" id="L481">                    item {</span>
+<span class="nc" id="L482">                        Column(</span>
+<span class="nc" id="L483">                            modifier = Modifier</span>
+<span class="nc" id="L484">                                .fillMaxWidth()</span>
+<span class="nc" id="L485">                                .padding(paddingValues)</span>
+<span class="nc" id="L486">                                .background(</span>
+<span class="nc" id="L487">                                    brush = Brush.verticalGradient(</span>
+<span class="nc" id="L488">                                        colors = listOf(</span>
+<span class="nc" id="L489">                                            WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L490">                                            WikipediaTheme.colors.additionColor</span>
+                                        )
+                                    )
+                                )
+                        ) {
+<span class="nc bnc" id="L495" title="All 4 branches missed.">                            if (modules.isModuleVisible(ModuleType.EDITING_INSIGHTS) || modules.isModuleVisible(ModuleType.IMPACT)) {</span>
+<span class="nc" id="L496">                                Row(</span>
+<span class="nc" id="L497">                                    modifier = Modifier.fillMaxWidth(),</span>
+                                ) {
+<span class="nc" id="L499">                                    Text(</span>
+<span class="nc" id="L500">                                        modifier = Modifier</span>
+<span class="nc" id="L501">                                            .padding(start = 16.dp, end = 16.dp, top = 24.dp)</span>
+<span class="nc" id="L502">                                            .weight(1f),</span>
+<span class="nc" id="L503">                                        text = stringResource(R.string.activity_tab_impact),</span>
+<span class="nc" id="L504">                                        style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L505">                                        fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L506">                                        color = WikipediaTheme.colors.primaryColor</span>
+                                    )
+<span class="nc" id="L508">                                    Box(</span>
+<span class="nc" id="L509">                                        modifier = Modifier</span>
+<span class="nc" id="L510">                                            .padding(start = 16.dp, end = 16.dp, top = 24.dp)</span>
+<span class="nc" id="L511">                                            .align(Alignment.CenterVertically)</span>
+<span class="nc" id="L512">                                            .background(color = WikipediaTheme.colors.paperColor)</span>
+<span class="nc" id="L513">                                            .border(</span>
+<span class="nc" id="L514">                                                1.5.dp,</span>
+<span class="nc" id="L515">                                                WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L516">                                                RoundedCornerShape(4.dp)</span>
+                                            )
+                                    ) {
+<span class="nc" id="L519">                                        Text(</span>
+<span class="nc" id="L520">                                            modifier = Modifier.padding(start = 4.dp, end = 4.5.dp, top = 3.5.dp, bottom = 3.dp),</span>
+<span class="nc" id="L521">                                            text = languageCode.uppercase(),</span>
+<span class="nc" id="L522">                                            fontSize = 10.sp,</span>
+<span class="nc" id="L523">                                            fontFamily = FontFamily.Monospace,</span>
+<span class="nc" id="L524">                                            fontWeight = FontWeight.Bold,</span>
+<span class="nc" id="L525">                                            color = WikipediaTheme.colors.primaryColor</span>
+                                        )
+<span class="nc" id="L527">                                    }</span>
+<span class="nc" id="L528">                                }</span>
+<span class="nc" id="L529">                            }</span>
+
+<span class="nc bnc" id="L531" title="All 2 branches missed.">                            if (modules.isModuleVisible(ModuleType.EDITING_INSIGHTS)) {</span>
+<span class="nc" id="L532">                                EditingInsightsModule(</span>
+<span class="nc" id="L533">                                    modifier = Modifier</span>
+<span class="nc" id="L534">                                        .fillMaxWidth()</span>
+<span class="nc" id="L535">                                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),</span>
+<span class="nc" id="L536">                                    uiState = impactUiState,</span>
+<span class="nc" id="L537">                                    onPageItemClick = {</span>
+<span class="nc" id="L538">                                        val entry = HistoryEntry(</span>
+<span class="nc" id="L539">                                            title = it,</span>
+<span class="nc" id="L540">                                            source = HistoryEntry.SOURCE_ACTIVITY_TAB</span>
+                                        )
+<span class="nc" id="L542">                                        requireActivity().startActivity(</span>
+<span class="nc" id="L543">                                            PageActivity.newIntentForNewTab(</span>
+<span class="nc" id="L544">                                            context = requireActivity(),</span>
+<span class="nc" id="L545">                                            entry = entry,</span>
+<span class="nc" id="L546">                                            title = it</span>
+                                        ))
+<span class="nc" id="L548">                                    },</span>
+<span class="nc" id="L549">                                    onContributionClick = {</span>
+<span class="nc" id="L550">                                        requireActivity().startActivity(</span>
+<span class="nc" id="L551">                                            UserContribListActivity.newIntent(</span>
+<span class="nc" id="L552">                                            context = requireActivity(),</span>
+<span class="nc" id="L553">                                            userName = userName</span>
+                                        ))
+<span class="nc" id="L555">                                    },</span>
+<span class="nc" id="L556">                                    onSuggestedEditsClick = {</span>
+<span class="nc" id="L557">                                        ActivityTabEvent.submit(activeInterface = &quot;activity_tab&quot;, action = &quot;sugg_edit_click&quot;, editCount = viewModel.getTotalEditsCount())</span>
+<span class="nc" id="L558">                                        requireActivity().startActivity(</span>
+<span class="nc" id="L559">                                            SuggestedEditsTasksActivity.newIntent(</span>
+<span class="nc" id="L560">                                            context = requireActivity()</span>
+                                        ))
+<span class="nc" id="L562">                                    },</span>
+<span class="nc" id="L563">                                    wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L564">                                        retryClickListener = {</span>
+<span class="nc" id="L565">                                            viewModel.loadImpact()</span>
+<span class="nc" id="L566">                                        }</span>
+                                    )
+                                )
+<span class="nc" id="L569">                            }</span>
+
+<span class="nc bnc" id="L571" title="All 2 branches missed.">                            if (modules.isModuleVisible(ModuleType.IMPACT)) {</span>
+<span class="nc" id="L572">                                ImpactModule(</span>
+<span class="nc" id="L573">                                    modifier = Modifier</span>
+<span class="nc" id="L574">                                        .fillMaxWidth()</span>
+<span class="nc" id="L575">                                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),</span>
+<span class="nc" id="L576">                                    uiState = impactUiState,</span>
+<span class="nc" id="L577">                                    onTotalEditsClick = {</span>
+<span class="nc" id="L578">                                        startActivity(UserContribListActivity.newIntent(requireContext(), userName))</span>
+<span class="nc" id="L579">                                    },</span>
+<span class="nc" id="L580">                                    wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L581">                                        retryClickListener = {</span>
+<span class="nc" id="L582">                                            viewModel.loadImpact()</span>
+<span class="nc" id="L583">                                        }</span>
+                                    )
+                                )
+<span class="nc" id="L586">                            }</span>
+
+<span class="nc bnc" id="L588" title="All 4 branches missed.">                            if (modules.isModuleVisible(ModuleType.GAMES, areGamesAvailable = areGamesAvailable) || modules.isModuleVisible(ModuleType.DONATIONS)) {</span>
+<span class="nc" id="L589">                                Text(</span>
+<span class="nc" id="L590">                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp),</span>
+<span class="nc" id="L591">                                    text = stringResource(R.string.activity_tab_highlights),</span>
+<span class="nc" id="L592">                                    style = MaterialTheme.typography.titleLarge,</span>
+<span class="nc" id="L593">                                    fontWeight = FontWeight.Medium,</span>
+<span class="nc" id="L594">                                    color = WikipediaTheme.colors.primaryColor</span>
+                                )
+<span class="nc" id="L596">                            }</span>
+
+<span class="nc bnc" id="L598" title="All 2 branches missed.">                            if (modules.isModuleVisible(ModuleType.GAMES, areGamesAvailable = areGamesAvailable)) {</span>
+<span class="nc" id="L599">                                WikiGamesModule(</span>
+<span class="nc" id="L600">                                    modifier = Modifier</span>
+<span class="nc" id="L601">                                        .fillMaxWidth()</span>
+<span class="nc" id="L602">                                        .padding(start = 16.dp, end = 16.dp, top = 16.dp)</span>
+<span class="nc" id="L603">                                        .onGloballyPositioned { coordinates -&gt;</span>
+<span class="nc" id="L604">                                            val offset = coordinates.positionInParent().y.toInt()</span>
+<span class="nc" id="L605">                                            gamesModuleOffsetInItem = offset</span>
+<span class="nc" id="L606">                                        },</span>
+<span class="nc" id="L607">                                    uiState = wikiGamesUiState,</span>
+<span class="nc" id="L608">                                    onPlayGameCardClick = {</span>
+<span class="nc" id="L609">                                        requireActivity().startActivity(OnThisDayGameActivity.newIntent(</span>
+<span class="nc" id="L610">                                            context = requireContext(),</span>
+<span class="nc" id="L611">                                            invokeSource = Constants.InvokeSource.ACTIVITY_TAB,</span>
+<span class="nc" id="L612">                                            wikiSite = WikipediaApp.instance.wikiSite</span>
+                                        ))
+<span class="nc" id="L614">                                    },</span>
+<span class="nc" id="L615">                                    onStatsCardClick = {</span>
+<span class="nc" id="L616">                                        requireActivity().startActivity(GamesHubActivity.newIntent(</span>
+<span class="nc" id="L617">                                            context = requireContext()</span>
+                                        ))
+<span class="nc" id="L619">                                    },</span>
+<span class="nc" id="L620">                                    wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L621">                                        retryClickListener = {</span>
+<span class="nc" id="L622">                                            viewModel.loadWikiGamesStats()</span>
+<span class="nc" id="L623">                                        }</span>
+                                    )
+                                )
+<span class="nc" id="L626">                            }</span>
+
+<span class="nc bnc" id="L628" title="All 2 branches missed.">                            if (modules.isModuleVisible(ModuleType.DONATIONS, haveAtLeastOneDonation = haveAtLeastOneDonation)) {</span>
+<span class="nc" id="L629">                                DonationModule(</span>
+<span class="nc" id="L630">                                    modifier = Modifier</span>
+<span class="nc" id="L631">                                        .fillMaxWidth()</span>
+<span class="nc" id="L632">                                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),</span>
+<span class="nc" id="L633">                                    uiState = donationUiState,</span>
+<span class="nc" id="L634">                                    onClick = {</span>
+<span class="nc" id="L635">                                        ActivityTabEvent.submit(activeInterface = &quot;activity_tab&quot;, action = &quot;last_donation_click&quot;,</span>
+<span class="nc bnc" id="L636" title="All 2 branches missed.">                                            editCount = viewModel.getTotalEditsCount(), state = if (viewModel.hasNoDonationData()) &quot;empty&quot; else &quot;complete&quot;)</span>
+<span class="nc bnc" id="L637" title="All 4 branches missed.">                                        (requireActivity() as? BaseActivity)?.launchDonateDialog(</span>
+<span class="nc" id="L638">                                            campaignId = ActivityTabViewModel.CAMPAIGN_ID</span>
+                                        )
+<span class="nc" id="L640">                                    }</span>
+                                )
+<span class="nc" id="L642">                            }</span>
+
+<span class="nc bnc" id="L644" title="All 2 branches missed.">                            if (modules.isModuleVisible(ModuleType.DONATIONS, haveAtLeastOneDonation = haveAtLeastOneDonation) ||</span>
+<span class="nc bnc" id="L645" title="All 2 branches missed.">                                modules.isModuleVisible(ModuleType.GAMES, areGamesAvailable = areGamesAvailable) ||</span>
+<span class="nc bnc" id="L646" title="All 2 branches missed.">                                modules.isModuleVisible(ModuleType.EDITING_INSIGHTS) ||</span>
+<span class="nc bnc" id="L647" title="All 2 branches missed.">                                modules.isModuleEnabled(ModuleType.IMPACT)) {</span>
+                                // Add bottom padding only if at least one of the modules in this gradient box is enabled.
+<span class="nc" id="L649">                                Spacer(modifier = Modifier.size(16.dp))</span>
+<span class="nc" id="L650">                            }</span>
+<span class="nc" id="L651">                        }</span>
+<span class="nc" id="L652">                    }</span>
+
+<span class="nc bnc" id="L654" title="All 2 branches missed.">                    if (modules.isModuleVisible(ModuleType.TIMELINE)) {</span>
+<span class="nc" id="L655">                        val isRefreshing = timelineItems.loadState.refresh is LoadState.Loading</span>
+<span class="nc bnc" id="L656" title="All 2 branches missed.">                        val isEmpty = timelineItems.itemCount == 0</span>
+<span class="nc" id="L657">                        when {</span>
+                            // Show loading for fresh navigation or explicit refresh, User came from tab navigation OR pulled to refresh
+<span class="nc bnc" id="L659" title="All 4 branches missed.">                            isRefreshing &amp;&amp; !refreshSilently -&gt; {</span>
+<span class="nc" id="L660">                                item {</span>
+<span class="nc" id="L661">                                    ActivityTabShimmerView()</span>
+<span class="nc" id="L662">                                }</span>
+<span class="nc" id="L663">                                return@LazyColumn</span>
+                            }
+                            // Show loading UI during silent refresh transition
+                            // User clicked timeline item (shouldRefreshTimelineSilently = true) and returned,
+                            // but timeline data is still loading/empty. Without this case, user would see empty state briefly before data loads instead of loading UI.
+<span class="nc bnc" id="L668" title="All 4 branches missed.">                            isEmpty &amp;&amp; refreshSilently -&gt; {</span>
+<span class="nc" id="L669">                                item {</span>
+<span class="nc" id="L670">                                    ActivityTabShimmerView()</span>
+<span class="nc" id="L671">                                }</span>
+<span class="nc" id="L672">                                return@LazyColumn</span>
+                            }
+                            // empty timeline - no data available
+<span class="nc bnc" id="L675" title="All 2 branches missed.">                            isEmpty -&gt; {</span>
+<span class="nc" id="L676">                                item {</span>
+<span class="nc" id="L677">                                    TimelineModuleEmptyView(</span>
+<span class="nc" id="L678">                                        modifier = Modifier</span>
+<span class="nc" id="L679">                                            .align(Alignment.Center)</span>
+<span class="nc" id="L680">                                            .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L681">                                            .padding(top = 32.dp, bottom = 52.dp)</span>
+                                    )
+<span class="nc" id="L683">                                }</span>
+<span class="nc" id="L684">                                return@LazyColumn</span>
+                            }
+                        }
+
+<span class="nc" id="L688">                        items(</span>
+<span class="nc" id="L689">                            count = timelineItems.itemCount,</span>
+<span class="nc" id="L690">                        ) { index -&gt;</span>
+<span class="nc" id="L691">                            when (val displayItem = timelineItems[index]) {</span>
+<span class="nc bnc" id="L692" title="All 2 branches missed.">                                is TimelineDisplayItem.DateSeparator -&gt; {</span>
+<span class="nc" id="L693">                                    TimelineDateSeparator(</span>
+<span class="nc" id="L694">                                        date = displayItem.date,</span>
+<span class="nc" id="L695">                                        modifier = Modifier</span>
+<span class="nc" id="L696">                                            .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L697">                                            .padding(top = 22.dp, bottom = 8.dp)</span>
+                                    )
+                                }
+<span class="nc bnc" id="L700" title="All 2 branches missed.">                                is TimelineDisplayItem.TimelineEntry -&gt; {</span>
+<span class="nc" id="L701">                                    TimelineModule(</span>
+<span class="nc" id="L702">                                        timelineItem = displayItem.item,</span>
+<span class="nc" id="L703">                                        onItemClick = {</span>
+<span class="nc" id="L704">                                            handleTimelineItemClick(it)</span>
+<span class="nc" id="L705">                                        }</span>
+                                    )
+<span class="nc" id="L707">                                    Spacer(modifier = Modifier.height(6.dp))</span>
+                                }
+<span class="nc bnc" id="L709" title="All 2 branches missed.">                                null -&gt; {}</span>
+<span class="nc" id="L710">                            }</span>
+<span class="nc" id="L711">                        }</span>
+
+<span class="nc bnc" id="L713" title="All 2 branches missed.">                        if (timelineItems.loadState.append is LoadState.Loading) {</span>
+<span class="nc" id="L714">                            item {</span>
+<span class="nc" id="L715">                                Box(</span>
+<span class="nc" id="L716">                                    modifier = Modifier</span>
+<span class="nc" id="L717">                                        .fillMaxWidth()</span>
+<span class="nc" id="L718">                                        .padding(vertical = 16.dp),</span>
+<span class="nc" id="L719">                                    contentAlignment = Alignment.Center</span>
+                                ) {
+<span class="nc" id="L721">                                    CircularProgressIndicator(</span>
+<span class="nc" id="L722">                                        color = WikipediaTheme.colors.progressiveColor</span>
+                                    )
+<span class="nc" id="L724">                                }</span>
+<span class="nc" id="L725">                            }</span>
+                        }
+                    }
+<span class="nc" id="L728">                }</span>
+<span class="nc" id="L729">            }</span>
+<span class="nc" id="L730">        }</span>
+<span class="nc" id="L731">    }</span>
+
+    @Preview
+    @Composable
+<span class="nc" id="L735">    fun ActivityTabScreenPreview() {</span>
+<span class="nc" id="L736">        val site = WikiSite(&quot;https://en.wikipedia.org/&quot;.toUri(), &quot;en&quot;)</span>
+<span class="nc" id="L737">        BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L738">            ActivityTabScreen(</span>
+<span class="nc" id="L739">                isLoggedIn = true,</span>
+<span class="nc" id="L740">                userName = &quot;User&quot;,</span>
+<span class="nc" id="L741">                languageCode = &quot;en&quot;,</span>
+<span class="nc" id="L742">                modules = ActivityTabModules(isDonationsEnabled = true),</span>
+<span class="nc" id="L743">                haveAtLeastOneDonation = true,</span>
+<span class="nc" id="L744">                areGamesAvailable = true,</span>
+<span class="nc" id="L745">                refreshSilently = false,</span>
+<span class="nc" id="L746">                readingHistoryState = UiState.Success(ActivityTabViewModel.ReadingHistory(</span>
+<span class="nc" id="L747">                    timeSpentThisWeek = 12345,</span>
+<span class="nc" id="L748">                    articlesReadThisMonth = 123,</span>
+<span class="nc" id="L749">                    lastArticleReadTime = LocalDateTime.now(),</span>
+<span class="nc" id="L750">                    articlesReadByWeek = listOf(0, 12, 34, 56),</span>
+<span class="nc" id="L751">                    articlesSavedThisMonth = 23,</span>
+<span class="nc" id="L752">                    lastArticleSavedTime = LocalDateTime.of(2025, 6, 1, 12, 30),</span>
+<span class="nc" id="L753">                    articlesSaved = listOf(</span>
+<span class="nc" id="L754">                        PageTitle(text = &quot;Psychology of art&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;Study of mental functions and behaviors&quot;, displayText = null),</span>
+<span class="nc" id="L755">                        PageTitle(text = &quot;Industrial design&quot;, wiki = site, thumbUrl = null, description = &quot;Process of design applied to physical products&quot;, displayText = null),</span>
+<span class="nc" id="L756">                        PageTitle(text = &quot;Dufourspitze&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;Highest mountain in Switzerland&quot;, displayText = null),</span>
+<span class="nc" id="L757">                        PageTitle(text = &quot;Barack Obama&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;President of the United States from 2009 to 2017&quot;, displayText = null),</span>
+<span class="nc" id="L758">                        PageTitle(text = &quot;Octagon house&quot;, wiki = site, thumbUrl = &quot;foo.jpg&quot;, description = &quot;North American house style briefly popular in the 1850s&quot;, displayText = null)</span>
+                    ),
+<span class="nc" id="L760">                    topCategories = listOf(</span>
+<span class="nc" id="L761">                        Category(2025, 1, &quot;Category:Ancient history&quot;, &quot;en&quot;, 1),</span>
+<span class="nc" id="L762">                        Category(2025, 1, &quot;Category:World literature&quot;, &quot;en&quot;, 1),</span>
+                    )
+                )),
+<span class="nc" id="L765">                donationUiState = UiState.Success(&quot;5 days ago&quot;),</span>
+<span class="nc" id="L766">                wikiGamesUiState = UiState.Success(OnThisDayGameViewModel.GameStatistics(</span>
+<span class="nc" id="L767">                    totalGamesPlayed = 10,</span>
+<span class="nc" id="L768">                    averageScore = 4.5,</span>
+<span class="nc" id="L769">                    currentStreak = 15,</span>
+<span class="nc" id="L770">                    bestStreak = 25</span>
+                )),
+<span class="nc" id="L772">                impactUiState = UiState.Success(Pair(GrowthUserImpact(totalEditsCount = 12345), 123456)),</span>
+<span class="nc" id="L773">                timelineFlow = emptyFlow()</span>
+            )
+<span class="nc" id="L775">        }</span>
+<span class="nc" id="L776">    }</span>
+
+    @Preview
+    @Composable
+<span class="nc" id="L780">    fun ActivityTabScreenEmptyPreview() {</span>
+<span class="nc" id="L781">        BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L782">            ActivityTabScreen(</span>
+<span class="nc" id="L783">                isLoggedIn = true,</span>
+<span class="nc" id="L784">                userName = &quot;User&quot;,</span>
+<span class="nc" id="L785">                languageCode = &quot;ru&quot;,</span>
+<span class="nc" id="L786">                modules = ActivityTabModules(isDonationsEnabled = true),</span>
+<span class="nc" id="L787">                haveAtLeastOneDonation = false,</span>
+<span class="nc" id="L788">                areGamesAvailable = false,</span>
+<span class="nc" id="L789">                refreshSilently = false,</span>
+<span class="nc" id="L790">                readingHistoryState = UiState.Success(ActivityTabViewModel.ReadingHistory(</span>
+<span class="nc" id="L791">                    timeSpentThisWeek = 0,</span>
+<span class="nc" id="L792">                    articlesReadThisMonth = 0,</span>
+<span class="nc" id="L793">                    lastArticleReadTime = null,</span>
+<span class="nc" id="L794">                    articlesReadByWeek = listOf(0, 0, 0, 0),</span>
+<span class="nc" id="L795">                    articlesSavedThisMonth = 0,</span>
+<span class="nc" id="L796">                    lastArticleSavedTime = null,</span>
+<span class="nc" id="L797">                    articlesSaved = emptyList(),</span>
+<span class="nc" id="L798">                    topCategories = emptyList()</span>
+                )),
+<span class="nc" id="L800">                donationUiState = UiState.Success(&quot;Unknown&quot;),</span>
+<span class="nc" id="L801">                wikiGamesUiState = UiState.Success(null),</span>
+<span class="nc" id="L802">                impactUiState = UiState.Success(Pair(GrowthUserImpact(), 0)),</span>
+<span class="nc" id="L803">                timelineFlow = emptyFlow()</span>
+            )
+<span class="nc" id="L805">        }</span>
+<span class="nc" id="L806">    }</span>
+
+    @Preview
+    @Composable
+<span class="nc" id="L810">    fun ActivityTabScreenLoggedOutPreview() {</span>
+<span class="nc" id="L811">        BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L812">            ActivityTabScreen(</span>
+<span class="nc" id="L813">                isLoggedIn = false,</span>
+<span class="nc" id="L814">                userName = &quot;User&quot;,</span>
+<span class="nc" id="L815">                languageCode = &quot;he&quot;,</span>
+<span class="nc" id="L816">                modules = ActivityTabModules(),</span>
+<span class="nc" id="L817">                haveAtLeastOneDonation = false,</span>
+<span class="nc" id="L818">                areGamesAvailable = false,</span>
+<span class="nc" id="L819">                refreshSilently = false,</span>
+<span class="nc" id="L820">                readingHistoryState = UiState.Success(ActivityTabViewModel.ReadingHistory(</span>
+<span class="nc" id="L821">                    timeSpentThisWeek = 0,</span>
+<span class="nc" id="L822">                    articlesReadThisMonth = 0,</span>
+<span class="nc" id="L823">                    lastArticleReadTime = null,</span>
+<span class="nc" id="L824">                    articlesReadByWeek = listOf(0, 0, 0, 0),</span>
+<span class="nc" id="L825">                    articlesSavedThisMonth = 0,</span>
+<span class="nc" id="L826">                    lastArticleSavedTime = null,</span>
+<span class="nc" id="L827">                    articlesSaved = emptyList(),</span>
+<span class="nc" id="L828">                    topCategories = emptyList()</span>
+                )),
+<span class="nc" id="L830">                donationUiState = UiState.Success(&quot;Unknown&quot;),</span>
+<span class="nc" id="L831">                wikiGamesUiState = UiState.Success(null),</span>
+<span class="nc" id="L832">                impactUiState = UiState.Success(Pair(GrowthUserImpact(), 0)),</span>
+<span class="nc" id="L833">                timelineFlow = emptyFlow()</span>
+            )
+<span class="nc" id="L835">        }</span>
+<span class="nc" id="L836">    }</span>
+
+    @Preview
+    @Composable
+<span class="nc" id="L840">    fun ActivityTabNoModulesPreview() {</span>
+<span class="nc" id="L841">        BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L842">            ActivityTabScreen(</span>
+<span class="nc" id="L843">                isLoggedIn = true,</span>
+<span class="nc" id="L844">                userName = &quot;User&quot;,</span>
+<span class="nc" id="L845">                languageCode = &quot;zh&quot;,</span>
+<span class="nc" id="L846">                modules = ActivityTabModules(</span>
+<span class="nc" id="L847">                    isTimeSpentEnabled = false,</span>
+<span class="nc" id="L848">                    isReadingInsightsEnabled = false,</span>
+<span class="nc" id="L849">                    isEditingInsightsEnabled = false,</span>
+<span class="nc" id="L850">                    isImpactEnabled = false,</span>
+<span class="nc" id="L851">                    isGamesEnabled = false,</span>
+<span class="nc" id="L852">                    isDonationsEnabled = false,</span>
+<span class="nc" id="L853">                    isTimelineEnabled = false</span>
+                ),
+<span class="nc" id="L855">                haveAtLeastOneDonation = true,</span>
+<span class="nc" id="L856">                areGamesAvailable = true,</span>
+<span class="nc" id="L857">                refreshSilently = false,</span>
+<span class="nc" id="L858">                readingHistoryState = UiState.Success(ActivityTabViewModel.ReadingHistory(</span>
+<span class="nc" id="L859">                    timeSpentThisWeek = 0,</span>
+<span class="nc" id="L860">                    articlesReadThisMonth = 0,</span>
+<span class="nc" id="L861">                    lastArticleReadTime = null,</span>
+<span class="nc" id="L862">                    articlesReadByWeek = listOf(0, 0, 0, 0),</span>
+<span class="nc" id="L863">                    articlesSavedThisMonth = 0,</span>
+<span class="nc" id="L864">                    lastArticleSavedTime = null,</span>
+<span class="nc" id="L865">                    articlesSaved = emptyList(),</span>
+<span class="nc" id="L866">                    topCategories = emptyList()</span>
+                )),
+<span class="nc" id="L868">                donationUiState = UiState.Success(&quot;Unknown&quot;),</span>
+<span class="nc" id="L869">                wikiGamesUiState = UiState.Success(null),</span>
+<span class="nc" id="L870">                impactUiState = UiState.Success(Pair(GrowthUserImpact(), 0)),</span>
+<span class="nc" id="L871">                timelineFlow = emptyFlow()</span>
+            )
+<span class="nc" id="L873">        }</span>
+<span class="nc" id="L874">    }</span>
+
+    companion object {
+        fun newInstance(): ActivityTabFragment {
+<span class="nc" id="L878">            return ActivityTabFragment().apply {</span>
+<span class="nc" id="L879">                arguments = Bundle().apply {</span>
+                    // TODO
+<span class="nc" id="L881">                }</span>
+<span class="nc" id="L882">            }</span>
+        }
+    }
+
+    private fun handleMenuItemClick(menuItem: MenuItem): Boolean {
+<span class="nc" id="L887">        return when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L888" title="All 2 branches missed.">            R.id.menu_customize_activity_tab -&gt; {</span>
+<span class="nc" id="L889">                ActivityTabEvent.submit(activeInterface = &quot;activity_tab_overflow_menu&quot;, action = &quot;customize_click&quot;)</span>
+<span class="nc" id="L890">                startActivity(ActivityTabCustomizationActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L891">                true</span>
+            }
+<span class="nc bnc" id="L893" title="All 2 branches missed.">            R.id.menu_clear_history -&gt; {</span>
+<span class="nc" id="L894">                ActivityTabEvent.submit(activeInterface = &quot;activity_tab_overflow_menu&quot;, action = &quot;clear_history_click&quot;)</span>
+<span class="nc" id="L895">                HistoryFragment.clearAllHistory(requireContext(), lifecycleScope) {</span>
+<span class="nc" id="L896">                    viewModel.loadAll()</span>
+<span class="nc" id="L897">                }</span>
+<span class="nc" id="L898">                true</span>
+            }
+<span class="nc bnc" id="L900" title="All 2 branches missed.">            R.id.menu_clear_donation_history -&gt; {</span>
+<span class="nc" id="L901">                ActivityTabEvent.submit(activeInterface = &quot;activity_tab_overflow_menu&quot;, action = &quot;clear_donation_history_click&quot;)</span>
+<span class="nc" id="L902">                Prefs.donationResults = emptyList()</span>
+<span class="nc" id="L903">                Prefs.activityTabModules = Prefs.activityTabModules.setModuleEnabled(ModuleType.DONATIONS, false)</span>
+<span class="nc" id="L904">                viewModel.loadAll()</span>
+<span class="nc" id="L905">                true</span>
+            }
+<span class="nc bnc" id="L907" title="All 2 branches missed.">            R.id.menu_learn_more -&gt; {</span>
+<span class="nc" id="L908">                ActivityTabEvent.submit(activeInterface = &quot;activity_tab_overflow_menu&quot;, action = &quot;learn_click&quot;)</span>
+<span class="nc" id="L909">                UriUtil.visitInExternalBrowser(requireActivity(), getString(R.string.activity_tab_url).toUri())</span>
+<span class="nc" id="L910">                true</span>
+            }
+<span class="nc bnc" id="L912" title="All 2 branches missed.">            R.id.menu_report_feature -&gt; {</span>
+<span class="nc" id="L913">                ActivityTabEvent.submit(activeInterface = &quot;activity_tab_overflow_menu&quot;, action = &quot;problem_click&quot;)</span>
+<span class="nc" id="L914">                FeedbackUtil.composeEmail(requireContext(),</span>
+<span class="nc" id="L915">                    subject = getString(R.string.activity_tab_report_email_subject),</span>
+<span class="nc" id="L916">                    body = getString(R.string.activity_tab_report_email_body))</span>
+<span class="nc" id="L917">                true</span>
+            }
+<span class="nc" id="L919">            else -&gt; false</span>
+        }
+    }
+
+    private fun handleTimelineItemClick(item: TimelineItem) {
+<span class="nc" id="L924">        viewModel.shouldRefreshTimelineSilently = true</span>
+<span class="nc bnc" id="L925" title="All 2 branches missed.">        when (item.activitySource) {</span>
+<span class="nc bnc" id="L926" title="All 2 branches missed.">            ActivitySource.EDIT -&gt; {</span>
+<span class="nc" id="L927">                startActivity(</span>
+<span class="nc" id="L928">                    ArticleEditDetailsActivity.newIntent(</span>
+<span class="nc" id="L929">                        requireContext(),</span>
+<span class="nc" id="L930">                        PageTitle(</span>
+<span class="nc" id="L931">                            item.apiTitle,</span>
+<span class="nc" id="L932">                            viewModel.wikiSiteForTimeline,</span>
+<span class="nc" id="L933">                            item.thumbnailUrl,</span>
+<span class="nc" id="L934">                            item.description,</span>
+<span class="nc" id="L935">                            item.displayTitle</span>
+<span class="nc" id="L936">                        ), item.pageId, revisionTo = item.id</span>
+                    )
+                )
+            } else -&gt; {
+<span class="nc" id="L940">                val pageTitle = item.toPageTitle()</span>
+<span class="nc" id="L941">                startActivity(</span>
+<span class="nc" id="L942">                    PageActivity.newIntentForCurrentTab(</span>
+<span class="nc" id="L943">                        requireContext(),</span>
+<span class="nc" id="L944">                        HistoryEntry(pageTitle, HistoryEntry.SOURCE_ACTIVITY_TAB),</span>
+<span class="nc" id="L945">                        pageTitle</span>
+                    )
+                )
+            }
+        }
+<span class="nc" id="L950">    }</span>
+
+    private fun callback(): Callback? {
+<span class="nc" id="L953">        return getCallback(this, Callback::class.java)</span>
+    }
+}
+
+@Composable
+fun CommonCardHeader(
+<span class="nc bnc" id="L959" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    icon: Painter,
+    title: String,
+<span class="nc bnc" id="L962" title="All 2 branches missed.">    subtitle: String? = null,</span>
+<span class="nc bnc" id="L963" title="All 2 branches missed.">    useHtmlText: Boolean = false,</span>
+<span class="nc" id="L964">    showChevron: Boolean = false,</span>
+<span class="nc bnc" id="L965" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L966">    Row(</span>
+<span class="nc" id="L967">        modifier = modifier</span>
+<span class="nc" id="L968">            .fillMaxWidth()</span>
+    ) {
+<span class="nc" id="L970">        Column(modifier = Modifier.weight(1f)) {</span>
+<span class="nc" id="L971">            Row(</span>
+<span class="nc" id="L972">                modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L973">                horizontalArrangement = Arrangement.spacedBy(8.dp)</span>
+            ) {
+<span class="nc" id="L975">                Icon(</span>
+<span class="nc" id="L976">                    modifier = Modifier.size(16.dp),</span>
+<span class="nc" id="L977">                    painter = icon,</span>
+<span class="nc" id="L978">                    tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L979">                    contentDescription = null</span>
+                )
+<span class="nc bnc" id="L981" title="All 2 branches missed.">                if (useHtmlText) {</span>
+<span class="nc" id="L982">                    HtmlText(</span>
+<span class="nc" id="L983">                        text = title,</span>
+<span class="nc" id="L984">                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Normal),</span>
+<span class="nc" id="L985">                        color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L986">                        lineHeight = MaterialTheme.typography.labelMedium.lineHeight</span>
+                    )
+                } else {
+<span class="nc" id="L989">                    Text(</span>
+<span class="nc" id="L990">                        text = title,</span>
+<span class="nc" id="L991">                        style = MaterialTheme.typography.labelMedium,</span>
+<span class="nc" id="L992">                        color = WikipediaTheme.colors.primaryColor</span>
+                    )
+                }
+<span class="nc" id="L995">            }</span>
+<span class="nc bnc" id="L996" title="All 2 branches missed.">            subtitle?.let {</span>
+<span class="nc" id="L997">                Text(</span>
+<span class="nc" id="L998">                    text = it,</span>
+<span class="nc" id="L999">                    modifier = Modifier.padding(top = 4.dp),</span>
+<span class="nc" id="L1000">                    style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L1001">                    color = WikipediaTheme.colors.secondaryColor</span>
+                )
+<span class="nc" id="L1003">            }</span>
+<span class="nc" id="L1004">        }</span>
+<span class="nc bnc" id="L1005" title="All 2 branches missed.">        if (showChevron) {</span>
+<span class="nc" id="L1006">            Icon(</span>
+<span class="nc" id="L1007">                modifier = Modifier.size(24.dp),</span>
+<span class="nc" id="L1008">                painter = painterResource(R.drawable.ic_chevron_forward_white_24dp),</span>
+<span class="nc" id="L1009">                tint = WikipediaTheme.colors.secondaryColor,</span>
+<span class="nc" id="L1010">                contentDescription = null</span>
+            )
+<span class="nc" id="L1012">        }</span>
+<span class="nc" id="L1013">    }</span>
+<span class="nc" id="L1014">}</span>
+
+@Composable
+fun ActivityTabShimmerView(
+<span class="nc" id="L1018">    size: Dp = 120.dp</span>
+<span class="nc bnc" id="L1019" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L1020">    val transition = rememberInfiniteTransition()</span>
+<span class="nc" id="L1021">    Box(</span>
+<span class="nc" id="L1022">        modifier = Modifier</span>
+<span class="nc" id="L1023">            .padding(16.dp)</span>
+<span class="nc" id="L1024">            .clip(RoundedCornerShape(size = 12.dp))</span>
+<span class="nc" id="L1025">            .fillMaxWidth()</span>
+<span class="nc" id="L1026">            .shimmerEffect(transition = transition)</span>
+<span class="nc" id="L1027">            .size(size)</span>
+    )
+<span class="nc" id="L1029">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

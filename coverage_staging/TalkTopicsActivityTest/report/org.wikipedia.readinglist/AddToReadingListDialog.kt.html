@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AddToReadingListDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">AddToReadingListDialog.kt</span></div><h1>AddToReadingListDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.annotation.SuppressLint
+import android.content.DialogInterface
+import android.os.Bundle
+import android.os.Parcelable
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.os.bundleOf
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.databinding.DialogAddToReadingListBinding
+import org.wikipedia.extensions.parcelableArrayList
+import org.wikipedia.page.ExtendedBottomSheetDialogFragment
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.ReadingListTitleDialog.readingListTitleDialog
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil.getDimension
+import org.wikipedia.util.DimenUtil.roundedDpToPx
+import org.wikipedia.util.FeedbackUtil.makeSnackbar
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L35">open class AddToReadingListDialog : ExtendedBottomSheetDialogFragment() {</span>
+    private var _binding: DialogAddToReadingListBinding? = null
+<span class="nc" id="L37">    private val binding get() = _binding!!</span>
+
+    private lateinit var titles: List&lt;PageTitle&gt;
+    private lateinit var adapter: ReadingListAdapter
+<span class="nc" id="L41">    private val createClickListener = CreateButtonClickListener()</span>
+    private var showDefaultList = false
+<span class="nc" id="L43">    private val displayedLists = mutableListOf&lt;ReadingList&gt;()</span>
+<span class="nc" id="L44">    private val listItemCallback = ReadingListItemCallback()</span>
+<span class="nc" id="L45">    lateinit var invokeSource: InvokeSource</span>
+<span class="nc" id="L46">    var readingLists = listOf&lt;ReadingList&gt;()</span>
+<span class="nc" id="L47">    var dismissListener: DialogInterface.OnDismissListener? = null</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L50">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L51">        titles = requireArguments().parcelableArrayList(PAGE_TITLE_LIST)!!</span>
+<span class="nc" id="L52">        invokeSource = requireArguments().getSerializable(Constants.INTENT_EXTRA_INVOKE_SOURCE) as InvokeSource</span>
+<span class="nc" id="L53">        showDefaultList = requireArguments().getBoolean(SHOW_DEFAULT_LIST)</span>
+<span class="nc" id="L54">        adapter = ReadingListAdapter()</span>
+<span class="nc" id="L55">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+                              savedInstanceState: Bundle?): View {
+<span class="nc" id="L59">        _binding = DialogAddToReadingListBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L60">        binding.listOfLists.layoutManager = LinearLayoutManager(requireActivity())</span>
+<span class="nc" id="L61">        binding.listOfLists.adapter = adapter</span>
+<span class="nc" id="L62">        binding.createButton.setOnClickListener(createClickListener)</span>
+<span class="nc" id="L63">        updateLists()</span>
+<span class="nc" id="L64">        return binding.root</span>
+    }
+
+    override fun onStart() {
+<span class="nc" id="L68">        super.onStart()</span>
+<span class="nc" id="L69">        BottomSheetBehavior.from(binding.root.parent as View).peekHeight = roundedDpToPx(getDimension(R.dimen.readingListSheetPeekHeight))</span>
+<span class="nc" id="L70">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L73">        _binding = null</span>
+<span class="nc" id="L74">        super.onDestroyView()</span>
+<span class="nc" id="L75">    }</span>
+
+    override fun dismiss() {
+<span class="nc" id="L78">        super.dismiss()</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        dismissListener?.onDismiss(null)</span>
+<span class="nc" id="L80">    }</span>
+
+    @SuppressLint(&quot;NotifyDataSetChanged&quot;)
+    private fun updateLists() {
+<span class="nc" id="L84">        lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L85">            L.e(throwable)</span>
+<span class="nc" id="L86">        }) {</span>
+<span class="nc" id="L87">            readingLists = withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L88">                AppDatabase.instance.readingListDao().getAllLists()</span>
+            }
+<span class="nc" id="L90">            displayedLists.clear()</span>
+<span class="nc" id="L91">            displayedLists.addAll(readingLists)</span>
+<span class="nc bnc" id="L92" title="All 6 branches missed.">            if (!showDefaultList &amp;&amp; displayedLists.isNotEmpty()) {</span>
+<span class="nc" id="L93">                displayedLists.removeIf { it.isDefault }</span>
+            }
+<span class="nc" id="L95">            ReadingList.sort(displayedLists, Prefs.getReadingListSortMode(ReadingList.SORT_BY_NAME_ASC))</span>
+<span class="nc" id="L96">            adapter.notifyDataSetChanged()</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            if (displayedLists.isEmpty()) {</span>
+<span class="nc" id="L98">                showCreateListDialog()</span>
+            }
+<span class="nc" id="L100">        }</span>
+<span class="nc" id="L101">    }</span>
+
+<span class="nc" id="L103">    private inner class CreateButtonClickListener : View.OnClickListener {</span>
+        override fun onClick(v: View) {
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            if (readingLists.size &gt;= Constants.MAX_READING_LISTS_LIMIT) {</span>
+<span class="nc" id="L106">                val message = getString(R.string.reading_lists_limit_message)</span>
+<span class="nc" id="L107">                dismiss()</span>
+<span class="nc" id="L108">                makeSnackbar(requireActivity(), message).show()</span>
+            } else {
+<span class="nc" id="L110">                showCreateListDialog()</span>
+            }
+<span class="nc" id="L112">        }</span>
+    }
+
+    private fun showCreateListDialog() {
+<span class="nc" id="L116">        readingListTitleDialog(requireActivity(), &quot;&quot;, &quot;&quot;, readingLists.map { it.title }, callback = object : ReadingListTitleDialog.Callback {</span>
+            override fun onSuccess(text: String, description: String) {
+<span class="nc" id="L118">                lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L119">                    L.e(throwable)</span>
+<span class="nc" id="L120">                }) {</span>
+<span class="nc" id="L121">                    addAndDismiss(AppDatabase.instance.readingListDao().createList(text, description), titles)</span>
+<span class="nc" id="L122">                }</span>
+<span class="nc" id="L123">            }</span>
+<span class="nc" id="L124">        }).show()</span>
+<span class="nc" id="L125">    }</span>
+
+    private fun addAndDismiss(readingList: ReadingList, titles: List&lt;PageTitle&gt;?) {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (readingList.pages.size + titles!!.size &gt; Constants.MAX_READING_LIST_ARTICLE_LIMIT) {</span>
+<span class="nc" id="L129">            val message = getString(R.string.reading_list_article_limit_message, readingList.title, Constants.MAX_READING_LIST_ARTICLE_LIMIT)</span>
+<span class="nc" id="L130">            makeSnackbar(requireActivity(), message).show()</span>
+<span class="nc" id="L131">            dismiss()</span>
+<span class="nc" id="L132">            return</span>
+        }
+<span class="nc" id="L134">        commitChanges(readingList, titles)</span>
+<span class="nc" id="L135">    }</span>
+
+    open fun commitChanges(readingList: ReadingList, titles: List&lt;PageTitle&gt;) {
+<span class="nc" id="L138">        lifecycleScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L139">            L.e(throwable)</span>
+<span class="nc" id="L140">        }) {</span>
+<span class="nc" id="L141">            val addedTitlesList = withContext(Dispatchers.IO) {</span>
+<span class="nc" id="L142">                AppDatabase.instance.readingListPageDao().addPagesToListIfNotExist(readingList, titles)</span>
+            }
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            val message = if (addedTitlesList.isEmpty()) {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                if (titles.size == 1) getString(R.string.reading_list_article_already_exists_message, readingList.title, titles[0].displayText) else getString(R.string.reading_list_articles_already_exist_message, readingList.title)</span>
+            } else {
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                if (addedTitlesList.size == 1) getString(R.string.reading_list_article_added_to_named, addedTitlesList[0], readingList.title) else getString(R.string.reading_list_articles_added_to_named, addedTitlesList.size, readingList.title)</span>
+            }
+<span class="nc" id="L149">            showViewListSnackBar(readingList, message)</span>
+<span class="nc" id="L150">            dismiss()</span>
+<span class="nc" id="L151">        }</span>
+<span class="nc" id="L152">    }</span>
+
+    fun showViewListSnackBar(list: ReadingList, message: String) {
+<span class="nc" id="L155">        makeSnackbar(requireActivity(), message)</span>
+<span class="nc" id="L156">                .setAction(R.string.reading_list_added_view_button) { v -&gt; v.context.startActivity(ReadingListActivity.newIntent(v.context, list)) }.show()</span>
+<span class="nc" id="L157">    }</span>
+
+<span class="nc" id="L159">    private inner class ReadingListItemCallback : ReadingListItemView.Callback {</span>
+        override fun onClick(readingList: ReadingList) {
+<span class="nc" id="L161">            addAndDismiss(readingList, titles)</span>
+<span class="nc" id="L162">        }</span>
+    }
+
+<span class="nc" id="L165">    private class ReadingListItemHolder(itemView: ReadingListItemView) : RecyclerView.ViewHolder(itemView) {</span>
+        fun bindItem(readingList: ReadingList) {
+<span class="nc" id="L167">            (itemView as ReadingListItemView).setReadingList(readingList, ReadingListItemView.Description.SUMMARY)</span>
+<span class="nc" id="L168">        }</span>
+
+<span class="nc" id="L170">        val view get() = itemView as ReadingListItemView</span>
+
+<span class="nc" id="L172">        init {</span>
+<span class="nc" id="L173">            itemView.isLongClickable = false</span>
+<span class="nc" id="L174">        }</span>
+    }
+
+<span class="nc" id="L177">    private inner class ReadingListAdapter : RecyclerView.Adapter&lt;ReadingListItemHolder&gt;() {</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L179">            return displayedLists.size</span>
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, pos: Int): ReadingListItemHolder {
+<span class="nc" id="L183">            val view = ReadingListItemView(requireContext())</span>
+<span class="nc" id="L184">            return ReadingListItemHolder(view)</span>
+        }
+
+        override fun onBindViewHolder(holder: ReadingListItemHolder, pos: Int) {
+<span class="nc" id="L188">            holder.bindItem(displayedLists[pos])</span>
+<span class="nc" id="L189">        }</span>
+
+        override fun onViewAttachedToWindow(holder: ReadingListItemHolder) {
+<span class="nc" id="L192">            super.onViewAttachedToWindow(holder)</span>
+<span class="nc" id="L193">            holder.view.callback = listItemCallback</span>
+<span class="nc" id="L194">        }</span>
+
+        override fun onViewDetachedFromWindow(holder: ReadingListItemHolder) {
+<span class="nc" id="L197">            holder.view.callback = null</span>
+<span class="nc" id="L198">            super.onViewDetachedFromWindow(holder)</span>
+<span class="nc" id="L199">        }</span>
+    }
+
+    companion object {
+        const val PAGE_TITLE_LIST = &quot;pageTitleList&quot;
+        const val SHOW_DEFAULT_LIST = &quot;showDefaultList&quot;
+
+<span class="nc" id="L206">        fun newInstance(title: PageTitle,</span>
+                        source: InvokeSource,
+<span class="nc" id="L208">                        listener: DialogInterface.OnDismissListener? = null): AddToReadingListDialog {</span>
+<span class="nc" id="L209">            return newInstance(listOf(title), source, listener)</span>
+        }
+
+<span class="nc" id="L212">        fun newInstance(titles: List&lt;PageTitle&gt;,</span>
+                        source: InvokeSource,
+<span class="nc" id="L214">                        listener: DialogInterface.OnDismissListener? = null): AddToReadingListDialog {</span>
+<span class="nc" id="L215">            return AddToReadingListDialog().apply {</span>
+<span class="nc" id="L216">                arguments = bundleOf(PAGE_TITLE_LIST to ArrayList&lt;Parcelable&gt;(titles),</span>
+<span class="nc" id="L217">                        Constants.INTENT_EXTRA_INVOKE_SOURCE to source,</span>
+<span class="nc" id="L218">                        SHOW_DEFAULT_LIST to true)</span>
+<span class="nc" id="L219">                dismissListener = listener</span>
+<span class="nc" id="L220">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

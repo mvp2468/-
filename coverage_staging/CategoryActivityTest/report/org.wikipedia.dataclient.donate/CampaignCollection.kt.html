@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CampaignCollection.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.dataclient.donate</a> &gt; <span class="el_source">CampaignCollection.kt</span></div><h1>CampaignCollection.kt</h1><pre class="source lang-java linenums">package org.wikipedia.dataclient.donate
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
+import okhttp3.Request
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory
+import org.wikipedia.donate.DonationResult
+import org.wikipedia.json.JsonUtil
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.GeoUtil
+import java.time.LocalDateTime
+
+object CampaignCollection {
+
+    private const val CAMPAIGN_VERSION = 2
+    private const val CAMPAIGN_PLATFORM = &quot;Android&quot;
+
+    private const val CAMPAIGNS_URL = &quot;https://donate.wikimedia.org/wiki/MediaWiki:AppsCampaignConfig.json?action=raw&quot;
+    private const val CAMPAIGNS_URL_DEBUG = &quot;https://test.wikipedia.org/wiki/MediaWiki:AppsCampaignConfig.json?action=raw&quot;
+
+    private const val DAYS_TO_HIDE_AFTER_DONATION = 250L
+
+    suspend fun getActiveCampaigns(): List&lt;Campaign&gt; {
+<span class="nc" id="L28">        val campaignList = mutableListOf&lt;Campaign&gt;()</span>
+
+<span class="nc" id="L30">        withContext(Dispatchers.IO) {</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">            val url = if (Prefs.announcementDebugUrl) CAMPAIGNS_URL_DEBUG else CAMPAIGNS_URL</span>
+<span class="nc" id="L32">            val request = Request.Builder().url(url).build()</span>
+<span class="nc" id="L33">            val response = OkHttpConnectionFactory.client.newCall(request).execute()</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            val campaigns = JsonUtil.decodeFromString&lt;List&lt;JsonElement&gt;&gt;(response.body.string()).orEmpty()</span>
+<span class="nc" id="L35">            val now = LocalDateTime.now()</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">            val mostRecentDonateDateTime = (Prefs.donationResults.maxByOrNull { it.dateTime })?.let {</span>
+<span class="nc" id="L37">                LocalDateTime.parse(it.dateTime)</span>
+            }
+
+<span class="nc" id="L40">            campaignList.addAll(campaigns.filter {</span>
+<span class="nc" id="L41">                val proto = JsonUtil.json.decodeFromJsonElement&lt;CampaignProto&gt;(it)</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">                proto.version == CAMPAIGN_VERSION</span>
+<span class="nc" id="L43">            }.map {</span>
+<span class="nc" id="L44">                JsonUtil.json.decodeFromJsonElement&lt;Campaign&gt;(it)</span>
+<span class="nc" id="L45">            }.filter {</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">                it.hasPlatform(CAMPAIGN_PLATFORM) &amp;&amp;</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">                        it.countries.contains(GeoUtil.geoIPCountry) &amp;&amp;</span>
+<span class="nc bnc" id="L48" title="All 14 branches missed.">                        (Prefs.ignoreDateForAnnouncements || (it.startDateTime?.isBefore(now) == true &amp;&amp; it.endDateTime?.isAfter(now) == true)) &amp;&amp;</span>
+<span class="nc bnc" id="L49" title="All 4 branches missed.">                        (mostRecentDonateDateTime == null || mostRecentDonateDateTime.isBefore(now.minusDays(DAYS_TO_HIDE_AFTER_DONATION)))</span>
+<span class="nc" id="L50">            })</span>
+        }
+<span class="nc" id="L52">        return campaignList</span>
+    }
+
+    fun getFormattedCampaignId(campaignId: String): String {
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        return &quot;${WikipediaApp.instance.appOrSystemLanguageCode}${GeoUtil.geoIPCountry.orEmpty()}_${campaignId}_${CAMPAIGN_PLATFORM}&quot;</span>
+    }
+
+<span class="nc" id="L59">    fun addDonationResult(fromWeb: Boolean = false, amount: Float, currency: String, recurring: Boolean) {</span>
+<span class="nc" id="L60">        Prefs.donationResults = Prefs.donationResults.plus(DonationResult(</span>
+<span class="nc" id="L61">            LocalDateTime.now().toString(), fromWeb, amount, currency, recurring</span>
+        ))
+<span class="nc" id="L63">    }</span>
+
+    fun replaceAssetsParams(assets: Campaign.Assets, campaignId: String): Campaign.Assets {
+<span class="nc" id="L66">        return Campaign.Assets(</span>
+<span class="nc" id="L67">            id = assets.id,</span>
+<span class="nc" id="L68">            weight = assets.weight,</span>
+<span class="nc bnc" id="L69" title="All 6 branches missed.">            text = if (assets.text.isNullOrEmpty()) null else replaceParams(assets.text, campaignId),</span>
+<span class="nc bnc" id="L70" title="All 6 branches missed.">            footer = if (assets.footer.isNullOrEmpty()) null else replaceParams(assets.footer, campaignId),</span>
+<span class="nc" id="L71">            actions = assets.actions.map { action -&gt;</span>
+<span class="nc" id="L72">                Campaign.Action(</span>
+<span class="nc" id="L73">                    replaceParams(action.title, campaignId),</span>
+<span class="nc bnc" id="L74" title="All 6 branches missed.">                    if (action.url.isNullOrEmpty()) null else replaceParams(action.url, campaignId)</span>
+<span class="nc" id="L75">                )</span>
+<span class="nc" id="L76">            }.toTypedArray()</span>
+        )
+    }
+
+    private fun replaceParams(message: String, campaignId: String): String {
+<span class="nc" id="L81">        return message</span>
+<span class="nc" id="L82">            .replace(&quot;\$platform;&quot;, CAMPAIGN_PLATFORM)</span>
+<span class="nc" id="L83">            .replace(&quot;\$formattedId;&quot;, getFormattedCampaignId(campaignId))</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            .replace(&quot;\$country;&quot;, GeoUtil.geoIPCountry.orEmpty())</span>
+<span class="nc" id="L85">            .replace(&quot;\$language;&quot;, WikipediaApp.instance.appOrSystemLanguageCode)</span>
+    }
+
+<span class="nc" id="L88">    @Serializable</span>
+<span class="nc" id="L89">    class CampaignProto(</span>
+<span class="nc" id="L90">        val version: Int = 0</span>
+<span class="nc" id="L91">    )</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

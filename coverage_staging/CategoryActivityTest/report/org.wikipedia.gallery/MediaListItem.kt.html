@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MediaListItem.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.gallery</a> &gt; <span class="el_source">MediaListItem.kt</span></div><h1>MediaListItem.kt</h1><pre class="source lang-java linenums">package org.wikipedia.gallery
+
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.wikipedia.dataclient.Service
+import org.wikipedia.util.UriUtil
+
+<span class="nc" id="L10">@Serializable</span>
+@Parcelize
+<span class="nc" id="L12">class MediaListItem(val title: String = &quot;&quot;,</span>
+<span class="nc" id="L13">                    val type: String = &quot;&quot;,</span>
+<span class="nc" id="L14">                    val caption: TextInfo? = null,</span>
+<span class="nc" id="L15">                    val showInGallery: Boolean = false,</span>
+<span class="nc" id="L16">                    @SerialName(&quot;section_id&quot;) private val sectionId: Int = 0,</span>
+<span class="nc" id="L17">                    @SerialName(&quot;srcset&quot;) val srcSets: List&lt;ImageSrcSet&gt; = emptyList()) :</span>
+    Parcelable {
+
+<span class="nc bnc" id="L20" title="All 6 branches missed.">    val isInCommons get() = srcSets.firstOrNull()?.src?.contains(Service.URL_FRAGMENT_FROM_COMMONS) == true</span>
+
+<span class="nc" id="L22">    val isVideo get() = type == &quot;video&quot;</span>
+
+    fun getImageUrl(deviceScale: Float): String {
+<span class="nc" id="L25">        var imageUrl = srcSets[0].src</span>
+<span class="nc" id="L26">        var lastScale = 1.0f</span>
+<span class="nc" id="L27">        srcSets.forEach { srcSet -&gt;</span>
+<span class="nc" id="L28">            val scale = srcSet.scale</span>
+<span class="nc bnc" id="L29" title="All 4 branches missed.">            if (deviceScale &gt;= scale &amp;&amp; lastScale &lt; scale) {</span>
+<span class="nc" id="L30">                lastScale = scale</span>
+<span class="nc" id="L31">                imageUrl = srcSet.src</span>
+            }
+<span class="nc" id="L33">        }</span>
+<span class="nc" id="L34">        return UriUtil.resolveProtocolRelativeUrl(imageUrl)</span>
+    }
+
+<span class="nc" id="L37">    @Serializable</span>
+    @Parcelize
+<span class="nc" id="L39">    class ImageSrcSet(</span>
+<span class="nc" id="L40">            @SerialName(&quot;scale&quot;) private val _scale: String? = null,</span>
+<span class="nc" id="L41">            val src: String = &quot;&quot;</span>
+<span class="nc" id="L42">    ) : Parcelable {</span>
+<span class="nc bnc" id="L43" title="All 4 branches missed.">        val scale get() = _scale?.replace(&quot;x&quot;, &quot;&quot;)?.toFloat() ?: 0f</span>
+<span class="nc" id="L44">    }</span>
+<span class="nc" id="L45">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

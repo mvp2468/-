@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LangLinksViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.language</a> &gt; <span class="el_source">LangLinksViewModel.kt</span></div><h1>LangLinksViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.language
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.SiteMatrix
+import org.wikipedia.page.PageTitle
+import org.wikipedia.staticdata.MainPageNameData
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.UiState
+
+<span class="nc" id="L25">class LangLinksViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+<span class="nc" id="L26">    private val pageTitle = savedStateHandle.get&lt;PageTitle&gt;(Constants.ARG_TITLE)!!</span>
+<span class="nc" id="L27">    private val app = WikipediaApp.instance</span>
+
+<span class="nc" id="L29">    private var siteInfoList = listOf&lt;SiteMatrix.SiteInfo&gt;()</span>
+<span class="nc" id="L30">    private var originalLanguageEntries = listOf&lt;PageTitle&gt;()</span>
+<span class="nc" id="L31">    private var appLanguageEntries = listOf&lt;PageTitle&gt;()</span>
+<span class="nc" id="L32">    private var variantLangToUpdate = mutableSetOf&lt;String&gt;()</span>
+
+<span class="nc" id="L34">    private val _uiState = MutableStateFlow&lt;UiState&lt;List&lt;LangLinksItem&gt;&gt;&gt;(UiState.Loading)</span>
+<span class="nc" id="L35">    val uiState = _uiState.asStateFlow()</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">    val historyEntryId = savedStateHandle.get&lt;Long&gt;(Constants.ARG_NUMBER) ?: -1</span>
+
+<span class="nc" id="L38">    init {</span>
+<span class="nc" id="L39">        fetchAllData()</span>
+<span class="nc" id="L40">    }</span>
+
+    fun fetchAllData() {
+<span class="nc" id="L43">        _uiState.value = UiState.Loading</span>
+<span class="nc" id="L44">        viewModelScope.launch(CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L45">            _uiState.value = UiState.Error(throwable)</span>
+<span class="nc" id="L46">        } + Dispatchers.IO) {</span>
+<span class="nc" id="L47">            val langLinksDeferred = async {</span>
+<span class="nc" id="L48">                val response = ServiceFactory.get(pageTitle.wikiSite).getLangLinks(pageTitle.prefixedText)</span>
+<span class="nc" id="L49">                response.query!!.langLinks().toMutableList()</span>
+            }
+<span class="nc" id="L51">            val siteInfoDeferred = async {</span>
+<span class="nc" id="L52">                val siteMatrix = ServiceFactory.get(WikipediaApp.instance.wikiSite).getSiteMatrix()</span>
+<span class="nc" id="L53">                SiteMatrix.getSites(siteMatrix)</span>
+            }
+
+<span class="nc" id="L56">            val langLinks = langLinksDeferred.await()</span>
+<span class="nc" id="L57">            siteInfoList = siteInfoDeferred.await()</span>
+
+<span class="nc" id="L59">            processLanguageEntries(langLinks)</span>
+<span class="nc" id="L60">            originalLanguageEntries = langLinks</span>
+<span class="nc" id="L61">            appLanguageEntries = filterAppLanguages(langLinks)</span>
+
+            // create variant languages to update
+<span class="nc" id="L64">            variantLangToUpdate = langLinks</span>
+<span class="nc" id="L65">                .mapNotNull { app.languageState.getDefaultLanguageCode(it.wikiSite.languageCode) }</span>
+<span class="nc" id="L66">                .toMutableSet()</span>
+
+<span class="nc" id="L68">            val variantFetchJobs = mutableListOf&lt;Deferred&lt;Unit&gt;&gt;()</span>
+<span class="nc" id="L69">            val variantsToFetch = variantLangToUpdate.toList()</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            for (langCode in variantsToFetch) {</span>
+<span class="nc" id="L71">                variantFetchJobs.add(async {</span>
+<span class="nc" id="L72">                    fetchLangVariantLinks(langCode, pageTitle.prefixedText)</span>
+<span class="nc" id="L73">                })</span>
+            }
+<span class="nc" id="L75">            variantFetchJobs.awaitAll()</span>
+<span class="nc" id="L76">            updateLanguageItems()</span>
+<span class="nc" id="L77">        }</span>
+<span class="nc" id="L78">    }</span>
+
+    fun onSearchQueryChange(searchQuery: String) {
+<span class="nc" id="L81">        updateLanguageItems(searchQuery)</span>
+<span class="nc" id="L82">    }</span>
+
+<span class="nc" id="L84">    private suspend fun fetchLangVariantLinks(langCode: String, title: String) {</span>
+<span class="nc" id="L85">        val response = ServiceFactory.get(WikiSite.forLanguageCode(langCode)).getInfoByPageIdsOrTitles(titles = title)</span>
+<span class="nc bnc" id="L86" title="All 6 branches missed.">        response.query?.firstPage()?.varianttitles?.let { variantMap -&gt;</span>
+<span class="nc" id="L87">            val currentItems = originalLanguageEntries.toMutableList()</span>
+<span class="nc" id="L88">            currentItems.forEach { item -&gt;</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                variantMap[item.wikiSite.languageCode]?.let { text -&gt;</span>
+<span class="nc" id="L90">                    item.displayText = text</span>
+<span class="nc" id="L91">                }</span>
+<span class="nc" id="L92">            }</span>
+<span class="nc" id="L93">            originalLanguageEntries = currentItems</span>
+<span class="nc" id="L94">        }</span>
+<span class="nc" id="L95">    }</span>
+
+    private fun processLanguageEntries(langLinks: MutableList&lt;PageTitle&gt;) {
+<span class="nc" id="L98">        updateLanguageEntriesSupported(langLinks)</span>
+<span class="nc" id="L99">        sortLanguageEntriesByMru(langLinks)</span>
+<span class="nc" id="L100">    }</span>
+
+    private fun filterAppLanguages(entries: List&lt;PageTitle&gt;): List&lt;PageTitle&gt; {
+<span class="nc" id="L103">        return entries.filter {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            (it.wikiSite.languageCode == AppLanguageLookUpTable.NORWEGIAN_LEGACY_LANGUAGE_CODE &amp;&amp;</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                    app.languageState.appLanguageCodes.contains(AppLanguageLookUpTable.NORWEGIAN_BOKMAL_LANGUAGE_CODE)) ||</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                    (it.wikiSite.languageCode == AppLanguageLookUpTable.BELARUSIAN_TARASK_LANGUAGE_CODE &amp;&amp;</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                            app.languageState.appLanguageCodes.contains(AppLanguageLookUpTable.BELARUSIAN_LEGACY_LANGUAGE_CODE)) ||</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                    app.languageState.appLanguageCodes.contains(it.wikiSite.languageCode)</span>
+        }
+    }
+
+    private fun getCanonicalName(code: String): String? {
+<span class="nc bnc" id="L113" title="All 8 branches missed.">        return siteInfoList.find { it.code == code }?.localname.orEmpty()</span>
+<span class="nc bnc" id="L114" title="All 4 branches missed.">            .ifEmpty { WikipediaApp.instance.languageState.getAppLanguageCanonicalName(code) }</span>
+    }
+
+<span class="nc" id="L117">    private fun updateLanguageItems(searchTerm: String = &quot;&quot;) {</span>
+<span class="nc" id="L118">        val appLangEntries = appLanguageEntries</span>
+<span class="nc" id="L119">        val originalEntries = originalLanguageEntries</span>
+
+<span class="nc" id="L121">        val nonDuplicateEntries = originalEntries.toMutableList().apply {</span>
+<span class="nc" id="L122">            removeAll(appLangEntries)</span>
+<span class="nc" id="L123">        }</span>
+
+<span class="nc" id="L125">        val items = mutableListOf&lt;LangLinksItem&gt;()</span>
+
+<span class="nc bnc" id="L127" title="All 4 branches missed.">        if (searchTerm.isNotEmpty()) {</span>
+<span class="nc" id="L128">            val filteredItems = originalEntries.filter { entry -&gt;</span>
+<span class="nc" id="L129">                val languageCode = entry.wikiSite.languageCode</span>
+<span class="nc bnc" id="L130" title="All 4 branches missed.">                val canonicalName = getCanonicalName(languageCode) ?: app.languageState.getAppLanguageCanonicalName(languageCode).orEmpty()</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">                val localizedName = app.languageState.getAppLanguageLocalizedName(languageCode).orEmpty()</span>
+<span class="nc bnc" id="L132" title="All 4 branches missed.">                canonicalName.contains(searchTerm, true) || localizedName.contains(searchTerm, true)</span>
+            }
+<span class="nc" id="L134">            items.addAll(filteredItems.map { createLangLinksItem(it) })</span>
+        } else {
+            // not searching
+            // Add app languages section if available, usually after user select article in different
+            // language
+<span class="nc bnc" id="L139" title="All 4 branches missed.">            if (appLangEntries.isNotEmpty()) {</span>
+<span class="nc" id="L140">                items.add(</span>
+<span class="nc" id="L141">                    LangLinksItem(</span>
+<span class="nc" id="L142">                        headerText = app.getString(R.string.langlinks_your_wikipedia_languages)</span>
+                    )
+                )
+<span class="nc" id="L145">                items.addAll(appLangEntries.map { createLangLinksItem(it) })</span>
+            }
+
+            // Add all languages section if available
+<span class="nc bnc" id="L149" title="All 4 branches missed.">            if (nonDuplicateEntries.isNotEmpty()) {</span>
+<span class="nc" id="L150">                items.add(</span>
+<span class="nc" id="L151">                    LangLinksItem(</span>
+<span class="nc" id="L152">                        headerText = app.getString(R.string.languages_list_all_text)</span>
+                    )
+                )
+<span class="nc" id="L155">                items.addAll(nonDuplicateEntries.map { createLangLinksItem(it) })</span>
+            }
+        }
+<span class="nc" id="L158">        _uiState.value = UiState.Success(items)</span>
+<span class="nc" id="L159">    }</span>
+
+    private fun createLangLinksItem(pageTitle: PageTitle): LangLinksItem {
+<span class="nc" id="L162">        val languageCode = pageTitle.wikiSite.languageCode</span>
+<span class="nc" id="L163">        val localizedName =</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            StringUtil.capitalize(app.languageState.getAppLanguageLocalizedName(languageCode)) ?: languageCode</span>
+<span class="nc" id="L165">        val canonicalName = getCanonicalName(languageCode)</span>
+<span class="nc" id="L166">        val articleName = pageTitle.displayText</span>
+
+<span class="nc" id="L168">        return LangLinksItem(</span>
+<span class="nc" id="L169">            pageTitle = pageTitle,</span>
+<span class="nc" id="L170">            articleName = articleName,</span>
+<span class="nc" id="L171">            languageCode = languageCode,</span>
+<span class="nc" id="L172">            localizedName = localizedName,</span>
+<span class="nc" id="L173">            canonicalName = canonicalName,</span>
+        )
+    }
+
+    private fun updateLanguageEntriesSupported(languageEntries: MutableList&lt;PageTitle&gt;) {
+<span class="nc" id="L178">        val it = languageEntries.listIterator()</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        while (it.hasNext()) {</span>
+<span class="nc" id="L180">            val link = it.next()</span>
+<span class="nc" id="L181">            val languageCode = link.wikiSite.languageCode</span>
+<span class="nc" id="L182">            val languageVariants = WikipediaApp.instance.languageState.getLanguageVariants(languageCode)</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            if (AppLanguageLookUpTable.BELARUSIAN_LEGACY_LANGUAGE_CODE == languageCode) {</span>
+                // Replace legacy name of тарашкевіца language with the correct name.
+                // TODO: Can probably be removed when T111853 is resolved.
+<span class="nc" id="L186">                it.remove()</span>
+<span class="nc" id="L187">                it.add(PageTitle(link.text, WikiSite.forLanguageCode(AppLanguageLookUpTable.BELARUSIAN_TARASK_LANGUAGE_CODE)))</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            } else if (languageVariants != null) {</span>
+                // remove the language code and replace it with its variants
+<span class="nc" id="L190">                it.remove()</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                for (variant in languageVariants) {</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                    it.add(PageTitle(if (pageTitle.isMainPage) MainPageNameData.valueFor(variant) else link.prefixedText,</span>
+<span class="nc" id="L193">                        WikiSite.forLanguageCode(variant)))</span>
+                }
+            }
+        }
+<span class="nc" id="L197">        addVariantEntriesIfNeeded(WikipediaApp.instance.languageState, pageTitle, languageEntries)</span>
+<span class="nc" id="L198">    }</span>
+
+    private fun sortLanguageEntriesByMru(entries: MutableList&lt;PageTitle&gt;) {
+<span class="nc" id="L201">        var addIndex = 0</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        for (language in WikipediaApp.instance.languageState.mruLanguageCodes) {</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">            for (i in entries.indices) {</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                if (entries[i].wikiSite.languageCode == language) {</span>
+<span class="nc" id="L205">                    val entry = entries.removeAt(i)</span>
+<span class="nc" id="L206">                    entries.add(addIndex++, entry)</span>
+<span class="nc" id="L207">                    break</span>
+                }
+            }
+        }
+<span class="nc" id="L211">    }</span>
+
+    companion object {
+        fun addVariantEntriesIfNeeded(language: AppLanguageState, title: PageTitle, languageEntries: MutableList&lt;PageTitle&gt;) {
+<span class="nc" id="L215">            val parentLanguageCode = language.getDefaultLanguageCode(title.wikiSite.languageCode)</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            if (parentLanguageCode != null) {</span>
+<span class="nc" id="L217">                val languageVariants = language.getLanguageVariants(parentLanguageCode)</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">                if (languageVariants != null) {</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                    for (languageCode in languageVariants) {</span>
+                        // Do not add zh-hant and zh-hans to the list
+<span class="nc" id="L221">                        if (listOf(AppLanguageLookUpTable.TRADITIONAL_CHINESE_LANGUAGE_CODE,</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                                AppLanguageLookUpTable.SIMPLIFIED_CHINESE_LANGUAGE_CODE).contains(languageCode)) {</span>
+<span class="nc" id="L223">                            continue</span>
+                        }
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                        if (!title.wikiSite.languageCode.contains(languageCode)) {</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">                            val pageTitle = PageTitle(if (title.isMainPage) MainPageNameData.valueFor(languageCode) else title.prefixedText, WikiSite.forLanguageCode(languageCode))</span>
+<span class="nc" id="L227">                            pageTitle.displayText = title.displayText</span>
+<span class="nc" id="L228">                            languageEntries.add(pageTitle)</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L233">        }</span>
+    }
+}
+
+<span class="nc" id="L237">data class LangLinksItem(</span>
+<span class="nc" id="L238">    val pageTitle: PageTitle? = null,</span>
+<span class="nc" id="L239">    val articleName: String = &quot;&quot;,</span>
+<span class="nc" id="L240">    val languageCode: String = &quot;&quot;,</span>
+<span class="nc" id="L241">    val localizedName: String = &quot;&quot;,</span>
+<span class="nc" id="L242">    var canonicalName: String? = null,</span>
+<span class="nc" id="L243">    val subtitle: String = &quot;&quot;,</span>
+<span class="nc" id="L244">    val headerText: String = &quot;&quot;</span>
+<span class="nc" id="L245">)</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

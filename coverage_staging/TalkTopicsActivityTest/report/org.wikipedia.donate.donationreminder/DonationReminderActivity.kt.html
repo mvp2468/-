@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DonationReminderActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.donate.donationreminder</a> &gt; <span class="el_source">DonationReminderActivity.kt</span></div><h1>DonationReminderActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.donate.donationreminder
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.core.net.toUri
+import org.wikipedia.R
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.analytics.eventplatform.DonorExperienceEvent
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.readinglist.recommended.RecommendedReadingListOnboardingActivity.Companion.EXTRA_FROM_SETTINGS
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.UriUtil
+
+<span class="nc" id="L19">class DonationReminderActivity : BaseActivity() {</span>
+<span class="nc" id="L20">    private val viewModel: DonationReminderViewModel by viewModels()</span>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L23">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L24">        DeviceUtil.setEdgeToEdge(this)</span>
+<span class="nc" id="L25">        setContent {</span>
+<span class="nc" id="L26">            BaseTheme {</span>
+<span class="nc" id="L27">                DonationReminderScreen(</span>
+<span class="nc" id="L28">                    viewModel = viewModel,</span>
+<span class="nc" id="L29">                    onBackButtonClick = {</span>
+<span class="nc" id="L30">                        onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L31">                    },</span>
+<span class="nc" id="L32">                    onConfirmButtonClick = { message -&gt;</span>
+<span class="nc" id="L33">                        DonationReminderHelper.shouldShowSettingSnackbar = true</span>
+<span class="nc" id="L34">                        setResult(RESULT_OK_FROM_DONATION_REMINDER)</span>
+<span class="nc" id="L35">                        finish()</span>
+<span class="nc" id="L36">                    },</span>
+<span class="nc" id="L37">                    onFooterButtonClick = {</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">                        if (viewModel.isFromSettings) {</span>
+<span class="nc" id="L39">                            UriUtil.visitInExternalBrowser(this, getString(R.string.donation_reminders_experiment_url).toUri())</span>
+<span class="nc" id="L40">                            DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L41">                                activeInterface = &quot;global_setting&quot;,</span>
+<span class="nc" id="L42">                                action = &quot;reminder_about_click&quot;</span>
+                            )
+                        } else {
+<span class="nc" id="L45">                            setResult(RESULT_OK_FROM_DONATION_REMINDER)</span>
+<span class="nc" id="L46">                            finish()</span>
+                        }
+<span class="nc" id="L48">                    },</span>
+<span class="nc" id="L49">                    wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L50">                        backClickListener = {</span>
+<span class="nc" id="L51">                            finish()</span>
+<span class="nc" id="L52">                        },</span>
+<span class="nc" id="L53">                        retryClickListener = {</span>
+<span class="nc" id="L54">                            viewModel.loadData()</span>
+<span class="nc" id="L55">                        }</span>
+                    ),
+<span class="nc" id="L57">                    onLearnMoreClick = {</span>
+<span class="nc" id="L58">                        DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                            activeInterface = if (viewModel.isFromSettings) &quot;global_setting&quot; else &quot;reminder_config&quot;,</span>
+<span class="nc" id="L60">                            action = &quot;overflow_learn_more_click&quot;</span>
+                        )
+<span class="nc" id="L62">                        UriUtil.visitInExternalBrowser(this, getString(R.string.donation_reminders_experiment_url).toUri())</span>
+<span class="nc" id="L63">                    },</span>
+<span class="nc" id="L64">                    onReportClick = {</span>
+<span class="nc" id="L65">                        DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">                            activeInterface = if (viewModel.isFromSettings) &quot;global_setting&quot; else &quot;reminder_config&quot;,</span>
+<span class="nc" id="L67">                            action = &quot;overflow_problem_click&quot;</span>
+                        )
+<span class="nc" id="L69">                        FeedbackUtil.composeEmail(this,</span>
+<span class="nc" id="L70">                            subject = getString(R.string.donation_reminders_settings_report_email_subject),</span>
+<span class="nc" id="L71">                            body = getString(R.string.donation_reminders_settings_report_email_body))</span>
+<span class="nc" id="L72">                    }</span>
+                )
+<span class="nc" id="L74">            }</span>
+<span class="nc" id="L75">        }</span>
+<span class="nc" id="L76">        sendAnalysis()</span>
+<span class="nc" id="L77">    }</span>
+
+    private fun sendAnalysis() {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (!viewModel.isFromSettings) {</span>
+<span class="nc" id="L81">            DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L82">                activeInterface = &quot;reminder_config&quot;,</span>
+<span class="nc" id="L83">                action = &quot;impression&quot;,</span>
+<span class="nc" id="L84">                campaignId = DonationReminderHelper.getCampaignId()</span>
+            )
+        }
+<span class="nc" id="L87">    }</span>
+
+    companion object {
+        const val RESULT_OK_FROM_DONATION_REMINDER = 100
+<span class="nc" id="L91">        fun newIntent(context: Context, isFromSettings: Boolean = false): Intent {</span>
+<span class="nc" id="L92">            return Intent(context, DonationReminderActivity::class.java)</span>
+<span class="nc" id="L93">                .putExtra(EXTRA_FROM_SETTINGS, isFromSettings)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

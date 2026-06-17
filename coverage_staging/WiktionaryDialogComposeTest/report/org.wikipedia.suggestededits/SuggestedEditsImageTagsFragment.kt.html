@@ -1,0 +1,474 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsImageTagsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsImageTagsFragment.kt</span></div><h1>SuggestedEditsImageTagsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.Typeface
+import android.os.Bundle
+import android.view.HapticFeedbackConstants
+import android.view.LayoutInflater
+import android.view.View
+import android.view.View.GONE
+import android.view.View.OnClickListener
+import android.view.View.TEXT_ALIGNMENT_CENTER
+import android.view.View.VISIBLE
+import android.view.ViewGroup
+import android.widget.CompoundButton
+import android.widget.Toast
+import androidx.core.text.method.LinkMovementMethodCompat
+import androidx.core.view.children
+import androidx.core.view.isEmpty
+import androidx.core.widget.ImageViewCompat
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.chip.Chip
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.analytics.eventplatform.EditAttemptStepEvent
+import org.wikipedia.analytics.eventplatform.ImageRecommendationsEvent
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.databinding.FragmentSuggestedEditsImageTagsItemBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.dataclient.mwapi.MwQueryPage
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.gallery.ImageInfo
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.ImageZoomHelper
+import org.wikipedia.views.ViewUtil
+
+<span class="nc" id="L54">class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundButton.OnCheckedChangeListener, OnClickListener, SuggestedEditsImageTagDialog.Callback {</span>
+
+    private var _binding: FragmentSuggestedEditsImageTagsItemBinding? = null
+<span class="nc" id="L57">    private val binding get() = _binding!!</span>
+<span class="nc" id="L58">    private val viewModel: SuggestedEditsImageTagsViewModel by viewModels()</span>
+
+<span class="nc" id="L60">    var publishing = false</span>
+    private var publishSuccess = false
+    private var page: MwQueryPage? = null
+<span class="nc" id="L63">    private val tagList = mutableListOf&lt;ImageTag&gt;()</span>
+    private var wasCaptionLongClicked = false
+<span class="nc" id="L65">    private var lastSearchTerm = &quot;&quot;</span>
+    private val pageTitle: PageTitle? get() {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        return page?.let {</span>
+<span class="nc" id="L68">            return PageTitle(it.title, Constants.commonsWikiSite)</span>
+        }
+    }
+<span class="nc" id="L71">    var invokeSource = InvokeSource.SUGGESTED_EDITS</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L74">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L75">        _binding = FragmentSuggestedEditsImageTagsItemBinding.inflate(inflater, container, false)</span>
+<span class="nc" id="L76">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L80">        super.onViewCreated(view, savedInstanceState)</span>
+<span class="nc" id="L81">        binding.contentContainer.setLayoutDirectionByLang(callback().getLangCode())</span>
+<span class="nc" id="L82">        binding.cardItemErrorView.backClickListener = OnClickListener { requireActivity().finish() }</span>
+<span class="nc" id="L83">        binding.cardItemErrorView.retryClickListener = OnClickListener {</span>
+<span class="nc" id="L84">            binding.cardItemProgressBar.visibility = VISIBLE</span>
+<span class="nc" id="L85">            binding.cardItemErrorView.visibility = GONE</span>
+<span class="nc" id="L86">            getNextItem()</span>
+<span class="nc" id="L87">        }</span>
+
+<span class="nc" id="L89">        val transparency = 0xcc000000</span>
+<span class="nc" id="L90">        binding.tagsContainer.setBackgroundColor(transparency.toInt() or (ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color) and 0xffffff))</span>
+<span class="nc" id="L91">        binding.imageCaption.setBackgroundColor(transparency.toInt() or (ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color) and 0xffffff))</span>
+
+<span class="nc" id="L93">        binding.publishOverlayContainer.setBackgroundColor(transparency.toInt() or (ResourceUtil.getThemedColor(requireContext(), R.attr.paper_color) and 0xffffff))</span>
+<span class="nc" id="L94">        binding.publishOverlayContainer.visibility = GONE</span>
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        val colorStateList = ColorStateList.valueOf(if (WikipediaApp.instance.currentTheme.isDark) Color.WHITE else ResourceUtil.getThemedColor(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L97">        binding.publishProgressBar.progressTintList = colorStateList</span>
+<span class="nc" id="L98">        binding.publishProgressBarComplete.progressTintList = colorStateList</span>
+<span class="nc" id="L99">        ImageViewCompat.setImageTintList(binding.publishProgressCheck, colorStateList)</span>
+<span class="nc" id="L100">        binding.publishProgressText.setTextColor(colorStateList)</span>
+
+<span class="nc" id="L102">        binding.tagsLicenseText.text = StringUtil.fromHtml(getString(R.string.suggested_edits_cc0_notice,</span>
+<span class="nc" id="L103">                getString(R.string.terms_of_use_url), getString(R.string.cc_0_url)))</span>
+<span class="nc" id="L104">        binding.tagsLicenseText.movementMethod = LinkMovementMethodCompat.getInstance()</span>
+
+<span class="nc" id="L106">        binding.imageView.setOnClickListener {</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">            if (Prefs.showImageZoomTooltip) {</span>
+<span class="nc" id="L108">                Prefs.showImageZoomTooltip = false</span>
+<span class="nc" id="L109">                FeedbackUtil.showToastOverView(binding.imageView, getString(R.string.suggested_edits_image_zoom_tooltip), Toast.LENGTH_LONG)</span>
+            } else {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                pageTitle?.let {</span>
+<span class="nc" id="L112">                    it.wikiSite = WikiSite.forLanguageCode(WikipediaApp.instance.appOrSystemLanguageCode)</span>
+<span class="nc" id="L113">                    startActivity(FilePageActivity.newIntent(requireContext(), it))</span>
+<span class="nc" id="L114">                }</span>
+            }
+<span class="nc" id="L116">        }</span>
+
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (callback().getSinglePage() != null) {</span>
+<span class="nc" id="L119">            page = callback().getSinglePage()</span>
+        }
+
+<span class="nc" id="L122">        binding.imageCaption.setOnLongClickListener {</span>
+<span class="nc" id="L123">            wasCaptionLongClicked = true</span>
+<span class="nc" id="L124">            false</span>
+        }
+
+<span class="nc" id="L127">        getNextItem()</span>
+<span class="nc" id="L128">        updateTagChips()</span>
+
+<span class="nc" id="L130">        viewLifecycleOwner.lifecycleScope.launch {</span>
+<span class="nc" id="L131">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L132">                launch {</span>
+<span class="nc" id="L133">                    viewModel.uiState.collect {</span>
+<span class="nc" id="L134">                        when (it) {</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                            is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                            is Resource.Success -&gt; {</span>
+<span class="nc" id="L137">                                page = it.data.first</span>
+<span class="nc" id="L138">                                updateContents(it.data.first.imageInfo(), it.data.second)</span>
+<span class="nc" id="L139">                                updateTagChips()</span>
+                            }
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                            is Resource.Error -&gt; setErrorState(it.throwable)</span>
+                        }
+<span class="nc" id="L143">                    }</span>
+                }
+<span class="nc" id="L145">                launch {</span>
+<span class="nc" id="L146">                    viewModel.actionState.collect {</span>
+<span class="nc" id="L147">                        when (it) {</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                            is Resource.Success -&gt; {</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                                if (it.data != null) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                                    pageTitle?.let {</span>
+<span class="nc" id="L151">                                        EditAttemptStepEvent.logSaveSuccess(it, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L152">                                    }</span>
+                                }
+<span class="nc" id="L154">                                publishSuccess = true</span>
+<span class="nc" id="L155">                                ImageRecommendationsEvent.logEditSuccess(DescriptionEditActivity.Action.ADD_IMAGE_TAGS,</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                                    &quot;commons&quot;, it.data?.lastRevId ?: 0)</span>
+<span class="nc" id="L157">                                onSuccess()</span>
+                            }
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                            is Resource.Error -&gt; onError(it.throwable)</span>
+                        }
+<span class="nc" id="L161">                    }</span>
+                }
+<span class="nc" id="L163">            }</span>
+<span class="nc" id="L164">        }</span>
+<span class="nc" id="L165">    }</span>
+
+    override fun onStart() {
+<span class="nc" id="L168">        super.onStart()</span>
+<span class="nc" id="L169">        callback().updateActionButton()</span>
+<span class="nc" id="L170">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L173">        super.onDestroyView()</span>
+<span class="nc" id="L174">        _binding = null</span>
+<span class="nc" id="L175">    }</span>
+
+    private fun getNextItem() {
+<span class="nc" id="L178">        viewModel.findNextSuggestedEditsItem(callback().getLangCode(), page)</span>
+<span class="nc" id="L179">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L182">        binding.cardItemErrorView.visibility = GONE</span>
+<span class="nc" id="L183">        binding.cardItemProgressBar.visibility = VISIBLE</span>
+<span class="nc" id="L184">        binding.contentContainer.visibility = GONE</span>
+<span class="nc" id="L185">    }</span>
+
+    private fun setErrorState(t: Throwable) {
+<span class="nc" id="L188">        L.e(t)</span>
+<span class="nc" id="L189">        binding.cardItemErrorView.setError(t)</span>
+<span class="nc" id="L190">        binding.cardItemErrorView.visibility = VISIBLE</span>
+<span class="nc" id="L191">        binding.cardItemProgressBar.visibility = GONE</span>
+<span class="nc" id="L192">        binding.contentContainer.visibility = GONE</span>
+<span class="nc" id="L193">    }</span>
+
+    private fun updateContents(imageInfo: ImageInfo?, caption: String?) {
+<span class="nc" id="L196">        binding.cardItemErrorView.visibility = GONE</span>
+<span class="nc" id="L197">        binding.contentContainer.visibility = VISIBLE</span>
+<span class="nc" id="L198">        binding.cardItemProgressBar.visibility = GONE</span>
+<span class="nc" id="L199">        binding.tagsLicenseText.visibility = GONE</span>
+<span class="nc" id="L200">        binding.tagsHintText.visibility = VISIBLE</span>
+<span class="nc" id="L201">        ImageZoomHelper.setViewZoomable(binding.imageView)</span>
+<span class="nc bnc" id="L202" title="All 4 branches missed.">        ViewUtil.loadImage(binding.imageView, ImageUrlUtil.getUrlForPreferredSize(imageInfo?.thumbUrl.orEmpty(), Constants.PREFERRED_CARD_THUMBNAIL_SIZE))</span>
+<span class="nc bnc" id="L203" title="All 6 branches missed.">        if (!caption.isNullOrEmpty()) {</span>
+<span class="nc" id="L204">            binding.imageCaption.text = caption</span>
+<span class="nc" id="L205">            binding.imageCaption.visibility = VISIBLE</span>
+        } else {
+<span class="nc bnc" id="L207" title="All 4 branches missed.">            if (imageInfo?.metadata != null) {</span>
+<span class="nc" id="L208">                binding.imageCaption.text = StringUtil.fromHtml(imageInfo.metadata.imageDescription()).toString().trim()</span>
+<span class="nc" id="L209">                binding.imageCaption.visibility = VISIBLE</span>
+<span class="nc" id="L210">                binding.imageView.contentDescription = binding.imageCaption.text</span>
+            } else {
+<span class="nc" id="L212">                binding.imageCaption.visibility = GONE</span>
+            }
+        }
+<span class="nc" id="L215">        updateLicenseTextShown()</span>
+<span class="nc" id="L216">        callback().updateActionButton()</span>
+<span class="nc" id="L217">    }</span>
+
+    private fun updateTagChips() {
+<span class="nc" id="L220">        val typeface = Typeface.create(&quot;sans-serif-medium&quot;, Typeface.NORMAL)</span>
+<span class="nc" id="L221">        binding.tagsChipGroup.removeAllViews()</span>
+
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if (!publishSuccess) {</span>
+            // add an artificial chip for adding a custom tag
+<span class="nc" id="L225">            addChip(null, typeface)</span>
+        }
+
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        for (label in tagList) {</span>
+<span class="nc" id="L229">            val chip = addChip(label, typeface)</span>
+<span class="nc" id="L230">            chip.isChecked = label.isSelected</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            if (publishSuccess) {</span>
+<span class="nc" id="L232">                chip.isEnabled = false</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                if (chip.isChecked) {</span>
+<span class="nc" id="L234">                    chip.setChipBackgroundColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.addition_color))</span>
+<span class="nc" id="L235">                    chip.setChipStrokeColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.success_color))</span>
+                } else {
+<span class="nc" id="L237">                    chip.setChipBackgroundColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.border_color))</span>
+<span class="nc" id="L238">                    chip.setChipStrokeColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.border_color))</span>
+                }
+            }
+        }
+
+<span class="nc" id="L243">        updateLicenseTextShown()</span>
+<span class="nc" id="L244">        callback().updateActionButton()</span>
+<span class="nc" id="L245">    }</span>
+
+    private fun addChip(label: ImageTag?, typeface: Typeface): Chip {
+<span class="nc" id="L248">        val chip = Chip(requireContext())</span>
+<span class="nc bnc" id="L249" title="All 4 branches missed.">        chip.text = label?.label ?: getString(R.string.suggested_edits_image_tags_add_tag)</span>
+<span class="nc" id="L250">        chip.textAlignment = TEXT_ALIGNMENT_CENTER</span>
+<span class="nc" id="L251">        chip.setChipBackgroundColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.border_color))</span>
+<span class="nc" id="L252">        chip.chipStrokeWidth = DimenUtil.dpToPx(1f)</span>
+<span class="nc" id="L253">        chip.setChipStrokeColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.border_color))</span>
+<span class="nc" id="L254">        chip.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.primary_color))</span>
+<span class="nc" id="L255">        chip.typeface = typeface</span>
+<span class="nc" id="L256">        chip.isCheckable = true</span>
+<span class="nc" id="L257">        chip.setChipIconResource(R.drawable.ic_chip_add_24px)</span>
+<span class="nc" id="L258">        chip.iconEndPadding = 0f</span>
+<span class="nc" id="L259">        chip.textStartPadding = DimenUtil.dpToPx(2f)</span>
+<span class="nc" id="L260">        chip.chipIconSize = DimenUtil.dpToPx(24f)</span>
+<span class="nc" id="L261">        chip.chipIconTint = ResourceUtil.getThemedColorStateList(requireContext(), R.attr.placeholder_color)</span>
+<span class="nc" id="L262">        chip.setCheckedIconResource(R.drawable.ic_chip_check_24px)</span>
+<span class="nc" id="L263">        chip.setOnCheckedChangeListener(this)</span>
+<span class="nc" id="L264">        chip.setOnClickListener(this)</span>
+<span class="nc" id="L265">        chip.setEnsureMinTouchTargetSize(true)</span>
+<span class="nc" id="L266">        chip.ensureAccessibleTouchTarget(DimenUtil.dpToPx(48f).toInt())</span>
+<span class="nc" id="L267">        chip.tag = label</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">        if (label != null) {</span>
+<span class="nc" id="L269">            chip.isChecked = label.isSelected</span>
+        }
+
+        // add some padding to the Chip, since our container view doesn't support item spacing yet.
+<span class="nc" id="L273">        val params = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)</span>
+<span class="nc" id="L274">        val margin = DimenUtil.roundedDpToPx(8f)</span>
+<span class="nc" id="L275">        params.setMargins(margin, 0, margin, 0)</span>
+<span class="nc" id="L276">        chip.layoutParams = params</span>
+
+<span class="nc" id="L278">        binding.tagsChipGroup.addView(chip)</span>
+<span class="nc" id="L279">        return chip</span>
+    }
+
+    override fun onBackPressed(): Boolean {
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        if (!atLeastOneTagChecked()) {</span>
+<span class="nc" id="L284">            return true</span>
+        }
+<span class="nc" id="L286">        MaterialAlertDialogBuilder(requireActivity())</span>
+<span class="nc" id="L287">            .setCancelable(false)</span>
+<span class="nc" id="L288">            .setTitle(R.string.talk_new_topic_exit_dialog_title)</span>
+<span class="nc" id="L289">            .setMessage(R.string.suggested_edits_image_tags_exit_dialog_message)</span>
+<span class="nc" id="L290">            .setPositiveButton(R.string.edit_abandon_confirm_yes) { _, _ -&gt; requireActivity().finish() }</span>
+<span class="nc" id="L291">            .setNegativeButton(R.string.edit_abandon_confirm_no, null)</span>
+<span class="nc" id="L292">            .show()</span>
+<span class="nc" id="L293">        return false</span>
+    }
+
+    override fun onClick(v: View?) {
+<span class="nc" id="L297">        val chip = v as Chip</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">        if (chip.tag == null) {</span>
+            // they clicked the chip to add a new tag, so cancel out the check changing...
+<span class="nc bnc" id="L300" title="All 2 branches missed.">            chip.isChecked = !chip.isChecked</span>
+            // and launch the selection dialog for the custom tag.
+<span class="nc" id="L302">            SuggestedEditsImageTagDialog.newInstance(wasCaptionLongClicked, lastSearchTerm).show(childFragmentManager, null)</span>
+        }
+<span class="nc" id="L304">    }</span>
+
+    override fun onCheckedChanged(button: CompoundButton, isChecked: Boolean) {
+<span class="nc" id="L307">        val chip = button as Chip</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        if (chip.isChecked) {</span>
+<span class="nc" id="L309">            chip.setChipBackgroundColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.background_color))</span>
+<span class="nc" id="L310">            chip.setChipStrokeColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.progressive_color))</span>
+<span class="nc" id="L311">            chip.isChipIconVisible = false</span>
+        } else {
+<span class="nc" id="L313">            chip.setChipBackgroundColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.border_color))</span>
+<span class="nc" id="L314">            chip.setChipStrokeColorResource(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.border_color))</span>
+<span class="nc" id="L315">            chip.isChipIconVisible = true</span>
+        }
+<span class="nc bnc" id="L317" title="All 2 branches missed.">        if (chip.tag != null) {</span>
+<span class="nc" id="L318">            (chip.tag as ImageTag).isSelected = chip.isChecked</span>
+        }
+
+<span class="nc" id="L321">        updateLicenseTextShown()</span>
+<span class="nc" id="L322">        callback().updateActionButton()</span>
+<span class="nc" id="L323">    }</span>
+
+    override fun onSearchSelect(item: ImageTag) {
+<span class="nc" id="L326">        var exists = false</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">        for (tag in tagList) {</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">            if (tag.wikidataId == item.wikidataId) {</span>
+<span class="nc" id="L329">                exists = true</span>
+<span class="nc" id="L330">                tag.isSelected = true</span>
+<span class="nc" id="L331">                break</span>
+            }
+        }
+<span class="nc bnc" id="L334" title="All 2 branches missed.">        if (!exists) {</span>
+<span class="nc" id="L335">            item.isSelected = true</span>
+<span class="nc" id="L336">            tagList.add(item)</span>
+        }
+<span class="nc" id="L338">        updateTagChips()</span>
+<span class="nc" id="L339">    }</span>
+
+    override fun onSearchDismiss(searchTerm: String) {
+<span class="nc" id="L342">        lastSearchTerm = searchTerm</span>
+<span class="nc" id="L343">    }</span>
+
+    override fun publish() {
+<span class="nc bnc" id="L346" title="All 6 branches missed.">        if (publishing || publishSuccess || binding.tagsChipGroup.isEmpty()) {</span>
+<span class="nc" id="L347">            return</span>
+        }
+
+<span class="nc" id="L350">        val acceptedLabels = mutableListOf&lt;ImageTag&gt;()</span>
+<span class="nc" id="L351">        val iterator = tagList.iterator()</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">        while (iterator.hasNext()) {</span>
+<span class="nc" id="L353">            val tag = iterator.next()</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">            if (tag.isSelected) {</span>
+<span class="nc" id="L355">                acceptedLabels.add(tag)</span>
+            } else {
+<span class="nc" id="L357">                iterator.remove()</span>
+            }
+        }
+<span class="nc bnc" id="L360" title="All 2 branches missed.">        if (acceptedLabels.isEmpty()) {</span>
+<span class="nc" id="L361">            return</span>
+        }
+
+        // -- point of no return --
+
+<span class="nc" id="L366">        publishing = true</span>
+<span class="nc" id="L367">        publishSuccess = false</span>
+
+<span class="nc bnc" id="L369" title="All 2 branches missed.">        pageTitle?.let {</span>
+<span class="nc" id="L370">            EditAttemptStepEvent.logSaveAttempt(it, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L371">        }</span>
+
+<span class="nc" id="L373">        binding.publishProgressText.setText(R.string.suggested_edits_image_tags_publishing)</span>
+<span class="nc" id="L374">        binding.publishProgressCheck.visibility = GONE</span>
+<span class="nc" id="L375">        binding.publishOverlayContainer.visibility = VISIBLE</span>
+<span class="nc" id="L376">        binding.publishProgressBarComplete.visibility = GONE</span>
+<span class="nc" id="L377">        binding.publishProgressBar.visibility = VISIBLE</span>
+
+<span class="nc bnc" id="L379" title="All 2 branches missed.">        page?.let {</span>
+<span class="nc" id="L380">            viewModel.publishImageTags(it, acceptedLabels)</span>
+<span class="nc" id="L381">        }</span>
+<span class="nc" id="L382">    }</span>
+
+    private fun onSuccess() {
+<span class="nc" id="L385">        publishing = false</span>
+<span class="nc" id="L386">        val duration = 500L</span>
+<span class="nc" id="L387">        binding.publishProgressBar.alpha = 1f</span>
+<span class="nc" id="L388">        binding.publishProgressBar.animate()</span>
+<span class="nc" id="L389">                .alpha(0f)</span>
+<span class="nc" id="L390">                .duration = duration / 2</span>
+
+<span class="nc" id="L392">        binding.publishProgressBarComplete.alpha = 0f</span>
+<span class="nc" id="L393">        binding.publishProgressBarComplete.visibility = VISIBLE</span>
+<span class="nc" id="L394">        binding.publishProgressBarComplete.animate()</span>
+<span class="nc" id="L395">                .alpha(1f)</span>
+<span class="nc" id="L396">                .withEndAction {</span>
+<span class="nc" id="L397">                    binding.publishProgressText.setText(R.string.suggested_edits_image_tags_published)</span>
+<span class="nc" id="L398">                    playSuccessVibration()</span>
+<span class="nc" id="L399">                }</span>
+<span class="nc" id="L400">                .duration = duration / 2</span>
+
+<span class="nc" id="L402">        binding.publishProgressCheck.alpha = 0f</span>
+<span class="nc" id="L403">        binding.publishProgressCheck.visibility = VISIBLE</span>
+<span class="nc" id="L404">        binding.publishProgressCheck.animate()</span>
+<span class="nc" id="L405">                .alpha(1f)</span>
+<span class="nc" id="L406">                .duration = duration</span>
+
+<span class="nc" id="L408">        binding.publishProgressBar.postDelayed({</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">            if (isAdded) {</span>
+<span class="nc" id="L410">                updateLicenseTextShown()</span>
+<span class="nc" id="L411">                binding.publishOverlayContainer.visibility = GONE</span>
+<span class="nc" id="L412">                callback().nextPage(this)</span>
+<span class="nc" id="L413">                callback().logSuccess()</span>
+<span class="nc" id="L414">                updateTagChips()</span>
+            }
+<span class="nc" id="L416">        }, duration * 3)</span>
+<span class="nc" id="L417">    }</span>
+
+    private fun onError(caught: Throwable) {
+<span class="nc bnc" id="L420" title="All 2 branches missed.">        pageTitle?.let {</span>
+<span class="nc" id="L421">            EditAttemptStepEvent.logSaveFailure(it, EditAttemptStepEvent.INTERFACE_OTHER)</span>
+<span class="nc" id="L422">        }</span>
+<span class="nc" id="L423">        binding.publishOverlayContainer.visibility = GONE</span>
+<span class="nc" id="L424">        FeedbackUtil.showError(requireActivity(), caught)</span>
+<span class="nc" id="L425">    }</span>
+
+    private fun playSuccessVibration() {
+<span class="nc" id="L428">        binding.imageView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)</span>
+<span class="nc" id="L429">    }</span>
+
+    private fun updateLicenseTextShown() {
+<span class="nc" id="L432">        when {</span>
+<span class="nc bnc" id="L433" title="All 2 branches missed.">            publishSuccess -&gt; {</span>
+<span class="nc" id="L434">                binding.tagsLicenseText.visibility = GONE</span>
+<span class="nc" id="L435">                binding.tagsHintText.setText(R.string.suggested_edits_image_tags_published_list)</span>
+<span class="nc" id="L436">                binding.tagsHintText.visibility = VISIBLE</span>
+            }
+<span class="nc bnc" id="L438" title="All 2 branches missed.">            atLeastOneTagChecked() -&gt; {</span>
+<span class="nc" id="L439">                binding.tagsLicenseText.visibility = VISIBLE</span>
+<span class="nc" id="L440">                binding.tagsHintText.visibility = GONE</span>
+            }
+            else -&gt; {
+<span class="nc" id="L443">                binding.tagsLicenseText.visibility = GONE</span>
+<span class="nc" id="L444">                binding.tagsHintText.visibility = GONE</span>
+            }
+        }
+<span class="nc" id="L447">    }</span>
+
+    private fun atLeastOneTagChecked(): Boolean {
+<span class="nc" id="L450">        return binding.tagsChipGroup.children.filterIsInstance&lt;Chip&gt;().any { it.isChecked }</span>
+    }
+
+    override fun publishEnabled(): Boolean {
+<span class="nc bnc" id="L454" title="All 4 branches missed.">        return !publishSuccess &amp;&amp; atLeastOneTagChecked()</span>
+    }
+
+    override fun publishOutlined(): Boolean {
+<span class="nc bnc" id="L458" title="All 2 branches missed.">        if (_binding == null) {</span>
+<span class="nc" id="L459">            return false</span>
+        }
+<span class="nc bnc" id="L461" title="All 2 branches missed.">        return !atLeastOneTagChecked()</span>
+    }
+
+    private fun callback(): Callback {
+<span class="nc" id="L465">        return FragmentUtil.getCallback(this, Callback::class.java)!!</span>
+    }
+
+    companion object {
+        fun newInstance(): SuggestedEditsItemFragment {
+<span class="nc" id="L470">            return SuggestedEditsImageTagsFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

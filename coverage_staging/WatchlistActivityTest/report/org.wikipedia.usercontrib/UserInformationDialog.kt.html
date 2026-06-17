@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserInformationDialog.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.usercontrib</a> &gt; <span class="el_source">UserInformationDialog.kt</span></div><h1>UserInformationDialog.kt</h1><pre class="source lang-java linenums">package org.wikipedia.usercontrib
+
+import android.app.Dialog
+import android.os.Bundle
+import android.view.View
+import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
+import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.databinding.DialogUserInformationBinding
+import org.wikipedia.suggestededits.SuggestedEditsRecentEditsActivity
+import org.wikipedia.suggestededits.SuggestionsActivity
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.Resource
+import org.wikipedia.util.StringUtil
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.Date
+
+<span class="nc" id="L27">class UserInformationDialog : DialogFragment() {</span>
+
+<span class="nc" id="L29">    private val viewModel: UserInformationDialogViewModel by viewModels()</span>
+
+    private var _binding: DialogUserInformationBinding? = null
+<span class="nc" id="L32">    private val binding get() = _binding!!</span>
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+<span class="nc" id="L35">        _binding = DialogUserInformationBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L36">        return MaterialAlertDialogBuilder(requireActivity())</span>
+<span class="nc" id="L37">            .setTitle(R.string.patroller_tasks_edits_list_user_information_dialog_title)</span>
+<span class="nc" id="L38">            .setView(binding.root)</span>
+<span class="nc" id="L39">            .setPositiveButton(R.string.patroller_tasks_edits_list_user_information_dialog_close) { _, _ -&gt;</span>
+<span class="nc" id="L40">                dismiss()</span>
+<span class="nc" id="L41">            }.run {</span>
+<span class="nc" id="L42">                setupDialog()</span>
+<span class="nc" id="L43">                this</span>
+<span class="nc" id="L44">            }.create()</span>
+    }
+
+    override fun onDestroyView() {
+<span class="nc" id="L48">        super.onDestroyView()</span>
+<span class="nc" id="L49">        _binding = null</span>
+<span class="nc" id="L50">    }</span>
+
+    private fun setupDialog() {
+<span class="nc" id="L53">        lifecycleScope.launch {</span>
+<span class="nc" id="L54">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L55">                viewModel.uiState.collect {</span>
+<span class="nc" id="L56">                    when (it) {</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                        is Resource.Loading -&gt; onLoading()</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                        is Resource.Success -&gt; onSuccess(it.data.first, it.data.second)</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                        is Resource.Error -&gt; onError(it.throwable)</span>
+                    }
+<span class="nc" id="L61">                }</span>
+            }
+<span class="nc" id="L63">        }</span>
+<span class="nc" id="L64">        binding.dialogErrorView.backClickListener = View.OnClickListener {</span>
+<span class="nc" id="L65">            dismiss()</span>
+<span class="nc" id="L66">        }</span>
+<span class="nc" id="L67">        binding.dialogErrorView.retryClickListener = View.OnClickListener {</span>
+<span class="nc" id="L68">            dismiss()</span>
+<span class="nc" id="L69">        }</span>
+<span class="nc" id="L70">    }</span>
+
+    private fun onLoading() {
+<span class="nc" id="L73">        binding.userInformationContainer.isVisible = false</span>
+<span class="nc" id="L74">        binding.dialogProgressBar.isVisible = true</span>
+<span class="nc" id="L75">        binding.dialogErrorView.isVisible = false</span>
+<span class="nc" id="L76">    }</span>
+
+    private fun onSuccess(editCount: String, registrationDate: Date) {
+<span class="nc" id="L79">        sendPatrollerExperienceEvent()</span>
+<span class="nc" id="L80">        binding.userInformationContainer.isVisible = true</span>
+<span class="nc" id="L81">        binding.dialogProgressBar.isVisible = false</span>
+<span class="nc" id="L82">        binding.dialogErrorView.isVisible = false</span>
+<span class="nc" id="L83">        val localDate = LocalDateTime.ofInstant(registrationDate.toInstant(), ZoneId.systemDefault()).toLocalDate()</span>
+<span class="nc" id="L84">        val dateStr = DateUtil.getShortDateString(localDate)</span>
+<span class="nc" id="L85">        binding.userTenure.text = StringUtil.fromHtml(getString(R.string.patroller_tasks_edits_list_user_information_dialog_joined_date_text, dateStr))</span>
+<span class="nc" id="L86">        binding.editCount.text = StringUtil.fromHtml(getString(R.string.patroller_tasks_edits_list_user_information_dialog_edit_count_text, editCount))</span>
+<span class="nc" id="L87">    }</span>
+
+    private fun sendPatrollerExperienceEvent() {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (requireActivity() is SuggestionsActivity ||</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            requireActivity() is SuggestedEditsRecentEditsActivity) {</span>
+<span class="nc" id="L92">            PatrollerExperienceEvent.logAction(&quot;user_info_impression&quot;,</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                if (requireActivity() is SuggestedEditsRecentEditsActivity) &quot;pt_recent_changes&quot; else &quot;pt_edit&quot;)</span>
+        }
+<span class="nc" id="L95">    }</span>
+
+    private fun onError(t: Throwable) {
+<span class="nc" id="L98">        binding.userInformationContainer.isVisible = false</span>
+<span class="nc" id="L99">        binding.dialogProgressBar.isVisible = false</span>
+<span class="nc" id="L100">        binding.dialogErrorView.setError(t)</span>
+<span class="nc" id="L101">        binding.dialogErrorView.isVisible = true</span>
+<span class="nc" id="L102">    }</span>
+
+    companion object {
+
+        const val USERNAME_ARG = &quot;username&quot;
+
+        fun newInstance(username: String): UserInformationDialog {
+<span class="nc" id="L109">            val dialog = UserInformationDialog()</span>
+<span class="nc" id="L110">            dialog.arguments = bundleOf(USERNAME_ARG to username)</span>
+<span class="nc" id="L111">            return dialog</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

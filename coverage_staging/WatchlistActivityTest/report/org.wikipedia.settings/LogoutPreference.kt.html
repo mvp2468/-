@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LogoutPreference.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.settings</a> &gt; <span class="el_source">LogoutPreference.kt</span></div><h1>LogoutPreference.kt</h1><pre class="source lang-java linenums">package org.wikipedia.settings
+
+import android.app.Activity
+import android.content.Context
+import android.util.AttributeSet
+import android.view.View
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.TextView
+import androidx.core.view.isVisible
+import androidx.preference.Preference
+import androidx.preference.PreferenceViewHolder
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.SingleWebViewActivity
+import org.wikipedia.analytics.testkitchen.TestKitchenAdapter
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.util.StringUtil
+
+@Suppress(&quot;unused&quot;)
+class LogoutPreference : Preference {
+<span class="nc" id="L23">    constructor(ctx: Context, attrs: AttributeSet?, defStyle: Int) : super(ctx, attrs, defStyle)</span>
+<span class="nc" id="L24">    constructor(ctx: Context, attrs: AttributeSet?) : super(ctx, attrs)</span>
+<span class="nc" id="L25">    constructor(ctx: Context) : super(ctx)</span>
+
+<span class="nc" id="L27">    var activity: Activity? = null</span>
+
+<span class="nc" id="L29">    init {</span>
+<span class="nc" id="L30">        layoutResource = R.layout.view_preference_logout</span>
+<span class="nc" id="L31">    }</span>
+
+    override fun onBindViewHolder(holder: PreferenceViewHolder) {
+<span class="nc" id="L34">        super.onBindViewHolder(holder)</span>
+<span class="nc" id="L35">        holder.itemView.isClickable = false</span>
+<span class="nc" id="L36">        holder.itemView.findViewById&lt;TextView&gt;(R.id.accountName).text = AccountUtil.userName</span>
+<span class="nc" id="L37">        holder.itemView.findViewById&lt;ImageView&gt;(R.id.accountIcon).apply {</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            setImageResource(if (AccountUtil.isTemporaryAccount) R.drawable.ic_temp_account else R.drawable.ic_baseline_person_24)</span>
+<span class="nc" id="L39">        }</span>
+
+<span class="nc" id="L41">        holder.itemView.findViewById&lt;TextView&gt;(R.id.accountExpiry).apply {</span>
+<span class="nc" id="L42">            isVisible = AccountUtil.isTemporaryAccount</span>
+<span class="nc" id="L43">            val expiryDays = AccountUtil.tempAccountDaysLeft()</span>
+<span class="nc" id="L44">            text = context.resources.getQuantityString(R.plurals.temp_account_expiry, expiryDays, expiryDays)</span>
+<span class="nc" id="L45">        }</span>
+
+<span class="nc" id="L47">        holder.itemView.findViewById&lt;Button&gt;(R.id.logoutButton).apply {</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            text = context.getString(if (AccountUtil.isTemporaryAccount) R.string.temp_account_end_session else R.string.preference_title_logout)</span>
+<span class="nc" id="L49">            setOnClickListener {</span>
+<span class="nc" id="L50">                val instrument = TestKitchenAdapter.client.getInstrument(&quot;apps-authentication&quot;)</span>
+<span class="nc" id="L51">                    .startFunnel(&quot;logout_account&quot;)</span>
+<span class="nc" id="L52">                instrument.submitInteraction(&quot;click&quot;, actionSource = &quot;settings&quot;, elementId = &quot;logout_button&quot;)</span>
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                activity?.let {</span>
+<span class="nc" id="L55">                    instrument.submitInteraction(&quot;impression&quot;, actionSource = &quot;logout_warning&quot;)</span>
+<span class="nc" id="L56">                    MaterialAlertDialogBuilder(it)</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                        .setMessage(if (AccountUtil.isTemporaryAccount) R.string.temp_account_end_session_confirm else R.string.logout_prompt)</span>
+<span class="nc" id="L58">                        .setNegativeButton(R.string.logout_dialog_cancel_button_text) { dialog, which -&gt;</span>
+<span class="nc" id="L59">                            instrument.submitInteraction(&quot;click&quot;, actionSource = &quot;logout_warning&quot;, elementId = &quot;cancel_button&quot;)</span>
+<span class="nc" id="L60">                        }</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                        .setPositiveButton(if (AccountUtil.isTemporaryAccount) R.string.temp_account_end_session else R.string.preference_title_logout) { _, _ -&gt;</span>
+<span class="nc" id="L62">                            instrument.submitInteraction(&quot;click&quot;, actionSource = &quot;logout_warning&quot;, elementId = &quot;confirm_button&quot;)</span>
+<span class="nc" id="L63">                            WikipediaApp.instance.logOut()</span>
+<span class="nc" id="L64">                            Prefs.readingListsLastSyncTime = null</span>
+<span class="nc" id="L65">                            Prefs.isReadingListSyncEnabled = false</span>
+<span class="nc" id="L66">                            Prefs.isSuggestedEditsHighestPriorityEnabled = false</span>
+<span class="nc" id="L67">                            it.setResult(SettingsActivity.ACTIVITY_RESULT_LOG_OUT)</span>
+<span class="nc" id="L68">                            it.finish()</span>
+<span class="nc" id="L69">                        }.show()</span>
+<span class="nc" id="L70">                }</span>
+<span class="nc" id="L71">            }</span>
+<span class="nc" id="L72">        }</span>
+<span class="nc" id="L73">        holder.itemView.findViewById&lt;View&gt;(R.id.accountVanishButton).setOnClickListener {</span>
+<span class="nc" id="L74">            val instrument = TestKitchenAdapter.client.getInstrument(&quot;apps-authentication&quot;)</span>
+<span class="nc" id="L75">                .startFunnel(&quot;vanish_account&quot;)</span>
+<span class="nc" id="L76">                .setDefaultActionSource(&quot;vanish_warning&quot;)</span>
+<span class="nc" id="L77">            instrument.submitInteraction(&quot;click&quot;, actionSource = &quot;settings&quot;, elementId = &quot;vanish_button&quot;)</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            activity?.let {</span>
+<span class="nc" id="L80">                instrument.submitInteraction(&quot;impression&quot;)</span>
+<span class="nc" id="L81">                MaterialAlertDialogBuilder(it, R.style.AlertDialogTheme_Icon_Delete)</span>
+<span class="nc" id="L82">                    .setIcon(R.drawable.ic_person_remove)</span>
+<span class="nc" id="L83">                    .setTitle(R.string.account_vanish_request_confirm_title)</span>
+<span class="nc" id="L84">                    .setMessage(StringUtil.fromHtml(it.getString(R.string.account_vanish_request_confirm)))</span>
+<span class="nc" id="L85">                    .setNegativeButton(android.R.string.cancel) { dialog, which -&gt;</span>
+<span class="nc" id="L86">                        instrument.submitInteraction(&quot;click&quot;, elementId = &quot;cancel_button&quot;)</span>
+<span class="nc" id="L87">                    }</span>
+<span class="nc" id="L88">                    .setPositiveButton(R.string.account_vanish_request_title) { _, _ -&gt;</span>
+<span class="nc" id="L89">                        instrument.submitInteraction(&quot;click&quot;, elementId = &quot;confirm_button&quot;)</span>
+<span class="nc" id="L90">                        it.finish()</span>
+<span class="nc" id="L91">                        it.startActivity(SingleWebViewActivity.newIntent(it, it.getString(R.string.account_vanish_url), isWebForm = true))</span>
+<span class="nc" id="L92">                    }.show()</span>
+<span class="nc" id="L93">            }</span>
+<span class="nc" id="L94">        }</span>
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        holder.itemView.findViewById&lt;View&gt;(R.id.accountVanishButton).isVisible = !AccountUtil.isTemporaryAccount</span>
+<span class="nc" id="L97">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

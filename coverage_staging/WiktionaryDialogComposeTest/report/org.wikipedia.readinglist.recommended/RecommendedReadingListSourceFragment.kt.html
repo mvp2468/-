@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecommendedReadingListSourceFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist.recommended</a> &gt; <span class="el_source">RecommendedReadingListSourceFragment.kt</span></div><h1>RecommendedReadingListSourceFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist.recommended
+
+import android.app.Activity.RESULT_OK
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.RecommendedReadingListEvent
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.readinglist.ReadingListActivity
+import org.wikipedia.readinglist.ReadingListMode
+import org.wikipedia.settings.Prefs
+
+<span class="nc" id="L21">class RecommendedReadingListSourceFragment : Fragment() {</span>
+
+<span class="nc" id="L23">    private val viewModel: RecommendedReadingListSourceViewModel by viewModels()</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L26">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L27">        return ComposeView(requireContext()).apply {</span>
+<span class="nc bnc" id="L28" title="All 2 branches missed.">            val activeInterface = if (viewModel.fromSettings) &quot;settings_hub_select&quot; else &quot;rrl_hub_select&quot;</span>
+
+<span class="nc" id="L30">            RecommendedReadingListEvent.submit(&quot;impression&quot;, activeInterface, optionsShown = viewModel.availableSources.map { it.eventString }.toString())</span>
+
+<span class="nc" id="L32">            setContent {</span>
+<span class="nc" id="L33">                BaseTheme {</span>
+<span class="nc" id="L34">                    SourceSelectionScreen(</span>
+<span class="nc" id="L35">                        uiState = viewModel.uiSourceState.collectAsState().value,</span>
+<span class="nc" id="L36">                        fromSettings = viewModel.fromSettings,</span>
+<span class="nc" id="L37">                        onCloseClick = {</span>
+<span class="nc" id="L38">                            RecommendedReadingListEvent.submit(&quot;close_click&quot;, activeInterface)</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">                            if (viewModel.fromSettings) {</span>
+<span class="nc" id="L40">                                viewModel.saveSourceSelection().let { (_, selectedSource) -&gt;</span>
+<span class="nc" id="L41">                                    RecommendedReadingListEvent.submit(</span>
+<span class="nc" id="L42">                                        action = &quot;submit_click&quot;,</span>
+<span class="nc" id="L43">                                        activeInterface = activeInterface,</span>
+<span class="nc" id="L44">                                        optionsShown = viewModel.availableSources.map { it.eventString }.toString(),</span>
+<span class="nc" id="L45">                                        selected = selectedSource.eventString,</span>
+<span class="nc" id="L46">                                        currentSetting = Prefs.recommendedReadingListSource.eventString</span>
+                                    )
+<span class="nc" id="L48">                                }</span>
+<span class="nc" id="L49">                                requireActivity().setResult(RESULT_OK)</span>
+                            }
+<span class="nc" id="L51">                            requireActivity().finish()</span>
+<span class="nc" id="L52">                        },</span>
+<span class="nc" id="L53">                        onSourceClick = {</span>
+<span class="nc" id="L54">                            RecommendedReadingListEvent.submit(&quot;${it.eventString}_click&quot;, activeInterface)</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">                            if (viewModel.fromSettings) {</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">                                if (it == Prefs.recommendedReadingListSource) {</span>
+<span class="nc" id="L57">                                    viewModel.updateSourceSelection(newSource = it)</span>
+<span class="nc" id="L58">                                    return@SourceSelectionScreen</span>
+                                }
+<span class="nc" id="L60">                                MaterialAlertDialogBuilder(requireContext())</span>
+<span class="nc" id="L61">                                    .setTitle(R.string.recommended_reading_list_settings_updates_base_dialog_title)</span>
+<span class="nc" id="L62">                                    .setMessage(R.string.recommended_reading_list_settings_updates_base_dialog_message)</span>
+<span class="nc" id="L63">                                    .setCancelable(false)</span>
+<span class="nc" id="L64">                                    .setPositiveButton(R.string.recommended_reading_list_settings_updates_base_dialog_negative_button) { _, _ -&gt;</span>
+<span class="nc" id="L65">                                        RecommendedReadingListEvent.submit(&quot;built_cancel_click&quot;, activeInterface)</span>
+<span class="nc" id="L66">                                    }</span>
+<span class="nc" id="L67">                                    .setNegativeButton(R.string.recommended_reading_list_settings_updates_base_dialog_positive_button) { _, _ -&gt;</span>
+<span class="nc" id="L68">                                        RecommendedReadingListEvent.submit(&quot;adjust_click&quot;, activeInterface)</span>
+<span class="nc" id="L69">                                        viewModel.updateSourceSelection(newSource = it)</span>
+
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                                        if (it == RecommendedReadingListSource.INTERESTS) {</span>
+<span class="nc" id="L72">                                            viewModel.saveSourceSelection()</span>
+<span class="nc" id="L73">                                            requireActivity().supportFragmentManager.beginTransaction()</span>
+<span class="nc" id="L74">                                                .add(android.R.id.content, RecommendedReadingListInterestsFragment.newInstance(viewModel.fromSettings))</span>
+<span class="nc" id="L75">                                                .addToBackStack(null).commit()</span>
+                                        }
+<span class="nc" id="L77">                                    }</span>
+<span class="nc" id="L78">                                    .show()</span>
+                            } else {
+<span class="nc" id="L80">                                viewModel.updateSourceSelection(newSource = it)</span>
+                            }
+<span class="nc" id="L82">                        },</span>
+<span class="nc" id="L83">                        onNextClick = {</span>
+<span class="nc" id="L84">                            viewModel.saveSourceSelection().let { (shouldGoToInterests, selectedSource) -&gt;</span>
+
+<span class="nc" id="L86">                                RecommendedReadingListEvent.submit(</span>
+<span class="nc" id="L87">                                    action = &quot;submit_click&quot;,</span>
+<span class="nc" id="L88">                                    activeInterface = activeInterface,</span>
+<span class="nc" id="L89">                                    optionsShown = viewModel.availableSources.map { it.eventString }.toString(),</span>
+<span class="nc" id="L90">                                    selected = selectedSource.eventString,</span>
+<span class="nc" id="L91">                                    currentSetting = Prefs.recommendedReadingListSource.eventString</span>
+                                )
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                                if (shouldGoToInterests) {</span>
+<span class="nc" id="L95">                                    requireActivity().supportFragmentManager.beginTransaction()</span>
+<span class="nc" id="L96">                                        .add(android.R.id.content, RecommendedReadingListInterestsFragment.newInstance())</span>
+<span class="nc" id="L97">                                        .addToBackStack(null).commit()</span>
+                                } else {
+<span class="nc" id="L99">                                    Prefs.isRecommendedReadingListEnabled = true</span>
+<span class="nc" id="L100">                                    startActivity(ReadingListActivity.newIntent(requireContext(), readingListMode = ReadingListMode.RECOMMENDED))</span>
+<span class="nc" id="L101">                                    requireActivity().finish()</span>
+                                }
+<span class="nc" id="L103">                            }</span>
+<span class="nc" id="L104">                        },</span>
+<span class="nc" id="L105">                        wikiErrorClickEvents = WikiErrorClickEvents(</span>
+<span class="nc" id="L106">                            backClickListener = {</span>
+<span class="nc" id="L107">                                requireActivity().finish()</span>
+<span class="nc" id="L108">                            },</span>
+<span class="nc" id="L109">                            retryClickListener = {</span>
+<span class="nc" id="L110">                                viewModel.setupSourceSelection()</span>
+<span class="nc" id="L111">                            }</span>
+                        )
+                    )
+<span class="nc" id="L114">                }</span>
+<span class="nc" id="L115">            }</span>
+<span class="nc" id="L116">        }</span>
+    }
+
+    companion object {
+<span class="nc" id="L120">        fun newInstance(fromSettings: Boolean = false): RecommendedReadingListSourceFragment {</span>
+<span class="nc" id="L121">            return RecommendedReadingListSourceFragment().apply {</span>
+<span class="nc" id="L122">                arguments = Bundle().apply {</span>
+<span class="nc" id="L123">                    putBoolean(RecommendedReadingListOnboardingActivity.EXTRA_FROM_SETTINGS, fromSettings)</span>
+<span class="nc" id="L124">                }</span>
+<span class="nc" id="L125">            }</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WatchlistExpiryDialogViewModel.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.watchlist</a> &gt; <span class="el_source">WatchlistExpiryDialogViewModel.kt</span></div><h1>WatchlistExpiryDialogViewModel.kt</h1><pre class="source lang-java linenums">package org.wikipedia.watchlist
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.Resource
+
+<span class="nc" id="L13">class WatchlistExpiryDialogViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {</span>
+<span class="nc" id="L14">    private val handler = CoroutineExceptionHandler { _, throwable -&gt;</span>
+<span class="nc" id="L15">        _uiState.value = Resource.Error(throwable)</span>
+<span class="nc" id="L16">    }</span>
+
+<span class="nc" id="L18">    var pageTitle = savedStateHandle.get&lt;PageTitle&gt;(WatchlistExpiryDialog.ARG_PAGE_TITLE)!!</span>
+
+<span class="nc" id="L20">    private val _uiState = MutableStateFlow(Resource&lt;WatchlistExpiryChangeSuccess&gt;())</span>
+<span class="nc" id="L21">    val uiState = _uiState.asStateFlow()</span>
+
+    fun changeExpiry(expiry: WatchlistExpiry) {
+<span class="nc" id="L24">        viewModelScope.launch(handler) {</span>
+<span class="nc" id="L25">            val pair = WatchlistViewModel.watchPageTitle(this, pageTitle, false, expiry, false, pageTitle.namespace().talk())</span>
+<span class="nc" id="L26">            _uiState.value = Resource.Success(WatchlistExpiryChangeSuccess(expiry, pair.second))</span>
+<span class="nc" id="L27">        }</span>
+<span class="nc" id="L28">    }</span>
+
+<span class="nc" id="L30">    data class WatchlistExpiryChangeSuccess(</span>
+<span class="nc" id="L31">        val expiry: WatchlistExpiry,</span>
+<span class="nc" id="L32">        val message: String</span>
+    )
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

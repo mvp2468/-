@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Constants.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia</a> &gt; <span class="el_source">Constants.kt</span></div><h1>Constants.kt</h1><pre class="source lang-java linenums">package org.wikipedia
+
+import org.wikipedia.dataclient.Service
+import org.wikipedia.dataclient.WikiSite
+
+object Constants {
+
+    const val ACTIVITY_REQUEST_ADD_A_LANGUAGE = 59
+    const val ACTIVITY_REQUEST_BROWSE_TABS = 61
+    const val ACTIVITY_REQUEST_DESCRIPTION_EDIT = 55
+    const val ACTIVITY_REQUEST_FEED_CONFIGURE = 58
+    const val ACTIVITY_REQUEST_GALLERY = 52
+    const val ACTIVITY_REQUEST_LOGIN = 53
+    const val ACTIVITY_REQUEST_OPEN_SEARCH_ACTIVITY = 62
+    const val ACTIVITY_REQUEST_SETTINGS = 41
+    const val ACTIVITY_REQUEST_VOICE_SEARCH = 45
+
+    const val ARG_TITLE = &quot;title&quot;
+    const val ARG_WIKISITE = &quot;wikiSite&quot;
+    const val ARG_TEXT = &quot;text&quot;
+    const val ARG_BOOLEAN = &quot;boolean&quot;
+    const val ARG_NUMBER = &quot;number&quot;
+    const val INTENT_APP_SHORTCUT_CONTINUE_READING = &quot;appShortcutContinueReading&quot;
+    const val INTENT_APP_SHORTCUT_RANDOMIZER = &quot;appShortcutRandomizer&quot;
+    const val INTENT_APP_SHORTCUT_SEARCH = &quot;appShortcutSearch&quot;
+    const val INTENT_APP_SHORTCUT_PLACES = &quot;appShortcutPlaces&quot;
+    const val INTENT_EXTRA_ACTION = &quot;intentAction&quot;
+    const val INTENT_EXTRA_DELETE_READING_LIST = &quot;deleteReadingList&quot;
+    const val INTENT_EXTRA_GO_TO_MAIN_TAB = &quot;goToMainTab&quot;
+    const val INTENT_EXTRA_GO_TO_SE_TAB = &quot;goToSETab&quot;
+    const val INTENT_EXTRA_SCROLL_TO_GAMES = &quot;scrollToGames&quot;
+    const val INTENT_EXTRA_HAS_TRANSITION_ANIM = &quot;hasTransitionAnim&quot;
+    const val INTENT_EXTRA_INVOKE_SOURCE = &quot;invokeSource&quot;
+    const val INTENT_EXTRA_PREVIEW_SAVED_READING_LISTS = &quot;previewSavedReadingList&quot;
+    const val INTENT_EXTRA_NOTIFICATION_ID = &quot;notificationId&quot;
+    const val INTENT_EXTRA_NOTIFICATION_SYNC_CANCEL = &quot;syncCancel&quot;
+    const val INTENT_EXTRA_NOTIFICATION_SYNC_PAUSE_RESUME = &quot;syncPauseResume&quot;
+    const val INTENT_EXTRA_NOTIFICATION_TYPE = &quot;notificationType&quot;
+    const val INTENT_EXTRA_REVERT_QNUMBER = &quot;revertQNumber&quot;
+    const val INTENT_EXTRA_SNACKBAR_MESSAGE = &quot;snackbarMessage&quot;
+    const val INTENT_RETURN_TO_MAIN = &quot;returnToMain&quot;
+    const val INTENT_WIDGET_TYPE = &quot;widgetType&quot;
+
+    const val MAX_READING_LIST_ARTICLE_LIMIT = 5000
+    const val MAX_READING_LISTS_LIMIT = 100
+    const val MAX_TABS = 100
+    const val MIN_LANGUAGES_TO_UNLOCK_TRANSLATION = 2
+    const val PLAIN_TEXT_MIME_TYPE = &quot;text/plain&quot;
+    const val PREFERRED_CARD_THUMBNAIL_SIZE = 960
+    const val PREFERRED_GALLERY_IMAGE_SIZE = 1280
+    const val SUGGESTION_REQUEST_ITEMS = 5
+
+    const val WIKI_CODE_COMMONS = &quot;commons&quot;
+    const val COMMONS_DB_NAME = &quot;commonswiki&quot;
+    const val WIKI_CODE_WIKIDATA = &quot;wikidata&quot;
+    const val WIKIDATA_DB_NAME = &quot;wikidatawiki&quot;
+
+<span class="nc" id="L58">    val NON_LANGUAGE_SUBDOMAINS = listOf(&quot;donate&quot;, &quot;thankyou&quot;, &quot;quote&quot;, &quot;textbook&quot;, &quot;sources&quot;, &quot;species&quot;, &quot;commons&quot;, &quot;meta&quot;, &quot;abstract&quot;)</span>
+
+<span class="nc" id="L60">    val commonsWikiSite = WikiSite(Service.COMMONS_URL)</span>
+<span class="nc" id="L61">    val wikidataWikiSite = WikiSite(Service.WIKIDATA_URL)</span>
+
+<span class="nc" id="L63">    enum class InvokeSource(val value: String) {</span>
+<span class="nc" id="L64">        ANNOUNCEMENT(&quot;announcement&quot;),</span>
+<span class="nc" id="L65">        APP_SHORTCUTS(&quot;appShortcuts&quot;),</span>
+<span class="nc" id="L66">        ARCHIVED_TALK_ACTIVITY(&quot;archivedTalkActivity&quot;),</span>
+<span class="nc" id="L67">        BOOKMARK_BUTTON(&quot;bookmark&quot;),</span>
+<span class="nc" id="L68">        CONTEXT_MENU(&quot;contextMenu&quot;),</span>
+<span class="nc" id="L69">        DIFF_ACTIVITY(&quot;diffActivity&quot;),</span>
+<span class="nc" id="L70">        FEED(&quot;feed&quot;),</span>
+<span class="nc" id="L71">        FEED_BAR(&quot;feedBar&quot;),</span>
+<span class="nc" id="L72">        FILE_PAGE_ACTIVITY(&quot;filePage&quot;),</span>
+<span class="nc" id="L73">        GALLERY_ACTIVITY(&quot;gallery&quot;),</span>
+<span class="nc" id="L74">        INTENT_PROCESS_TEXT(&quot;intentProcessText&quot;),</span>
+<span class="nc" id="L75">        INTENT_SHARE(&quot;intentShare&quot;),</span>
+<span class="nc" id="L76">        INTENT_UNKNOWN(&quot;intentUnknown&quot;),</span>
+<span class="nc" id="L77">        LEAD_IMAGE(&quot;leadImage&quot;),</span>
+<span class="nc" id="L78">        LINK_PREVIEW_MENU(&quot;linkPreviewMenu&quot;),</span>
+<span class="nc" id="L79">        MOST_READ_ACTIVITY(&quot;mostRead&quot;),</span>
+<span class="nc" id="L80">        NAV_MENU(&quot;navMenu&quot;),</span>
+<span class="nc" id="L81">        NEWS_ACTIVITY(&quot;news&quot;),</span>
+<span class="nc" id="L82">        NOTIFICATION(&quot;notification&quot;),</span>
+<span class="nc" id="L83">        ON_THIS_DAY_ACTIVITY(&quot;onThisDay&quot;),</span>
+<span class="nc" id="L84">        ON_THIS_DAY_CARD_BODY(&quot;onThisDayCard&quot;),</span>
+<span class="nc" id="L85">        ON_THIS_DAY_CARD_FOOTER(&quot;onThisDayCardFooter&quot;),</span>
+<span class="nc" id="L86">        ON_THIS_DAY_CARD_YEAR(&quot;onThisDayCardYear&quot;),</span>
+<span class="nc" id="L87">        ONBOARDING_DIALOG(&quot;onboarding&quot;),</span>
+<span class="nc" id="L88">        PAGE_ACTION_TAB(&quot;pageActionTab&quot;),</span>
+<span class="nc" id="L89">        PAGE_ACTIVITY(&quot;page&quot;),</span>
+<span class="nc" id="L90">        PAGE_DESCRIPTION_CTA(&quot;pageDescCta&quot;),</span>
+<span class="nc" id="L91">        PAGE_EDIT_PENCIL(&quot;pageEditPencil&quot;),</span>
+<span class="nc" id="L92">        PAGE_EDIT_HIGHLIGHT(&quot;pageEditHighlight&quot;),</span>
+<span class="nc" id="L93">        PAGE_OVERFLOW_MENU(&quot;pageOverflowMenu&quot;),</span>
+<span class="nc" id="L94">        PLACES(&quot;places&quot;),</span>
+<span class="nc" id="L95">        RANDOM_ACTIVITY(&quot;random&quot;),</span>
+<span class="nc" id="L96">        READING_LIST_ACTIVITY(&quot;readingList&quot;),</span>
+<span class="nc" id="L97">        SEARCH(&quot;search&quot;),</span>
+<span class="nc" id="L98">        SETTINGS(&quot;settings&quot;),</span>
+<span class="nc" id="L99">        SNACKBAR_ACTION(&quot;snackbar&quot;),</span>
+<span class="nc" id="L100">        SUGGESTED_EDITS(&quot;suggestedEdits&quot;),</span>
+<span class="nc" id="L101">        TABS_ACTIVITY(&quot;tabsActivity&quot;),</span>
+<span class="nc" id="L102">        TALK_TOPICS_ACTIVITY(&quot;talkTopicsActivity&quot;),</span>
+<span class="nc" id="L103">        TALK_TOPIC_ACTIVITY(&quot;talkTopicActivity&quot;),</span>
+<span class="nc" id="L104">        TALK_REPLY_ACTIVITY(&quot;talkReplyActivity&quot;),</span>
+<span class="nc" id="L105">        EDIT_ACTIVITY(&quot;editActivity&quot;),</span>
+<span class="nc" id="L106">        TOOLBAR(&quot;toolbar&quot;),</span>
+<span class="nc" id="L107">        VOICE(&quot;voice&quot;),</span>
+<span class="nc" id="L108">        WATCHLIST_ACTIVITY(&quot;watchlist&quot;),</span>
+<span class="nc" id="L109">        WATCHLIST_FILTER_ACTIVITY(&quot;watchlistFilter&quot;),</span>
+<span class="nc" id="L110">        WIDGET(&quot;widget&quot;),</span>
+<span class="nc" id="L111">        USER_CONTRIB_ACTIVITY(&quot;userContribActivity&quot;),</span>
+<span class="nc" id="L112">        EDIT_ADD_IMAGE(&quot;editAddImage&quot;),</span>
+<span class="nc" id="L113">        SUGGESTED_EDITS_RECENT_EDITS(&quot;suggestedEditsRecentEdits&quot;),</span>
+<span class="nc" id="L114">        ON_THIS_DAY_GAME_ACTIVITY(&quot;onThisDayGame&quot;),</span>
+<span class="nc" id="L115">        ACTIVITY_TAB(&quot;activityTab&quot;),</span>
+<span class="nc" id="L116">        GAMES_HUB(&quot;gamesHub&quot;)</span>
+    }
+
+<span class="nc" id="L119">    enum class ImageEditType(name: String) {</span>
+<span class="nc" id="L120">        ADD_CAPTION(&quot;addCaption&quot;),</span>
+<span class="nc" id="L121">        ADD_CAPTION_TRANSLATION(&quot;addCaptionTranslation&quot;),</span>
+<span class="nc" id="L122">        ADD_TAGS(&quot;addTags&quot;)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

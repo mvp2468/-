@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OnThisDayGameArchiveCalendarHelper.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.games.onthisday</a> &gt; <span class="el_source">OnThisDayGameArchiveCalendarHelper.kt</span></div><h1>OnThisDayGameArchiveCalendarHelper.kt</h1><pre class="source lang-java linenums">package org.wikipedia.games.onthisday
+
+import android.annotation.SuppressLint
+import android.widget.Toast
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.datepicker.CalendarConstraints
+import com.google.android.material.datepicker.CompositeDateValidator
+import com.google.android.material.datepicker.DateValidatorPointBackward
+import com.google.android.material.datepicker.DateValidatorPointForward
+import com.google.android.material.datepicker.MaterialCalendar
+import com.google.android.material.datepicker.MaterialDatePicker
+import com.google.android.material.datepicker.OnSelectionChangedListener
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.WikiGamesEvent
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.games.WikiGames
+import org.wikipedia.games.onthisday.OnThisDayGameViewModel.Companion.dateReleasedForLang
+import org.wikipedia.util.log.L
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.Calendar
+import java.util.Date
+import java.util.TimeZone
+
+<span class="nc" id="L29">class OnThisDayGameArchiveCalendarHelper(</span>
+<span class="nc" id="L30">    private val fragment: Fragment,</span>
+<span class="nc" id="L31">    private var languageCode: String,</span>
+<span class="nc" id="L32">    private val onDateSelected: (LocalDate) -&gt; Unit</span>
+) {
+<span class="nc" id="L34">    private var scoreData: Map&lt;Long, Int&gt; = emptyMap()</span>
+
+<span class="nc" id="L36">    private val fragmentLifecycleCallbacks = object : FragmentManager.FragmentLifecycleCallbacks() {</span>
+        @SuppressLint(&quot;RestrictedApi&quot;)
+        override fun onFragmentStarted(fm: FragmentManager, fragment: Fragment) {
+<span class="nc bnc" id="L39" title="All 2 branches missed.">            if (fragment is MaterialDatePicker&lt;*&gt;) {</span>
+<span class="nc" id="L40">                val calendar = getPrivateCalendarFragment(fragment)</span>
+                @Suppress(&quot;UNCHECKED_CAST&quot;)
+<span class="nc bnc" id="L42" title="All 2 branches missed.">                (calendar as MaterialCalendar&lt;Long&gt;?)?.addOnSelectionChangedListener(object :</span>
+                    OnSelectionChangedListener&lt;Long&gt;() {
+                    override fun onSelectionChanged(selection: Long) {
+<span class="nc" id="L45">                        maybeShowToastForDate(selection, scoreData)</span>
+<span class="nc" id="L46">                    }</span>
+                })
+            }
+<span class="nc" id="L49">        }</span>
+    }
+
+    fun show() {
+<span class="nc" id="L53">        fragment.lifecycleScope.launch {</span>
+<span class="nc" id="L54">            val startDateBasedOnLanguage = WikiGames.WHICH_CAME_FIRST.supportLanguages.associateWith { dateReleasedForLang(it) }</span>
+<span class="nc" id="L55">            val localDate = startDateBasedOnLanguage[languageCode]</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">            val startDate = Date.from(localDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant())</span>
+<span class="nc" id="L57">            scoreData = getDataForArchiveCalendar(language = languageCode)</span>
+<span class="nc" id="L58">            showArchiveCalendar(</span>
+<span class="nc" id="L59">                startDate,</span>
+<span class="nc" id="L60">                Date(),</span>
+<span class="nc" id="L61">                scoreData,</span>
+                onDateSelected = { selectedDateInMillis -&gt;
+<span class="nc" id="L63">                    handleDateSelection(selectedDateInMillis)</span>
+<span class="nc" id="L64">                }</span>
+            )
+<span class="nc" id="L66">        }</span>
+<span class="nc" id="L67">    }</span>
+
+    fun updateLanguageCode(languageCode: String) {
+<span class="nc" id="L70">        this.languageCode = languageCode</span>
+<span class="nc" id="L71">    }</span>
+
+    fun register() {
+<span class="nc" id="L74">        fragment.childFragmentManager.registerFragmentLifecycleCallbacks(fragmentLifecycleCallbacks, true)</span>
+<span class="nc" id="L75">    }</span>
+
+    fun unRegister() {
+<span class="nc" id="L78">        fragment.childFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentLifecycleCallbacks)</span>
+<span class="nc" id="L79">    }</span>
+
+    private fun showArchiveCalendar(startDate: Date, endDate: Date, scoreData: Map&lt;Long, Int&gt;, onDateSelected: (Long) -&gt; Unit) {
+<span class="nc" id="L82">        val startTimeInMillis = startDate.time</span>
+<span class="nc" id="L83">        val endTimeInMillis = endDate.time</span>
+<span class="nc" id="L84">        val calendarConstraints = CalendarConstraints.Builder()</span>
+<span class="nc" id="L85">            .setStart(startDate.time)</span>
+<span class="nc" id="L86">            .setEnd(endTimeInMillis)</span>
+<span class="nc" id="L87">            .setValidator(</span>
+<span class="nc" id="L88">                CompositeDateValidator.allOf(</span>
+<span class="nc" id="L89">                    listOf(</span>
+<span class="nc" id="L90">                        DateValidatorPointForward.from(startTimeInMillis - (24 * 60 * 60 * 1000)),</span>
+<span class="nc" id="L91">                        DateValidatorPointBackward.before(endTimeInMillis)</span>
+                    )
+                )
+            )
+<span class="nc" id="L95">            .build()</span>
+
+<span class="nc" id="L97">        val datePicker = MaterialDatePicker.Builder.datePicker()</span>
+<span class="nc" id="L98">            .setTitleText(fragment.getString(R.string.on_this_day_game_archive_calendar_title))</span>
+<span class="nc" id="L99">            .setTheme(R.style.MaterialDatePickerStyle)</span>
+<span class="nc" id="L100">            .setDayViewDecorator(</span>
+<span class="nc" id="L101">                DateDecorator(</span>
+<span class="nc" id="L102">                    startDate,</span>
+<span class="nc" id="L103">                    endDate,</span>
+<span class="nc" id="L104">                    scoreData</span>
+                )
+            )
+<span class="nc" id="L107">            .setCalendarConstraints(calendarConstraints)</span>
+<span class="nc" id="L108">            .setSelection(endTimeInMillis)</span>
+<span class="nc" id="L109">            .build()</span>
+<span class="nc" id="L110">            .apply {</span>
+<span class="nc" id="L111">                addOnPositiveButtonClickListener { selectedDateInMillis -&gt;</span>
+<span class="nc" id="L112">                    onDateSelected(selectedDateInMillis)</span>
+<span class="nc" id="L113">                }</span>
+<span class="nc" id="L114">            }</span>
+
+<span class="nc" id="L116">        datePicker.show(fragment.childFragmentManager, &quot;datePicker&quot;)</span>
+<span class="nc" id="L117">    }</span>
+
+    private fun handleDateSelection(selectedDateInMillis: Long) {
+<span class="nc" id="L120">        val calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC))</span>
+<span class="nc" id="L121">        calendar.timeInMillis = selectedDateInMillis</span>
+<span class="nc" id="L122">        val year = calendar.get(Calendar.YEAR)</span>
+<span class="nc" id="L123">        val month = calendar.get(Calendar.MONTH) + 1</span>
+<span class="nc" id="L124">        val day = calendar.get(Calendar.DAY_OF_MONTH)</span>
+<span class="nc" id="L125">        val scoreDataKey = DateDecorator.getDateKey(year, month, day)</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (scoreData[scoreDataKey] != null) {</span>
+<span class="nc" id="L127">            return</span>
+        }
+<span class="nc" id="L129">        WikiGamesEvent.submit(&quot;date_select&quot;, &quot;game_play&quot;, slideName = &quot;archive_calendar&quot;)</span>
+<span class="nc" id="L130">        onDateSelected(LocalDate.of(year, month, day))</span>
+<span class="nc" id="L131">    }</span>
+
+    private fun maybeShowToastForDate(selectedDateInMillis: Long, scoreData: Map&lt;Long, Int&gt;) {
+<span class="nc" id="L134">        val calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC))</span>
+<span class="nc" id="L135">        calendar.timeInMillis = selectedDateInMillis</span>
+<span class="nc" id="L136">        val year = calendar.get(Calendar.YEAR)</span>
+<span class="nc" id="L137">        val month = calendar.get(Calendar.MONTH)</span>
+<span class="nc" id="L138">        val day = calendar.get(Calendar.DAY_OF_MONTH)</span>
+<span class="nc" id="L139">        val scoreDataKey = DateDecorator.getDateKey(year, month + 1, day)</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (scoreData[scoreDataKey] != null) {</span>
+<span class="nc" id="L141">            Toast.makeText(</span>
+<span class="nc" id="L142">                fragment.requireContext(),</span>
+<span class="nc" id="L143">                fragment.getString(</span>
+<span class="nc" id="L144">                    R.string.on_this_day_game_score_toast_message,</span>
+<span class="nc" id="L145">                    scoreData[scoreDataKey],</span>
+<span class="nc" id="L146">                    OnThisDayGameViewModel.MAX_QUESTIONS</span>
+<span class="nc" id="L147">                ), Toast.LENGTH_SHORT</span>
+<span class="nc" id="L148">            ).show()</span>
+        }
+<span class="nc" id="L150">    }</span>
+
+    private fun getPrivateCalendarFragment(picker: MaterialDatePicker&lt;*&gt;): Any? {
+<span class="nc" id="L153">        try {</span>
+<span class="nc" id="L154">            val field = picker.javaClass.getDeclaredField(&quot;calendar&quot;)</span>
+<span class="nc" id="L155">            field.isAccessible = true</span>
+<span class="nc" id="L156">            return field.get(picker)</span>
+<span class="nc" id="L157">        } catch (e: Exception) {</span>
+<span class="nc" id="L158">            L.e(e)</span>
+        }
+<span class="nc" id="L160">        return null</span>
+    }
+
+<span class="nc" id="L163">    private suspend fun getDataForArchiveCalendar(gameName: Int = WikiGames.WHICH_CAME_FIRST.ordinal, language: String): Map&lt;Long, Int&gt; {</span>
+<span class="nc" id="L164">        val history = AppDatabase.instance.dailyGameHistoryDao().getGameHistory(gameName, language)</span>
+<span class="nc" id="L165">        val map = history.associate {</span>
+<span class="nc" id="L166">            val scoreKey = DateDecorator.getDateKey(it.year, it.month, it.day)</span>
+<span class="nc" id="L167">            scoreKey to it.score</span>
+        }
+<span class="nc" id="L169">        return map</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

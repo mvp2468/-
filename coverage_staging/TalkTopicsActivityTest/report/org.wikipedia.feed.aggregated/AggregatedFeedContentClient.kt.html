@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AggregatedFeedContentClient.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.aggregated</a> &gt; <span class="el_source">AggregatedFeedContentClient.kt</span></div><h1>AggregatedFeedContentClient.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.aggregated
+
+import android.content.Context
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import org.wikipedia.WikipediaApp
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.feed.FeedContentType
+import org.wikipedia.feed.dataclient.FeedClient
+import org.wikipedia.feed.featured.FeaturedArticleCard
+import org.wikipedia.feed.image.FeaturedImageCard
+import org.wikipedia.feed.model.Card
+import org.wikipedia.feed.news.NewsCard
+import org.wikipedia.feed.onthisday.OnThisDayCard
+import org.wikipedia.feed.topread.TopReadListCard
+import org.wikipedia.util.DateUtil
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L24">class AggregatedFeedContentClient {</span>
+<span class="nc" id="L25">    private val aggregatedResponses = mutableMapOf&lt;String, AggregatedFeedContent&gt;()</span>
+<span class="nc" id="L26">    private var aggregatedResponseAge = -1</span>
+<span class="nc" id="L27">    var clientJob: Job? = null</span>
+
+<span class="nc" id="L29">    class OnThisDayFeed(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient) : BaseClient(coroutineScope, aggregatedClient) {</span>
+        override fun getCardFromResponse(responses: Map&lt;String, AggregatedFeedContent&gt;,
+                                         wiki: WikiSite,
+                                         age: Int,
+                                         outCards: MutableList&lt;Card&gt;) {
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            for (appLangCode in WikipediaApp.instance.languageState.appLanguageCodes) {</span>
+<span class="nc bnc" id="L35" title="All 4 branches missed.">                if (responses.containsKey(appLangCode) &amp;&amp; !FeedContentType.ON_THIS_DAY.langCodesDisabled.contains(appLangCode)) {</span>
+<span class="nc bnc" id="L36" title="All 4 branches missed.">                    responses[appLangCode]?.randomOnThisDayEvent?.let {</span>
+<span class="nc" id="L37">                        outCards.add(OnThisDayCard(it, WikiSite.forLanguageCode(appLangCode), age))</span>
+                    }
+                }
+            }
+<span class="nc" id="L41">        }</span>
+    }
+
+<span class="nc" id="L44">    class InTheNews(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient) : BaseClient(coroutineScope, aggregatedClient) {</span>
+        override fun getCardFromResponse(responses: Map&lt;String, AggregatedFeedContent&gt;,
+                                         wiki: WikiSite,
+                                         age: Int,
+                                         outCards: MutableList&lt;Card&gt;) {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">            for (appLangCode in WikipediaApp.instance.languageState.appLanguageCodes) {</span>
+<span class="nc bnc" id="L50" title="All 4 branches missed.">                if (responses.containsKey(appLangCode) &amp;&amp; !FeedContentType.NEWS.langCodesDisabled.contains(appLangCode)) {</span>
+<span class="nc bnc" id="L51" title="All 4 branches missed.">                    responses[appLangCode]?.news?.let {</span>
+<span class="nc" id="L52">                        outCards.add(NewsCard(it, age, WikiSite.forLanguageCode(appLangCode)))</span>
+                    }
+                }
+            }
+<span class="nc" id="L56">        }</span>
+    }
+
+<span class="nc" id="L59">    class FeaturedArticle(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient) : BaseClient(coroutineScope, aggregatedClient) {</span>
+        override fun getCardFromResponse(responses: Map&lt;String, AggregatedFeedContent&gt;,
+                                         wiki: WikiSite,
+                                         age: Int,
+                                         outCards: MutableList&lt;Card&gt;) {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            for (appLangCode in WikipediaApp.instance.languageState.appLanguageCodes) {</span>
+<span class="nc bnc" id="L65" title="All 4 branches missed.">                if (responses.containsKey(appLangCode) &amp;&amp; !FeedContentType.FEATURED_ARTICLE.langCodesDisabled.contains(appLangCode)) {</span>
+<span class="nc bnc" id="L66" title="All 4 branches missed.">                    responses[appLangCode]?.tfa?.let {</span>
+<span class="nc" id="L67">                        outCards.add(FeaturedArticleCard(it, age, WikiSite.forLanguageCode(appLangCode)))</span>
+                    }
+                }
+            }
+<span class="nc" id="L71">        }</span>
+    }
+
+<span class="nc" id="L74">    class TopReadArticles(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient) : BaseClient(coroutineScope, aggregatedClient) {</span>
+        override fun getCardFromResponse(responses: Map&lt;String, AggregatedFeedContent&gt;,
+                                         wiki: WikiSite,
+                                         age: Int,
+                                         outCards: MutableList&lt;Card&gt;) {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            for (appLangCode in WikipediaApp.instance.languageState.appLanguageCodes) {</span>
+<span class="nc bnc" id="L80" title="All 4 branches missed.">                if (responses.containsKey(appLangCode) &amp;&amp; !FeedContentType.TOP_READ_ARTICLES.langCodesDisabled.contains(appLangCode)) {</span>
+<span class="nc bnc" id="L81" title="All 4 branches missed.">                    responses[appLangCode]?.topRead?.let {</span>
+<span class="nc" id="L82">                        outCards.add(</span>
+<span class="nc" id="L83">                            TopReadListCard(</span>
+<span class="nc" id="L84">                                it,</span>
+<span class="nc" id="L85">                                WikiSite.forLanguageCode(appLangCode)</span>
+                            )
+<span class="nc" id="L87">                        )</span>
+                    }
+                }
+            }
+<span class="nc" id="L91">        }</span>
+    }
+
+<span class="nc" id="L94">    class FeaturedImage(coroutineScope: CoroutineScope, aggregatedClient: AggregatedFeedContentClient) : BaseClient(coroutineScope, aggregatedClient) {</span>
+        override fun getCardFromResponse(responses: Map&lt;String, AggregatedFeedContent&gt;,
+                                         wiki: WikiSite,
+                                         age: Int,
+                                         outCards: MutableList&lt;Card&gt;) {
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (responses.containsKey(wiki.languageCode)) {</span>
+<span class="nc bnc" id="L100" title="All 4 branches missed.">                responses[wiki.languageCode]?.potd?.let {</span>
+<span class="nc" id="L101">                    outCards.add(FeaturedImageCard(it, age, wiki))</span>
+                }
+            }
+<span class="nc" id="L104">        }</span>
+    }
+
+    fun invalidate() {
+<span class="nc" id="L108">        aggregatedResponseAge = -1</span>
+<span class="nc" id="L109">    }</span>
+
+<span class="nc" id="L111">    abstract class BaseClient internal constructor(</span>
+<span class="nc" id="L112">        private val coroutineScope: CoroutineScope,</span>
+<span class="nc" id="L113">        private val aggregatedClient: AggregatedFeedContentClient</span>
+    ) : FeedClient {
+        private lateinit var cb: FeedClient.Callback
+        private lateinit var wiki: WikiSite
+        private var age = 0
+
+        abstract fun getCardFromResponse(responses: Map&lt;String, AggregatedFeedContent&gt;, wiki: WikiSite, age: Int, outCards: MutableList&lt;Card&gt;)
+
+        override fun request(context: Context, wiki: WikiSite, age: Int, cb: FeedClient.Callback) {
+<span class="nc" id="L122">            this.cb = cb</span>
+<span class="nc" id="L123">            this.age = age</span>
+<span class="nc" id="L124">            this.wiki = wiki</span>
+<span class="nc bnc" id="L125" title="All 4 branches missed.">            if (aggregatedClient.aggregatedResponseAge == age &amp;&amp; aggregatedClient.aggregatedResponses.containsKey(wiki.languageCode)) {</span>
+<span class="nc" id="L126">                val cards = mutableListOf&lt;Card&gt;()</span>
+<span class="nc" id="L127">                getCardFromResponse(aggregatedClient.aggregatedResponses, wiki, age, cards)</span>
+<span class="nc" id="L128">                cb.success(cards)</span>
+            } else {
+<span class="nc" id="L130">                requestAggregated()</span>
+            }
+<span class="nc" id="L132">        }</span>
+
+<span class="nc" id="L134">        override fun cancel() {}</span>
+
+        private fun requestAggregated() {
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            aggregatedClient.clientJob?.cancel()</span>
+<span class="nc" id="L138">            val date = DateUtil.getUtcRequestDateFor(age)</span>
+<span class="nc" id="L139">            aggregatedClient.clientJob = coroutineScope.launch(</span>
+<span class="nc" id="L140">                CoroutineExceptionHandler { _, caught -&gt;</span>
+<span class="nc" id="L141">                    L.v(caught)</span>
+<span class="nc" id="L142">                    cb.error(caught)</span>
+<span class="nc" id="L143">                }</span>
+            ) {
+<span class="nc" id="L145">                val cards = mutableListOf&lt;Card&gt;()</span>
+<span class="nc" id="L146">                val deferredResponses = WikipediaApp.instance.languageState.appLanguageCodes.map { langCode -&gt;</span>
+<span class="nc" id="L147">                    async {</span>
+<span class="nc" id="L148">                        val wikiSite = WikiSite.forLanguageCode(langCode)</span>
+<span class="nc" id="L149">                        val feedContentResponse = ServiceFactory.getRest(wikiSite).getFeedFeatured(date.year, date.month, date.day, langCode)</span>
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                        feedContentResponse.randomOnThisDayEvent = feedContentResponse.onthisday?.random()</span>
+
+<span class="nc" id="L153">                        aggregatedClient.aggregatedResponses[langCode] = feedContentResponse</span>
+<span class="nc" id="L154">                        aggregatedClient.aggregatedResponseAge = age</span>
+<span class="nc" id="L155">                    }</span>
+                }
+
+<span class="nc" id="L158">                deferredResponses.awaitAll()</span>
+
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                if (aggregatedClient.aggregatedResponses.containsKey(wiki.languageCode)) {</span>
+<span class="nc" id="L161">                    getCardFromResponse(aggregatedClient.aggregatedResponses, wiki, age, cards)</span>
+                }
+<span class="nc" id="L163">                cb.success(cards)</span>
+<span class="nc" id="L164">            }</span>
+<span class="nc" id="L165">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

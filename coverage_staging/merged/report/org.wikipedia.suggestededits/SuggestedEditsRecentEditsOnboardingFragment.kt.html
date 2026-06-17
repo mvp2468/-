@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsRecentEditsOnboardingFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsRecentEditsOnboardingFragment.kt</span></div><h1>SuggestedEditsRecentEditsOnboardingFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.net.toUri
+import androidx.core.os.bundleOf
+import androidx.fragment.app.Fragment
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import org.wikipedia.R
+import org.wikipedia.activity.FragmentUtil
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.onboarding.OnboardingFragment
+import org.wikipedia.onboarding.OnboardingPageView
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.UriUtil
+
+<span class="nc" id="L19">class SuggestedEditsRecentEditsOnboardingFragment : OnboardingFragment(), OnboardingPageView.Callback {</span>
+<span class="nc" id="L20">    override val doneButtonText = R.string.onboarding_get_started</span>
+
+    override fun getAdapter(): FragmentStateAdapter {
+<span class="nc" id="L23">        return DescriptionEditTutorialPagerAdapter(this)</span>
+    }
+
+<span class="nc" id="L26">    internal inner class DescriptionEditTutorialPagerAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {</span>
+        override fun getItemCount(): Int {
+<span class="nc" id="L28">            return pages.size</span>
+        }
+
+        override fun createFragment(position: Int): Fragment {
+<span class="nc" id="L32">            return ItemFragment().apply { arguments = bundleOf(ARG_POSITION to position) }</span>
+        }
+    }
+
+    override fun onLinkClick(view: OnboardingPageView, url: String) {
+<span class="nc" id="L37">        when (url) {</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            &quot;#privacy&quot; -&gt; FeedbackUtil.showPrivacyPolicy(requireContext())</span>
+<span class="nc" id="L39">            else -&gt; UriUtil.handleExternalLink(requireActivity(), url.toUri())</span>
+        }
+<span class="nc" id="L41">    }</span>
+
+<span class="nc" id="L43">    override fun onListActionButtonClicked(view: OnboardingPageView) { }</span>
+
+<span class="nc" id="L45">    class ItemFragment : Fragment() {</span>
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L47">            super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L48">            val position = requireArguments().getInt(ARG_POSITION, 0)</span>
+<span class="nc" id="L49">            val view = inflater.inflate(pages[position], container, false) as OnboardingPageView</span>
+<span class="nc" id="L50">            view.tag = position</span>
+<span class="nc" id="L51">            view.callback = callback</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            val action = if (position == 0) &quot;onboarding_init&quot; else &quot;onboarding_${position}_advance&quot;</span>
+<span class="nc" id="L53">            PatrollerExperienceEvent.logAction(action, &quot;pt_onboarding&quot;)</span>
+<span class="nc" id="L54">            return view</span>
+        }
+
+        private val callback
+<span class="nc" id="L58">            get() = FragmentUtil.getCallback(this, OnboardingPageView.Callback::class.java)</span>
+    }
+
+    companion object {
+        const val ARG_POSITION = &quot;position&quot;
+<span class="nc" id="L63">        val pages = arrayOf(</span>
+<span class="nc" id="L64">            R.layout.inflate_patroller_tasks_onboarding_page_one,</span>
+<span class="nc" id="L65">            R.layout.inflate_patroller_tasks_onboarding_page_two,</span>
+        )
+<span class="nc" id="L67">        fun newInstance() = SuggestedEditsRecentEditsOnboardingFragment()</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,487 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadingListBehaviorsUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.readinglist</a> &gt; <span class="el_source">ReadingListBehaviorsUtil.kt</span></div><h1>ReadingListBehaviorsUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.readinglist
+
+import android.app.Activity
+import android.content.DialogInterface
+import android.icu.text.ListFormatter
+import android.os.Build
+import android.text.Spanned
+import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.apache.commons.lang3.StringUtils
+import org.wikipedia.Constants.InvokeSource
+import org.wikipedia.R
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.extensions.isStarted
+import org.wikipedia.page.ExclusiveBottomSheetPresenter
+import org.wikipedia.page.PageTitle
+import org.wikipedia.readinglist.database.ReadingList
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.DeviceUtil
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.util.log.L
+import org.wikipedia.views.CircularProgressBar.Companion.MIN_PROGRESS
+import java.io.IOException
+
+object ReadingListBehaviorsUtil {
+
+    fun interface SearchCallback {
+        fun onCompleted(lists: MutableList&lt;Any&gt;)
+    }
+
+    fun interface SnackbarCallback {
+        fun onUndoDeleteClicked()
+    }
+
+    fun interface Callback {
+        fun onCompleted()
+    }
+
+<span class="nc" id="L48">    private var allReadingLists = listOf&lt;ReadingList&gt;()</span>
+
+<span class="nc" id="L50">    private val exceptionHandler = CoroutineExceptionHandler { _, exception -&gt; L.w(exception) }</span>
+
+    fun getListsContainPage(readingListPage: ReadingListPage) =
+<span class="nc" id="L53">            allReadingLists.filter { list -&gt; list.pages.any { it.apiTitle == readingListPage.apiTitle } }</span>
+
+    fun savePagesForOffline(activity: Activity, selectedPages: List&lt;ReadingListPage&gt;, callback: Callback) {
+<span class="nc bnc" id="L56" title="All 4 branches missed.">        if (Prefs.isDownloadOnlyOverWiFiEnabled &amp;&amp; !DeviceUtil.isOnWiFi) {</span>
+<span class="nc" id="L57">            showMobileDataWarningDialog(activity) { _, _ -&gt;</span>
+<span class="nc" id="L58">                savePagesForOffline(activity, selectedPages, true)</span>
+<span class="nc" id="L59">                callback.onCompleted()</span>
+<span class="nc" id="L60">            }</span>
+        } else {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            savePagesForOffline(activity, selectedPages, !Prefs.isDownloadingReadingListArticlesEnabled)</span>
+<span class="nc" id="L63">            callback.onCompleted()</span>
+        }
+<span class="nc" id="L65">    }</span>
+
+    private fun savePagesForOffline(activity: Activity, selectedPages: List&lt;ReadingListPage&gt;, forcedSave: Boolean) {
+<span class="nc bnc" id="L68" title="All 4 branches missed.">        if (selectedPages.isNotEmpty()) {</span>
+<span class="nc" id="L69">            MainScope().launch(exceptionHandler) {</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                for (page in selectedPages) {</span>
+<span class="nc" id="L71">                    resetPageProgress(page)</span>
+                }
+<span class="nc" id="L73">                AppDatabase.instance.readingListPageDao()</span>
+<span class="nc" id="L74">                    .markPagesForOffline(selectedPages, true, forcedSave)</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                if (!activity.isStarted) {</span>
+<span class="nc" id="L76">                    return@launch</span>
+                }
+<span class="nc" id="L78">                showMultiSelectOfflineStateChangeSnackbar(activity, selectedPages, true)</span>
+<span class="nc" id="L79">            }</span>
+        }
+<span class="nc" id="L81">    }</span>
+
+    fun removePagesFromOffline(activity: Activity, selectedPages: List&lt;ReadingListPage&gt;, callback: Callback) {
+<span class="nc bnc" id="L84" title="All 4 branches missed.">        if (selectedPages.isNotEmpty()) {</span>
+<span class="nc" id="L85">            MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L86">                AppDatabase.instance.readingListPageDao().markPagesForOffline(selectedPages, offline = false, forcedSave = false)</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                if (!activity.isStarted) {</span>
+<span class="nc" id="L88">                    return@launch</span>
+                }
+<span class="nc" id="L90">                showMultiSelectOfflineStateChangeSnackbar(activity, selectedPages, false)</span>
+<span class="nc" id="L91">                callback.onCompleted()</span>
+<span class="nc" id="L92">            }</span>
+        }
+<span class="nc" id="L94">    }</span>
+
+    fun deleteReadingList(activity: Activity, readingList: ReadingList?, showDialog: Boolean, callback: Callback) {
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (readingList == null) {</span>
+<span class="nc" id="L98">            return</span>
+        }
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (showDialog) {</span>
+<span class="nc" id="L101">            MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L102">                    .setMessage(activity.getString(R.string.reading_list_delete_confirm, readingList.title))</span>
+<span class="nc" id="L103">                    .setPositiveButton(R.string.reading_list_delete_dialog_ok_button_text) { _, _ -&gt;</span>
+<span class="nc" id="L104">                        MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L105">                            AppDatabase.instance.readingListDao().deleteList(readingList)</span>
+<span class="nc" id="L106">                            AppDatabase.instance.readingListPageDao()</span>
+<span class="nc" id="L107">                                .markPagesForDeletion(readingList, readingList.pages, false)</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                            if (!activity.isStarted) {</span>
+<span class="nc" id="L109">                                return@launch</span>
+                            }
+<span class="nc" id="L111">                            callback.onCompleted()</span>
+<span class="nc" id="L112">                        }</span>
+<span class="nc" id="L113">                    }</span>
+<span class="nc" id="L114">                    .setNegativeButton(R.string.reading_list_delete_dialog_cancel_button_text, null)</span>
+<span class="nc" id="L115">                    .show()</span>
+        } else {
+<span class="nc" id="L117">            MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L118">                AppDatabase.instance.readingListDao().deleteList(readingList)</span>
+<span class="nc" id="L119">                AppDatabase.instance.readingListPageDao()</span>
+<span class="nc" id="L120">                    .markPagesForDeletion(readingList, readingList.pages, false)</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                if (!activity.isStarted) {</span>
+<span class="nc" id="L122">                    return@launch</span>
+                }
+<span class="nc" id="L124">                callback.onCompleted()</span>
+<span class="nc" id="L125">            }</span>
+        }
+<span class="nc" id="L127">    }</span>
+
+    fun deleteReadingLists(activity: Activity, readingLists: List&lt;ReadingList&gt;, callback: Callback) {
+<span class="nc" id="L130">        MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L131">            .setTitle(R.string.reading_list_delete_lists_confirm_dialog_title)</span>
+<span class="nc" id="L132">            .setMessage(activity.resources.getQuantityString(R.plurals.reading_list_delete_lists_confirm_dialog_message, readingLists.size, readingLists.size))</span>
+<span class="nc" id="L133">            .setPositiveButton(R.string.reading_list_delete_lists_dialog_delete_button_text) { _, _ -&gt;</span>
+<span class="nc" id="L134">                MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L135">                    readingLists.filterNot { it.isDefault }.forEach {</span>
+<span class="nc" id="L136">                        AppDatabase.instance.readingListDao().deleteList(it)</span>
+<span class="nc" id="L137">                        AppDatabase.instance.readingListPageDao().markPagesForDeletion(it, it.pages, false)</span>
+<span class="nc" id="L138">                    }</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                    if (!activity.isStarted) {</span>
+<span class="nc" id="L140">                        return@launch</span>
+                    }
+<span class="nc" id="L142">                    callback.onCompleted()</span>
+<span class="nc" id="L143">                }</span>
+<span class="nc" id="L144">            }</span>
+<span class="nc" id="L145">            .setNegativeButton(R.string.reading_list_delete_dialog_cancel_button_text, null)</span>
+<span class="nc" id="L146">            .show()</span>
+<span class="nc" id="L147">    }</span>
+
+    fun deletePages(activity: Activity, listsContainPage: List&lt;ReadingList&gt;, readingListPage: ReadingListPage, snackbarCallback: SnackbarCallback, callback: Callback) {
+<span class="nc" id="L150">        MainScope().launch(exceptionHandler) {</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            if (listsContainPage.size &gt; 1) {</span>
+<span class="nc" id="L152">                val pages = AppDatabase.instance.readingListPageDao().getAllPageOccurrences(ReadingListPage.toPageTitle(readingListPage))</span>
+<span class="nc" id="L153">                val lists = AppDatabase.instance.readingListDao().getListsFromPageOccurrences(pages)</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                if (!activity.isStarted) {</span>
+<span class="nc" id="L155">                    return@launch</span>
+                }
+<span class="nc" id="L157">                RemoveFromReadingListsDialog(lists).deleteOrShowDialog(activity) { list, page -&gt;</span>
+<span class="nc" id="L158">                    showDeletePageFromListsUndoSnackbar(activity, list, page, snackbarCallback)</span>
+<span class="nc" id="L159">                    callback.onCompleted()</span>
+<span class="nc" id="L160">                }</span>
+            } else {
+<span class="nc" id="L162">                AppDatabase.instance.readingListPageDao().markPagesForDeletion(listsContainPage[0], listOf(readingListPage))</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                if (!activity.isStarted) {</span>
+<span class="nc" id="L164">                    return@launch</span>
+                }
+<span class="nc" id="L166">                listsContainPage[0].pages.remove(readingListPage)</span>
+<span class="nc" id="L167">                showDeletePagesUndoSnackbar(activity, listsContainPage[0], listOf(readingListPage), snackbarCallback)</span>
+<span class="nc" id="L168">                callback.onCompleted()</span>
+            }
+<span class="nc" id="L170">        }</span>
+<span class="nc" id="L171">    }</span>
+
+    fun updateReadingListPage(item: ReadingListPage) {
+<span class="nc" id="L174">        MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L175">            AppDatabase.instance.readingListDao().updateLists(getListsContainPage(item), false)</span>
+<span class="nc" id="L176">            AppDatabase.instance.readingListPageDao().updateReadingListPage(item)</span>
+<span class="nc" id="L177">        }</span>
+<span class="nc" id="L178">    }</span>
+
+    fun renameReadingList(activity: Activity, readingList: ReadingList?, callback: Callback) {
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        if (readingList == null) {</span>
+<span class="nc" id="L182">            return</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        } else if (readingList.isDefault) {</span>
+<span class="nc" id="L184">            L.w(&quot;Attempted to rename default list.&quot;)</span>
+<span class="nc" id="L185">            return</span>
+        }
+
+<span class="nc" id="L188">        MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L189">            val existingTitles = AppDatabase.instance.readingListDao().getListsWithoutContents()</span>
+<span class="nc" id="L190">                .map { it.title }</span>
+<span class="nc" id="L191">                .filterNot { it == readingList.title }</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            if (!activity.isStarted) {</span>
+<span class="nc" id="L193">                return@launch</span>
+            }
+
+<span class="nc" id="L196">            ReadingListTitleDialog.readingListTitleDialog(</span>
+<span class="nc" id="L197">                activity, readingList.title, readingList.description, existingTitles,</span>
+<span class="nc" id="L198">                callback = object : ReadingListTitleDialog.Callback {</span>
+                    override fun onSuccess(text: String, description: String) {
+<span class="nc" id="L200">                        MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L201">                            readingList.title = text</span>
+<span class="nc" id="L202">                            readingList.description = description</span>
+<span class="nc" id="L203">                            readingList.dirty = true</span>
+<span class="nc" id="L204">                            AppDatabase.instance.readingListDao().updateList(readingList, true)</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                            if (!activity.isStarted) {</span>
+<span class="nc" id="L206">                                return@launch</span>
+                            }
+<span class="nc" id="L208">                            callback.onCompleted()</span>
+<span class="nc" id="L209">                        }</span>
+<span class="nc" id="L210">                    }</span>
+<span class="nc" id="L211">                }).show()</span>
+<span class="nc" id="L212">        }</span>
+<span class="nc" id="L213">    }</span>
+
+    private fun showDeletePageFromListsUndoSnackbar(activity: Activity, lists: List&lt;ReadingList&gt;?, page: ReadingListPage, callback: SnackbarCallback) {
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if (lists == null) {</span>
+<span class="nc" id="L217">            return</span>
+        }
+<span class="nc" id="L219">        val readingListNames = lists.map { it.title }.run {</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            if (Build.VERSION.SDK_INT &gt;= Build.VERSION_CODES.O) {</span>
+<span class="nc" id="L221">                ListFormatter.getInstance().format(this)</span>
+            } else {
+<span class="nc" id="L223">                joinToString(separator = &quot;, &quot;)</span>
+<span class="nc" id="L224">            }</span>
+        }
+<span class="nc" id="L226">        FeedbackUtil.makeSnackbar(activity, activity.getString(R.string.reading_list_item_deleted_from_list,</span>
+<span class="nc" id="L227">                page.displayTitle, readingListNames))</span>
+<span class="nc" id="L228">                .setAction(R.string.reading_list_item_delete_undo) {</span>
+<span class="nc" id="L229">                    MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L230">                        AppDatabase.instance.readingListPageDao().addPageToLists(lists, page, true)</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">                        if (!activity.isStarted) {</span>
+<span class="nc" id="L232">                            return@launch</span>
+                        }
+<span class="nc" id="L234">                        callback.onUndoDeleteClicked()</span>
+<span class="nc" id="L235">                    }</span>
+<span class="nc" id="L236">                }</span>
+<span class="nc" id="L237">                .show()</span>
+<span class="nc" id="L238">    }</span>
+
+    fun showDeletePagesUndoSnackbar(activity: Activity, readingList: ReadingList?, pages: List&lt;ReadingListPage&gt;, callback: SnackbarCallback) {
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if (readingList == null) {</span>
+<span class="nc" id="L242">            return</span>
+        }
+<span class="nc" id="L244">        FeedbackUtil</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                .makeSnackbar(activity, if (pages.size == 1) activity.getString(R.string.reading_list_item_deleted_from_list,</span>
+<span class="nc" id="L246">                        pages[0].displayTitle, readingList.title) else activity.resources.getQuantityString(R.plurals.reading_list_articles_deleted_from_list,</span>
+<span class="nc" id="L247">                        pages.size, pages.size, readingList.title))</span>
+<span class="nc" id="L248">                .setAction(R.string.reading_list_item_delete_undo) {</span>
+<span class="nc" id="L249">                    MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L250">                        val newPages = pages.map { ReadingListPage(ReadingListPage.toPageTitle(it)) }</span>
+<span class="nc" id="L251">                        AppDatabase.instance.readingListPageDao().addPagesToList(readingList, newPages, true)</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                        if (!activity.isStarted) {</span>
+<span class="nc" id="L253">                            return@launch</span>
+                        }
+<span class="nc" id="L255">                        readingList.pages.addAll(newPages)</span>
+<span class="nc" id="L256">                        callback.onUndoDeleteClicked()</span>
+<span class="nc" id="L257">                    }</span>
+<span class="nc" id="L258">                }</span>
+<span class="nc" id="L259">                .show()</span>
+<span class="nc" id="L260">    }</span>
+
+    fun showDeleteListUndoSnackbar(activity: Activity, readingList: ReadingList?, callback: SnackbarCallback) {
+<span class="nc bnc" id="L263" title="All 2 branches missed.">        if (readingList == null) {</span>
+<span class="nc" id="L264">            return</span>
+        }
+<span class="nc" id="L266">        FeedbackUtil.makeSnackbar(activity, activity.getString(R.string.reading_list_deleted, readingList.title))</span>
+<span class="nc" id="L267">            .setAction(R.string.reading_list_item_delete_undo) {</span>
+<span class="nc" id="L268">                MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L269">                    val newList = AppDatabase.instance.readingListDao()</span>
+<span class="nc" id="L270">                        .createList(readingList.title, readingList.description)</span>
+<span class="nc" id="L271">                    val newPages = readingList.pages.map { ReadingListPage(ReadingListPage.toPageTitle(it)) }</span>
+<span class="nc" id="L272">                    AppDatabase.instance.readingListPageDao()</span>
+<span class="nc" id="L273">                        .addPagesToList(newList, newPages, true)</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                    if (!activity.isStarted) {</span>
+<span class="nc" id="L275">                        return@launch</span>
+                    }
+<span class="nc" id="L277">                    callback.onUndoDeleteClicked()</span>
+<span class="nc" id="L278">                }</span>
+<span class="nc" id="L279">            }</span>
+<span class="nc" id="L280">            .show()</span>
+<span class="nc" id="L281">    }</span>
+
+    fun showDeleteListsUndoSnackbar(activity: Activity, readingLists: List&lt;ReadingList&gt;?, callback: SnackbarCallback) {
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if (readingLists == null) {</span>
+<span class="nc" id="L285">            return</span>
+        }
+<span class="nc" id="L287">        val snackBar = FeedbackUtil.makeSnackbar(activity, getDeleteListMessage(activity, readingLists))</span>
+<span class="nc bnc" id="L288" title="All 4 branches missed.">        if (!(readingLists.size == 1 &amp;&amp; readingLists[0].isDefault)) {</span>
+<span class="nc" id="L289">            snackBar.setAction(R.string.reading_list_item_delete_undo) {</span>
+<span class="nc" id="L290">                MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L291">                    readingLists.filterNot { it.isDefault }.forEach {</span>
+<span class="nc" id="L292">                        val newList = AppDatabase.instance.readingListDao()</span>
+<span class="nc" id="L293">                            .createList(it.title, it.description)</span>
+<span class="nc" id="L294">                        val newPages = it.pages.map { page -&gt;</span>
+<span class="nc" id="L295">                            ReadingListPage(ReadingListPage.toPageTitle(page))</span>
+                        }
+<span class="nc" id="L297">                        AppDatabase.instance.readingListPageDao()</span>
+<span class="nc" id="L298">                            .addPagesToList(newList, newPages, true)</span>
+<span class="nc" id="L299">                    }</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">                    if (!activity.isStarted) {</span>
+<span class="nc" id="L301">                        return@launch</span>
+                    }
+<span class="nc" id="L303">                    callback.onUndoDeleteClicked()</span>
+<span class="nc" id="L304">                }</span>
+<span class="nc" id="L305">            }</span>
+        }
+<span class="nc" id="L307">        snackBar.show()</span>
+<span class="nc" id="L308">    }</span>
+
+    private fun getDeleteListMessage(activity: Activity, readingLists: List&lt;ReadingList&gt;): String {
+<span class="nc bnc" id="L311" title="All 2 branches missed.">        return if (readingLists.any { it.isDefault }) {</span>
+<span class="nc bnc" id="L312" title="All 3 branches missed.">            when (readingLists.size) {</span>
+<span class="nc" id="L313">                1 -&gt; activity.getString(R.string.reading_lists_default_list_delete_message, activity.getString(R.string.default_reading_list_name))</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                2 -&gt; activity.getString(R.string.reading_lists_default_plus_one_list_delete_message, readingLists.first { !it.isDefault }.title, activity.getString(R.string.default_reading_list_name))</span>
+<span class="nc" id="L315">                else -&gt; activity.getString(R.string.reading_lists_default_plus_many_lists_delete_message, activity.getString(R.string.default_reading_list_name))</span>
+            }
+<span class="nc" id="L317">        } else {</span>
+<span class="nc" id="L318">            activity.resources.getQuantityString(R.plurals.reading_lists_deleted_message, readingLists.size, readingLists.size)</span>
+        }
+    }
+
+    fun togglePageOffline(activity: Activity, page: ReadingListPage?, callback: Callback) {
+<span class="nc bnc" id="L323" title="All 2 branches missed.">        if (page == null) {</span>
+<span class="nc" id="L324">            return</span>
+        }
+<span class="nc bnc" id="L326" title="All 2 branches missed.">        if (page.offline) {</span>
+<span class="nc" id="L327">            MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L328">                val pages = AppDatabase.instance.readingListPageDao().getAllPageOccurrences(ReadingListPage.toPageTitle(page))</span>
+<span class="nc" id="L329">                val lists = AppDatabase.instance.readingListDao().getListsFromPageOccurrences(pages)</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">                if (!activity.isStarted) {</span>
+<span class="nc" id="L331">                    return@launch</span>
+                }
+<span class="nc bnc" id="L333" title="All 2 branches missed.">                if (lists.size &gt; 1) {</span>
+<span class="nc" id="L334">                    MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L335">                            .setTitle(R.string.reading_list_confirm_remove_article_from_offline_title)</span>
+<span class="nc" id="L336">                            .setMessage(getConfirmToggleOfflineMessage(activity, page, lists))</span>
+<span class="nc" id="L337">                            .setPositiveButton(R.string.reading_list_confirm_remove_article_from_offline) { _, _ -&gt; toggleOffline(activity, page, callback) }</span>
+<span class="nc" id="L338">                            .setNegativeButton(R.string.reading_list_remove_from_offline_cancel_button_text, null)</span>
+<span class="nc" id="L339">                            .show()</span>
+                } else {
+<span class="nc" id="L341">                    toggleOffline(activity, page, callback)</span>
+                }
+<span class="nc" id="L343">            }</span>
+        } else {
+<span class="nc" id="L345">            toggleOffline(activity, page, callback)</span>
+        }
+<span class="nc" id="L347">    }</span>
+
+    fun toggleOffline(activity: Activity, page: ReadingListPage, callback: Callback) {
+<span class="nc" id="L350">        resetPageProgress(page)</span>
+<span class="nc bnc" id="L351" title="All 6 branches missed.">        if (Prefs.isDownloadOnlyOverWiFiEnabled &amp;&amp; !DeviceUtil.isOnWiFi &amp;&amp; !page.offline) {</span>
+<span class="nc" id="L352">            showMobileDataWarningDialog(activity) { _, _ -&gt;</span>
+<span class="nc" id="L353">                toggleOffline(activity, page, true)</span>
+<span class="nc" id="L354">                callback.onCompleted()</span>
+<span class="nc" id="L355">            }</span>
+        } else {
+<span class="nc bnc" id="L357" title="All 2 branches missed.">            toggleOffline(activity, page, !Prefs.isDownloadingReadingListArticlesEnabled)</span>
+<span class="nc" id="L358">            callback.onCompleted()</span>
+        }
+<span class="nc" id="L360">    }</span>
+
+<span class="nc" id="L362">    fun addToDefaultList(activity: Activity, title: PageTitle, addToDefault: Boolean, invokeSource: InvokeSource, listener: DialogInterface.OnDismissListener? = null) {</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">        if (addToDefault) {</span>
+<span class="nc" id="L364">            MainScope().launch(exceptionHandler) {</span>
+                // If the title is a redirect, resolve it before saving to the reading list.
+<span class="nc" id="L366">                val pageInfo = try {</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">                    ServiceFactory.get(title.wikiSite).getInfoByPageIdsOrTitles(null, title.prefixedText).query?.firstPage()</span>
+<span class="nc" id="L368">                } catch (e: IOException) {</span>
+                    // A network error (or being offline) during the redirect resolution is not a big deal,
+                    // and we can just proceed with the original title.
+<span class="nc" id="L371">                    L.e(e)</span>
+<span class="nc" id="L372">                    null</span>
+                }
+<span class="nc bnc" id="L374" title="All 2 branches missed.">                val finalPageTitle = pageInfo?.let {</span>
+<span class="nc" id="L375">                    PageTitle(it.title, title.wikiSite, it.thumbUrl(), it.description, it.displayTitle(title.wikiSite.languageCode), null)</span>
+<span class="nc" id="L376">                } ?: title</span>
+<span class="nc" id="L377">                val defaultList = AppDatabase.instance.readingListDao().getDefaultList()</span>
+<span class="nc" id="L378">                val addedTitles = AppDatabase.instance.readingListPageDao().addPagesToListIfNotExist(defaultList, listOf(finalPageTitle))</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">                if (!activity.isStarted) {</span>
+<span class="nc" id="L380">                    return@launch</span>
+                }
+<span class="nc bnc" id="L382" title="All 4 branches missed.">                if (addedTitles.isNotEmpty()) {</span>
+<span class="nc" id="L383">                    FeedbackUtil.makeSnackbar(activity, activity.getString(R.string.reading_list_article_added_to_default_list, StringUtil.fromHtml(finalPageTitle.displayText)))</span>
+<span class="nc" id="L384">                        .setAction(R.string.reading_list_add_to_list_button) {</span>
+<span class="nc" id="L385">                            moveToList(activity, defaultList.id, finalPageTitle, invokeSource, false, listener)</span>
+<span class="nc" id="L386">                        }.show()</span>
+                } else {
+<span class="nc" id="L388">                    FeedbackUtil.showMessage(activity, activity.getString(R.string.reading_list_article_already_exists_message, defaultList.title, title.displayText))</span>
+                }
+<span class="nc" id="L390">            }</span>
+        } else {
+<span class="nc" id="L392">            ExclusiveBottomSheetPresenter.show((activity as AppCompatActivity).supportFragmentManager,</span>
+<span class="nc" id="L393">                AddToReadingListDialog.newInstance(title, invokeSource, listener))</span>
+        }
+<span class="nc" id="L395">    }</span>
+
+<span class="nc" id="L397">    fun moveToList(activity: Activity, sourceReadingListId: Long, title: PageTitle, source: InvokeSource,</span>
+<span class="nc" id="L398">                   showDefaultList: Boolean = true, listener: DialogInterface.OnDismissListener? = null) {</span>
+<span class="nc" id="L399">        ExclusiveBottomSheetPresenter.show((activity as AppCompatActivity).supportFragmentManager,</span>
+<span class="nc" id="L400">            MoveToReadingListDialog.newInstance(sourceReadingListId, title, source, showDefaultList, listener))</span>
+<span class="nc" id="L401">    }</span>
+
+    private fun toggleOffline(activity: Activity, page: ReadingListPage, forcedSave: Boolean) {
+<span class="nc" id="L404">        MainScope().launch(exceptionHandler) {</span>
+<span class="nc" id="L405">            AppDatabase.instance.readingListPageDao()</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">                .markPagesForOffline(listOf(page), !page.offline, forcedSave)</span>
+<span class="nc bnc" id="L407" title="All 2 branches missed.">            if (!activity.isStarted) {</span>
+<span class="nc" id="L408">                return@launch</span>
+            }
+<span class="nc" id="L410">            FeedbackUtil.showMessage(</span>
+<span class="nc" id="L411">                activity,</span>
+<span class="nc" id="L412">                activity.resources.getQuantityString(</span>
+<span class="nc bnc" id="L413" title="All 2 branches missed.">                    if (page.offline) R.plurals.reading_list_article_offline_message else R.plurals.reading_list_article_not_offline_message,</span>
+<span class="nc" id="L414">                    1</span>
+                )
+            )
+<span class="nc" id="L417">        }</span>
+<span class="nc" id="L418">    }</span>
+
+    private fun showMobileDataWarningDialog(activity: Activity, listener: DialogInterface.OnClickListener) {
+<span class="nc" id="L421">        MaterialAlertDialogBuilder(activity)</span>
+<span class="nc" id="L422">                .setTitle(R.string.dialog_title_download_only_over_wifi)</span>
+<span class="nc" id="L423">                .setMessage(R.string.dialog_text_download_only_over_wifi)</span>
+<span class="nc" id="L424">                .setPositiveButton(R.string.dialog_title_download_only_over_wifi_allow, listener)</span>
+<span class="nc" id="L425">                .setNegativeButton(R.string.reading_list_download_using_mobile_data_cancel_button_text, null)</span>
+<span class="nc" id="L426">                .show()</span>
+<span class="nc" id="L427">    }</span>
+
+    private fun showMultiSelectOfflineStateChangeSnackbar(activity: Activity, pages: List&lt;ReadingListPage&gt;, offline: Boolean) {
+<span class="nc" id="L430">        FeedbackUtil.showMessage(activity,</span>
+<span class="nc" id="L431">                activity.resources.getQuantityString(</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">                        if (offline) R.plurals.reading_list_article_offline_message else R.plurals.reading_list_article_not_offline_message, pages.size</span>
+                ))
+<span class="nc" id="L434">    }</span>
+
+    private fun resetPageProgress(page: ReadingListPage) {
+<span class="nc bnc" id="L437" title="All 2 branches missed.">        if (!page.offline) {</span>
+<span class="nc" id="L438">            page.downloadProgress = MIN_PROGRESS</span>
+        }
+<span class="nc" id="L440">    }</span>
+
+    private fun getConfirmToggleOfflineMessage(activity: Activity, page: ReadingListPage, lists: List&lt;ReadingList&gt;): Spanned {
+<span class="nc" id="L443">        var result = activity.getString(R.string.reading_list_confirm_remove_article_from_offline_message,</span>
+<span class="nc" id="L444">                &quot;&lt;b&gt;${page.displayTitle}&lt;/b&gt;&quot;)</span>
+<span class="nc" id="L445">        lists.forEach {</span>
+<span class="nc" id="L446">            result += &quot;&lt;br&gt;&amp;nbsp;&amp;nbsp;&lt;b&gt;&amp;#8226; ${it.title}&lt;/b&gt;&quot;</span>
+<span class="nc" id="L447">        }</span>
+<span class="nc" id="L448">        return StringUtil.fromHtml(result)</span>
+    }
+
+    fun searchListsAndPages(coroutineScope: CoroutineScope, searchQuery: String?, callback: SearchCallback) {
+<span class="nc" id="L452">        coroutineScope.launch(exceptionHandler) {</span>
+<span class="nc" id="L453">            allReadingLists = AppDatabase.instance.readingListDao().getAllLists()</span>
+<span class="nc" id="L454">            val list = withContext(Dispatchers.IO) { applySearchQuery(searchQuery, allReadingLists) }</span>
+<span class="nc bnc" id="L455" title="All 6 branches missed.">            if (searchQuery.isNullOrEmpty()) {</span>
+<span class="nc" id="L456">                ReadingList.sortGenericList(list, Prefs.getReadingListSortMode(ReadingList.SORT_BY_NAME_ASC))</span>
+            }
+<span class="nc" id="L458">            callback.onCompleted(list)</span>
+<span class="nc" id="L459">        }</span>
+<span class="nc" id="L460">    }</span>
+
+    private fun applySearchQuery(searchQuery: String?, lists: List&lt;ReadingList&gt;): MutableList&lt;Any&gt; {
+<span class="nc" id="L463">        val result = mutableListOf&lt;Any&gt;()</span>
+
+<span class="nc bnc" id="L465" title="All 6 branches missed.">        if (searchQuery.isNullOrEmpty()) {</span>
+<span class="nc" id="L466">            result.addAll(lists)</span>
+<span class="nc" id="L467">            return result</span>
+        }
+
+<span class="nc" id="L470">        val normalizedQuery = StringUtils.stripAccents(searchQuery)</span>
+<span class="nc" id="L471">        var lastListItemIndex = 0</span>
+<span class="nc" id="L472">        lists.forEach { list -&gt;</span>
+<span class="nc bnc" id="L473" title="All 2 branches missed.">            if (StringUtils.stripAccents(list.title).contains(normalizedQuery, true)) {</span>
+<span class="nc" id="L474">                result.add(lastListItemIndex++, list)</span>
+            }
+<span class="nc" id="L476">            list.pages.forEach { page -&gt;</span>
+<span class="nc bnc" id="L477" title="All 2 branches missed.">                if (page.accentInvariantTitle.contains(normalizedQuery, true)) {</span>
+<span class="nc bnc" id="L478" title="All 8 branches missed.">                    if (result.none { it is ReadingListPage &amp;&amp; it.lang == page.lang &amp;&amp; it.apiTitle == page.apiTitle }) {</span>
+<span class="nc" id="L479">                        result.add(page)</span>
+                    }
+                }
+<span class="nc" id="L482">            }</span>
+<span class="nc" id="L483">        }</span>
+<span class="nc" id="L484">        return result</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiSwipeRefreshLayout.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.views</a> &gt; <span class="el_source">WikiSwipeRefreshLayout.kt</span></div><h1>WikiSwipeRefreshLayout.kt</h1><pre class="source lang-java linenums">package org.wikipedia.views
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.View
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import org.wikipedia.R
+import org.wikipedia.util.ResourceUtil
+
+<span class="nc" id="L10">open class WikiSwipeRefreshLayout(context: Context, attrs: AttributeSet?) : SwipeRefreshLayout(context, attrs) {</span>
+
+<span class="nc" id="L12">    var scrollableChild: View? = null</span>
+
+<span class="nc" id="L14">    init {</span>
+<span class="nc" id="L15">        setColorSchemeResources(ResourceUtil.getThemedAttributeId(context, R.attr.progressive_color))</span>
+<span class="nc" id="L16">    }</span>
+
+    override fun canChildScrollUp(): Boolean {
+<span class="nc bnc" id="L19" title="All 2 branches missed.">        return if (scrollableChild == null) {</span>
+<span class="nc" id="L20">            super.canChildScrollUp()</span>
+<span class="nc bnc" id="L21" title="All 2 branches missed.">        } else scrollableChild!!.scrollY &gt; 0</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

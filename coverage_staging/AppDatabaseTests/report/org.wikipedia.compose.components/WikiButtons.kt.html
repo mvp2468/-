@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WikiButtons.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.compose.components</a> &gt; <span class="el_source">WikiButtons.kt</span></div><h1>WikiButtons.kt</h1><pre class="source lang-java linenums">package org.wikipedia.compose.components
+
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import org.wikipedia.compose.ComposeColors
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+
+@Composable
+<span class="nc bnc" id="L27" title="All 4 branches missed.">fun AppButton(</span>
+    onClick: () -&gt; Unit,
+<span class="nc bnc" id="L29" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc bnc" id="L30" title="All 2 branches missed.">    backgroundColor: Color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L31">    contentColor: Color = WikipediaTheme.colors.paperColor,</span>
+    content: @Composable (() -&gt; Unit)
+<span class="nc bnc" id="L33" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L34">    Button(</span>
+<span class="nc" id="L35">        onClick = onClick,</span>
+<span class="nc" id="L36">        modifier = modifier,</span>
+<span class="nc" id="L37">        colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L38">            containerColor = backgroundColor,</span>
+<span class="nc" id="L39">            contentColor = contentColor,</span>
+        ),
+<span class="nc" id="L41">        contentPadding = ButtonDefaults.ContentPadding</span>
+<span class="nc" id="L42">    ) {</span>
+<span class="nc" id="L43">        content()</span>
+<span class="nc" id="L44">    }</span>
+<span class="nc" id="L45">}</span>
+
+@Composable
+<span class="nc bnc" id="L48" title="All 2 branches missed.">fun AppTextButton(</span>
+    onClick: () -&gt; Unit,
+<span class="nc bnc" id="L50" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L51">    contentColor: Color = WikipediaTheme.colors.progressiveColor,</span>
+    content: @Composable (() -&gt; Unit)
+<span class="nc bnc" id="L53" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L54">    Button(</span>
+<span class="nc" id="L55">        onClick = onClick,</span>
+<span class="nc" id="L56">        modifier = modifier,</span>
+<span class="nc" id="L57">        colors = ButtonDefaults.buttonColors(</span>
+<span class="nc" id="L58">            containerColor = Color.Transparent,</span>
+<span class="nc" id="L59">            contentColor = contentColor</span>
+        ),
+<span class="nc" id="L61">        elevation = ButtonDefaults.elevatedButtonElevation(0.dp)</span>
+<span class="nc" id="L62">    ) {</span>
+<span class="nc" id="L63">        content()</span>
+<span class="nc" id="L64">    }</span>
+<span class="nc" id="L65">}</span>
+
+@Composable
+<span class="nc bnc" id="L68" title="All 8 branches missed.">fun ThemeColorCircularButton(</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    onClick: () -&gt; Unit,
+<span class="nc bnc" id="L71" title="All 2 branches missed.">    text: String = &quot;Aa&quot;,</span>
+<span class="nc" id="L72">    size: Dp = 40.dp,</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">    defaultBackgroundColor: Color = WikipediaTheme.colors.paperColor,</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">    selectedBackgroundColor: Color = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">    borderColor: Color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">    textColor: Color = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">    rippleColor: Color = Color.Transparent,</span>
+<span class="nc" id="L78">    isSelected: Boolean = false</span>
+<span class="nc bnc" id="L79" title="All 6 branches missed.">) {</span>
+<span class="nc" id="L80">    Button(</span>
+<span class="nc" id="L81">        onClick = onClick,</span>
+<span class="nc" id="L82">        modifier = modifier</span>
+<span class="nc" id="L83">            .border(</span>
+<span class="nc" id="L84">                width = 2.dp,</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                color = if (isSelected) borderColor else Color.Transparent,</span>
+<span class="nc" id="L86">                shape = CircleShape</span>
+            )
+<span class="nc" id="L88">            .size(size),</span>
+<span class="nc" id="L89">        colors = ButtonDefaults.buttonColors(</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            containerColor = if (isSelected) defaultBackgroundColor else selectedBackgroundColor,</span>
+<span class="nc" id="L91">            contentColor = rippleColor</span>
+        ),
+<span class="nc" id="L93">        contentPadding = PaddingValues(0.dp)</span>
+<span class="nc" id="L94">    ) {</span>
+<span class="nc" id="L95">        Text(</span>
+<span class="nc" id="L96">            text = text,</span>
+<span class="nc" id="L97">            style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L98">            color = textColor</span>
+        )
+<span class="nc" id="L100">    }</span>
+<span class="nc" id="L101">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L105">private fun SepiaThemeColorButton() {</span>
+<span class="nc" id="L106">    BaseTheme(currentTheme = Theme.LIGHT) {</span>
+<span class="nc" id="L107">        Column(</span>
+<span class="nc" id="L108">            modifier = Modifier</span>
+<span class="nc" id="L109">                .fillMaxSize(),</span>
+<span class="nc" id="L110">            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),</span>
+<span class="nc" id="L111">            horizontalAlignment = Alignment.CenterHorizontally</span>
+        ) {
+<span class="nc" id="L113">            ThemeColorCircularButton(</span>
+<span class="nc" id="L114">                isSelected = true,</span>
+<span class="nc" id="L115">                defaultBackgroundColor = ComposeColors.Beige300,</span>
+<span class="nc" id="L116">                selectedBackgroundColor = ComposeColors.Beige300,</span>
+<span class="nc" id="L117">                rippleColor = ComposeColors.Beige300,</span>
+<span class="nc" id="L118">                textColor = ComposeColors.Gray700,</span>
+<span class="nc" id="L119">                onClick = {}</span>
+            )
+<span class="nc" id="L121">        }</span>
+<span class="nc" id="L122">    }</span>
+<span class="nc" id="L123">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

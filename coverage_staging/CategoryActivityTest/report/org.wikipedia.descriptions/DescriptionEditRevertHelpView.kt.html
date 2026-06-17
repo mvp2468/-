@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DescriptionEditRevertHelpView.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.descriptions</a> &gt; <span class="el_source">DescriptionEditRevertHelpView.kt</span></div><h1>DescriptionEditRevertHelpView.kt</h1><pre class="source lang-java linenums">package org.wikipedia.descriptions
+
+import android.content.Context
+import android.net.Uri
+import android.text.SpannableString
+import android.text.TextUtils
+import android.text.method.LinkMovementMethod
+import android.text.style.BulletSpan
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.widget.ScrollView
+import androidx.core.text.buildSpannedString
+import androidx.core.text.inSpans
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.databinding.ViewDescriptionEditRevertHelpBinding
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.StringUtil
+
+<span class="nc" id="L20">class DescriptionEditRevertHelpView constructor(context: Context, attrs: AttributeSet? = null) : ScrollView(context, attrs) {</span>
+
+<span class="nc" id="L22">    private var qNumber: String = &quot;&quot;</span>
+
+<span class="nc" id="L24">    constructor(context: Context, qNumber: String) : this(context, null) {</span>
+<span class="nc" id="L25">        this.qNumber = qNumber</span>
+<span class="nc" id="L26">    }</span>
+
+<span class="nc" id="L28">    init {</span>
+<span class="nc" id="L29">        val binding = ViewDescriptionEditRevertHelpBinding.inflate(LayoutInflater.from(context), this)</span>
+<span class="nc" id="L30">        binding.helpText.movementMethod = LinkMovementMethod()</span>
+<span class="nc" id="L31">        val helpStr = StringUtil.fromHtml(context.getString(R.string.description_edit_revert_help_body)</span>
+<span class="nc" id="L32">                .replace(&quot;:revertSubtitle&quot;.toRegex(), context.getString(R.string.description_edit_revert_subtitle))</span>
+<span class="nc" id="L33">                .replace(&quot;:revertIntro&quot;.toRegex(), context.getString(R.string.description_edit_revert_intro))</span>
+<span class="nc" id="L34">                .replace(&quot;:revertHistory&quot;.toRegex(), context.getString(R.string.description_edit_revert_history, getHistoryUri(qNumber))))</span>
+<span class="nc" id="L35">        val revertReason1 = createReason(context.getString(R.string.description_edit_revert_reason1,</span>
+<span class="nc" id="L36">            context.getString(R.string.wikidata_description_guide_url)))</span>
+<span class="nc" id="L37">        val revertReason2 = createReason(context.getString(R.string.description_edit_revert_reason2))</span>
+<span class="nc" id="L38">        binding.helpText.text = SpannableString(TextUtils.expandTemplate(helpStr, revertReason1, revertReason2))</span>
+<span class="nc" id="L39">    }</span>
+
+<span class="nc" id="L41">    private fun createReason(htmlString: String) = buildSpannedString {</span>
+<span class="nc" id="L42">        inSpans(BulletSpan(DimenUtil.roundedDpToPx(8f))) {</span>
+<span class="nc" id="L43">            append(StringUtil.fromHtml(htmlString))</span>
+<span class="nc" id="L44">        }</span>
+<span class="nc" id="L45">    }</span>
+
+    private fun getHistoryUri(qNumber: String): Uri {
+<span class="nc" id="L48">        return Uri.Builder()</span>
+<span class="nc" id="L49">                .scheme(WikipediaApp.instance.wikiSite.scheme())</span>
+<span class="nc" id="L50">                .authority(&quot;m.wikidata.org&quot;)</span>
+<span class="nc" id="L51">                .appendPath(&quot;wiki&quot;)</span>
+<span class="nc" id="L52">                .appendPath(&quot;Special:History&quot;)</span>
+<span class="nc" id="L53">                .appendPath(qNumber)</span>
+<span class="nc" id="L54">                .build()</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

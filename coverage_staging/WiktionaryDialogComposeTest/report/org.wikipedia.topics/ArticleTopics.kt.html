@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArticleTopics.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.topics</a> &gt; <span class="el_source">ArticleTopics.kt</span></div><h1>ArticleTopics.kt</h1><pre class="source lang-java linenums">package org.wikipedia.topics
+
+import org.wikipedia.R
+
+<span class="nc" id="L5">data class ArticleTopic(</span>
+<span class="nc" id="L6">    val topicId: String,</span>
+<span class="nc" id="L7">    val msgKey: Int,</span>
+<span class="nc" id="L8">    val queryTopicId: String</span>
+)
+
+// the values defined here are from https://gerrit.wikimedia.org/r/plugins/gitiles/mediawiki/extensions/WikimediaMessages/+/refs/heads/master/includes/ArticleTopicFiltersRegistry.php
+object ArticleTopics {
+<span class="nc" id="L13">    val all = listOf(</span>
+<span class="nc" id="L14">        ArticleTopic(</span>
+<span class="nc" id="L15">            topicId = &quot;architecture&quot;,</span>
+<span class="nc" id="L16">            msgKey = R.string.wikimedia_articletopics_topic_architecture,</span>
+<span class="nc" id="L17">            queryTopicId = &quot;architecture&quot;</span>
+        ),
+<span class="nc" id="L19">        ArticleTopic(</span>
+<span class="nc" id="L20">            topicId = &quot;art&quot;, // registry uses &quot;art&quot; as topicId but articleTopics = &quot;visual-arts&quot;</span>
+<span class="nc" id="L21">            msgKey = R.string.wikimedia_articletopics_topic_art,</span>
+<span class="nc" id="L22">            queryTopicId = &quot;visual-arts&quot;</span>
+        ),
+<span class="nc" id="L24">        ArticleTopic(</span>
+<span class="nc" id="L25">            topicId = &quot;comics-and-anime&quot;,</span>
+<span class="nc" id="L26">            msgKey = R.string.wikimedia_articletopics_topic_comics_and_anime,</span>
+<span class="nc" id="L27">            queryTopicId = &quot;comics-and-anime&quot;</span>
+        ),
+<span class="nc" id="L29">        ArticleTopic(</span>
+<span class="nc" id="L30">            topicId = &quot;entertainment&quot;,</span>
+<span class="nc" id="L31">            msgKey = R.string.wikimedia_articletopics_topic_entertainment,</span>
+<span class="nc" id="L32">            queryTopicId = &quot;entertainment&quot;</span>
+        ),
+<span class="nc" id="L34">        ArticleTopic(</span>
+<span class="nc" id="L35">            topicId = &quot;fashion&quot;,</span>
+<span class="nc" id="L36">            msgKey = R.string.wikimedia_articletopics_topic_fashion,</span>
+<span class="nc" id="L37">            queryTopicId = &quot;fashion&quot;</span>
+        ),
+<span class="nc" id="L39">        ArticleTopic(</span>
+<span class="nc" id="L40">            topicId = &quot;literature&quot;,</span>
+<span class="nc" id="L41">            msgKey = R.string.wikimedia_articletopics_topic_literature,</span>
+<span class="nc" id="L42">            queryTopicId = &quot;books&quot; // registry uses &quot;literature&quot; as topicId but articleTopics = &quot;books&quot;</span>
+        ),
+<span class="nc" id="L44">        ArticleTopic(</span>
+<span class="nc" id="L45">            topicId = &quot;music&quot;,</span>
+<span class="nc" id="L46">            msgKey = R.string.wikimedia_articletopics_topic_music,</span>
+<span class="nc" id="L47">            queryTopicId = &quot;music&quot;</span>
+        ),
+<span class="nc" id="L49">        ArticleTopic(</span>
+<span class="nc" id="L50">            topicId = &quot;performing-arts&quot;,</span>
+<span class="nc" id="L51">            msgKey = R.string.wikimedia_articletopics_topic_performing_arts,</span>
+<span class="nc" id="L52">            queryTopicId = &quot;performing-arts&quot;</span>
+        ),
+<span class="nc" id="L54">        ArticleTopic(</span>
+<span class="nc" id="L55">            topicId = &quot;sports&quot;,</span>
+<span class="nc" id="L56">            msgKey = R.string.wikimedia_articletopics_topic_sports,</span>
+<span class="nc" id="L57">            queryTopicId = &quot;sports&quot;</span>
+        ),
+<span class="nc" id="L59">        ArticleTopic(</span>
+<span class="nc" id="L60">            topicId = &quot;tv-and-film&quot;,</span>
+<span class="nc" id="L61">            msgKey = R.string.wikimedia_articletopics_topic_tv_and_film,</span>
+<span class="nc" id="L62">            queryTopicId = &quot;films&quot;</span>
+        ),
+<span class="nc" id="L64">        ArticleTopic(</span>
+<span class="nc" id="L65">            topicId = &quot;video-games&quot;,</span>
+<span class="nc" id="L66">            msgKey = R.string.wikimedia_articletopics_topic_video_games,</span>
+<span class="nc" id="L67">            queryTopicId = &quot;video-games&quot;</span>
+        ),
+<span class="nc" id="L69">        ArticleTopic(</span>
+<span class="nc" id="L70">            topicId = &quot;biography&quot;,</span>
+<span class="nc" id="L71">            msgKey = R.string.wikimedia_articletopics_topic_biography,</span>
+<span class="nc" id="L72">            queryTopicId = &quot;biography&quot;</span>
+        ),
+<span class="nc" id="L74">        ArticleTopic(</span>
+<span class="nc" id="L75">            topicId = &quot;women&quot;,</span>
+<span class="nc" id="L76">            msgKey = R.string.wikimedia_articletopics_topic_women,</span>
+<span class="nc" id="L77">            queryTopicId = &quot;women&quot;</span>
+        ),
+<span class="nc" id="L79">        ArticleTopic(</span>
+<span class="nc" id="L80">            topicId = &quot;business-and-economics&quot;,</span>
+<span class="nc" id="L81">            msgKey = R.string.wikimedia_articletopics_topic_business_and_economics,</span>
+<span class="nc" id="L82">            queryTopicId = &quot;business-and-economics&quot;</span>
+        ),
+<span class="nc" id="L84">        ArticleTopic(</span>
+<span class="nc" id="L85">            topicId = &quot;education&quot;,</span>
+<span class="nc" id="L86">            msgKey = R.string.wikimedia_articletopics_topic_education,</span>
+<span class="nc" id="L87">            queryTopicId = &quot;education&quot;</span>
+        ),
+<span class="nc" id="L89">        ArticleTopic(</span>
+<span class="nc" id="L90">            topicId = &quot;food-and-drink&quot;,</span>
+<span class="nc" id="L91">            msgKey = R.string.wikimedia_articletopics_topic_food_and_drink,</span>
+<span class="nc" id="L92">            queryTopicId = &quot;food-and-drink&quot;</span>
+        ),
+<span class="nc" id="L94">        ArticleTopic(</span>
+<span class="nc" id="L95">            topicId = &quot;history&quot;,</span>
+<span class="nc" id="L96">            msgKey = R.string.wikimedia_articletopics_topic_history,</span>
+<span class="nc" id="L97">            queryTopicId = &quot;history&quot;</span>
+        ),
+<span class="nc" id="L99">        ArticleTopic(</span>
+<span class="nc" id="L100">            topicId = &quot;military-and-warfare&quot;,</span>
+<span class="nc" id="L101">            msgKey = R.string.wikimedia_articletopics_topic_military_and_warfare,</span>
+<span class="nc" id="L102">            queryTopicId = &quot;military-and-warfare&quot;</span>
+        ),
+<span class="nc" id="L104">        ArticleTopic(</span>
+<span class="nc" id="L105">            topicId = &quot;philosophy-and-religion&quot;,</span>
+<span class="nc" id="L106">            msgKey = R.string.wikimedia_articletopics_topic_philosophy_and_religion,</span>
+<span class="nc" id="L107">            queryTopicId = &quot;philosophy-and-religion&quot;</span>
+        ),
+<span class="nc" id="L109">        ArticleTopic(</span>
+<span class="nc" id="L110">            topicId = &quot;politics-and-government&quot;,</span>
+<span class="nc" id="L111">            msgKey = R.string.wikimedia_articletopics_topic_politics_and_government,</span>
+<span class="nc" id="L112">            queryTopicId = &quot;politics-and-government&quot;</span>
+        ),
+<span class="nc" id="L114">        ArticleTopic(</span>
+<span class="nc" id="L115">            topicId = &quot;society&quot;,</span>
+<span class="nc" id="L116">            msgKey = R.string.wikimedia_articletopics_topic_society,</span>
+<span class="nc" id="L117">            queryTopicId = &quot;society&quot;</span>
+        ),
+<span class="nc" id="L119">        ArticleTopic(</span>
+<span class="nc" id="L120">            topicId = &quot;transportation&quot;,</span>
+<span class="nc" id="L121">            msgKey = R.string.wikimedia_articletopics_topic_transportation,</span>
+<span class="nc" id="L122">            queryTopicId = &quot;transportation&quot;</span>
+        ),
+<span class="nc" id="L124">        ArticleTopic(</span>
+<span class="nc" id="L125">            topicId = &quot;biology&quot;,</span>
+<span class="nc" id="L126">            msgKey = R.string.wikimedia_articletopics_topic_biology,</span>
+<span class="nc" id="L127">            queryTopicId = &quot;biology&quot;</span>
+        ),
+<span class="nc" id="L129">        ArticleTopic(</span>
+<span class="nc" id="L130">            topicId = &quot;chemistry&quot;,</span>
+<span class="nc" id="L131">            msgKey = R.string.wikimedia_articletopics_topic_chemistry,</span>
+<span class="nc" id="L132">            queryTopicId = &quot;chemistry&quot;</span>
+        ),
+<span class="nc" id="L134">        ArticleTopic(</span>
+<span class="nc" id="L135">            topicId = &quot;computers-and-internet&quot;, // registry uses &quot;computers-and-internet&quot; as topicId but articleTopics = &quot;internet-culture&quot;</span>
+<span class="nc" id="L136">            msgKey = R.string.wikimedia_articletopics_topic_computers_and_internet,</span>
+<span class="nc" id="L137">            queryTopicId = &quot;internet-culture&quot;</span>
+        ),
+<span class="nc" id="L139">        ArticleTopic(</span>
+<span class="nc" id="L140">            topicId = &quot;earth-and-environment&quot;, // registry uses &quot;earth-and-environment&quot; as topicId but articleTopics = &quot;geographical&quot;</span>
+<span class="nc" id="L141">            msgKey = R.string.wikimedia_articletopics_topic_earth_and_environment,</span>
+<span class="nc" id="L142">            queryTopicId = &quot;geographical&quot;</span>
+        ),
+<span class="nc" id="L144">        ArticleTopic(</span>
+<span class="nc" id="L145">            topicId = &quot;engineering&quot;,</span>
+<span class="nc" id="L146">            msgKey = R.string.wikimedia_articletopics_topic_engineering,</span>
+<span class="nc" id="L147">            queryTopicId = &quot;engineering&quot;</span>
+        ),
+<span class="nc" id="L149">        ArticleTopic(</span>
+<span class="nc" id="L150">            topicId = &quot;general-science&quot;, // registry uses &quot;general-science&quot; as topicId but articleTopics = &quot;stem&quot;</span>
+<span class="nc" id="L151">            msgKey = R.string.wikimedia_articletopics_topic_general_science,</span>
+<span class="nc" id="L152">            queryTopicId = &quot;stem&quot;</span>
+        ),
+<span class="nc" id="L154">        ArticleTopic(</span>
+<span class="nc" id="L155">            topicId = &quot;mathematics&quot;,</span>
+<span class="nc" id="L156">            msgKey = R.string.wikimedia_articletopics_topic_mathematics,</span>
+<span class="nc" id="L157">            queryTopicId = &quot;mathematics&quot;</span>
+        ),
+<span class="nc" id="L159">        ArticleTopic(</span>
+<span class="nc" id="L160">            topicId = &quot;medicine-and-health&quot;,</span>
+<span class="nc" id="L161">            msgKey = R.string.wikimedia_articletopics_topic_medicine_and_health,</span>
+<span class="nc" id="L162">            queryTopicId = &quot;medicine-and-health&quot;</span>
+        ),
+<span class="nc" id="L164">        ArticleTopic(</span>
+<span class="nc" id="L165">            topicId = &quot;physics&quot;,</span>
+<span class="nc" id="L166">            msgKey = R.string.wikimedia_articletopics_topic_physics,</span>
+<span class="nc" id="L167">            queryTopicId = &quot;physics&quot;</span>
+        ),
+<span class="nc" id="L169">        ArticleTopic(</span>
+<span class="nc" id="L170">            topicId = &quot;technology&quot;,</span>
+<span class="nc" id="L171">            msgKey = R.string.wikimedia_articletopics_topic_technology,</span>
+<span class="nc" id="L172">            queryTopicId = &quot;technology&quot;</span>
+        ),
+<span class="nc" id="L174">        ArticleTopic(</span>
+<span class="nc" id="L175">            topicId = &quot;africa&quot;,</span>
+<span class="nc" id="L176">            msgKey = R.string.wikimedia_articletopics_topic_africa,</span>
+<span class="nc" id="L177">            queryTopicId = &quot;africa&quot;</span>
+        ),
+<span class="nc" id="L179">        ArticleTopic(</span>
+<span class="nc" id="L180">            topicId = &quot;asia&quot;,</span>
+<span class="nc" id="L181">            msgKey = R.string.wikimedia_articletopics_topic_asia,</span>
+<span class="nc" id="L182">            queryTopicId = &quot;asia&quot;</span>
+        ),
+<span class="nc" id="L184">        ArticleTopic(</span>
+<span class="nc" id="L185">            topicId = &quot;central-america&quot;,</span>
+<span class="nc" id="L186">            msgKey = R.string.wikimedia_articletopics_topic_central_america,</span>
+<span class="nc" id="L187">            queryTopicId = &quot;central-america&quot;</span>
+        ),
+<span class="nc" id="L189">        ArticleTopic(</span>
+<span class="nc" id="L190">            topicId = &quot;europe&quot;,</span>
+<span class="nc" id="L191">            msgKey = R.string.wikimedia_articletopics_topic_europe,</span>
+<span class="nc" id="L192">            queryTopicId = &quot;europe&quot;</span>
+        ),
+<span class="nc" id="L194">        ArticleTopic(</span>
+<span class="nc" id="L195">            topicId = &quot;north-america&quot;,</span>
+<span class="nc" id="L196">            msgKey = R.string.wikimedia_articletopics_topic_north_america,</span>
+<span class="nc" id="L197">            queryTopicId = &quot;north-america&quot;</span>
+        ),
+<span class="nc" id="L199">        ArticleTopic(</span>
+<span class="nc" id="L200">            topicId = &quot;oceania&quot;,</span>
+<span class="nc" id="L201">            msgKey = R.string.wikimedia_articletopics_topic_oceania,</span>
+<span class="nc" id="L202">            queryTopicId = &quot;oceania&quot;</span>
+        ),
+<span class="nc" id="L204">        ArticleTopic(</span>
+<span class="nc" id="L205">            topicId = &quot;south-america&quot;,</span>
+<span class="nc" id="L206">            msgKey = R.string.wikimedia_articletopics_topic_south_america,</span>
+<span class="nc" id="L207">            queryTopicId = &quot;south-america&quot;</span>
+        )
+    )
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SidePanelHandler.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.page</a> &gt; <span class="el_source">SidePanelHandler.kt</span></div><h1>SidePanelHandler.kt</h1><pre class="source lang-java linenums">package org.wikipedia.page
+
+import android.annotation.SuppressLint
+import android.graphics.Typeface
+import android.util.SparseIntArray
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.ValueCallback
+import android.widget.AdapterView.OnItemClickListener
+import android.widget.BaseAdapter
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.view.updateLayoutParams
+import androidx.drawerlayout.widget.DrawerLayout
+import org.json.JSONException
+import org.json.JSONObject
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.ArticleTocInteractionEvent
+import org.wikipedia.bridge.CommunicationBridge
+import org.wikipedia.bridge.JavaScriptActionHandler
+import org.wikipedia.extensions.getString
+import org.wikipedia.extensions.setLayoutDirectionByLang
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.L10nUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.ObservableWebView
+import org.wikipedia.views.ObservableWebView.OnContentHeightChangedListener
+import org.wikipedia.views.PageScrollerView
+import org.wikipedia.views.SwipeableListView.OnSwipeOutListener
+
+<span class="nc" id="L36">class SidePanelHandler internal constructor(private val fragment: PageFragment,</span>
+<span class="nc" id="L37">                                            private val bridge: CommunicationBridge) :</span>
+        ObservableWebView.OnClickListener, ObservableWebView.OnScrollChangeListener, OnContentHeightChangedListener {
+
+<span class="nc" id="L40">    private val binding = (fragment.requireActivity() as PageActivity).binding</span>
+<span class="nc" id="L41">    private val scrollerViewParams = FrameLayout.LayoutParams(DimenUtil.roundedDpToPx(SCROLLER_BUTTON_SIZE), DimenUtil.roundedDpToPx(SCROLLER_BUTTON_SIZE))</span>
+<span class="nc" id="L42">    private val webView = fragment.webView</span>
+<span class="nc" id="L43">    private val tocAdapter = ToCAdapter()</span>
+    private var rtl = false
+    private var currentItemSelected = 0
+    private var articleTocInteractionEvent: ArticleTocInteractionEvent? = null
+
+<span class="nc" id="L48">    private val sectionOffsetsCallback: ValueCallback&lt;String&gt; = ValueCallback { value -&gt;</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (!fragment.isAdded) {</span>
+<span class="nc" id="L50">            return@ValueCallback</span>
+        }
+<span class="nc" id="L52">        try {</span>
+<span class="nc" id="L53">            val sections = JSONObject(value).getJSONArray(&quot;sections&quot;)</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            for (i in 0 until sections.length()) {</span>
+<span class="nc" id="L55">                tocAdapter.setYOffset(sections.getJSONObject(i).getInt(&quot;id&quot;),</span>
+<span class="nc" id="L56">                        sections.getJSONObject(i).getInt(&quot;yOffset&quot;))</span>
+            }
+            // artificially add height for bottom About section
+<span class="nc" id="L59">            tocAdapter.setYOffset(ABOUT_SECTION_ID, webView.contentHeight)</span>
+<span class="nc" id="L60">        } catch (e: JSONException) {</span>
+            // ignore
+        }
+<span class="nc" id="L63">    }</span>
+
+<span class="nc" id="L65">    val isVisible get() = binding.navigationDrawer.isDrawerOpen(binding.sidePanelContainer)</span>
+
+<span class="nc" id="L67">    init {</span>
+<span class="nc" id="L68">        binding.tocList.adapter = tocAdapter</span>
+<span class="nc" id="L69">        binding.tocList.onItemClickListener = OnItemClickListener { _, _, position, _ -&gt;</span>
+<span class="nc" id="L70">            val section = tocAdapter.getItem(position)</span>
+<span class="nc" id="L71">            scrollToSection(section)</span>
+<span class="nc" id="L72">            hide()</span>
+<span class="nc" id="L73">        }</span>
+<span class="nc" id="L74">        binding.tocList.listener = OnSwipeOutListener { hide() }</span>
+<span class="nc" id="L75">        webView.addOnClickListener(this)</span>
+<span class="nc" id="L76">        webView.addOnScrollChangeListener(this)</span>
+<span class="nc" id="L77">        webView.addOnContentHeightChangedListener(this)</span>
+<span class="nc" id="L78">        binding.pageScrollerButton.callback = ScrollerCallback()</span>
+<span class="nc" id="L79">        binding.navigationDrawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {</span>
+            override fun onDrawerStateChanged(newState: Int) {
+<span class="nc" id="L81">                super.onDrawerStateChanged(newState)</span>
+<span class="nc bnc" id="L82" title="All 4 branches missed.">                if (!isVisible &amp;&amp; newState == DrawerLayout.STATE_DRAGGING) {</span>
+<span class="nc" id="L83">                    onStartShow()</span>
+                }
+<span class="nc" id="L85">            }</span>
+
+            override fun onDrawerClosed(drawerView: View) {
+<span class="nc" id="L88">                super.onDrawerClosed(drawerView)</span>
+<span class="nc" id="L89">            }</span>
+        })
+
+<span class="nc" id="L92">        setScrollerPosition()</span>
+<span class="nc" id="L93">    }</span>
+
+    @SuppressLint(&quot;RtlHardcoded&quot;)
+    fun setupForNewPage(page: Page) {
+<span class="nc" id="L97">        tocAdapter.setPage(page)</span>
+<span class="nc" id="L98">        rtl = L10nUtil.isLangRTL(page.title.wikiSite.languageCode)</span>
+<span class="nc" id="L99">        binding.tocList.rtl = rtl</span>
+<span class="nc" id="L100">        binding.sidePanelContainer.setLayoutDirectionByLang(page.title.wikiSite.languageCode)</span>
+<span class="nc" id="L101">        binding.sidePanelContainer.updateLayoutParams&lt;DrawerLayout.LayoutParams&gt; {</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            gravity = if (rtl) Gravity.LEFT else Gravity.RIGHT</span>
+<span class="nc" id="L103">        }</span>
+<span class="nc" id="L104">        log()</span>
+<span class="nc" id="L105">        articleTocInteractionEvent = ArticleTocInteractionEvent(page.pageProperties.pageId, page.title.wikiSite.dbName(), tocAdapter.count)</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        articleTocInteractionEvent?.logClick()</span>
+<span class="nc" id="L107">    }</span>
+
+    private fun scrollToSection(section: Section?) {
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        section?.let {</span>
+<span class="nc" id="L111">            when {</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                it.isLead -&gt; webView.scrollY = 0</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">                it.id == ABOUT_SECTION_ID -&gt; bridge.execute(JavaScriptActionHandler.scrollToFooter(webView.context))</span>
+<span class="nc" id="L114">                else -&gt; bridge.execute(JavaScriptActionHandler.prepareToScrollTo(it.anchor, false))</span>
+            }
+<span class="nc" id="L116">        }</span>
+<span class="nc" id="L117">    }</span>
+
+    private fun onStartShow() {
+<span class="nc" id="L120">        currentItemSelected = -1</span>
+<span class="nc" id="L121">        onScrollerMoved(0f, false)</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        articleTocInteractionEvent?.scrollStart()</span>
+<span class="nc" id="L123">    }</span>
+
+    fun showToC() {
+<span class="nc" id="L126">        binding.navigationDrawer.openDrawer(binding.sidePanelContainer)</span>
+<span class="nc" id="L127">        onStartShow()</span>
+<span class="nc" id="L128">    }</span>
+
+    fun hide() {
+<span class="nc" id="L131">        binding.navigationDrawer.closeDrawers()</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        articleTocInteractionEvent?.scrollStop()</span>
+<span class="nc" id="L133">    }</span>
+
+    fun log() {
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        articleTocInteractionEvent?.logEvent()</span>
+<span class="nc" id="L137">    }</span>
+
+    fun setEnabled(enabled: Boolean) {
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (enabled) {</span>
+<span class="nc" id="L141">            setScrollerPosition()</span>
+<span class="nc" id="L142">            binding.navigationDrawer.setSlidingEnabled(true)</span>
+        } else {
+<span class="nc" id="L144">            binding.navigationDrawer.closeDrawers()</span>
+<span class="nc" id="L145">            binding.navigationDrawer.setSlidingEnabled(false)</span>
+        }
+<span class="nc" id="L147">    }</span>
+
+    override fun onClick(x: Float, y: Float): Boolean {
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if (isVisible) {</span>
+<span class="nc" id="L151">            hide()</span>
+        }
+<span class="nc" id="L153">        return false</span>
+    }
+
+    override fun onScrollChanged(oldScrollY: Int, scrollY: Int, isHumanScroll: Boolean) {
+<span class="nc" id="L157">        setScrollerPosition()</span>
+<span class="nc" id="L158">    }</span>
+
+    override fun onContentHeightChanged(contentHeight: Int) {
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        if (fragment.isLoading) {</span>
+<span class="nc" id="L162">            return</span>
+        }
+<span class="nc" id="L164">        bridge.evaluate(JavaScriptActionHandler.getOffsets(), sectionOffsetsCallback)</span>
+<span class="nc" id="L165">    }</span>
+
+<span class="nc" id="L167">    inner class ToCAdapter : BaseAdapter() {</span>
+<span class="nc" id="L168">        private val sections = ArrayList&lt;Section&gt;()</span>
+<span class="nc" id="L169">        private val sectionYOffsets = SparseIntArray()</span>
+        private var highlightedSection = 0
+        fun setPage(page: Page) {
+<span class="nc" id="L172">            sections.clear()</span>
+<span class="nc" id="L173">            sectionYOffsets.clear()</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">            sections.addAll(page.sections.filter { it.level &lt; MAX_LEVELS })</span>
+            // add a fake section at the end to represent the &quot;about this article&quot; contents at the bottom:
+<span class="nc" id="L176">            val heading = fragment.requireContext().getString(page.title, R.string.about_article_section)</span>
+<span class="nc" id="L177">            sections.add(Section(ABOUT_SECTION_ID, 1, heading, heading, &quot;&quot;))</span>
+<span class="nc" id="L178">            highlightedSection = 0</span>
+<span class="nc" id="L179">            notifyDataSetChanged()</span>
+<span class="nc" id="L180">        }</span>
+
+        fun setHighlightedSection(id: Int) {
+<span class="nc" id="L183">            highlightedSection = id</span>
+<span class="nc" id="L184">            notifyDataSetChanged()</span>
+<span class="nc" id="L185">        }</span>
+
+        fun getYOffset(id: Int): Int {
+<span class="nc" id="L188">            return sectionYOffsets[id, 0]</span>
+        }
+
+        fun setYOffset(id: Int, yOffset: Int) {
+<span class="nc" id="L192">            sectionYOffsets.put(id, yOffset)</span>
+<span class="nc" id="L193">        }</span>
+
+        override fun getCount(): Int {
+<span class="nc" id="L196">            return sections.size</span>
+        }
+
+        override fun getItem(position: Int): Section {
+<span class="nc" id="L200">            return sections[position]</span>
+        }
+
+        override fun getItemId(position: Int): Long {
+<span class="nc" id="L204">            return position.toLong()</span>
+        }
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+<span class="nc" id="L208">            var newConvertView = convertView</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            if (newConvertView == null) {</span>
+<span class="nc" id="L210">                newConvertView = LayoutInflater.from(parent.context).inflate(R.layout.item_toc_entry, parent, false)</span>
+            }
+<span class="nc" id="L212">            val section = getItem(position)</span>
+<span class="nc" id="L213">            val sectionHeading = newConvertView!!.findViewById&lt;TextView&gt;(R.id.page_toc_item_text)</span>
+<span class="nc" id="L214">            val sectionBullet = newConvertView.findViewById&lt;View&gt;(R.id.page_toc_item_bullet)</span>
+<span class="nc" id="L215">            sectionHeading.text = StringUtil.fromHtml(StringUtil.removeStyleTags(section.title))</span>
+<span class="nc" id="L216">            var textSize = TOC_SUBSECTION_TEXT_SIZE</span>
+<span class="nc" id="L217">            when {</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">                section.isLead -&gt; {</span>
+<span class="nc" id="L219">                    textSize = TOC_LEAD_TEXT_SIZE</span>
+<span class="nc" id="L220">                    sectionHeading.typeface = Typeface.SERIF</span>
+                }
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                section.level == 1 -&gt; {</span>
+<span class="nc" id="L223">                    textSize = TOC_SECTION_TEXT_SIZE</span>
+<span class="nc" id="L224">                    sectionHeading.typeface = Typeface.SERIF</span>
+                }
+<span class="nc" id="L226">                else -&gt; sectionHeading.typeface = Typeface.SANS_SERIF</span>
+            }
+<span class="nc" id="L228">            sectionHeading.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSize)</span>
+<span class="nc" id="L229">            sectionBullet.updateLayoutParams&lt;LinearLayout.LayoutParams&gt; {</span>
+<span class="nc" id="L230">                topMargin = DimenUtil.roundedDpToPx(textSize / 2)</span>
+<span class="nc" id="L231">            }</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (highlightedSection == position) {</span>
+<span class="nc" id="L233">                sectionHeading.setTextColor(ResourceUtil.getThemedColor(fragment.requireContext(), R.attr.progressive_color))</span>
+            } else {
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                if (section.level &gt; 1) {</span>
+<span class="nc" id="L236">                    sectionHeading.setTextColor(</span>
+<span class="nc" id="L237">                            ResourceUtil.getThemedColor(fragment.requireContext(), R.attr.primary_color))</span>
+                } else {
+<span class="nc" id="L239">                    sectionHeading.setTextColor(</span>
+<span class="nc" id="L240">                            ResourceUtil.getThemedColor(fragment.requireContext(), R.attr.primary_color))</span>
+                }
+            }
+<span class="nc" id="L243">            return newConvertView</span>
+        }
+    }
+
+    @SuppressLint(&quot;RtlHardcoded&quot;)
+    private fun setScrollerPosition() {
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        scrollerViewParams.gravity = if (rtl) Gravity.LEFT else Gravity.RIGHT</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        scrollerViewParams.leftMargin = if (rtl) DimenUtil.roundedDpToPx(SCROLLER_BUTTON_REVEAL_MARGIN) else 0</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        scrollerViewParams.rightMargin = if (rtl) 0 else DimenUtil.roundedDpToPx(SCROLLER_BUTTON_REVEAL_MARGIN)</span>
+<span class="nc" id="L252">        val toolbarHeight = DimenUtil.getToolbarHeightPx(fragment.requireContext())</span>
+<span class="nc" id="L253">        scrollerViewParams.topMargin = (toolbarHeight + (webView.height - 2 * toolbarHeight) *</span>
+<span class="nc" id="L254">                (webView.scrollY.toFloat() / webView.contentHeight.toFloat() / DimenUtil.densityScalar)).toInt()</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (scrollerViewParams.topMargin &lt; toolbarHeight) {</span>
+<span class="nc" id="L256">            scrollerViewParams.topMargin = toolbarHeight</span>
+        }
+<span class="nc" id="L258">        binding.pageScrollerButton.layoutParams = scrollerViewParams</span>
+<span class="nc" id="L259">    }</span>
+
+    private fun scrollToListSectionByOffset(yOffset: Int) {
+<span class="nc" id="L262">        var newYOffset = yOffset</span>
+<span class="nc" id="L263">        newYOffset = DimenUtil.roundedPxToDp(newYOffset.toFloat())</span>
+<span class="nc" id="L264">        var itemToSelect = 0</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">        for (i in 1 until tocAdapter.count) {</span>
+<span class="nc" id="L266">            val section = tocAdapter.getItem(i)</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            itemToSelect = if (tocAdapter.getYOffset(section.id) &lt; newYOffset) {</span>
+<span class="nc" id="L268">                i</span>
+            } else {
+<span class="nc" id="L270">                break</span>
+            }
+        }
+<span class="nc bnc" id="L273" title="All 2 branches missed.">        if (itemToSelect != currentItemSelected) {</span>
+<span class="nc" id="L274">            tocAdapter.setHighlightedSection(itemToSelect)</span>
+<span class="nc" id="L275">            currentItemSelected = itemToSelect</span>
+        }
+<span class="nc" id="L277">        binding.tocList.smoothScrollToPositionFromTop(currentItemSelected,</span>
+<span class="nc" id="L278">                scrollerViewParams.topMargin - DimenUtil.roundedDpToPx(TOC_SECTION_TOP_OFFSET_ADJUST), 0)</span>
+<span class="nc" id="L279">    }</span>
+
+    private fun onScrollerMoved(dy: Float, scrollWebView: Boolean) {
+<span class="nc" id="L282">        val webViewScrollY = webView.scrollY</span>
+<span class="nc" id="L283">        val webViewHeight = webView.height</span>
+<span class="nc" id="L284">        val webViewContentHeight = webView.contentHeight * DimenUtil.densityScalar</span>
+<span class="nc" id="L285">        var scrollY = webViewScrollY.toFloat()</span>
+<span class="nc" id="L286">        scrollY += dy * webViewContentHeight / (webViewHeight - 2 * DimenUtil.getToolbarHeightPx(fragment.requireContext())).toFloat()</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">        if (scrollY &lt; 0) {</span>
+<span class="nc" id="L288">            scrollY = 0f</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        } else if (scrollY &gt; webViewContentHeight - webViewHeight) {</span>
+<span class="nc" id="L290">            scrollY = webViewContentHeight - webViewHeight</span>
+        }
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        if (scrollWebView) {</span>
+<span class="nc" id="L293">            webView.scrollTo(0, scrollY.toInt())</span>
+        }
+<span class="nc" id="L295">        scrollToListSectionByOffset(scrollY.toInt() + webViewHeight / 2)</span>
+<span class="nc" id="L296">    }</span>
+
+<span class="nc" id="L298">    private inner class ScrollerCallback : PageScrollerView.Callback {</span>
+<span class="nc" id="L299">        override fun onClick() {}</span>
+<span class="nc" id="L300">        override fun onScrollStart() {}</span>
+        override fun onScrollStop() {
+<span class="nc" id="L302">            hide()</span>
+<span class="nc" id="L303">        }</span>
+
+        override fun onVerticalScroll(dy: Float) {
+<span class="nc" id="L306">            onScrollerMoved(dy, true)</span>
+<span class="nc" id="L307">        }</span>
+    }
+
+    companion object {
+        private const val SCROLLER_BUTTON_SIZE = 44f
+        private const val SCROLLER_BUTTON_REVEAL_MARGIN = 12f
+        private const val TOC_LEAD_TEXT_SIZE = 24f
+        private const val TOC_SECTION_TEXT_SIZE = 18f
+        private const val TOC_SUBSECTION_TEXT_SIZE = 14f
+        private const val TOC_SECTION_TOP_OFFSET_ADJUST = 70f
+        private const val MAX_LEVELS = 3
+        private const val ABOUT_SECTION_ID = -1
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

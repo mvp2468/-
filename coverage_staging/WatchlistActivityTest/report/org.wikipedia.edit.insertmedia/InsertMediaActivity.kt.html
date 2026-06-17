@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InsertMediaActivity.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.edit.insertmedia</a> &gt; <span class="el_source">InsertMediaActivity.kt</span></div><h1>InsertMediaActivity.kt</h1><pre class="source lang-java linenums">package org.wikipedia.edit.insertmedia
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.viewModels
+import androidx.appcompat.view.ActionMode
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.net.toUri
+import androidx.core.view.MenuItemCompat
+import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.paging.LoadState
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.AppBarLayout
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.activity.BaseActivity
+import org.wikipedia.adapter.PagingDataAdapterPatched
+import org.wikipedia.analytics.eventplatform.ImageRecommendationsEvent
+import org.wikipedia.commons.FilePageActivity
+import org.wikipedia.databinding.ActivityInsertMediaBinding
+import org.wikipedia.databinding.ItemEditActionbarButtonBinding
+import org.wikipedia.databinding.ItemInsertMediaBinding
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.history.SearchActionModeCallback
+import org.wikipedia.page.PageTitle
+import org.wikipedia.util.DimenUtil
+import org.wikipedia.util.ImageUrlUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.ImageZoomHelper
+import org.wikipedia.views.SearchActionProvider
+import org.wikipedia.views.ViewUtil
+import org.wikipedia.views.imageservice.ImageLoadListener
+
+<span class="nc" id="L50">class InsertMediaActivity : BaseActivity() {</span>
+    private lateinit var binding: ActivityInsertMediaBinding
+    private lateinit var insertMediaSettingsFragment: InsertMediaSettingsFragment
+    private lateinit var insertMediaAdvancedSettingsFragment: InsertMediaAdvancedSettingsFragment
+
+    private var insertMediaAdapter: InsertMediaAdapter? = null
+    private var actionMode: ActionMode? = null
+<span class="nc" id="L57">    private val searchActionModeCallback = SearchCallback()</span>
+
+<span class="nc" id="L59">    val viewModel: InsertMediaViewModel by viewModels()</span>
+
+    public override fun onCreate(savedInstanceState: Bundle?) {
+<span class="nc" id="L62">        super.onCreate(savedInstanceState)</span>
+<span class="nc" id="L63">        binding = ActivityInsertMediaBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L64">        setContentView(binding.root)</span>
+<span class="nc" id="L65">        setSupportActionBar(binding.toolbar)</span>
+<span class="nc" id="L66">        setImageZoomHelper()</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        supportActionBar?.title = getString(R.string.insert_media_title)</span>
+
+<span class="nc" id="L69">        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)</span>
+
+<span class="nc" id="L71">        binding.refreshView.setOnRefreshListener {</span>
+<span class="nc" id="L72">            binding.refreshView.isRefreshing = false</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            insertMediaAdapter?.refresh()</span>
+<span class="nc" id="L74">        }</span>
+
+<span class="nc" id="L76">        binding.searchContainer.setCardBackgroundColor(ResourceUtil.getThemedColor(this@InsertMediaActivity, R.attr.background_color))</span>
+<span class="nc" id="L77">        binding.recyclerView.layoutManager = GridLayoutManager(this, 3)</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (viewModel.invokeSource != Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc" id="L80">            insertMediaAdapter = InsertMediaAdapter()</span>
+<span class="nc" id="L81">            binding.recyclerView.adapter = insertMediaAdapter</span>
+        }
+
+<span class="nc" id="L84">        lifecycleScope.launch {</span>
+<span class="nc" id="L85">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L86">                launch {</span>
+<span class="nc" id="L87">                    viewModel.insertMediaFlow.collectLatest {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                        insertMediaAdapter?.submitData(lifecycleScope, it)</span>
+<span class="nc" id="L89">                    }</span>
+<span class="nc" id="L90">                }</span>
+<span class="nc" id="L91">                launch {</span>
+<span class="nc bnc" id="L92" title="All 4 branches missed.">                    insertMediaAdapter?.loadStateFlow?.collectLatest {</span>
+<span class="nc bnc" id="L93" title="All 4 branches missed.">                        binding.progressBar.isVisible = it.append is LoadState.Loading || it.refresh is LoadState.Loading</span>
+<span class="nc bnc" id="L94" title="All 10 branches missed.">                        val showEmpty = (it.append is LoadState.NotLoading &amp;&amp; it.append.endOfPaginationReached &amp;&amp; insertMediaAdapter?.itemCount == 0)</span>
+<span class="nc" id="L95">                        binding.emptyMessage.isVisible = showEmpty</span>
+<span class="nc" id="L96">                    }</span>
+<span class="nc" id="L97">                }</span>
+<span class="nc" id="L98">            }</span>
+<span class="nc" id="L99">        }</span>
+
+<span class="nc" id="L101">        insertMediaSettingsFragment = supportFragmentManager.findFragmentById(R.id.insertMediaSettingsFragment) as InsertMediaSettingsFragment</span>
+<span class="nc" id="L102">        insertMediaAdvancedSettingsFragment = supportFragmentManager.findFragmentById(R.id.insertMediaAdvancedSettingsFragment) as InsertMediaAdvancedSettingsFragment</span>
+
+<span class="nc" id="L104">        binding.searchInputField.text = viewModel.searchQuery</span>
+<span class="nc" id="L105">        binding.searchContainer.setOnClickListener {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (actionMode == null) {</span>
+<span class="nc" id="L107">                actionMode = startSupportActionMode(searchActionModeCallback)</span>
+            }
+<span class="nc" id="L109">        }</span>
+<span class="nc" id="L110">        adjustRefreshViewLayoutParams(false)</span>
+
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE &amp;&amp;</span>
+<span class="nc bnc" id="L113" title="All 4 branches missed.">                viewModel.selectedImage != null &amp;&amp; savedInstanceState == null) {</span>
+<span class="nc" id="L114">            binding.imageInfoContainer.isVisible = false</span>
+
+<span class="nc" id="L116">            binding.root.post {</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                if (!isDestroyed) {</span>
+<span class="nc" id="L118">                    showMediaSettingsFragment()</span>
+<span class="nc" id="L119">                    adjustRefreshViewLayoutParams(true)</span>
+                }
+<span class="nc" id="L121">            }</span>
+        }
+<span class="nc" id="L123">    }</span>
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+<span class="nc" id="L126">        menuInflater.inflate(R.menu.menu_insert_media, menu)</span>
+<span class="nc" id="L127">        return true</span>
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+<span class="nc" id="L131">        val menuNextItem = menu.findItem(R.id.menu_next)</span>
+<span class="nc" id="L132">        val menuSaveItem = menu.findItem(R.id.menu_save)</span>
+<span class="nc" id="L133">        val menuInsertItem = menu.findItem(R.id.menu_insert)</span>
+<span class="nc bnc" id="L134" title="All 4 branches missed.">        menuNextItem.isVisible = !insertMediaSettingsFragment.isActive &amp;&amp; !insertMediaAdvancedSettingsFragment.isActive</span>
+<span class="nc" id="L135">        menuSaveItem.isVisible = insertMediaAdvancedSettingsFragment.isActive</span>
+<span class="nc" id="L136">        menuInsertItem.isVisible = insertMediaSettingsFragment.isActive</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        menuInsertItem.title = if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE) {</span>
+<span class="nc" id="L138">            getString(R.string.onboarding_continue)</span>
+        } else {
+<span class="nc" id="L140">            getString(R.string.insert_media_insert_button)</span>
+        }
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        menuNextItem.isEnabled = viewModel.selectedImage != null</span>
+<span class="nc" id="L143">        applyActionBarButtonStyle(menuNextItem, menuNextItem.isEnabled)</span>
+<span class="nc bnc" id="L144" title="All 4 branches missed.">        applyActionBarButtonStyle(menuInsertItem, insertMediaSettingsFragment.captionText.isNotEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L145" title="All 4 branches missed.">                insertMediaSettingsFragment.alternativeText.isNotEmpty())</span>
+<span class="nc" id="L146">        applyActionBarButtonStyle(menuSaveItem, menuSaveItem.isEnabled)</span>
+<span class="nc" id="L147">        return super.onPrepareOptionsMenu(menu)</span>
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+<span class="nc" id="L151">        val selectedImage = viewModel.selectedImage</span>
+<span class="nc" id="L152">        return when (item.itemId) {</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            R.id.menu_next -&gt; {</span>
+<span class="nc" id="L154">                showMediaSettingsFragment()</span>
+<span class="nc" id="L155">                adjustRefreshViewLayoutParams(true)</span>
+<span class="nc" id="L156">                true</span>
+            }
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            R.id.menu_save -&gt; {</span>
+<span class="nc bnc" id="L159" title="All 4 branches missed.">                if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE &amp;&amp; selectedImage != null) {</span>
+<span class="nc" id="L160">                    ImageRecommendationsEvent.logAction(&quot;advanced_setting_save&quot;, &quot;caption_entry&quot;,</span>
+<span class="nc" id="L161">                        ImageRecommendationsEvent.getActionDataString(filename = selectedImage.prefixedText, recommendationSource = viewModel.selectedImageSource,</span>
+<span class="nc" id="L162">                            recommendationSourceProjects = viewModel.selectedImageSourceProjects, acceptanceState = &quot;accepted&quot;), selectedImage.wikiSite.languageCode)</span>
+                }
+<span class="nc" id="L164">                onBackPressedDispatcher.onBackPressed()</span>
+<span class="nc" id="L165">                true</span>
+            }
+<span class="nc bnc" id="L167" title="All 2 branches missed.">            R.id.menu_insert -&gt; {</span>
+<span class="nc bnc" id="L168" title="All 4 branches missed.">                if (viewModel.invokeSource == Constants.InvokeSource.EDIT_ADD_IMAGE &amp;&amp; selectedImage != null) {</span>
+<span class="nc" id="L169">                    ImageRecommendationsEvent.logAction(&quot;caption_continue&quot;, &quot;caption_entry&quot;,</span>
+<span class="nc" id="L170">                        ImageRecommendationsEvent.getActionDataString(filename = selectedImage.prefixedText, recommendationSource = viewModel.selectedImageSource,</span>
+<span class="nc" id="L171">                            recommendationSourceProjects = viewModel.selectedImageSourceProjects, acceptanceState = &quot;accepted&quot;,</span>
+<span class="nc bnc" id="L172" title="All 4 branches missed.">                            captionAdd = insertMediaSettingsFragment.captionText.isNotEmpty(), altTextAdd = insertMediaSettingsFragment.alternativeText.isNotEmpty()</span>
+<span class="nc" id="L173">                        ), selectedImage.wikiSite.languageCode</span>
+                    )
+                }
+<span class="nc bnc" id="L176" title="All 2 branches missed.">                selectedImage?.let {</span>
+<span class="nc" id="L177">                    val intent = Intent()</span>
+<span class="nc" id="L178">                        .putExtra(EXTRA_IMAGE_TITLE, it)</span>
+<span class="nc" id="L179">                        .putExtra(RESULT_IMAGE_CAPTION, insertMediaSettingsFragment.captionText)</span>
+<span class="nc" id="L180">                        .putExtra(RESULT_IMAGE_ALT, insertMediaSettingsFragment.alternativeText)</span>
+<span class="nc" id="L181">                        .putExtra(RESULT_IMAGE_TYPE, viewModel.imageType)</span>
+<span class="nc" id="L182">                        .putExtra(RESULT_IMAGE_POS, viewModel.imagePosition)</span>
+<span class="nc" id="L183">                        .putExtra(RESULT_IMAGE_SIZE, viewModel.imageSize)</span>
+<span class="nc" id="L184">                    setResult(RESULT_INSERT_MEDIA_SUCCESS, intent)</span>
+<span class="nc" id="L185">                    finish()</span>
+<span class="nc" id="L186">                }</span>
+<span class="nc" id="L187">                true</span>
+            }
+<span class="nc" id="L189">            else -&gt; super.onOptionsItemSelected(item)</span>
+        }
+    }
+
+<span class="nc" id="L193">    private val onBackPressedCallback = object : OnBackPressedCallback(true) {</span>
+        override fun handleOnBackPressed() {
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            if (insertMediaSettingsFragment.handleBackPressed()) {</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                if (insertMediaAdapter != null) {</span>
+<span class="nc" id="L197">                    binding.imageInfoContainer.isVisible = true</span>
+<span class="nc" id="L198">                    binding.searchContainer.isVisible = true</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                    supportActionBar?.title = getString(R.string.insert_media_title)</span>
+<span class="nc" id="L200">                    adjustRefreshViewLayoutParams(false)</span>
+                } else {
+<span class="nc" id="L202">                    finish()</span>
+                }
+<span class="nc" id="L204">                return</span>
+            }
+<span class="nc bnc" id="L206" title="All 2 branches missed.">            if (insertMediaAdvancedSettingsFragment.handleBackPressed()) {</span>
+<span class="nc" id="L207">                insertMediaSettingsFragment.show()</span>
+<span class="nc" id="L208">                return</span>
+            }
+<span class="nc" id="L210">            finish()</span>
+<span class="nc" id="L211">        }</span>
+    }
+
+    private fun adjustRefreshViewLayoutParams(removeLayoutBehavior: Boolean) {
+<span class="nc" id="L215">        binding.scrollableContainer.updateLayoutParams&lt;CoordinatorLayout.LayoutParams&gt; {</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            behavior = if (removeLayoutBehavior) null else AppBarLayout.ScrollingViewBehavior()</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">            topMargin = if (removeLayoutBehavior) DimenUtil.getToolbarHeightPx(this@InsertMediaActivity) else 0</span>
+<span class="nc" id="L218">        }</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        (binding.toolbar.layoutParams as AppBarLayout.LayoutParams).scrollFlags = if (removeLayoutBehavior) AppBarLayout.LayoutParams.SCROLL_FLAG_NO_SCROLL else</span>
+<span class="nc" id="L220">            AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS or AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL</span>
+<span class="nc" id="L221">    }</span>
+
+    private fun applyActionBarButtonStyle(menuItem: MenuItem, emphasize: Boolean) {
+<span class="nc" id="L224">        val actionBarButtonBinding = ItemEditActionbarButtonBinding.inflate(layoutInflater)</span>
+<span class="nc" id="L225">        menuItem.actionView = actionBarButtonBinding.root</span>
+<span class="nc" id="L226">        actionBarButtonBinding.editActionbarButtonText.text = menuItem.title</span>
+<span class="nc" id="L227">        actionBarButtonBinding.editActionbarButtonText.setTextColor(</span>
+<span class="nc" id="L228">            ResourceUtil.getThemedColor(this,</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">                if (emphasize) R.attr.progressive_color else R.attr.placeholder_color))</span>
+<span class="nc" id="L230">        actionBarButtonBinding.root.tag = menuItem</span>
+<span class="nc" id="L231">        actionBarButtonBinding.root.isEnabled = menuItem.isEnabled</span>
+<span class="nc" id="L232">        actionBarButtonBinding.root.setOnClickListener { onOptionsItemSelected(it.tag as MenuItem) }</span>
+<span class="nc" id="L233">    }</span>
+
+    private fun showMediaSettingsFragment() {
+<span class="nc" id="L236">        binding.imageInfoContainer.isVisible = false</span>
+<span class="nc" id="L237">        binding.searchContainer.isVisible = false</span>
+<span class="nc" id="L238">        binding.progressBar.isVisible = false</span>
+<span class="nc" id="L239">        insertMediaSettingsFragment.show()</span>
+<span class="nc" id="L240">    }</span>
+
+    fun showMediaAdvancedSettingsFragment() {
+<span class="nc" id="L243">        binding.imageInfoContainer.isVisible = false</span>
+<span class="nc" id="L244">        binding.searchContainer.isVisible = false</span>
+<span class="nc" id="L245">        insertMediaSettingsFragment.hide(false)</span>
+<span class="nc" id="L246">        insertMediaAdvancedSettingsFragment.show()</span>
+<span class="nc" id="L247">    }</span>
+
+    private fun showSelectedImage() {
+<span class="nc" id="L250">        binding.toolbarContainer.setExpanded(true)</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        viewModel.selectedImage?.let {</span>
+<span class="nc" id="L252">            ImageZoomHelper.setViewZoomable(binding.selectedImage)</span>
+<span class="nc" id="L253">            binding.emptyImageContainer.isVisible = false</span>
+<span class="nc" id="L254">            binding.selectedImageContainer.isVisible = true</span>
+<span class="nc" id="L255">            binding.progressBar.isVisible = true</span>
+<span class="nc" id="L256">            binding.selectedImage.loadImage(</span>
+<span class="nc" id="L257">                ImageUrlUtil.getUrlForPreferredSize(it.thumbUrl!!, Constants.PREFERRED_CARD_THUMBNAIL_SIZE).toUri(),</span>
+<span class="nc" id="L258">                listener = object : ImageLoadListener {</span>
+                    override fun onSuccess(image: Any, bmpWidth: Int, bmpHeight: Int) {
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                        if (!isDestroyed) {</span>
+<span class="nc" id="L261">                            val params = binding.imageInfoButton.layoutParams as FrameLayout.LayoutParams</span>
+<span class="nc" id="L262">                            val containerAspect = binding.imageViewContainer.width.toFloat() / binding.imageViewContainer.height.toFloat()</span>
+<span class="nc" id="L263">                            val bmpAspect = bmpWidth.toFloat() / bmpHeight.toFloat()</span>
+
+<span class="nc bnc" id="L265" title="All 2 branches missed.">                            if (bmpAspect &gt; containerAspect) {</span>
+<span class="nc" id="L266">                                params.marginEnd = DimenUtil.roundedDpToPx(8f)</span>
+                            } else {
+<span class="nc" id="L268">                                val width = binding.imageViewContainer.height.toFloat() * bmpAspect</span>
+<span class="nc" id="L269">                                params.marginEnd = DimenUtil.roundedDpToPx(8f) + (binding.imageViewContainer.width / 2 - width.toInt() / 2)</span>
+                            }
+<span class="nc" id="L271">                            binding.imageInfoButton.layoutParams = params</span>
+<span class="nc" id="L272">                            binding.progressBar.isVisible = false</span>
+                        }
+<span class="nc" id="L274">                    }</span>
+
+                    override fun onError(error: Throwable) {
+<span class="nc bnc" id="L277" title="All 2 branches missed.">                        if (!isDestroyed) {</span>
+<span class="nc" id="L278">                            binding.progressBar.isVisible = false</span>
+                        }
+<span class="nc" id="L280">                    }</span>
+                })
+
+<span class="nc" id="L283">            binding.selectedImageContainer.setOnClickListener { _ -&gt;</span>
+<span class="nc" id="L284">                it.wikiSite = WikiSite.forLanguageCode(WikipediaApp.instance.appOrSystemLanguageCode)</span>
+<span class="nc" id="L285">                startActivity(FilePageActivity.newIntent(this@InsertMediaActivity, it))</span>
+<span class="nc" id="L286">            }</span>
+<span class="nc" id="L287">        } ?: run {</span>
+<span class="nc" id="L288">            binding.emptyImageContainer.isVisible = true</span>
+<span class="nc" id="L289">            binding.selectedImageContainer.isVisible = false</span>
+<span class="nc" id="L290">        }</span>
+<span class="nc" id="L291">    }</span>
+
+<span class="nc" id="L293">    private inner class InsertMediaDiffCallback : DiffUtil.ItemCallback&lt;PageTitle&gt;() {</span>
+        override fun areItemsTheSame(oldItem: PageTitle, newItem: PageTitle): Boolean {
+<span class="nc" id="L295">            return oldItem == newItem</span>
+        }
+
+        override fun areContentsTheSame(oldItem: PageTitle, newItem: PageTitle): Boolean {
+<span class="nc bnc" id="L299" title="All 4 branches missed.">            return oldItem.prefixedText == newItem.prefixedText &amp;&amp; oldItem.namespace == newItem.namespace</span>
+        }
+    }
+
+<span class="nc" id="L303">    private inner class InsertMediaAdapter : PagingDataAdapterPatched&lt;PageTitle, RecyclerView.ViewHolder&gt;(InsertMediaDiffCallback()) {</span>
+        override fun onCreateViewHolder(parent: ViewGroup, pos: Int): InsertMediaItemHolder {
+<span class="nc" id="L305">            return InsertMediaItemHolder(ItemInsertMediaBinding.inflate(layoutInflater))</span>
+        }
+
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+<span class="nc bnc" id="L309" title="All 2 branches missed.">            getItem(position)?.let {</span>
+<span class="nc" id="L310">                (holder as InsertMediaItemHolder).bindItem(it)</span>
+<span class="nc" id="L311">            }</span>
+<span class="nc" id="L312">        }</span>
+    }
+
+<span class="nc" id="L315">    private inner class InsertMediaItemHolder(val binding: ItemInsertMediaBinding) : RecyclerView.ViewHolder(binding.root) {</span>
+        fun bindItem(pageTitle: PageTitle) {
+<span class="nc" id="L317">            ViewUtil.loadImage(binding.imageView, pageTitle.thumbUrl)</span>
+<span class="nc bnc" id="L318" title="All 6 branches missed.">            binding.imageDescription.text = StringUtil.removeHTMLTags(pageTitle.description.orEmpty().ifEmpty { pageTitle.displayText })</span>
+
+<span class="nc" id="L320">            binding.selectedIcon.isVisible = pageTitle == viewModel.selectedImage</span>
+
+<span class="nc" id="L322">            binding.root.setOnClickListener {</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">                viewModel.selectedImage = if (pageTitle == viewModel.selectedImage) null else pageTitle</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                actionMode?.finish()</span>
+<span class="nc" id="L325">                showSelectedImage()</span>
+<span class="nc" id="L326">                invalidateOptionsMenu()</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">                insertMediaAdapter?.notifyDataSetChanged()</span>
+<span class="nc" id="L328">            }</span>
+<span class="nc" id="L329">        }</span>
+    }
+
+<span class="nc" id="L332">    private inner class SearchCallback : SearchActionModeCallback() {</span>
+<span class="nc" id="L333">        var searchActionProvider: SearchActionProvider? = null</span>
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L335">            searchActionProvider = SearchActionProvider(this@InsertMediaActivity, getSearchHintString()) { onQueryChange(it) }</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">            searchActionProvider?.setQueryText(viewModel.searchQuery)</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">            searchActionProvider?.selectAllQueryTexts()</span>
+<span class="nc" id="L338">            val menuItem = menu.add(getSearchHintString())</span>
+<span class="nc" id="L339">            MenuItemCompat.setActionProvider(menuItem, searchActionProvider)</span>
+<span class="nc" id="L340">            actionMode = mode</span>
+<span class="nc" id="L341">            binding.imageInfoContainer.isVisible = false</span>
+<span class="nc" id="L342">            binding.searchContainer.isVisible = false</span>
+<span class="nc" id="L343">            return super.onCreateActionMode(mode, menu)</span>
+        }
+
+        override fun onQueryChange(s: String) {
+<span class="nc bnc" id="L347" title="All 4 branches missed.">            viewModel.searchQuery = s.ifEmpty { viewModel.originalSearchQuery }</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">            insertMediaAdapter?.refresh()</span>
+<span class="nc" id="L349">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L352">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L353">            actionMode = null</span>
+<span class="nc" id="L354">            binding.imageInfoContainer.isVisible = true</span>
+<span class="nc" id="L355">            binding.searchContainer.isVisible = true</span>
+<span class="nc" id="L356">            binding.searchInputField.text = viewModel.searchQuery</span>
+<span class="nc" id="L357">        }</span>
+
+        override fun getSearchHintString(): String {
+<span class="nc" id="L360">            return viewModel.searchQuery</span>
+        }
+
+        override fun getParentContext(): Context {
+<span class="nc" id="L364">            return this@InsertMediaActivity</span>
+        }
+    }
+
+    companion object {
+        const val EXTRA_SEARCH_QUERY = &quot;searchQuery&quot;
+        const val EXTRA_IMAGE_TITLE = &quot;imageTitle&quot;
+        const val EXTRA_IMAGE_SOURCE = &quot;imageSource&quot;
+        const val EXTRA_IMAGE_SOURCE_PROJECTS = &quot;imageSourceProjects&quot;
+        const val EXTRA_ATTEMPT_INSERT_INTO_INFOBOX = &quot;attemptInsertIntoInfobox&quot;
+        const val EXTRA_INSERTED_INTO_INFOBOX = &quot;insertedIntoInfobox&quot;
+        const val RESULT_IMAGE_CAPTION = &quot;resultImageCaption&quot;
+        const val RESULT_IMAGE_ALT = &quot;resultImageAlt&quot;
+        const val RESULT_IMAGE_SIZE = &quot;resultImageSize&quot;
+        const val RESULT_IMAGE_TYPE = &quot;resultImageType&quot;
+        const val RESULT_IMAGE_POS = &quot;resultImagePos&quot;
+        const val RESULT_INSERT_MEDIA_SUCCESS = 100
+
+<span class="nc" id="L382">        fun newIntent(context: Context, wikiSite: WikiSite, searchQuery: String,</span>
+<span class="nc" id="L383">                      invokeSource: Constants.InvokeSource, imageTitle: PageTitle? = null,</span>
+<span class="nc" id="L384">                      imageSource: String = &quot;&quot;, imageSourceProjects: String = &quot;&quot;): Intent {</span>
+<span class="nc" id="L385">            return Intent(context, InsertMediaActivity::class.java)</span>
+<span class="nc" id="L386">                .putExtra(Constants.ARG_WIKISITE, wikiSite)</span>
+<span class="nc" id="L387">                .putExtra(Constants.INTENT_EXTRA_INVOKE_SOURCE, invokeSource)</span>
+<span class="nc" id="L388">                .putExtra(EXTRA_IMAGE_TITLE, imageTitle)</span>
+<span class="nc" id="L389">                .putExtra(EXTRA_IMAGE_SOURCE, imageSource)</span>
+<span class="nc" id="L390">                .putExtra(EXTRA_IMAGE_SOURCE_PROJECTS, imageSourceProjects)</span>
+<span class="nc" id="L391">                .putExtra(EXTRA_SEARCH_QUERY, searchQuery)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

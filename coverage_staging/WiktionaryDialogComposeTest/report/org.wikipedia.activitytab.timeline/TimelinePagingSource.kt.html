@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TimelinePagingSource.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.activitytab.timeline</a> &gt; <span class="el_source">TimelinePagingSource.kt</span></div><h1>TimelinePagingSource.kt</h1><pre class="source lang-java linenums">package org.wikipedia.activitytab.timeline
+
+import androidx.paging.PagingSource
+import androidx.paging.PagingState
+
+<span class="nc" id="L6">class TimelinePagingSource(</span>
+<span class="nc" id="L7">    private val sources: List&lt;TimelineSource&gt;</span>
+) : PagingSource&lt;TimelinePageKey, TimelineItem&gt;() {
+    override fun getRefreshKey(state: PagingState&lt;TimelinePageKey, TimelineItem&gt;): TimelinePageKey? {
+<span class="nc" id="L10">        return null</span>
+    }
+
+    override suspend fun load(params: LoadParams&lt;TimelinePageKey&gt;): LoadResult&lt;TimelinePageKey, TimelineItem&gt; {
+<span class="nc" id="L14">        return try {</span>
+<span class="nc bnc" id="L15" title="All 2 branches missed.">            val key = params.key ?: TimelinePageKey()</span>
+<span class="nc" id="L16">            val allItems = mutableListOf&lt;TimelineItem&gt;()</span>
+<span class="nc" id="L17">            val newCursors = mutableMapOf&lt;String, Cursor&gt;()</span>
+
+<span class="nc" id="L19">            sources.forEach { source -&gt;</span>
+<span class="nc" id="L20">                val sourceName = source.id</span>
+<span class="nc" id="L21">                val cursor = key.cursors[sourceName]</span>
+<span class="nc bnc" id="L22" title="All 4 branches missed.">                if (cursor != null || key.cursors.isEmpty()) {</span>
+<span class="nc" id="L23">                    val (items, nextCursor) = source.fetch(params.loadSize, cursor)</span>
+<span class="nc" id="L24">                    allItems.addAll(items)</span>
+<span class="nc bnc" id="L25" title="All 2 branches missed.">                    nextCursor?.let { newCursors[sourceName] = it }</span>
+                }
+<span class="nc" id="L27">            }</span>
+
+<span class="nc" id="L29">            val merged = allItems</span>
+<span class="nc" id="L30">                .distinctBy { it.id }</span>
+<span class="nc" id="L31">                .sortedByDescending { it.timestamp }</span>
+
+<span class="nc" id="L33">            LoadResult.Page(</span>
+<span class="nc" id="L34">                data = merged,</span>
+<span class="nc" id="L35">                prevKey = null,</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">                nextKey = if (newCursors.isEmpty()) null else TimelinePageKey(newCursors)</span>
+            )
+<span class="nc" id="L38">        } catch (e: Exception) {</span>
+<span class="nc" id="L39">            LoadResult.Error(e)</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AppLanguageState.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.language</a> &gt; <span class="el_source">AppLanguageState.kt</span></div><h1>AppLanguageState.kt</h1><pre class="source lang-java linenums">package org.wikipedia.language
+
+import android.content.Context
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.settings.Prefs
+import org.wikipedia.util.L10nUtil
+import org.wikipedia.util.ReleaseUtil
+import java.util.Locale
+
+<span class="fc" id="L12">class AppLanguageState(context: Context) {</span>
+
+<span class="fc" id="L14">    private val appLanguageLookUpTable = AppLanguageLookUpTable(context)</span>
+
+    // Language codes that have been explicitly chosen by the user in most recently used order. This
+    // list includes both app and article languages.
+<span class="fc" id="L18">    private val _mruLanguageCodes = Prefs.mruLanguageCodeList.toMutableList()</span>
+<span class="fc" id="L19">    private val _appLanguageCodes = Prefs.appLanguageCodeList.toMutableList()</span>
+
+<span class="fc" id="L21">    init {</span>
+<span class="fc" id="L22">        initAppLanguageCodes()</span>
+<span class="fc" id="L23">    }</span>
+
+    val appLanguageCodes: List&lt;String&gt;
+        get() {
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">            if (_appLanguageCodes.isEmpty()) {</span>
+                // very bad, should not happen.
+<span class="nc" id="L29">                initAppLanguageCodes()</span>
+            }
+<span class="fc" id="L31">            return _appLanguageCodes</span>
+        }
+
+    val mruLanguageCodes: List&lt;String&gt;
+<span class="nc" id="L35">        get() = _mruLanguageCodes</span>
+
+    val appLanguageCode: String
+<span class="fc" id="L38">        get() = appLanguageCodes.first()</span>
+
+    val remainingSuggestedLanguageCodes: List&lt;String&gt;
+<span class="pc bpc" id="L41" title="2 of 4 branches missed.">        get() = LanguageUtil.suggestedLanguagesFromSystem.filter { !_appLanguageCodes.contains(it) &amp;&amp; appLanguageLookUpTable.isSupportedCode(it) }</span>
+
+    val systemLanguageCode: String
+        get() {
+<span class="fc" id="L45">            val code = LanguageUtil.localeToWikiLanguageCode(Locale.getDefault())</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            return if (appLanguageLookUpTable.isSupportedCode(code)) code else AppLanguageLookUpTable.FALLBACK_LANGUAGE_CODE</span>
+        }
+
+    val appMruLanguageCodes: List&lt;String&gt;
+        get() {
+<span class="nc" id="L51">            val codes = appLanguageLookUpTable.codes.toMutableList()</span>
+<span class="nc" id="L52">            var insertIndex = 0</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            for (code in _mruLanguageCodes) {</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                if (codes.contains(code)) {</span>
+<span class="nc" id="L55">                    codes.remove(code)</span>
+<span class="nc" id="L56">                    codes.add(insertIndex, code)</span>
+<span class="nc" id="L57">                    ++insertIndex</span>
+                }
+            }
+<span class="nc bnc" id="L60" title="All 4 branches missed.">            if (!Prefs.isShowDeveloperSettingsEnabled &amp;&amp; !ReleaseUtil.isPreBetaRelease) {</span>
+<span class="nc" id="L61">                codes.removeAll { it.startsWith(AppLanguageLookUpTable.TEST_LANGUAGE_CODE) }</span>
+            }
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if (!Prefs.isShowDeveloperSettingsEnabled) {</span>
+<span class="nc" id="L64">                codes.remove(AppLanguageLookUpTable.TRADITIONAL_CHINESE_LANGUAGE_CODE)</span>
+<span class="nc" id="L65">                codes.remove(AppLanguageLookUpTable.SIMPLIFIED_CHINESE_LANGUAGE_CODE)</span>
+            }
+<span class="nc" id="L67">            return codes</span>
+        }
+
+    val appLanguageLocalizedNames: String
+        get() {
+<span class="nc" id="L72">            return appLanguageCodes.joinToString(&quot;, &quot;) {</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                getAppLanguageLocalizedName(it).orEmpty()</span>
+            }
+        }
+
+    fun addMruLanguageCode(code: String) {
+<span class="nc" id="L78">        _mruLanguageCodes.remove(code)</span>
+<span class="nc" id="L79">        _mruLanguageCodes.add(0, code)</span>
+<span class="nc" id="L80">        Prefs.mruLanguageCodeList = _mruLanguageCodes</span>
+<span class="nc" id="L81">    }</span>
+
+    /** @return English name if app language is supported.
+     */
+    fun getAppLanguageCanonicalName(code: String?): String? {
+<span class="nc bnc" id="L86" title="All 6 branches missed.">        return if (!code.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L87" title="All 6 branches missed.">            appLanguageLookUpTable.getCanonicalName(code).orEmpty().ifEmpty { code }</span>
+        } else {
+<span class="nc" id="L89">            null</span>
+        }
+    }
+
+    /** @return Native name if app language is supported.
+     */
+    fun getAppLanguageLocalizedName(code: String?): String? {
+<span class="nc bnc" id="L96" title="All 6 branches missed.">        return if (!code.isNullOrEmpty()) {</span>
+<span class="nc bnc" id="L97" title="All 6 branches missed.">            appLanguageLookUpTable.getLocalizedName(code).orEmpty().ifEmpty { code }</span>
+        } else {
+<span class="nc" id="L99">            null</span>
+        }
+    }
+
+    fun getLanguageVariants(code: String?): List&lt;String&gt;? {
+<span class="fc" id="L104">        return appLanguageLookUpTable.getLanguageVariants(code)</span>
+    }
+
+    fun getDefaultLanguageCode(code: String?): String? {
+<span class="fc" id="L108">        return appLanguageLookUpTable.getDefaultLanguageCodeFromVariant(code)</span>
+    }
+
+    fun getLanguageCodeIndex(code: String?): Int {
+<span class="nc" id="L112">        return appLanguageLookUpTable.indexOfCode(code)</span>
+    }
+
+    fun addAppLanguageCode(code: String) {
+<span class="nc" id="L116">        _appLanguageCodes.remove(code)</span>
+<span class="nc" id="L117">        _appLanguageCodes.add(code)</span>
+<span class="nc" id="L118">        Prefs.appLanguageCodeList = _appLanguageCodes</span>
+<span class="nc" id="L119">        WikipediaApp.instance.resetWikiSite()</span>
+<span class="nc" id="L120">    }</span>
+
+    fun setAppLanguageCodes(codes: List&lt;String&gt;) {
+<span class="fc" id="L123">        _appLanguageCodes.clear()</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        _appLanguageCodes.addAll(codes.filter { it.isNotEmpty() })</span>
+<span class="fc" id="L125">        Prefs.appLanguageCodeList = _appLanguageCodes</span>
+<span class="fc" id="L126">        WikipediaApp.instance.resetWikiSite()</span>
+<span class="fc" id="L127">    }</span>
+
+    fun removeAppLanguageCodes(codes: List&lt;String&gt;) {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if (_appLanguageCodes.size &gt; 1) {</span>
+<span class="nc" id="L131">            _appLanguageCodes.removeAll(codes)</span>
+<span class="nc" id="L132">            Prefs.appLanguageCodeList = _appLanguageCodes</span>
+<span class="nc" id="L133">            WikipediaApp.instance.resetWikiSite()</span>
+        }
+<span class="nc" id="L135">    }</span>
+
+    fun getWikiLanguageName(langCode: String): String {
+<span class="nc" id="L138">        return when (langCode) {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            Constants.WIKI_CODE_COMMONS -&gt; L10nUtil.getString(R.string.wikimedia_commons)</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            Constants.WIKI_CODE_WIKIDATA -&gt; L10nUtil.getString(R.string.wikidata)</span>
+<span class="nc bnc" id="L141" title="All 6 branches missed.">            else -&gt; getAppLanguageLocalizedName(langCode).orEmpty().ifEmpty { langCode }</span>
+        }
+    }
+
+    fun getBcp47LanguageCode(langCode: String): String {
+<span class="fc" id="L146">        return appLanguageLookUpTable.getBcp47Code(langCode)</span>
+    }
+
+    private fun initAppLanguageCodes() {
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">        if (_appLanguageCodes.isEmpty()) {</span>
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">            if (Prefs.isInitialOnboardingEnabled) {</span>
+<span class="fc" id="L152">                setAppLanguageCodes(remainingSuggestedLanguageCodes)</span>
+            } else {
+                // If user has never changed app language before
+<span class="nc" id="L155">                addAppLanguageCode(systemLanguageCode)</span>
+            }
+        }
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (_appLanguageCodes.isEmpty()) {</span>
+            // If the language list is still empty, add the fallback language.
+            // This is for devices that have very nonstandard language configurations, or
+            // variants of languages that we don't support yet.
+<span class="nc" id="L162">            addAppLanguageCode(systemLanguageCode)</span>
+        }
+<span class="fc" id="L164">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

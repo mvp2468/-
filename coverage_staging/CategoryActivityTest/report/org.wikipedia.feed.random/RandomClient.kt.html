@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RandomClient.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.feed.random</a> &gt; <span class="el_source">RandomClient.kt</span></div><h1>RandomClient.kt</h1><pre class="source lang-java linenums">package org.wikipedia.feed.random
+
+import android.content.Context
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import org.wikipedia.WikipediaApp
+import org.wikipedia.database.AppDatabase
+import org.wikipedia.dataclient.ServiceFactory
+import org.wikipedia.dataclient.WikiSite
+import org.wikipedia.feed.FeedContentType
+import org.wikipedia.feed.dataclient.FeedClient
+import org.wikipedia.readinglist.database.ReadingListPage
+import org.wikipedia.util.log.L
+
+<span class="nc" id="L19">class RandomClient(</span>
+<span class="nc" id="L20">    private val coroutineScope: CoroutineScope</span>
+) : FeedClient {
+
+    private var clientJob: Job? = null
+
+    override fun request(context: Context, wiki: WikiSite, age: Int, cb: FeedClient.Callback) {
+<span class="nc" id="L26">        cancel()</span>
+<span class="nc" id="L27">        clientJob = coroutineScope.launch(</span>
+<span class="nc" id="L28">            CoroutineExceptionHandler { _, caught -&gt;</span>
+<span class="nc" id="L29">                L.v(caught)</span>
+<span class="nc" id="L30">                cb.error(caught)</span>
+<span class="nc" id="L31">            }</span>
+        ) {
+<span class="nc" id="L33">            val deferredSummaries = WikipediaApp.instance.languageState.appLanguageCodes.take(5)</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">                .filter { !FeedContentType.RANDOM.langCodesDisabled.contains(it) }</span>
+<span class="nc" id="L35">                .map { lang -&gt;</span>
+<span class="nc" id="L36">                    async {</span>
+<span class="nc" id="L37">                        val wikiSite = WikiSite.forLanguageCode(lang)</span>
+<span class="nc" id="L38">                        val randomSummary = try {</span>
+<span class="nc" id="L39">                            ServiceFactory.getRest(wikiSite).getRandomSummary()</span>
+<span class="nc" id="L40">                        } catch (e: Exception) {</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                            AppDatabase.instance.readingListPageDao().getRandomPage(lang)?.let {</span>
+<span class="nc" id="L42">                                ReadingListPage.toPageSummary(it)</span>
+                            }
+                        }
+<span class="nc bnc" id="L45" title="All 2 branches missed.">                        randomSummary?.let {</span>
+<span class="nc" id="L46">                            RandomCard(it, age, wikiSite)</span>
+<span class="nc" id="L47">                        }</span>
+<span class="nc" id="L48">                    }</span>
+                }
+
+<span class="nc" id="L51">            cb.success(deferredSummaries.awaitAll().filterNotNull())</span>
+<span class="nc" id="L52">        }</span>
+<span class="nc" id="L53">    }</span>
+
+    override fun cancel() {
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        clientJob?.cancel()</span>
+<span class="nc" id="L57">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

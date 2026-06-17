@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HybridSearchSkeletonLoader.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.search</a> &gt; <span class="el_source">HybridSearchSkeletonLoader.kt</span></div><h1>HybridSearchSkeletonLoader.kt</h1><pre class="source lang-java linenums">package org.wikipedia.search
+
+import androidx.compose.animation.core.InfiniteTransition
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Devices.PIXEL_9
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import org.wikipedia.compose.components.ListItemSkeletonLoader
+import org.wikipedia.compose.extensions.shimmerEffect
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.theme.Theme
+
+@Composable
+fun HybridSearchSkeletonLoader(
+    abTestGroupName: String,
+<span class="nc" id="L35">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L37">    val semanticShimmerColors = semanticShimmerColors()</span>
+<span class="nc" id="L38">    val transition = rememberInfiniteTransition()</span>
+
+<span class="nc" id="L40">    LazyColumn(</span>
+<span class="nc" id="L41">        modifier = modifier</span>
+<span class="nc" id="L42">            .fillMaxSize()</span>
+<span class="nc" id="L43">            .background(WikipediaTheme.colors.paperColor),</span>
+<span class="nc" id="L44">        contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp)</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">    ) {</span>
+<span class="nc bnc" id="L46" title="All 4 branches missed.">        when (abTestGroupName) {</span>
+            HybridSearchAbCTest.GROUP_CONTROL -&gt; {
+<span class="nc" id="L48">                items(15) {</span>
+<span class="nc" id="L49">                    ListItemSkeletonLoader(</span>
+<span class="nc" id="L50">                        shimmerColors = semanticShimmerColors,</span>
+<span class="nc" id="L51">                        transition = transition,</span>
+<span class="nc" id="L52">                        modifier = Modifier</span>
+<span class="nc" id="L53">                            .fillMaxWidth()</span>
+<span class="nc" id="L54">                            .padding(vertical = 24.dp)</span>
+                    )
+<span class="nc" id="L56">                }</span>
+            }
+            HybridSearchAbCTest.GROUP_LEXICAL_SEMANTIC -&gt; {
+<span class="nc" id="L59">                items(3) {</span>
+<span class="nc" id="L60">                    ListItemSkeletonLoader(</span>
+<span class="nc" id="L61">                        shimmerColors = semanticShimmerColors,</span>
+<span class="nc" id="L62">                        transition = transition,</span>
+<span class="nc" id="L63">                        modifier = Modifier</span>
+<span class="nc" id="L64">                            .fillMaxWidth()</span>
+<span class="nc" id="L65">                            .padding(vertical = 24.dp)</span>
+                    )
+<span class="nc" id="L67">                }</span>
+<span class="nc" id="L68">                item {</span>
+<span class="nc" id="L69">                    HorizontalHybridSearchListItemLoader(</span>
+<span class="nc" id="L70">                        semanticItemsCount = 3,</span>
+<span class="nc" id="L71">                        shimmerColors = semanticShimmerColors,</span>
+<span class="nc" id="L72">                        transition = transition,</span>
+<span class="nc" id="L73">                        modifier = Modifier</span>
+<span class="nc" id="L74">                            .padding(top = 8.dp)</span>
+                    )
+<span class="nc" id="L76">                }</span>
+            }
+            HybridSearchAbCTest.GROUP_SEMANTIC_LEXICAL -&gt; {
+<span class="nc" id="L79">                item {</span>
+<span class="nc" id="L80">                    HorizontalHybridSearchListItemLoader(</span>
+<span class="nc" id="L81">                        semanticItemsCount = 3,</span>
+<span class="nc" id="L82">                        shimmerColors = semanticShimmerColors,</span>
+<span class="nc" id="L83">                        transition = transition,</span>
+<span class="nc" id="L84">                        modifier = Modifier</span>
+<span class="nc" id="L85">                            .padding(top = 8.dp)</span>
+                    )
+<span class="nc" id="L87">                    Spacer(modifier = Modifier.height(8.dp))</span>
+<span class="nc" id="L88">                }</span>
+<span class="nc" id="L89">                items(3) {</span>
+<span class="nc" id="L90">                    ListItemSkeletonLoader(</span>
+<span class="nc" id="L91">                        shimmerColors = semanticShimmerColors,</span>
+<span class="nc" id="L92">                        transition = transition,</span>
+<span class="nc" id="L93">                        modifier = Modifier</span>
+<span class="nc" id="L94">                            .fillMaxWidth()</span>
+<span class="nc" id="L95">                            .padding(vertical = 24.dp)</span>
+                    )
+<span class="nc" id="L97">                }</span>
+            }
+        }
+<span class="nc" id="L100">    }</span>
+<span class="nc" id="L101">}</span>
+
+@Composable
+fun HorizontalHybridSearchListItemLoader(
+<span class="nc bnc" id="L105" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+<span class="nc" id="L106">    semanticItemsCount: Int = 3,</span>
+    shimmerColors: List&lt;Color&gt;,
+    transition: InfiniteTransition
+<span class="nc bnc" id="L109" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L110">    val semanticBoxHeight = 500</span>
+<span class="nc" id="L111">    val semanticBoxIndividualContentHeight = 16</span>
+
+<span class="nc" id="L113">    Column(</span>
+<span class="nc" id="L114">        modifier = modifier,</span>
+<span class="nc" id="L115">        verticalArrangement = Arrangement.spacedBy(16.dp),</span>
+    ) {
+<span class="nc" id="L117">        Box(</span>
+<span class="nc" id="L118">            modifier = Modifier</span>
+<span class="nc" id="L119">                .height(16.dp)</span>
+<span class="nc" id="L120">                .fillMaxWidth(0.5f)</span>
+<span class="nc" id="L121">                .clip(RoundedCornerShape(4.dp))</span>
+<span class="nc" id="L122">                .shimmerEffect(</span>
+<span class="nc" id="L123">                    shimmerColors = shimmerColors,</span>
+<span class="nc" id="L124">                    heightMultiplier = 0f,</span>
+<span class="nc" id="L125">                    transition = transition</span>
+                )
+        )
+<span class="nc" id="L128">        Box(</span>
+<span class="nc" id="L129">            modifier = Modifier</span>
+<span class="nc" id="L130">                .fillMaxWidth(0.94f)</span>
+<span class="nc" id="L131">                .height(16.dp)</span>
+<span class="nc" id="L132">                .clip(RoundedCornerShape(4.dp))</span>
+<span class="nc" id="L133">                .shimmerEffect(</span>
+<span class="nc" id="L134">                    shimmerColors = shimmerColors,</span>
+<span class="nc" id="L135">                    heightMultiplier = 0f,</span>
+<span class="nc" id="L136">                    transition = transition</span>
+                )
+        )
+
+<span class="nc" id="L140">        LazyRow(</span>
+<span class="nc" id="L141">            modifier = Modifier</span>
+<span class="nc" id="L142">                .padding(top = 8.dp),</span>
+<span class="nc" id="L143">            horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+<span class="nc bnc" id="L144" title="All 8 branches missed.">        ) {</span>
+<span class="nc" id="L145">            items(semanticItemsCount) {</span>
+<span class="nc" id="L146">                Column(</span>
+<span class="nc" id="L147">                    modifier = Modifier</span>
+<span class="nc" id="L148">                        .size(width = 292.dp, height = semanticBoxHeight.dp)</span>
+<span class="nc" id="L149">                        .clip(RoundedCornerShape(16.dp))</span>
+<span class="nc" id="L150">                        .background(color = WikipediaTheme.colors.backgroundColor)</span>
+<span class="nc" id="L151">                        .padding(16.dp),</span>
+<span class="nc" id="L152">                    verticalArrangement = Arrangement.spacedBy(8.dp)</span>
+                ) {
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                    repeat(semanticBoxHeight / semanticBoxIndividualContentHeight) {</span>
+<span class="nc" id="L155">                        Box(</span>
+<span class="nc" id="L156">                            modifier = Modifier</span>
+<span class="nc" id="L157">                                .fillMaxWidth()</span>
+<span class="nc" id="L158">                                .height(semanticBoxIndividualContentHeight.dp)</span>
+<span class="nc" id="L159">                                .clip(RoundedCornerShape(4.dp))</span>
+<span class="nc" id="L160">                                .shimmerEffect(</span>
+<span class="nc" id="L161">                                    shimmerColors = shimmerColors,</span>
+<span class="nc" id="L162">                                    heightMultiplier = 0f,</span>
+<span class="nc" id="L163">                                    transition = transition</span>
+                                )
+                        )
+<span class="nc" id="L166">                    }</span>
+<span class="nc" id="L167">                }</span>
+<span class="nc" id="L168">            }</span>
+<span class="nc" id="L169">        }</span>
+<span class="nc" id="L170">    }</span>
+<span class="nc" id="L171">}</span>
+
+@Composable
+<span class="nc" id="L174">fun semanticShimmerColors(): List&lt;Color&gt; {</span>
+<span class="nc" id="L175">    val colors = WikipediaTheme.colors</span>
+<span class="nc" id="L176">    return listOf(</span>
+<span class="nc" id="L177">        colors.inactiveColor.copy(alpha = 0.7f),</span>
+<span class="nc" id="L178">        colors.borderColor.copy(alpha = 0.5f),</span>
+<span class="nc" id="L179">        colors.inactiveColor.copy(alpha = 0.7f)</span>
+    )
+}
+
+@Preview(showBackground = true, device = PIXEL_9)
+@Composable
+<span class="nc" id="L185">private fun HybridSearchSkeletonLoaderVariantAPreview() {</span>
+<span class="nc" id="L186">    BaseTheme(</span>
+<span class="nc" id="L187">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L188">    ) {</span>
+<span class="nc" id="L189">        HybridSearchSkeletonLoader(</span>
+<span class="nc" id="L190">            abTestGroupName = &quot;a&quot;,</span>
+<span class="nc" id="L191">            modifier = Modifier</span>
+<span class="nc" id="L192">                .fillMaxSize()</span>
+        )
+<span class="nc" id="L194">    }</span>
+<span class="nc" id="L195">}</span>
+
+@Preview(showBackground = true, device = PIXEL_9)
+@Composable
+<span class="nc" id="L199">private fun HybridSearchSkeletonLoaderVariantBPreview() {</span>
+<span class="nc" id="L200">    BaseTheme(</span>
+<span class="nc" id="L201">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L202">    ) {</span>
+<span class="nc" id="L203">        HybridSearchSkeletonLoader(</span>
+<span class="nc" id="L204">            abTestGroupName = &quot;b&quot;,</span>
+<span class="nc" id="L205">            modifier = Modifier</span>
+<span class="nc" id="L206">                .fillMaxSize()</span>
+        )
+<span class="nc" id="L208">    }</span>
+<span class="nc" id="L209">}</span>
+
+@Preview(showBackground = true, device = PIXEL_9)
+@Composable
+<span class="nc" id="L213">private fun HybridSearchSkeletonLoaderVariantCPreview() {</span>
+<span class="nc" id="L214">    BaseTheme(</span>
+<span class="nc" id="L215">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L216">    ) {</span>
+<span class="nc" id="L217">        HybridSearchSkeletonLoader(</span>
+<span class="nc" id="L218">            abTestGroupName = &quot;c&quot;,</span>
+<span class="nc" id="L219">            modifier = Modifier</span>
+<span class="nc" id="L220">                .fillMaxSize()</span>
+        )
+<span class="nc" id="L222">    }</span>
+<span class="nc" id="L223">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

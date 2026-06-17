@@ -1,0 +1,968 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DonationReminderScreen.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.donate.donationreminder</a> &gt; <span class="el_source">DonationReminderScreen.kt</span></div><h1>DonationReminderScreen.kt</h1><pre class="source lang-java linenums">package org.wikipedia.donate.donationreminder
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.launch
+import org.wikipedia.R
+import org.wikipedia.analytics.eventplatform.DonorExperienceEvent
+import org.wikipedia.compose.components.AppButton
+import org.wikipedia.compose.components.InlinePosition
+import org.wikipedia.compose.components.TextWithInlineElement
+import org.wikipedia.compose.components.error.WikiErrorClickEvents
+import org.wikipedia.compose.components.error.WikiErrorView
+import org.wikipedia.compose.extensions.noRippleClickable
+import org.wikipedia.compose.theme.BaseTheme
+import org.wikipedia.compose.theme.WikipediaTheme
+import org.wikipedia.donate.DonateUtil
+import org.wikipedia.theme.Theme
+
+@Composable
+fun DonationReminderScreen(
+<span class="nc bnc" id="L94" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    viewModel: DonationReminderViewModel,
+<span class="nc" id="L96">    wikiErrorClickEvents: WikiErrorClickEvents? = null,</span>
+    onBackButtonClick: () -&gt; Unit,
+    onConfirmButtonClick: (String) -&gt; Unit,
+    onFooterButtonClick: () -&gt; Unit,
+    onLearnMoreClick: () -&gt; Unit,
+    onReportClick: () -&gt; Unit
+<span class="nc bnc" id="L102" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L103">    val uiState = viewModel.uiState.collectAsState().value</span>
+<span class="nc" id="L104">    var isNavigatingToExternalUrl by remember { mutableStateOf(false) }</span>
+
+<span class="nc" id="L106">    val lifecycleOwner = LocalLifecycleOwner.current</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">    DisposableEffect(lifecycleOwner) {</span>
+<span class="nc" id="L108">        val observer = LifecycleEventObserver { _, event -&gt;</span>
+<span class="nc bnc" id="L109" title="All 3 branches missed.">            when (event) {</span>
+                Lifecycle.Event.ON_PAUSE -&gt; {
+<span class="nc bnc" id="L111" title="All 6 branches missed.">                    if (viewModel.isFromSettings &amp;&amp; !isNavigatingToExternalUrl &amp;&amp; viewModel.hasValueChanged()) {</span>
+<span class="nc" id="L112">                        viewModel.saveReminder()</span>
+<span class="nc" id="L113">                        val message = DonationReminderHelper.thankYouMessageForSettings()</span>
+<span class="nc" id="L114">                        onConfirmButtonClick(message)</span>
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -&gt; {
+<span class="nc" id="L118">                    isNavigatingToExternalUrl = false</span>
+                }
+                else -&gt; {}
+            }
+<span class="nc" id="L122">        }</span>
+<span class="nc" id="L123">        lifecycleOwner.lifecycle.addObserver(observer)</span>
+
+<span class="nc" id="L125">        onDispose {</span>
+<span class="nc" id="L126">            lifecycleOwner.lifecycle.removeObserver(observer)</span>
+<span class="nc" id="L127">        }</span>
+    }
+
+<span class="nc" id="L130">    LaunchedEffect(Unit) {</span>
+<span class="nc" id="L131">        viewModel.loadData()</span>
+<span class="nc" id="L132">    }</span>
+
+<span class="nc" id="L134">    Scaffold(</span>
+<span class="nc" id="L135">        modifier = modifier,</span>
+<span class="nc" id="L136">        topBar = {</span>
+<span class="nc" id="L137">            DonationReminderAppBar(</span>
+<span class="nc" id="L138">                modifier = Modifier</span>
+<span class="nc" id="L139">                    .fillMaxWidth()</span>
+<span class="nc" id="L140">                    .statusBarsPadding()</span>
+<span class="nc" id="L141">                    .padding(top = 12.dp)</span>
+<span class="nc" id="L142">                    .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L143">                onBackButtonClick = onBackButtonClick,</span>
+<span class="nc" id="L144">                menuItems = listOf(</span>
+<span class="nc" id="L145">                    DonationReminderDropDownMenuItem(</span>
+<span class="nc" id="L146">                        text = stringResource(R.string.donation_reminders_settings_learn_more_button),</span>
+<span class="nc" id="L147">                        icon = R.drawable.ic_info_outline_black_24dp,</span>
+<span class="nc" id="L148">                        onClick = onLearnMoreClick</span>
+                    ),
+<span class="nc" id="L150">                    DonationReminderDropDownMenuItem(</span>
+<span class="nc" id="L151">                        text = stringResource(R.string.donation_reminders_settings_report_button),</span>
+<span class="nc" id="L152">                        icon = R.drawable.ic_report_flag,</span>
+<span class="nc" id="L153">                        onClick = onReportClick</span>
+                    )
+                )
+            )
+<span class="nc" id="L157">        },</span>
+<span class="nc" id="L158">        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L159">    ) { paddingValues -&gt;</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        if (uiState.isLoading) {</span>
+<span class="nc" id="L161">            Box(</span>
+<span class="nc" id="L162">                modifier = modifier</span>
+<span class="nc" id="L163">                    .fillMaxSize()</span>
+<span class="nc" id="L164">                    .padding(paddingValues)</span>
+            ) {
+<span class="nc" id="L166">                LinearProgressIndicator(</span>
+<span class="nc" id="L167">                    modifier = Modifier.fillMaxWidth(),</span>
+<span class="nc" id="L168">                    color = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L169">                    trackColor = WikipediaTheme.colors.borderColor</span>
+                )
+<span class="nc" id="L171">            }</span>
+<span class="nc" id="L172">            return@Scaffold</span>
+<span class="nc" id="L173">        }</span>
+
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (uiState.error != null) {</span>
+<span class="nc" id="L176">            Box(</span>
+<span class="nc" id="L177">                modifier = Modifier</span>
+<span class="nc" id="L178">                    .fillMaxSize()</span>
+<span class="nc" id="L179">                    .padding(paddingValues),</span>
+<span class="nc" id="L180">                contentAlignment = Alignment.Center</span>
+            ) {
+<span class="nc" id="L182">                WikiErrorView(</span>
+<span class="nc" id="L183">                    modifier = Modifier</span>
+<span class="nc" id="L184">                        .fillMaxWidth(),</span>
+<span class="nc" id="L185">                    caught = uiState.error,</span>
+<span class="nc" id="L186">                    errorClickEvents = wikiErrorClickEvents</span>
+                )
+<span class="nc" id="L188">            }</span>
+<span class="nc" id="L189">            return@Scaffold</span>
+<span class="nc" id="L190">        }</span>
+
+<span class="nc" id="L192">        DonationReminderContent(</span>
+<span class="nc" id="L193">            modifier = Modifier</span>
+<span class="nc" id="L194">                .padding(paddingValues)</span>
+<span class="nc" id="L195">                .fillMaxSize(),</span>
+<span class="nc" id="L196">            viewModel = viewModel,</span>
+<span class="nc" id="L197">            uiState = uiState,</span>
+<span class="nc" id="L198">            onConfirmButtonClick = onConfirmButtonClick,</span>
+<span class="nc" id="L199">            onFooterButtonClick = {</span>
+<span class="nc" id="L200">                isNavigatingToExternalUrl = true</span>
+<span class="nc" id="L201">                onFooterButtonClick()</span>
+<span class="nc" id="L202">            }</span>
+        )
+<span class="nc" id="L204">    }</span>
+<span class="nc" id="L205">}</span>
+
+@Composable
+fun DonationReminderAppBar(
+<span class="nc bnc" id="L209" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    onBackButtonClick: () -&gt; Unit,
+<span class="nc" id="L211">    menuItems: List&lt;DonationReminderDropDownMenuItem&gt; = emptyList()</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L213">    var expanded by remember { mutableStateOf(false) }</span>
+
+<span class="nc" id="L215">    Column(</span>
+<span class="nc" id="L216">        modifier = modifier,</span>
+<span class="nc" id="L217">        verticalArrangement = Arrangement.spacedBy(8.dp)</span>
+    ) {
+<span class="nc" id="L219">        Row(</span>
+<span class="nc" id="L220">            horizontalArrangement = Arrangement.spacedBy(16.dp),</span>
+<span class="nc" id="L221">            verticalAlignment = Alignment.CenterVertically</span>
+        ) {
+<span class="nc" id="L223">            Icon(</span>
+<span class="nc" id="L224">                modifier = Modifier</span>
+<span class="nc" id="L225">                    .clickable(onClick = onBackButtonClick),</span>
+<span class="nc" id="L226">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L227">                painter = painterResource(R.drawable.ic_arrow_back_black_24dp),</span>
+<span class="nc" id="L228">                contentDescription = null</span>
+            )
+<span class="nc" id="L230">            Text(</span>
+<span class="nc" id="L231">                modifier = Modifier</span>
+<span class="nc" id="L232">                    .weight(1f),</span>
+<span class="nc" id="L233">                text = stringResource(R.string.donation_reminders_settings_title),</span>
+<span class="nc" id="L234">                style = TextStyle(</span>
+<span class="nc" id="L235">                    fontSize = 20.sp,</span>
+<span class="nc" id="L236">                    fontWeight = FontWeight.Bold,</span>
+<span class="nc" id="L237">                    lineHeight = 20.sp</span>
+                ),
+<span class="nc" id="L239">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc bnc" id="L241" title="All 4 branches missed.">            if (menuItems.isNotEmpty()) {</span>
+<span class="nc" id="L242">                Box {</span>
+<span class="nc" id="L243">                    Icon(</span>
+<span class="nc" id="L244">                        modifier = Modifier</span>
+<span class="nc" id="L245">                            .clickable(onClick = { expanded = true }),</span>
+<span class="nc" id="L246">                        tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L247">                        painter = painterResource(R.drawable.ic_more_vert_white_24dp),</span>
+<span class="nc" id="L248">                        contentDescription = null</span>
+                    )
+<span class="nc" id="L250">                    DropdownMenu(</span>
+<span class="nc" id="L251">                        containerColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L252">                        expanded = expanded,</span>
+<span class="nc" id="L253">                        onDismissRequest = { expanded = false }</span>
+<span class="nc" id="L254">                    ) {</span>
+<span class="nc" id="L255">                        menuItems.forEach { item -&gt;</span>
+<span class="nc" id="L256">                            DropdownMenuItem(</span>
+<span class="nc" id="L257">                                text = {</span>
+<span class="nc" id="L258">                                    Text(</span>
+<span class="nc" id="L259">                                        text = item.text,</span>
+<span class="nc" id="L260">                                        style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L261">                                        color = WikipediaTheme.colors.primaryColor</span>
+                                    )
+<span class="nc" id="L263">                                },</span>
+<span class="nc" id="L264">                                leadingIcon = {</span>
+<span class="nc" id="L265">                                    Icon(</span>
+<span class="nc" id="L266">                                        painter = painterResource(item.icon),</span>
+<span class="nc" id="L267">                                        tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L268">                                        contentDescription = null</span>
+                                    )
+<span class="nc" id="L270">                                },</span>
+<span class="nc" id="L271">                                onClick = {</span>
+<span class="nc" id="L272">                                    item.onClick.invoke()</span>
+<span class="nc" id="L273">                                    expanded = false</span>
+<span class="nc" id="L274">                                }</span>
+                            )
+<span class="nc" id="L276">                        }</span>
+<span class="nc" id="L277">                    }</span>
+<span class="nc" id="L278">                }</span>
+<span class="nc" id="L279">            }</span>
+<span class="nc" id="L280">        }</span>
+<span class="nc" id="L281">        Row(</span>
+<span class="nc" id="L282">            horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+        ) {
+<span class="nc" id="L284">            Box(</span>
+<span class="nc" id="L285">                modifier = Modifier</span>
+<span class="nc" id="L286">                    .size(24.dp)</span>
+            )
+<span class="nc" id="L288">            Row(</span>
+<span class="nc" id="L289">                modifier = Modifier</span>
+<span class="nc" id="L290">                    .background(</span>
+<span class="nc" id="L291">                        color = WikipediaTheme.colors.additionColor,</span>
+<span class="nc" id="L292">                        shape = RoundedCornerShape(size = 16.dp)</span>
+                    )
+<span class="nc" id="L294">                    .padding(horizontal = 8.dp, vertical = 4.dp)</span>
+            ) {
+<span class="nc" id="L296">                Text(</span>
+<span class="nc" id="L297">                    text = stringResource(R.string.donation_reminders_experiment_label),</span>
+<span class="nc" id="L298">                    style = MaterialTheme.typography.labelSmall,</span>
+<span class="nc" id="L299">                    fontFamily = FontFamily.Monospace,</span>
+<span class="nc" id="L300">                    fontWeight = FontWeight.Normal,</span>
+<span class="nc" id="L301">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L303">            }</span>
+<span class="nc" id="L304">        }</span>
+<span class="nc" id="L305">    }</span>
+<span class="nc" id="L306">}</span>
+
+@Composable
+fun DonationReminderContent(
+<span class="nc" id="L310">    modifier: Modifier = Modifier,</span>
+    viewModel: DonationReminderViewModel,
+    uiState: DonationReminderUiState,
+    onConfirmButtonClick: (String) -&gt; Unit,
+    onFooterButtonClick: () -&gt; Unit
+<span class="nc bnc" id="L315" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L316">    val isDonationReminderEnabled = uiState.isDonationReminderEnabled</span>
+<span class="nc" id="L317">    var showReadFrequencyCustomDialog by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L318">    var showDonationAmountCustomDialog by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L319">    var customDialogErrorMessage by remember { mutableStateOf(&quot;&quot;) }</span>
+
+<span class="nc" id="L321">    val warningMinAmount = stringResource(R.string.donation_reminders_settings_warning_min_amount)</span>
+<span class="nc" id="L322">    val warningMaxAmount = stringResource(R.string.donation_reminders_settings_warning_max_amount)</span>
+<span class="nc" id="L323">    val donateGooglePayMinAmount = stringResource(R.string.donate_gpay_minimum_amount)</span>
+<span class="nc" id="L324">    val donateGooglePayMaxAmount = stringResource(R.string.donate_gpay_maximum_amount)</span>
+<span class="nc" id="L325">    Column(</span>
+<span class="nc" id="L326">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L328">        Column(</span>
+<span class="nc" id="L329">            modifier = Modifier</span>
+<span class="nc" id="L330">                .verticalScroll(rememberScrollState())</span>
+<span class="nc" id="L331">                .weight(1f)</span>
+<span class="nc" id="L332">                .padding(16.dp)</span>
+        ) {
+<span class="nc" id="L334">            DonationHeader()</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">            if (viewModel.isFromSettings) {</span>
+<span class="nc" id="L336">                DonationRemindersSwitch(</span>
+<span class="nc" id="L337">                    modifier = Modifier</span>
+<span class="nc" id="L338">                        .noRippleClickable {</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">                            viewModel.toggleDonationReminders(!isDonationReminderEnabled)</span>
+<span class="nc" id="L340">                        }</span>
+<span class="nc" id="L341">                        .padding(top = 24.dp),</span>
+<span class="nc" id="L342">                    isDonationRemindersEnabled = isDonationReminderEnabled,</span>
+<span class="nc" id="L343">                    onCheckedChange = { viewModel.toggleDonationReminders(it) }</span>
+                )
+<span class="nc" id="L345">            }</span>
+<span class="nc" id="L346">            Spacer(modifier = Modifier.height(24.dp))</span>
+<span class="nc bnc" id="L347" title="All 4 branches missed.">            if (uiState.isDonationReminderEnabled || !viewModel.isFromSettings) {</span>
+<span class="nc" id="L348">                ReadFrequencyView(</span>
+<span class="nc" id="L349">                    option = uiState.readFrequency,</span>
+<span class="nc" id="L350">                    showReadFrequencyCustomDialog = showReadFrequencyCustomDialog,</span>
+<span class="nc" id="L351">                    customDialogErrorMessage = customDialogErrorMessage,</span>
+<span class="nc" id="L352">                    onOptionSelected = { option -&gt;</span>
+<span class="nc" id="L353">                        when (option) {</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">                            is OptionItem.Preset -&gt; {</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">                                val activeInterface = if (viewModel.isFromSettings) &quot;global_setting&quot; else &quot;reminder_config&quot;</span>
+<span class="nc" id="L356">                                DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L357">                                    activeInterface = activeInterface,</span>
+<span class="nc" id="L358">                                    action = &quot;freq_change_click&quot;</span>
+                                )
+<span class="nc" id="L360">                                viewModel.updateReadFrequencyState(option.value)</span>
+                            }
+
+<span class="nc" id="L363">                            is OptionItem.Custom -&gt; {</span>
+<span class="nc" id="L364">                                showReadFrequencyCustomDialog = true</span>
+                            }
+                        }
+<span class="nc" id="L367">                    },</span>
+<span class="nc" id="L368">                    onDismissRequest = {</span>
+<span class="nc" id="L369">                        showReadFrequencyCustomDialog = false</span>
+<span class="nc" id="L370">                        customDialogErrorMessage = &quot;&quot;</span>
+<span class="nc" id="L371">                    },</span>
+<span class="nc" id="L372">                    onDoneClick = { readFrequency -&gt;</span>
+<span class="nc bnc" id="L373" title="All 4 branches missed.">                        if (customDialogErrorMessage.isEmpty()) {</span>
+<span class="nc bnc" id="L374" title="All 2 branches missed.">                            val activeInterface = if (viewModel.isFromSettings) &quot;global_setting&quot; else &quot;reminder_config&quot;</span>
+<span class="nc" id="L375">                            DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L376">                                activeInterface = activeInterface,</span>
+<span class="nc" id="L377">                                action = &quot;freq_change_click&quot;</span>
+                            )
+<span class="nc" id="L379">                            viewModel.updateReadFrequencyState(readFrequency.toInt())</span>
+<span class="nc" id="L380">                            showReadFrequencyCustomDialog = false</span>
+                        }
+<span class="nc" id="L382">                    },</span>
+<span class="nc" id="L383">                    onValueChange = { value -&gt;</span>
+<span class="nc" id="L384">                        val minimumAmount = uiState.readFrequency.minimumAmount</span>
+<span class="nc" id="L385">                        val maximumAmount = uiState.readFrequency.maximumAmount</span>
+<span class="nc" id="L386">                        val amount = DonateUtil.getAmountFloat(value)</span>
+<span class="nc" id="L387">                        customDialogErrorMessage = when {</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">                            amount &lt;= minimumAmount -&gt; {</span>
+<span class="nc" id="L389">                                String.format(</span>
+                                    warningMinAmount,
+<span class="nc" id="L391">                                    uiState.readFrequency.displayFormatter(minimumAmount + 1)</span>
+                                )
+                            }
+<span class="nc bnc" id="L394" title="All 2 branches missed.">                            amount &gt;= maximumAmount -&gt; {</span>
+<span class="nc" id="L395">                                String.format(</span>
+                                    warningMaxAmount,
+<span class="nc" id="L397">                                    uiState.readFrequency.displayFormatter(maximumAmount - 1)</span>
+                                )
+                            }
+<span class="nc" id="L400">                            else -&gt; &quot;&quot;</span>
+                        }
+<span class="nc" id="L402">                    }</span>
+                )
+<span class="nc" id="L404">                Spacer(modifier = Modifier.height(24.dp))</span>
+<span class="nc" id="L405">                DonationAmountView(</span>
+<span class="nc" id="L406">                    option = uiState.donationAmount,</span>
+<span class="nc" id="L407">                    showDonationAmountCustomDialog = showDonationAmountCustomDialog,</span>
+<span class="nc" id="L408">                    currencySymbol = DonateUtil.currencySymbol,</span>
+<span class="nc" id="L409">                    customDialogErrorMessage = customDialogErrorMessage,</span>
+<span class="nc" id="L410">                    onDismissRequest = {</span>
+<span class="nc" id="L411">                        showDonationAmountCustomDialog = false</span>
+<span class="nc" id="L412">                        customDialogErrorMessage = &quot;&quot;</span>
+<span class="nc" id="L413">                    },</span>
+<span class="nc" id="L414">                    onOptionSelected = { option -&gt;</span>
+<span class="nc" id="L415">                        when (option) {</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">                            is OptionItem.Preset -&gt; {</span>
+<span class="nc bnc" id="L417" title="All 2 branches missed.">                                val activeInterface = if (viewModel.isFromSettings) &quot;global_setting&quot; else &quot;reminder_config&quot;</span>
+<span class="nc" id="L418">                                DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L419">                                    activeInterface = activeInterface,</span>
+<span class="nc" id="L420">                                    action = &quot;amount_change_click&quot;</span>
+                                )
+<span class="nc" id="L422">                                viewModel.updateDonationAmountState(option.value)</span>
+                            }
+
+<span class="nc" id="L425">                            is OptionItem.Custom -&gt; {</span>
+<span class="nc" id="L426">                                showDonationAmountCustomDialog = true</span>
+                            }
+                        }
+<span class="nc" id="L429">                    },</span>
+<span class="nc" id="L430">                    onDoneClick = { amount -&gt;</span>
+<span class="nc bnc" id="L431" title="All 4 branches missed.">                        if (customDialogErrorMessage.isEmpty()) {</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">                            val activeInterface = if (viewModel.isFromSettings) &quot;global_setting&quot; else &quot;reminder_config&quot;</span>
+<span class="nc" id="L433">                            DonorExperienceEvent.logDonationReminderAction(</span>
+<span class="nc" id="L434">                                activeInterface = activeInterface,</span>
+<span class="nc" id="L435">                                action = &quot;amount_change_click&quot;</span>
+                            )
+<span class="nc" id="L437">                            viewModel.updateDonationAmountState(amount.toFloat())</span>
+<span class="nc" id="L438">                            showDonationAmountCustomDialog = false</span>
+                        }
+<span class="nc" id="L440">                    },</span>
+<span class="nc" id="L441">                    onValueChange = { value -&gt;</span>
+<span class="nc" id="L442">                        val amount = DonateUtil.getAmountFloat(value)</span>
+<span class="nc" id="L443">                        val minimumAmount = uiState.donationAmount.minimumAmount</span>
+<span class="nc" id="L444">                        val maximumAmount = uiState.donationAmount.maximumAmount</span>
+<span class="nc" id="L445">                        customDialogErrorMessage = when {</span>
+<span class="nc bnc" id="L446" title="All 2 branches missed.">                            amount &lt; minimumAmount -&gt; {</span>
+<span class="nc" id="L447">                                String.format(</span>
+                                    donateGooglePayMinAmount,
+<span class="nc" id="L449">                                    uiState.donationAmount.displayFormatter(minimumAmount)</span>
+                                )
+                            }
+<span class="nc bnc" id="L452" title="All 4 branches missed.">                            maximumAmount &gt; 0 &amp;&amp; amount &gt;= maximumAmount -&gt; {</span>
+<span class="nc" id="L453">                                String.format(</span>
+                                    donateGooglePayMaxAmount,
+<span class="nc" id="L455">                                    uiState.donationAmount.displayFormatter(maximumAmount)</span>
+                                )
+                            }
+<span class="nc" id="L458">                            else -&gt; &quot;&quot;</span>
+                        }
+<span class="nc" id="L460">                    }</span>
+                )
+<span class="nc" id="L462">            }</span>
+<span class="nc" id="L463">        }</span>
+
+<span class="nc bnc" id="L465" title="All 4 branches missed.">        if (uiState.isDonationReminderEnabled || !viewModel.isFromSettings) {</span>
+<span class="nc bnc" id="L466" title="All 2 branches missed.">            if (!viewModel.isFromSettings) {</span>
+<span class="nc" id="L467">                AppButton(</span>
+<span class="nc" id="L468">                    modifier = Modifier</span>
+<span class="nc" id="L469">                        .fillMaxWidth()</span>
+<span class="nc" id="L470">                        .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L471">                        .padding(top = 16.dp),</span>
+<span class="nc bnc" id="L472" title="All 2 branches missed.">                    onClick = {</span>
+<span class="nc" id="L473">                        viewModel.toggleDonationReminders(true)</span>
+<span class="nc" id="L474">                        viewModel.saveReminder()</span>
+<span class="nc" id="L475">                        val message = DonationReminderHelper.thankYouMessageForSettings()</span>
+<span class="nc" id="L476">                        onConfirmButtonClick(message)</span>
+<span class="nc" id="L477">                    },</span>
+<span class="nc" id="L478">                    content = {</span>
+<span class="nc" id="L479">                        Text(</span>
+<span class="nc" id="L480">                            stringResource(R.string.donation_reminders_settings_confirm_btn_label)</span>
+                        )
+<span class="nc" id="L482">                    }</span>
+                )
+<span class="nc" id="L484">            }</span>
+<span class="nc" id="L485">        }</span>
+
+<span class="nc bnc" id="L487" title="All 2 branches missed.">        val footerButtonText = if (viewModel.isFromSettings) stringResource(R.string.donation_reminders_settings_about_experiment_btn_label)</span>
+<span class="nc" id="L488">        else stringResource(R.string.donation_reminders_settings_no_thanks_btn_label)</span>
+<span class="nc" id="L489">        TextButton(</span>
+<span class="nc" id="L490">            modifier = Modifier</span>
+<span class="nc" id="L491">                .fillMaxWidth()</span>
+<span class="nc" id="L492">                .padding(horizontal = 16.dp)</span>
+<span class="nc" id="L493">                .padding(bottom = 16.dp),</span>
+<span class="nc" id="L494">            onClick = onFooterButtonClick,</span>
+<span class="nc" id="L495">            content = {</span>
+<span class="nc" id="L496">                Text(</span>
+<span class="nc" id="L497">                    text = footerButtonText,</span>
+<span class="nc" id="L498">                    color = WikipediaTheme.colors.progressiveColor</span>
+                )
+<span class="nc" id="L500">            }</span>
+        )
+<span class="nc" id="L502">    }</span>
+<span class="nc" id="L503">}</span>
+
+@Composable
+fun DonationAmountView(
+    option: SelectableOption&lt;Float&gt;,
+    currencySymbol: String,
+    showDonationAmountCustomDialog: Boolean,
+    customDialogErrorMessage: String,
+    onOptionSelected: (OptionItem&lt;Float&gt;) -&gt; Unit,
+    onDismissRequest: () -&gt; Unit,
+    onDoneClick: (String) -&gt; Unit,
+    onValueChange: (String) -&gt; Unit
+<span class="nc" id="L515">) {</span>
+<span class="nc" id="L516">    OptionSelector(</span>
+<span class="nc" id="L517">        title = stringResource(R.string.donation_reminders_settings_amount_label),</span>
+<span class="nc" id="L518">        headerIcon = R.drawable.credit_card_heart_24,</span>
+<span class="nc" id="L519">        option = option,</span>
+<span class="nc" id="L520">        onOptionSelected = onOptionSelected</span>
+    )
+<span class="nc bnc" id="L522" title="All 2 branches missed.">    if (showDonationAmountCustomDialog) {</span>
+<span class="nc" id="L523">        CustomInputDialog(</span>
+<span class="nc" id="L524">            title = stringResource(R.string.donation_reminders_settings_amount_label),</span>
+<span class="nc" id="L525">            decimalEnabled = true,</span>
+<span class="nc" id="L526">            errorMessage = customDialogErrorMessage,</span>
+<span class="nc" id="L527">            onDismissRequest = onDismissRequest,</span>
+<span class="nc" id="L528">            prefix = {</span>
+<span class="nc" id="L529">                Text(</span>
+<span class="nc" id="L530">                    text = currencySymbol,</span>
+<span class="nc" id="L531">                    style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L532">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L534">            },</span>
+<span class="nc" id="L535">            onDoneClick = onDoneClick,</span>
+<span class="nc" id="L536">            onValueChange = onValueChange</span>
+        )
+<span class="nc" id="L538">    }</span>
+<span class="nc" id="L539">}</span>
+
+@Composable
+fun ReadFrequencyView(
+    option: SelectableOption&lt;Int&gt;,
+    showReadFrequencyCustomDialog: Boolean,
+    customDialogErrorMessage: String,
+    onOptionSelected: (OptionItem&lt;Int&gt;) -&gt; Unit,
+    onDismissRequest: () -&gt; Unit,
+    onDoneClick: (String) -&gt; Unit,
+    onValueChange: (String) -&gt; Unit
+<span class="nc" id="L550">) {</span>
+<span class="nc" id="L551">    OptionSelector(</span>
+<span class="nc" id="L552">        title = stringResource(R.string.donation_reminders_settings_article_frequency_label),</span>
+<span class="nc" id="L553">        headerIcon = R.drawable.newsstand_24dp,</span>
+<span class="nc" id="L554">        option = option,</span>
+<span class="nc" id="L555">        showInfo = true,</span>
+<span class="nc" id="L556">        onOptionSelected = onOptionSelected</span>
+    )
+<span class="nc bnc" id="L558" title="All 2 branches missed.">    if (showReadFrequencyCustomDialog) {</span>
+<span class="nc" id="L559">        CustomInputDialog(</span>
+<span class="nc" id="L560">            title = stringResource(R.string.donation_reminders_settings_article_frequency_label),</span>
+<span class="nc" id="L561">            errorMessage = customDialogErrorMessage,</span>
+<span class="nc" id="L562">            onDismissRequest = onDismissRequest,</span>
+<span class="nc" id="L563">            suffix = {</span>
+<span class="nc" id="L564">                Text(</span>
+<span class="nc" id="L565">                    text = stringResource(R.string.donation_reminders_settings_article_frequency_input_suffix_label),</span>
+<span class="nc" id="L566">                    style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L567">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L569">            },</span>
+<span class="nc" id="L570">            onDoneClick = onDoneClick,</span>
+<span class="nc" id="L571">            onValueChange = onValueChange</span>
+        )
+<span class="nc" id="L573">    }</span>
+<span class="nc" id="L574">}</span>
+
+@Composable
+fun DonationHeader(
+<span class="nc" id="L578">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L579" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L580">    Column(</span>
+<span class="nc" id="L581">        modifier = modifier</span>
+    ) {
+<span class="nc" id="L583">        val rawString = stringResource(R.string.donation_reminders_settings_thank_you_message)</span>
+<span class="nc" id="L584">        val formattedString = rawString.replace(&quot;%%&quot;, &quot;%&quot;)</span>
+<span class="nc" id="L585">        TextWithInlineElement(</span>
+<span class="nc" id="L586">            text = formattedString,</span>
+<span class="nc" id="L587">            position = InlinePosition.END,</span>
+<span class="nc" id="L588">            placeholder = Placeholder(</span>
+<span class="nc" id="L589">                width = 20.sp,</span>
+<span class="nc" id="L590">                height = 20.sp,</span>
+<span class="nc" id="L591">                placeholderVerticalAlign = PlaceholderVerticalAlign.Center</span>
+            ),
+<span class="nc" id="L593">            content = {</span>
+<span class="nc" id="L594">                Icon(</span>
+<span class="nc" id="L595">                    modifier = Modifier</span>
+<span class="nc" id="L596">                        .size(20.dp)</span>
+<span class="nc" id="L597">                        .padding(start = 4.dp),</span>
+<span class="nc" id="L598">                    painter = painterResource(R.drawable.ic_heart_24),</span>
+<span class="nc" id="L599">                    contentDescription = null,</span>
+<span class="nc" id="L600">                    tint = WikipediaTheme.colors.destructiveColor</span>
+                )
+<span class="nc" id="L602">            }</span>
+        )
+<span class="nc" id="L604">        Spacer(modifier = Modifier.height(16.dp))</span>
+<span class="nc" id="L605">        Text(</span>
+<span class="nc" id="L606">            text = stringResource(R.string.donation_reminders_settings_donation_info),</span>
+<span class="nc" id="L607">            style = MaterialTheme.typography.bodySmall,</span>
+<span class="nc" id="L608">            color = WikipediaTheme.colors.placeholderColor</span>
+        )
+
+<span class="nc" id="L611">        HorizontalDivider(</span>
+<span class="nc" id="L612">            modifier = Modifier</span>
+<span class="nc" id="L613">                .padding(top = 24.dp),</span>
+<span class="nc" id="L614">            color = WikipediaTheme.colors.borderColor</span>
+        )
+<span class="nc" id="L616">    }</span>
+<span class="nc" id="L617">}</span>
+
+@Composable
+fun &lt;T : Number&gt; OptionSelector(
+    title: String,
+    option: SelectableOption&lt;T&gt;,
+    @DrawableRes headerIcon: Int,
+    onOptionSelected: (OptionItem&lt;T&gt;) -&gt; Unit,
+<span class="nc" id="L625">    showInfo: Boolean = false,</span>
+<span class="nc bnc" id="L626" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L627">    var isDropdownExpanded by remember { mutableStateOf(false) }</span>
+<span class="nc" id="L628">    val displayValue by remember(option.selectedValue, option.displayFormatter) {</span>
+<span class="nc" id="L629">        derivedStateOf { option.displayFormatter(option.selectedValue) }</span>
+    }
+
+<span class="nc" id="L632">    Row(</span>
+<span class="nc" id="L633">        horizontalArrangement = Arrangement.spacedBy(16.dp),</span>
+<span class="nc" id="L634">        verticalAlignment = Alignment.Top</span>
+    ) {
+<span class="nc" id="L636">        Icon(</span>
+<span class="nc" id="L637">            modifier = Modifier</span>
+<span class="nc" id="L638">                .padding(top = 3.dp),</span>
+<span class="nc" id="L639">            painter = painterResource(headerIcon),</span>
+<span class="nc" id="L640">            tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L641">            contentDescription = null</span>
+        )
+<span class="nc" id="L643">        Column(</span>
+<span class="nc" id="L644">            verticalArrangement = Arrangement.spacedBy(8.dp),</span>
+        ) {
+<span class="nc" id="L646">            Text(</span>
+<span class="nc" id="L647">                text = title,</span>
+<span class="nc" id="L648">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L649">                color = WikipediaTheme.colors.primaryColor,</span>
+            )
+<span class="nc" id="L651">            Spacer(modifier = Modifier.width(16.dp))</span>
+<span class="nc" id="L652">            Row(</span>
+<span class="nc" id="L653">                verticalAlignment = Alignment.CenterVertically,</span>
+<span class="nc" id="L654">                horizontalArrangement = Arrangement.spacedBy(16.dp)</span>
+            ) {
+<span class="nc" id="L656">                TextField(</span>
+<span class="nc" id="L657">                    modifier = Modifier</span>
+<span class="nc" id="L658">                        .width(210.dp)</span>
+<span class="nc" id="L659">                        .clickable { isDropdownExpanded = true },</span>
+<span class="nc" id="L660">                    value = displayValue,</span>
+<span class="nc" id="L661">                    enabled = false,</span>
+<span class="nc" id="L662">                    onValueChange = {},</span>
+<span class="nc" id="L663">                    textStyle = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L664">                    colors = TextFieldDefaults.colors(</span>
+<span class="nc" id="L665">                        disabledContainerColor = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc" id="L666">                        disabledTextColor = WikipediaTheme.colors.primaryColor</span>
+                    ),
+<span class="nc" id="L668">                    trailingIcon = {</span>
+<span class="nc" id="L669">                        Icon(</span>
+<span class="nc" id="L670">                            painter = painterResource(R.drawable.ic_arrow_drop_down_black_24dp),</span>
+<span class="nc" id="L671">                            tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L672">                            contentDescription = null</span>
+                        )
+<span class="nc" id="L674">                    }</span>
+                )
+
+<span class="nc bnc" id="L677" title="All 2 branches missed.">                if (showInfo) {</span>
+<span class="nc" id="L678">                    InfoTooltip(</span>
+<span class="nc" id="L679">                        modifier = Modifier,</span>
+<span class="nc" id="L680">                        plainTooltipText = stringResource(R.string.donation_reminders_settings_tooltip_info_label)</span>
+                    )
+<span class="nc" id="L682">                }</span>
+
+<span class="nc" id="L684">                DropdownMenu(</span>
+<span class="nc" id="L685">                    modifier = Modifier</span>
+<span class="nc" id="L686">                        .width(210.dp),</span>
+<span class="nc" id="L687">                    containerColor = WikipediaTheme.colors.backgroundColor,</span>
+<span class="nc" id="L688">                    expanded = isDropdownExpanded,</span>
+<span class="nc" id="L689">                    onDismissRequest = { isDropdownExpanded = false },</span>
+<span class="nc" id="L690">                    content = {</span>
+<span class="nc" id="L691">                        option.options.forEach { option -&gt;</span>
+<span class="nc" id="L692">                            DropdownMenuItem(</span>
+<span class="nc" id="L693">                                text = {</span>
+<span class="nc" id="L694">                                    Text(</span>
+<span class="nc" id="L695">                                        text = option.displayText,</span>
+<span class="nc" id="L696">                                        style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L697">                                        color = WikipediaTheme.colors.primaryColor</span>
+                                    )
+<span class="nc" id="L699">                                },</span>
+<span class="nc" id="L700">                                onClick = {</span>
+<span class="nc" id="L701">                                    onOptionSelected(option)</span>
+<span class="nc" id="L702">                                    isDropdownExpanded = false</span>
+<span class="nc" id="L703">                                }</span>
+                            )
+<span class="nc" id="L705">                        }</span>
+<span class="nc" id="L706">                    }</span>
+                )
+<span class="nc" id="L708">            }</span>
+<span class="nc" id="L709">        }</span>
+<span class="nc" id="L710">    }</span>
+<span class="nc" id="L711">}</span>
+
+@Composable
+private fun DonationRemindersSwitch(
+    isDonationRemindersEnabled: Boolean,
+    onCheckedChange: ((Boolean) -&gt; Unit),
+<span class="nc" id="L717">    modifier: Modifier = Modifier</span>
+<span class="nc bnc" id="L718" title="All 2 branches missed.">) {</span>
+
+<span class="nc" id="L720">    ListItem(</span>
+<span class="nc" id="L721">        modifier = modifier</span>
+<span class="nc" id="L722">            .clip(RoundedCornerShape(16.dp)),</span>
+<span class="nc" id="L723">        colors = ListItemDefaults.colors(</span>
+<span class="nc" id="L724">            containerColor = WikipediaTheme.colors.backgroundColor</span>
+        ),
+<span class="nc" id="L726">        headlineContent = {</span>
+<span class="nc" id="L727">            Text(</span>
+<span class="nc" id="L728">                text = stringResource(R.string.donation_reminders_settings_option_title),</span>
+<span class="nc" id="L729">                style = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L730">                color = WikipediaTheme.colors.primaryColor</span>
+            )
+<span class="nc" id="L732">        },</span>
+<span class="nc" id="L733">        trailingContent = {</span>
+<span class="nc" id="L734">            Switch(</span>
+<span class="nc" id="L735">                checked = isDonationRemindersEnabled,</span>
+<span class="nc" id="L736">                onCheckedChange = {</span>
+<span class="nc" id="L737">                    onCheckedChange(it)</span>
+<span class="nc" id="L738">                },</span>
+<span class="nc" id="L739">                colors = SwitchDefaults.colors(</span>
+<span class="nc" id="L740">                    uncheckedTrackColor = WikipediaTheme.colors.paperColor,</span>
+<span class="nc" id="L741">                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L742">                    uncheckedBorderColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L743">                    checkedTrackColor = WikipediaTheme.colors.progressiveColor,</span>
+<span class="nc" id="L744">                    checkedThumbColor = WikipediaTheme.colors.paperColor</span>
+                )
+            )
+<span class="nc" id="L747">        }</span>
+    )
+<span class="nc" id="L749">}</span>
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InfoTooltip(
+<span class="nc" id="L754">    modifier: Modifier = Modifier,</span>
+    plainTooltipText: String
+<span class="nc bnc" id="L756" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L757">    val tooltipState = rememberTooltipState()</span>
+<span class="nc" id="L758">    val scope = rememberCoroutineScope()</span>
+<span class="nc" id="L759">    TooltipBox(</span>
+<span class="nc" id="L760">        modifier = modifier,</span>
+<span class="nc" id="L761">        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),</span>
+<span class="nc" id="L762">        tooltip = {</span>
+<span class="nc" id="L763">            PlainTooltip(</span>
+<span class="nc" id="L764">                modifier = Modifier</span>
+<span class="nc" id="L765">                    .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L766">                containerColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L767">                content = {</span>
+<span class="nc" id="L768">                    Text(</span>
+<span class="nc" id="L769">                        text = plainTooltipText,</span>
+<span class="nc" id="L770">                        style = MaterialTheme.typography.bodyMedium,</span>
+<span class="nc" id="L771">                        color = WikipediaTheme.colors.paperColor</span>
+                    )
+<span class="nc" id="L773">                }</span>
+            )
+<span class="nc" id="L775">        },</span>
+<span class="nc" id="L776">        state = tooltipState,</span>
+<span class="nc" id="L777">        content = {</span>
+<span class="nc" id="L778">            Icon(</span>
+<span class="nc" id="L779">                modifier = Modifier</span>
+<span class="nc" id="L780">                    .noRippleClickable(onClick = {</span>
+<span class="nc" id="L781">                        scope.launch {</span>
+<span class="nc" id="L782">                            tooltipState.show()</span>
+<span class="nc" id="L783">                        }</span>
+<span class="nc" id="L784">                    }),</span>
+<span class="nc" id="L785">                painter = painterResource(R.drawable.ic_info_outline_black_24dp),</span>
+<span class="nc" id="L786">                tint = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L787">                contentDescription = null</span>
+            )
+<span class="nc" id="L789">        }</span>
+    )
+<span class="nc" id="L791">}</span>
+
+@Composable
+fun CustomInputDialog(
+<span class="nc bnc" id="L795" title="All 2 branches missed.">    modifier: Modifier = Modifier,</span>
+    title: String,
+<span class="nc bnc" id="L797" title="All 2 branches missed.">    decimalEnabled: Boolean = false,</span>
+<span class="nc bnc" id="L798" title="All 2 branches missed.">    errorMessage: String = &quot;&quot;,</span>
+    onDoneClick: (String) -&gt; Unit,
+    onDismissRequest: () -&gt; Unit,
+<span class="nc bnc" id="L801" title="All 2 branches missed.">    prefix: @Composable (() -&gt; Unit)? = null,</span>
+<span class="nc" id="L802">    suffix: @Composable (() -&gt; Unit)? = null,</span>
+    onValueChange: (String) -&gt; Unit,
+<span class="nc bnc" id="L804" title="All 2 branches missed.">) {</span>
+<span class="nc" id="L805">    var value by remember { mutableStateOf(&quot;&quot;) }</span>
+<span class="nc" id="L806">    val focusRequester = remember { FocusRequester() }</span>
+<span class="nc" id="L807">    var hasFocused by remember { mutableStateOf(false) }</span>
+
+<span class="nc" id="L809">    Dialog(</span>
+<span class="nc" id="L810">        onDismissRequest = onDismissRequest,</span>
+<span class="nc" id="L811">        content = {</span>
+<span class="nc" id="L812">            Column(</span>
+<span class="nc" id="L813">                modifier = modifier</span>
+<span class="nc" id="L814">                    .clip(RoundedCornerShape(28.dp))</span>
+<span class="nc" id="L815">                    .background(WikipediaTheme.colors.paperColor)</span>
+<span class="nc" id="L816">                    .padding(24.dp),</span>
+            ) {
+<span class="nc" id="L818">                Text(</span>
+<span class="nc" id="L819">                    modifier = Modifier</span>
+<span class="nc" id="L820">                        .fillMaxWidth(),</span>
+<span class="nc" id="L821">                    text = title,</span>
+<span class="nc" id="L822">                    textAlign = TextAlign.Center,</span>
+<span class="nc" id="L823">                    style = MaterialTheme.typography.labelLarge,</span>
+<span class="nc" id="L824">                    color = WikipediaTheme.colors.primaryColor</span>
+                )
+<span class="nc" id="L826">                Spacer(modifier = Modifier.height(16.dp))</span>
+<span class="nc" id="L827">                OutlinedTextField(</span>
+<span class="nc" id="L828">                    modifier = Modifier</span>
+<span class="nc" id="L829">                        .focusRequester(focusRequester)</span>
+<span class="nc" id="L830">                        .onGloballyPositioned {</span>
+<span class="nc bnc" id="L831" title="All 2 branches missed.">                            if (!hasFocused) {</span>
+<span class="nc" id="L832">                                focusRequester.requestFocus()</span>
+<span class="nc" id="L833">                                hasFocused = true</span>
+                            }
+<span class="nc" id="L835">                        },</span>
+<span class="nc" id="L836">                    value = value,</span>
+<span class="nc" id="L837">                    singleLine = true,</span>
+<span class="nc" id="L838">                    onValueChange = { newValue -&gt;</span>
+<span class="nc" id="L839">                        onValueChange(newValue)</span>
+<span class="nc" id="L840">                        value = newValue</span>
+<span class="nc" id="L841">                    },</span>
+<span class="nc bnc" id="L842" title="All 2 branches missed.">                    isError = errorMessage.isNotEmpty(),</span>
+<span class="nc" id="L843">                    prefix = prefix,</span>
+<span class="nc" id="L844">                    suffix = suffix,</span>
+<span class="nc" id="L845">                    textStyle = MaterialTheme.typography.bodyLarge,</span>
+<span class="nc" id="L846">                    keyboardOptions = KeyboardOptions(</span>
+<span class="nc bnc" id="L847" title="All 2 branches missed.">                        keyboardType = if (decimalEnabled) KeyboardType.Number else KeyboardType.NumberPassword,</span>
+<span class="nc" id="L848">                        imeAction = ImeAction.Send</span>
+                    ),
+<span class="nc" id="L850">                    keyboardActions = KeyboardActions(</span>
+<span class="nc" id="L851">                        onSend = {</span>
+<span class="nc bnc" id="L852" title="All 4 branches missed.">                            if (value.isEmpty()) {</span>
+<span class="nc" id="L853">                                onValueChange(&quot;&quot;)</span>
+<span class="nc" id="L854">                                return@KeyboardActions</span>
+                            }
+<span class="nc" id="L856">                            onDoneClick(value)</span>
+<span class="nc" id="L857">                        }</span>
+                    ),
+<span class="nc" id="L859">                    colors = OutlinedTextFieldDefaults.colors(</span>
+<span class="nc" id="L860">                        focusedTextColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L861">                        focusedBorderColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L862">                        unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,</span>
+<span class="nc" id="L863">                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,</span>
+<span class="nc" id="L864">                        cursorColor = WikipediaTheme.colors.primaryColor,</span>
+<span class="nc" id="L865">                        errorTextColor = WikipediaTheme.colors.primaryColor,</span>
+                    ),
+<span class="nc bnc" id="L867" title="All 4 branches missed.">                    supportingText = if (errorMessage.isNotEmpty()) {</span>
+<span class="nc" id="L868">                        {</span>
+<span class="nc" id="L869">                            Text(</span>
+<span class="nc" id="L870">                                text = errorMessage,</span>
+<span class="nc" id="L871">                                color = WikipediaTheme.colors.destructiveColor,</span>
+                            )
+<span class="nc" id="L873">                        }</span>
+<span class="nc" id="L874">                    } else null,</span>
+<span class="nc bnc" id="L875" title="All 4 branches missed.">                    trailingIcon = if (errorMessage.isNotEmpty()) {</span>
+<span class="nc" id="L876">                        {</span>
+<span class="nc" id="L877">                            Icon(</span>
+<span class="nc" id="L878">                                painter = painterResource(R.drawable.baseline_info_24),</span>
+<span class="nc" id="L879">                                contentDescription = null,</span>
+<span class="nc" id="L880">                                tint = WikipediaTheme.colors.destructiveColor</span>
+                            )
+<span class="nc" id="L882">                        }</span>
+<span class="nc" id="L883">                    } else null</span>
+                )
+<span class="nc" id="L885">                Row(</span>
+<span class="nc" id="L886">                    modifier = Modifier</span>
+<span class="nc" id="L887">                        .padding(top = 8.dp)</span>
+<span class="nc" id="L888">                        .fillMaxWidth(),</span>
+<span class="nc" id="L889">                    horizontalArrangement = Arrangement.End</span>
+                ) {
+<span class="nc" id="L891">                    TextButton(</span>
+<span class="nc" id="L892">                        onClick = {</span>
+<span class="nc bnc" id="L893" title="All 4 branches missed.">                            if (value.isEmpty()) {</span>
+<span class="nc" id="L894">                                onValueChange(&quot;&quot;)</span>
+<span class="nc" id="L895">                                return@TextButton</span>
+                            }
+<span class="nc" id="L897">                            onDoneClick(value)</span>
+<span class="nc" id="L898">                        },</span>
+<span class="nc" id="L899">                        content = {</span>
+<span class="nc" id="L900">                            Text(</span>
+<span class="nc" id="L901">                                text = &quot;Done&quot;,</span>
+<span class="nc" id="L902">                                color = WikipediaTheme.colors.progressiveColor</span>
+                            )
+<span class="nc" id="L904">                        }</span>
+                    )
+<span class="nc" id="L906">                }</span>
+<span class="nc" id="L907">            }</span>
+<span class="nc" id="L908">        }</span>
+    )
+<span class="nc" id="L910">}</span>
+
+@Preview
+@Composable
+<span class="nc" id="L914">private fun CustomInputDialogPreview() {</span>
+<span class="nc" id="L915">    BaseTheme(</span>
+<span class="nc" id="L916">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L917">    ) {</span>
+<span class="nc" id="L918">        CustomInputDialog(</span>
+<span class="nc" id="L919">            title = &quot;Remind me to donate&quot;,</span>
+<span class="nc" id="L920">            onDoneClick = {},</span>
+<span class="nc" id="L921">            onDismissRequest = {},</span>
+<span class="nc" id="L922">            prefix = {</span>
+<span class="nc" id="L923">                Text(</span>
+<span class="nc" id="L924">                    text = &quot;$&quot;,</span>
+<span class="nc" id="L925">                    modifier = Modifier.padding(start = 16.dp)</span>
+                )
+<span class="nc" id="L927">            },</span>
+<span class="nc" id="L928">            suffix = {</span>
+<span class="nc" id="L929">                Text(</span>
+<span class="nc" id="L930">                    modifier = Modifier</span>
+<span class="nc" id="L931">                        .padding(horizontal = 12.dp),</span>
+<span class="nc" id="L932">                    text = &quot;articles&quot;</span>
+                )
+<span class="nc" id="L934">            },</span>
+<span class="nc" id="L935">            onValueChange = {}</span>
+        )
+<span class="nc" id="L937">    }</span>
+<span class="nc" id="L938">}</span>
+
+@Preview(showBackground = true)
+@Composable
+<span class="nc" id="L942">private fun DonationReminderAppBarPreview() {</span>
+<span class="nc" id="L943">    BaseTheme(</span>
+<span class="nc" id="L944">        currentTheme = Theme.LIGHT</span>
+<span class="nc" id="L945">    ) {</span>
+<span class="nc" id="L946">        DonationReminderAppBar(</span>
+<span class="nc" id="L947">            modifier = Modifier</span>
+<span class="nc" id="L948">                .fillMaxWidth()</span>
+<span class="nc" id="L949">                .statusBarsPadding()</span>
+<span class="nc" id="L950">                .padding(top = 12.dp)</span>
+<span class="nc" id="L951">                .padding(horizontal = 16.dp),</span>
+<span class="nc" id="L952">            onBackButtonClick = {},</span>
+<span class="nc" id="L953">            menuItems = listOf(</span>
+<span class="nc" id="L954">                DonationReminderDropDownMenuItem(</span>
+<span class="nc" id="L955">                    text = &quot;Learn more&quot;,</span>
+<span class="nc" id="L956">                    icon = R.drawable.ic_info_outline_black_24dp,</span>
+<span class="nc" id="L957">                    onClick = {}</span>
+                ),
+<span class="nc" id="L959">                DonationReminderDropDownMenuItem(</span>
+<span class="nc" id="L960">                    text = &quot;Problem with feature&quot;,</span>
+<span class="nc" id="L961">                    icon = R.drawable.ic_report_flag,</span>
+<span class="nc" id="L962">                    onClick = {}</span>
+                )
+            )
+        )
+<span class="nc" id="L966">    }</span>
+<span class="nc" id="L967">}</span>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

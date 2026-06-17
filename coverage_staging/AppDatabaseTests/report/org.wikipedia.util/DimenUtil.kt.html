@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DimenUtil.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.util</a> &gt; <span class="el_source">DimenUtil.kt</span></div><h1>DimenUtil.kt</h1><pre class="source lang-java linenums">package org.wikipedia.util
+
+import android.content.Context
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.util.DisplayMetrics
+import android.util.TypedValue
+import androidx.annotation.DimenRes
+import androidx.core.content.res.use
+import androidx.core.util.TypedValueCompat
+import org.wikipedia.R
+import org.wikipedia.WikipediaApp
+import org.wikipedia.util.log.L
+import kotlin.math.roundToInt
+
+object DimenUtil {
+    fun dpToPx(dp: Float): Float {
+<span class="nc" id="L18">        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, displayMetrics)</span>
+    }
+
+    fun roundedDpToPx(dp: Float): Int {
+<span class="nc" id="L22">        return dpToPx(dp).roundToInt()</span>
+    }
+
+    private fun pxToDp(px: Float): Float {
+<span class="nc" id="L26">        return px / densityScalar</span>
+    }
+
+    fun roundedPxToDp(px: Float): Int {
+<span class="nc" id="L30">        return pxToDp(px).roundToInt()</span>
+    }
+
+    val densityScalar: Float
+<span class="nc" id="L34">        get() = displayMetrics.density</span>
+
+    fun getFloat(@DimenRes id: Int): Float {
+<span class="nc" id="L37">        return getValue(id).float</span>
+    }
+
+    fun getDimension(@DimenRes id: Int): Float {
+<span class="nc" id="L41">        return TypedValue.complexToFloat(getValue(id).data)</span>
+    }
+
+    fun getFontSizeFromSp(fontSp: Float): Float {
+<span class="nc" id="L45">        return TypedValueCompat.deriveDimension(TypedValue.COMPLEX_UNIT_SP, fontSp, displayMetrics)</span>
+    }
+
+    val displayWidthPx: Int
+<span class="nc" id="L49">        get() = displayMetrics.widthPixels</span>
+
+    val displayHeightPx: Int
+<span class="nc" id="L52">        get() = displayMetrics.heightPixels</span>
+
+    fun getContentTopOffsetPx(context: Context): Int {
+<span class="nc" id="L55">        return roundedDpToPx(getContentTopOffset(context))</span>
+    }
+
+    private fun getContentTopOffset(context: Context): Float {
+<span class="nc" id="L59">        return getToolbarHeight(context)</span>
+    }
+
+    private fun getValue(@DimenRes id: Int): TypedValue {
+<span class="nc" id="L63">        val typedValue = TypedValue()</span>
+<span class="nc" id="L64">        resources.getValue(id, typedValue, true)</span>
+<span class="nc" id="L65">        return typedValue</span>
+    }
+
+    private val displayMetrics: DisplayMetrics
+<span class="nc" id="L69">        get() = resources.displayMetrics</span>
+    private val resources: Resources
+<span class="nc" id="L71">        get() = WikipediaApp.instance.resources</span>
+
+    fun htmlPxToInt(str: String): Int {
+<span class="nc" id="L74">        try {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            return if (str.contains(&quot;px&quot;)) {</span>
+<span class="nc" id="L76">                str.replace(&quot;px&quot;, &quot;&quot;).toInt()</span>
+            } else {
+<span class="nc" id="L78">                str.toInt()</span>
+            }
+<span class="nc" id="L80">        } catch (e: Exception) {</span>
+<span class="nc" id="L81">            L.e(e)</span>
+        }
+<span class="nc" id="L83">        return 0</span>
+    }
+
+    fun getNavigationBarHeight(context: Context): Float {
+<span class="nc" id="L87">        val id = getNavigationBarId(context)</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        return if (id &gt; 0) getDimension(id) else 0f</span>
+    }
+
+    private fun getToolbarHeight(context: Context): Float {
+<span class="nc" id="L92">        return roundedPxToDp(getToolbarHeightPx(context).toFloat()).toFloat()</span>
+    }
+
+    fun getToolbarHeightPx(context: Context): Int {
+<span class="nc" id="L96">        val attrs = intArrayOf(androidx.appcompat.R.attr.actionBarSize)</span>
+<span class="nc" id="L97">        return context.theme.obtainStyledAttributes(attrs).use {</span>
+<span class="nc" id="L98">            it.getDimensionPixelSize(0, 0)</span>
+        }
+    }
+
+    @DimenRes
+    private fun getNavigationBarId(context: Context): Int {
+<span class="nc" id="L104">        return context.resources.getIdentifier(&quot;navigation_bar_height&quot;, &quot;dimen&quot;, &quot;android&quot;)</span>
+    }
+
+    fun isLandscape(context: Context): Boolean {
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        return context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE</span>
+    }
+
+    fun leadImageHeightForDevice(context: Context): Int {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        return (if (isLandscape(context)) {</span>
+<span class="nc" id="L113">            (displayWidthPx * articleHeaderViewScreenHeightRatio()).toInt()</span>
+        } else {
+<span class="nc" id="L115">            (displayHeightPx * articleHeaderViewScreenHeightRatio()).toInt()</span>
+        })
+    }
+
+    private fun articleHeaderViewScreenHeightRatio(): Float {
+<span class="nc" id="L120">        return getFloat(R.dimen.articleHeaderViewScreenHeightRatio)</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

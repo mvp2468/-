@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuggestedEditsRecentEditsFragment.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">app</a> &gt; <a href="index.source.html" class="el_package">org.wikipedia.suggestededits</a> &gt; <span class="el_source">SuggestedEditsRecentEditsFragment.kt</span></div><h1>SuggestedEditsRecentEditsFragment.kt</h1><pre class="source lang-java linenums">package org.wikipedia.suggestededits
+
+import android.content.Context
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
+import androidx.core.view.MenuItemCompat
+import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
+import androidx.core.widget.ImageViewCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.paging.LoadState
+import androidx.paging.LoadStateAdapter
+import androidx.recyclerview.widget.ConcatAdapter
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
+import org.wikipedia.Constants
+import org.wikipedia.R
+import org.wikipedia.adapter.PagingDataAdapterPatched
+import org.wikipedia.analytics.eventplatform.PatrollerExperienceEvent
+import org.wikipedia.auth.AccountUtil
+import org.wikipedia.databinding.FragmentSuggestedEditsRecentEditsBinding
+import org.wikipedia.databinding.ViewEditHistoryEmptyMessagesBinding
+import org.wikipedia.databinding.ViewEditHistorySearchBarBinding
+import org.wikipedia.dataclient.mwapi.MwQueryResult
+import org.wikipedia.descriptions.DescriptionEditActivity
+import org.wikipedia.history.HistoryEntry
+import org.wikipedia.history.SearchActionModeCallback
+import org.wikipedia.notifications.NotificationActivity
+import org.wikipedia.page.LinkMovementMethodExt
+import org.wikipedia.page.PageTitle
+import org.wikipedia.settings.Prefs
+import org.wikipedia.staticdata.UserAliasData
+import org.wikipedia.talk.UserTalkPopupHelper
+import org.wikipedia.talk.template.TalkTemplatesActivity
+import org.wikipedia.util.FeedbackUtil
+import org.wikipedia.util.ResourceUtil
+import org.wikipedia.util.StringUtil
+import org.wikipedia.views.NotificationButtonView
+import org.wikipedia.views.SearchAndFilterActionProvider
+import org.wikipedia.views.WikiErrorView
+
+<span class="nc" id="L60">class SuggestedEditsRecentEditsFragment : Fragment(), MenuProvider {</span>
+    private var _binding: FragmentSuggestedEditsRecentEditsBinding? = null
+
+    private lateinit var notificationButtonView: NotificationButtonView
+<span class="nc" id="L64">    private val recentEditsListAdapter = RecentEditsListAdapter()</span>
+<span class="nc" id="L65">    private val recentEditsSearchBarAdapter = SearchBarAdapter()</span>
+<span class="nc" id="L66">    private val recentEditsEmptyMessagesAdapter = EmptyMessagesAdapter()</span>
+<span class="nc" id="L67">    private val loadHeader = LoadingItemAdapter { recentEditsListAdapter.retry() }</span>
+<span class="nc" id="L68">    private val loadFooter = LoadingItemAdapter { recentEditsListAdapter.retry() }</span>
+    private var actionMode: ActionMode? = null
+<span class="nc" id="L70">    private val viewModel: SuggestedEditsRecentEditsViewModel by viewModels()</span>
+<span class="nc" id="L71">    private val searchActionModeCallback = SearchCallback()</span>
+<span class="nc" id="L72">    private val binding get() = _binding!!</span>
+
+<span class="nc" id="L74">    private val launchFilterActivity = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (it.resultCode == AppCompatActivity.RESULT_OK) {</span>
+<span class="nc" id="L76">            viewModel.langCode = Prefs.recentEditsWikiCode</span>
+<span class="nc" id="L77">            setupAdapters()</span>
+<span class="nc" id="L78">            viewModel.clearCache()</span>
+<span class="nc" id="L79">            recentEditsListAdapter.refresh()</span>
+<span class="nc" id="L80">            recentEditsSearchBarAdapter.notifyItemChanged(0)</span>
+        }
+<span class="nc" id="L82">    }</span>
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+<span class="nc" id="L85">        super.onCreateView(inflater, container, savedInstanceState)</span>
+<span class="nc" id="L86">        _binding = FragmentSuggestedEditsRecentEditsBinding.inflate(inflater, container, false)</span>
+
+<span class="nc" id="L88">        (requireActivity() as AppCompatActivity).setSupportActionBar(binding.toolbar)</span>
+<span class="nc" id="L89">        (requireActivity() as AppCompatActivity).supportActionBar!!.title = getString(R.string.suggested_edits_edit_patrol)</span>
+
+<span class="nc" id="L91">        return binding.root</span>
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+<span class="nc" id="L95">        super.onViewCreated(view, savedInstanceState)</span>
+
+<span class="nc" id="L97">        notificationButtonView = NotificationButtonView(requireActivity())</span>
+
+<span class="nc" id="L99">        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)</span>
+
+<span class="nc" id="L101">        binding.refreshContainer.setOnRefreshListener {</span>
+<span class="nc" id="L102">            viewModel.clearCache()</span>
+<span class="nc" id="L103">            recentEditsListAdapter.refresh()</span>
+<span class="nc" id="L104">        }</span>
+
+<span class="nc" id="L106">        binding.refreshContainer.setOnRefreshListener {</span>
+<span class="nc" id="L107">            viewModel.clearCache()</span>
+<span class="nc" id="L108">            recentEditsListAdapter.refresh()</span>
+<span class="nc" id="L109">        }</span>
+
+<span class="nc" id="L111">        binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())</span>
+<span class="nc" id="L112">        setupAdapters()</span>
+
+<span class="nc" id="L114">        lifecycleScope.launch {</span>
+<span class="nc" id="L115">            repeatOnLifecycle(Lifecycle.State.CREATED) {</span>
+<span class="nc" id="L116">                launch {</span>
+<span class="nc" id="L117">                    recentEditsListAdapter.loadStateFlow.distinctUntilChangedBy { it.refresh }</span>
+<span class="nc" id="L118">                        .filter { it.refresh is LoadState.NotLoading }</span>
+<span class="nc" id="L119">                        .collectLatest {</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                            if (binding.refreshContainer.isRefreshing) {</span>
+<span class="nc" id="L121">                                binding.refreshContainer.isRefreshing = false</span>
+                            }
+<span class="nc" id="L123">                        }</span>
+<span class="nc" id="L124">                }</span>
+<span class="nc" id="L125">                launch {</span>
+<span class="nc" id="L126">                    recentEditsListAdapter.loadStateFlow.collectLatest {</span>
+<span class="nc" id="L127">                        loadHeader.loadState = it.refresh</span>
+<span class="nc" id="L128">                        loadFooter.loadState = it.append</span>
+<span class="nc bnc" id="L129" title="All 6 branches missed.">                        val showEmpty = (it.append is LoadState.NotLoading &amp;&amp; it.source.refresh is LoadState.NotLoading &amp;&amp; recentEditsListAdapter.itemCount == 0)</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                        if (showEmpty) {</span>
+<span class="nc" id="L131">                            sendPatrollerExperienceEvent(&quot;filter_empty_impression&quot;, &quot;pt_filters&quot;)</span>
+<span class="nc" id="L132">                            (binding.recyclerView.adapter as ConcatAdapter).addAdapter(recentEditsEmptyMessagesAdapter)</span>
+                        } else {
+<span class="nc" id="L134">                            (binding.recyclerView.adapter as ConcatAdapter).removeAdapter(recentEditsEmptyMessagesAdapter)</span>
+                        }
+<span class="nc" id="L136">                    }</span>
+<span class="nc" id="L137">                }</span>
+<span class="nc" id="L138">                launch {</span>
+<span class="nc" id="L139">                    viewModel.recentEditsFlow.collectLatest {</span>
+<span class="nc" id="L140">                        recentEditsListAdapter.submitData(lifecycleScope, it)</span>
+<span class="nc" id="L141">                    }</span>
+<span class="nc" id="L142">                }</span>
+<span class="nc" id="L143">            }</span>
+<span class="nc" id="L144">        }</span>
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        if (viewModel.actionModeActive) {</span>
+<span class="nc" id="L147">            startSearchActionMode()</span>
+        }
+<span class="nc" id="L149">    }</span>
+
+    override fun onDestroyView() {
+<span class="nc" id="L152">        super.onDestroyView()</span>
+<span class="nc" id="L153">        _binding = null</span>
+<span class="nc" id="L154">    }</span>
+
+    override fun onResume() {
+<span class="nc" id="L157">        super.onResume()</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        actionMode?.let {</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            if (SearchActionModeCallback.matches(it)) {</span>
+<span class="nc" id="L160">                searchActionModeCallback.refreshProvider()</span>
+            }
+<span class="nc" id="L162">        }</span>
+<span class="nc" id="L163">    }</span>
+
+    override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
+<span class="nc" id="L166">        inflater.inflate(R.menu.menu_recent_edits, menu)</span>
+<span class="nc" id="L167">    }</span>
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+<span class="nc" id="L170">        return when (menuItem.itemId) {</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            R.id.menu_learn_more -&gt; {</span>
+<span class="nc" id="L172">                sendPatrollerExperienceEvent(&quot;top_menu_learn_click&quot;, &quot;pt_recent_changes&quot;)</span>
+<span class="nc" id="L173">                FeedbackUtil.showAndroidAppEditingFAQ(requireContext())</span>
+<span class="nc" id="L174">                true</span>
+            }
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            R.id.menu_saved_messages -&gt; {</span>
+<span class="nc" id="L177">                sendPatrollerExperienceEvent(&quot;list_saved_init&quot;, &quot;pt_warning_messages&quot;)</span>
+<span class="nc" id="L178">                val pageTitle = PageTitle(UserAliasData.valueFor(viewModel.wikiSite.languageCode), AccountUtil.userName, viewModel.wikiSite)</span>
+<span class="nc" id="L179">                requireActivity().startActivity(TalkTemplatesActivity.newIntent(requireContext(), pageTitle, true))</span>
+<span class="nc" id="L180">                true</span>
+            }
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            R.id.menu_report_feature -&gt; {</span>
+<span class="nc" id="L183">                sendPatrollerExperienceEvent(&quot;top_menu_feedback_click&quot;, &quot;pt_recent_changes&quot;)</span>
+<span class="nc" id="L184">                FeedbackUtil.composeEmail(requireContext(),</span>
+<span class="nc" id="L185">                    subject = getString(R.string.email_report_patroller_tasks_subject),</span>
+<span class="nc" id="L186">                    body = getString(R.string.email_report_patroller_tasks_body))</span>
+<span class="nc" id="L187">                true</span>
+            }
+<span class="nc" id="L189">            else -&gt; false</span>
+        }
+    }
+
+    override fun onPrepareMenu(menu: Menu) {
+<span class="nc" id="L194">        val notificationMenuItem = menu.findItem(R.id.menu_notifications)</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L196">            notificationMenuItem.isVisible = true</span>
+<span class="nc" id="L197">            notificationButtonView.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc" id="L198">            notificationButtonView.setOnClickListener {</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                if (AccountUtil.isLoggedIn) {</span>
+<span class="nc" id="L200">                    startActivity(NotificationActivity.newIntent(requireActivity()))</span>
+                }
+<span class="nc" id="L202">            }</span>
+<span class="nc" id="L203">            notificationButtonView.contentDescription = getString(R.string.notifications_activity_title)</span>
+<span class="nc" id="L204">            notificationMenuItem.actionView = notificationButtonView</span>
+<span class="nc" id="L205">            notificationMenuItem.expandActionView()</span>
+<span class="nc" id="L206">            FeedbackUtil.setButtonTooltip(notificationButtonView)</span>
+        } else {
+<span class="nc" id="L208">            notificationMenuItem.isVisible = false</span>
+        }
+<span class="nc" id="L210">        updateNotificationDot(false)</span>
+<span class="nc" id="L211">    }</span>
+
+    fun updateNotificationDot(animate: Boolean) {
+<span class="nc bnc" id="L214" title="All 4 branches missed.">        if (AccountUtil.isLoggedIn &amp;&amp; Prefs.notificationUnreadCount &gt; 0) {</span>
+<span class="nc" id="L215">            notificationButtonView.setUnreadCount(Prefs.notificationUnreadCount)</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            if (animate) {</span>
+<span class="nc" id="L217">                notificationButtonView.runAnimation()</span>
+            }
+        } else {
+<span class="nc" id="L220">            notificationButtonView.setUnreadCount(0)</span>
+        }
+<span class="nc" id="L222">    }</span>
+
+    private fun setupAdapters() {
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if (actionMode != null) {</span>
+<span class="nc" id="L226">            binding.recyclerView.adapter = recentEditsListAdapter.withLoadStateFooter(loadFooter)</span>
+        } else {
+<span class="nc" id="L228">            binding.recyclerView.adapter =</span>
+<span class="nc" id="L229">                recentEditsListAdapter.withLoadStateHeaderAndFooter(loadHeader, loadFooter).also {</span>
+<span class="nc" id="L230">                    it.addAdapter(0, recentEditsSearchBarAdapter)</span>
+<span class="nc" id="L231">                }</span>
+        }
+<span class="nc" id="L233">    }</span>
+
+    private fun startSearchActionMode() {
+<span class="nc" id="L236">        actionMode = (requireActivity() as AppCompatActivity).startSupportActionMode(searchActionModeCallback)</span>
+<span class="nc" id="L237">    }</span>
+
+    private fun sendPatrollerExperienceEvent(action: String, activeInterface: String) {
+<span class="nc" id="L240">        PatrollerExperienceEvent.logAction(action, activeInterface)</span>
+<span class="nc" id="L241">    }</span>
+
+<span class="nc" id="L243">    private inner class SearchBarAdapter : RecyclerView.Adapter&lt;SearchBarViewHolder&gt;() {</span>
+        override fun onBindViewHolder(holder: SearchBarViewHolder, position: Int) {
+<span class="nc" id="L245">            holder.bindItem()</span>
+<span class="nc" id="L246">        }</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SearchBarViewHolder {
+<span class="nc" id="L249">            return SearchBarViewHolder(ViewEditHistorySearchBarBinding.inflate(layoutInflater, parent, false))</span>
+        }
+
+<span class="nc" id="L252">        override fun getItemCount(): Int { return 1 }</span>
+    }
+
+<span class="nc" id="L255">    private inner class EmptyMessagesAdapter : RecyclerView.Adapter&lt;EmptyMessagesViewHolder&gt;() {</span>
+        override fun onBindViewHolder(holder: EmptyMessagesViewHolder, position: Int) {
+<span class="nc" id="L257">            holder.bindItem()</span>
+<span class="nc" id="L258">        }</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EmptyMessagesViewHolder {
+<span class="nc" id="L261">            return EmptyMessagesViewHolder(ViewEditHistoryEmptyMessagesBinding.inflate(layoutInflater, parent, false))</span>
+        }
+
+<span class="nc" id="L264">        override fun getItemCount(): Int { return 1 }</span>
+    }
+
+<span class="nc" id="L267">    private inner class LoadingItemAdapter(private val retry: () -&gt; Unit) : LoadStateAdapter&lt;LoadingViewHolder&gt;() {</span>
+        override fun onBindViewHolder(holder: LoadingViewHolder, loadState: LoadState) {
+<span class="nc" id="L269">            holder.bindItem(loadState, retry)</span>
+<span class="nc" id="L270">        }</span>
+
+        override fun onCreateViewHolder(parent: ViewGroup, loadState: LoadState): LoadingViewHolder {
+<span class="nc" id="L273">            return LoadingViewHolder(layoutInflater.inflate(R.layout.item_list_progress, parent, false))</span>
+        }
+    }
+
+<span class="nc" id="L277">    private inner class RecentEditsDiffCallback : DiffUtil.ItemCallback&lt;SuggestedEditsRecentEditsViewModel.RecentEditsItemModel&gt;() {</span>
+        override fun areContentsTheSame(oldItem: SuggestedEditsRecentEditsViewModel.RecentEditsItemModel, newItem: SuggestedEditsRecentEditsViewModel.RecentEditsItemModel): Boolean {
+<span class="nc bnc" id="L279" title="All 4 branches missed.">            if (oldItem is SuggestedEditsRecentEditsViewModel.RecentEditsSeparator &amp;&amp; newItem is SuggestedEditsRecentEditsViewModel.RecentEditsSeparator) {</span>
+<span class="nc" id="L280">                return oldItem.date == newItem.date</span>
+<span class="nc bnc" id="L281" title="All 4 branches missed.">            } else if (oldItem is SuggestedEditsRecentEditsViewModel.RecentEditsItem &amp;&amp; newItem is SuggestedEditsRecentEditsViewModel.RecentEditsItem) {</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">                return oldItem.item.curRev == newItem.item.curRev</span>
+            }
+<span class="nc" id="L284">            return false</span>
+        }
+
+        override fun areItemsTheSame(oldItem: SuggestedEditsRecentEditsViewModel.RecentEditsItemModel, newItem: SuggestedEditsRecentEditsViewModel.RecentEditsItemModel): Boolean {
+<span class="nc" id="L288">            return oldItem == newItem</span>
+        }
+    }
+
+<span class="nc" id="L292">    private inner class RecentEditsListAdapter :</span>
+<span class="nc" id="L293">        PagingDataAdapterPatched&lt;SuggestedEditsRecentEditsViewModel.RecentEditsItemModel, RecyclerView.ViewHolder&gt;(RecentEditsDiffCallback()) {</span>
+        override fun getItemViewType(position: Int): Int {
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            return if (getItem(position) is SuggestedEditsRecentEditsViewModel.RecentEditsSeparator) {</span>
+<span class="nc" id="L296">                VIEW_TYPE_SEPARATOR</span>
+            } else {
+<span class="nc" id="L298">                VIEW_TYPE_ITEM</span>
+            }
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+<span class="nc bnc" id="L303" title="All 2 branches missed.">            return if (viewType == VIEW_TYPE_SEPARATOR) {</span>
+<span class="nc" id="L304">                SeparatorViewHolder(layoutInflater.inflate(R.layout.item_edit_history_separator, parent, false))</span>
+            } else {
+<span class="nc" id="L306">                RecentEditsItemHolder(SuggestedEditsRecentEditsItemView(requireContext()))</span>
+            }
+        }
+
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+<span class="nc" id="L311">            val item = getItem(position)</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">            if (holder is SeparatorViewHolder) {</span>
+<span class="nc" id="L313">                holder.bindItem((item as SuggestedEditsRecentEditsViewModel.RecentEditsSeparator).date)</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">            } else if (holder is RecentEditsItemHolder) {</span>
+<span class="nc" id="L315">                holder.bindItem((item as SuggestedEditsRecentEditsViewModel.RecentEditsItem).item)</span>
+            }
+<span class="nc" id="L317">        }</span>
+    }
+
+<span class="nc" id="L320">    private inner class LoadingViewHolder constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {</span>
+        fun bindItem(loadState: LoadState, retry: () -&gt; Unit) {
+<span class="nc" id="L322">            val errorView = itemView.findViewById&lt;WikiErrorView&gt;(R.id.errorView)</span>
+<span class="nc" id="L323">            val progressBar = itemView.findViewById&lt;View&gt;(R.id.progressBar)</span>
+<span class="nc" id="L324">            progressBar.isVisible = loadState is LoadState.Loading</span>
+<span class="nc" id="L325">            errorView.isVisible = loadState is LoadState.Error</span>
+<span class="nc" id="L326">            errorView.retryClickListener = View.OnClickListener { retry() }</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">            if (loadState is LoadState.Error) {</span>
+<span class="nc" id="L328">                errorView.setError(loadState.error)</span>
+            }
+<span class="nc" id="L330">        }</span>
+    }
+
+<span class="nc" id="L333">    private inner class SeparatorViewHolder constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {</span>
+        fun bindItem(listItem: String) {
+<span class="nc" id="L335">            val dateText = itemView.findViewById&lt;TextView&gt;(R.id.date_text)</span>
+<span class="nc" id="L336">            dateText.text = listItem</span>
+<span class="nc" id="L337">        }</span>
+    }
+
+<span class="nc" id="L340">    private inner class SearchBarViewHolder constructor(val binding: ViewEditHistorySearchBarBinding) : RecyclerView.ViewHolder(binding.root) {</span>
+
+<span class="nc" id="L342">        init {</span>
+<span class="nc" id="L343">            binding.root.isVisible = false</span>
+<span class="nc" id="L344">            updateFilterCount()</span>
+<span class="nc" id="L345">        }</span>
+
+        fun bindItem() {
+<span class="nc" id="L348">            binding.root.setCardBackgroundColor(</span>
+<span class="nc" id="L349">                ResourceUtil.getThemedColor(requireContext(), R.attr.background_color)</span>
+            )
+
+<span class="nc" id="L352">            itemView.setOnClickListener {</span>
+<span class="nc" id="L353">                sendPatrollerExperienceEvent(&quot;search_click&quot;, &quot;pt_recent_changes&quot;)</span>
+<span class="nc" id="L354">                startSearchActionMode()</span>
+<span class="nc" id="L355">            }</span>
+
+<span class="nc" id="L357">            binding.filterByButton.setOnClickListener {</span>
+<span class="nc" id="L358">                sendPatrollerExperienceEvent(&quot;filters_init&quot;, &quot;pt_recent_changes&quot;)</span>
+<span class="nc" id="L359">                launchFilterActivity.launch(SuggestedEditsRecentEditsFilterActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L360">            }</span>
+
+<span class="nc" id="L362">            FeedbackUtil.setButtonTooltip(binding.filterByButton)</span>
+<span class="nc" id="L363">            binding.root.isVisible = true</span>
+<span class="nc" id="L364">        }</span>
+
+        private fun updateFilterCount() {
+<span class="nc bnc" id="L367" title="All 2 branches missed.">            val showFilterCount = SuggestedEditsRecentEditsViewModel.filtersCount() != 0</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">            val filterButtonColor = if (showFilterCount) R.attr.progressive_color else R.attr.primary_color</span>
+<span class="nc" id="L369">            binding.filterCount.isVisible = showFilterCount</span>
+<span class="nc" id="L370">            binding.filterCount.text = SuggestedEditsRecentEditsViewModel.filtersCount().toString()</span>
+<span class="nc" id="L371">            ImageViewCompat.setImageTintList(binding.filterByButton,</span>
+<span class="nc" id="L372">                ResourceUtil.getThemedColorStateList(requireContext(), filterButtonColor))</span>
+<span class="nc" id="L373">        }</span>
+    }
+
+<span class="nc" id="L376">    private inner class EmptyMessagesViewHolder constructor(val binding: ViewEditHistoryEmptyMessagesBinding) : RecyclerView.ViewHolder(binding.root) {</span>
+<span class="nc" id="L377">        init {</span>
+<span class="nc" id="L378">            binding.emptySearchMessage.movementMethod = LinkMovementMethodExt { _ -&gt;</span>
+<span class="nc" id="L379">                sendPatrollerExperienceEvent(&quot;modify_filters_click&quot;, &quot;pt_filters&quot;)</span>
+<span class="nc" id="L380">                launchFilterActivity.launch(SuggestedEditsRecentEditsFilterActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L381">            }</span>
+<span class="nc" id="L382">        }</span>
+
+        fun bindItem() {
+<span class="nc bnc" id="L385" title="All 2 branches missed.">            binding.searchEmptyContainer.isVisible = SuggestedEditsRecentEditsViewModel.filtersCount() &gt; 0</span>
+<span class="nc" id="L386">            val filtersStr = resources.getQuantityString(R.plurals.patroller_tasks_filters_number_of_filters,</span>
+<span class="nc" id="L387">                SuggestedEditsRecentEditsViewModel.filtersCount(), SuggestedEditsRecentEditsViewModel.filtersCount())</span>
+<span class="nc" id="L388">            binding.emptySearchMessage.text = StringUtil.fromHtml(getString(R.string.patroller_tasks_filters_empty_search_message, &quot;&lt;a href=\&quot;#\&quot;&gt;$filtersStr&lt;/a&gt;&quot;))</span>
+<span class="nc" id="L389">        }</span>
+    }
+
+<span class="nc" id="L392">    private inner class RecentEditsItemHolder constructor(private val view: SuggestedEditsRecentEditsItemView) : RecyclerView.ViewHolder(view), SuggestedEditsRecentEditsItemView.Callback {</span>
+        private lateinit var recentChange: MwQueryResult.RecentChange
+
+        fun bindItem(recentChange: MwQueryResult.RecentChange) {
+<span class="nc" id="L396">            this.recentChange = recentChange</span>
+<span class="nc" id="L397">            view.setItem(recentChange, viewModel.currentQuery)</span>
+<span class="nc" id="L398">            view.callback = this</span>
+<span class="nc" id="L399">        }</span>
+
+        override fun onItemClick(item: MwQueryResult.RecentChange) {
+<span class="nc" id="L402">            sendPatrollerExperienceEvent(&quot;edit_item_click&quot;, &quot;pt_recent_changes&quot;)</span>
+<span class="nc" id="L403">            viewModel.populateEditingSuggestionsProvider(item)</span>
+<span class="nc" id="L404">            startActivity(SuggestionsActivity.newIntent(requireActivity(), DescriptionEditActivity.Action.VANDALISM_PATROL))</span>
+<span class="nc" id="L405">        }</span>
+
+        override fun onUserClick(item: MwQueryResult.RecentChange, view: View) {
+<span class="nc" id="L408">            sendPatrollerExperienceEvent(&quot;editor_menu_click&quot;, &quot;pt_recent_changes&quot;)</span>
+<span class="nc" id="L409">            UserTalkPopupHelper.show(requireActivity() as AppCompatActivity,</span>
+<span class="nc" id="L410">                PageTitle(UserAliasData.valueFor(viewModel.wikiSite.languageCode), item.user, viewModel.wikiSite),</span>
+<span class="nc" id="L411">                item.anon, view, Constants.InvokeSource.SUGGESTED_EDITS_RECENT_EDITS, HistoryEntry.SOURCE_SUGGESTED_EDITS_RECENT_EDITS,</span>
+<span class="nc" id="L412">                revisionId = item.curRev, pageId = item.pageid, showUserInfo = true)</span>
+<span class="nc" id="L413">        }</span>
+    }
+
+<span class="nc" id="L416">    private inner class SearchCallback : SearchActionModeCallback() {</span>
+
+<span class="nc" id="L418">        var searchAndFilterActionProvider: SearchAndFilterActionProvider? = null</span>
+
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+<span class="nc" id="L421">            searchAndFilterActionProvider = SearchAndFilterActionProvider(requireContext(), getSearchHintString(),</span>
+<span class="nc" id="L422">                object : SearchAndFilterActionProvider.Callback {</span>
+                    override fun onQueryTextChange(s: String) {
+<span class="nc" id="L424">                        onQueryChange(s)</span>
+<span class="nc" id="L425">                    }</span>
+
+                    override fun onFilterIconClick() {
+<span class="nc" id="L428">                        launchFilterActivity.launch(SuggestedEditsRecentEditsFilterActivity.newIntent(requireContext()))</span>
+<span class="nc" id="L429">                    }</span>
+
+                    override fun getExcludedFilterCount(): Int {
+<span class="nc" id="L432">                        return SuggestedEditsRecentEditsViewModel.filtersCount()</span>
+                    }
+
+                    override fun getFilterIconContentDescription(): Int {
+<span class="nc" id="L436">                        return R.string.page_edit_history_filter_by</span>
+                    }
+                })
+
+<span class="nc" id="L440">            val menuItem = menu.add(getSearchHintString())</span>
+
+<span class="nc" id="L442">            MenuItemCompat.setActionProvider(menuItem, searchAndFilterActionProvider)</span>
+
+<span class="nc" id="L444">            actionMode = mode</span>
+<span class="nc bnc" id="L445" title="All 2 branches missed.">            searchAndFilterActionProvider?.setQueryText(viewModel.currentQuery)</span>
+<span class="nc" id="L446">            setupAdapters()</span>
+<span class="nc" id="L447">            viewModel.actionModeActive = true</span>
+<span class="nc" id="L448">            return super.onCreateActionMode(mode, menu)</span>
+        }
+
+        override fun onQueryChange(s: String) {
+<span class="nc" id="L452">            viewModel.currentQuery = s</span>
+<span class="nc" id="L453">            setupAdapters()</span>
+<span class="nc" id="L454">            recentEditsListAdapter.refresh()</span>
+<span class="nc" id="L455">        }</span>
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+<span class="nc" id="L458">            super.onDestroyActionMode(mode)</span>
+<span class="nc" id="L459">            actionMode = null</span>
+<span class="nc" id="L460">            viewModel.currentQuery = &quot;&quot;</span>
+<span class="nc" id="L461">            recentEditsListAdapter.refresh()</span>
+<span class="nc" id="L462">            viewModel.actionModeActive = false</span>
+<span class="nc" id="L463">            setupAdapters()</span>
+<span class="nc" id="L464">        }</span>
+
+        override fun getSearchHintString(): String {
+<span class="nc" id="L467">            return getString(R.string.patroller_tasks_edits_list_search_hint)</span>
+        }
+
+        override fun getParentContext(): Context {
+<span class="nc" id="L471">            return requireContext()</span>
+        }
+
+        fun refreshProvider() {
+<span class="nc bnc" id="L475" title="All 2 branches missed.">            searchAndFilterActionProvider?.updateFilterIconAndText()</span>
+<span class="nc" id="L476">        }</span>
+    }
+
+    companion object {
+        private const val VIEW_TYPE_SEPARATOR = 0
+        private const val VIEW_TYPE_ITEM = 1
+
+        fun newInstance(): SuggestedEditsRecentEditsFragment {
+<span class="nc" id="L484">            return SuggestedEditsRecentEditsFragment()</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
